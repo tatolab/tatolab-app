@@ -1,13 +1,10 @@
-// Studio's end of a view's MessagePort, the one way any panel reaches Studio. Each message is parsed
-// against the view contract's schemas; every view runs with full access.
+// Studio's end of a view's MessagePort, the one way any panel reaches Studio. Each message is decoded
+// with the view contract's Schemas, its payload left for the ask it rides; every view runs with full
+// access.
 
 import {
   FAMILIES_A_PANEL_WRITES,
-  jsonValueSchema,
-  messageFromTheViewSchema,
   portFamilyWords,
-  readViewSettings,
-  viewSettingsForAnArea,
   type MessageFromStudio,
   type TatolabViewManifest,
   type ViewAsk,
@@ -17,6 +14,8 @@ import {
   type ViewWatchedSubject,
 } from "@tatolab/tato-app-view-sdk";
 import { setNodeInputValueAction } from "@tatolab/tato-app-view-sdk/pin_model/input_value_actions";
+import { jsonValueSchema, messageFromTheViewSchema, readViewSettings, viewSettingsForAnArea } from "@tatolab/tato-app-view-sdk/studio_host";
+import { Result, Schema } from "effect";
 import type {
   JsonValue,
   PortViewerConnection,
@@ -62,6 +61,9 @@ interface InputWatch {
   portViewerConnection: PortViewerConnection | null;
 }
 
+const decodeMessageFromTheView = Schema.decodeUnknownResult(messageFromTheViewSchema);
+const decodeJsonValue = Schema.decodeUnknownResult(jsonValueSchema);
+
 /** Serves one view of `viewTypeId`, declared by `manifest`, over `port`: reading through `hostServices`, its area through `areaServices`, a `node` view's inputs through `inputWiring` and its outputs onto `viewNode`; Image frames reach its inputs and port viewers as the transferred `VideoFrame`, with no copy. */
 export class TatolabViewBridge {
   private readonly stopWatchingByWatchId = new Map<number, StopWatching>();
@@ -74,9 +76,9 @@ export class TatolabViewBridge {
     const sentPayload: unknown = typeof event.data === "object" && event.data !== null && "payload" in event.data ? event.data.payload : null;
     if (isAPictureToClose(sentPayload)) sentPayload.close();
     if (this.isClosed) return;
-    const parsed = messageFromTheViewSchema.safeParse(event.data);
-    if (!parsed.success) return;
-    const message = parsed.data;
+    const decoded = decodeMessageFromTheView(event.data);
+    if (Result.isFailure(decoded)) return;
+    const message = decoded.success;
     if (message.kind === "watch") this.startWatching(message.watch_id, message.subject);
     else if (message.kind === "stop_watching") this.stopWatching(message.watch_id);
     else void this.answerTheAsk(message.ask, sentPayload).then((answer) => this.send({ kind: "answered", ask_id: message.ask_id, answer }));
@@ -152,11 +154,11 @@ export class TatolabViewBridge {
     }
     if (this.viewNode === null) return { kind: "refused", because: `${title} shows in an area and has no node, so what it sends on ${output.name} reaches no stream.` };
     if (isAPictureToClose(sentPayload)) return { kind: "refused", because: `${title} writes JSON on its ${familyWords} output ${output.name}, not a picture.` };
-    const value = jsonValueSchema.safeParse(sentPayload);
-    if (!value.success) return { kind: "refused", because: `${output.name} takes JSON, and what the view sent is not.` };
+    const value = decodeJsonValue(sentPayload);
+    if (Result.isFailure(value)) return { kind: "refused", because: `${output.name} takes JSON, and what the view sent is not.` };
     if (this.viewNode.kind === "not_addressed") return { kind: "refused", because: this.viewNode.because };
     const input: InputAddress = { graph: this.viewNode.graph, node_id: this.viewNode.node_id, input: output.name };
-    const applying = await this.hostServices.transactInTheProject(input.graph.project_folder, [setNodeInputValueAction(input, value.data)], "live", null);
+    const applying = await this.hostServices.transactInTheProject(input.graph.project_folder, [setNodeInputValueAction(input, value.success)], "live", null);
     switch (applying.kind) {
       case "applied":
         return { kind: "done" };

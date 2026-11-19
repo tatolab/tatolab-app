@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { readTatolabViewManifest } from "./tatolab_view_manifest.js";
+import { readTatolabViewManifest } from "./studio_host/tatolab_view_manifest_reading.js";
 
 /** One manifest of `tatolab_view_contract_examples.json` and how view contract 1.0 judges it; the runtime's reader is held to the same file. */
 type TatolabViewContractExample = {

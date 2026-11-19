@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readTatolabViewManifest } from "./tatolab_view_manifest.js";
+import { readTatolabViewManifest } from "./tatolab_view_manifest_reading.js";
 
 const STAGE_RIG_MANIFEST = {
   contract: "1.0",

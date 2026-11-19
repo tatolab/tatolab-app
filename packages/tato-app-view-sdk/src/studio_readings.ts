@@ -1,16 +1,22 @@
 // Everything a view reads from Tato Studio, as plain types: Studio's own build writes what crosses a
-// view's MessagePort to it, so a view takes it as typed and parses none of it. The few Zod schemas
-// left here decode what someone else wrote: what a view asks, a layout pin an earlier run kept, a
-// node's `kind` as the runtime spells it, and a node's `studio` fields a view edits.
+// view's MessagePort to it, so a view takes it as typed and parses none of it. What someone else
+// wrote is decoded on the Studio's side, by the Schemas of `./studio_host`, each held to a type here.
+// A graph action and a graph edit mode are the control contract's own types.
 
-import { z } from "zod";
+import type { GraphEditMode, StreamGraphAction, StreamGraphActionLinkEnd } from "@tatolab/runtime-client/contract";
 import type { DeclaredPinType, NodeInputMode, PinFlow, PinType } from "./pin_type_readings.js";
 import type { PortFamily } from "./port_families.js";
 
 /** A value as JSON carries it. */
-export const jsonValueSchema = z.json();
-/** A value as JSON carries it. */
-export type JsonValue = z.infer<typeof jsonValueSchema>;
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+/** Whether `value` is a value as JSON carries it: `null`, true or false, a finite number, text, or an array or object of them. */
+export function isAJsonValue(value: unknown): value is JsonValue {
+  if (value === null || typeof value === "boolean" || typeof value === "string") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isAJsonValue);
+  return typeof value === "object" && Object.values(value).every(isAJsonValue);
+}
 
 /** Where a stream lives: its project directory as of its last load, symlinks resolved, and the two UUIDs that identify it, its project's and its stream asset's. */
 export type StreamLocation = {
@@ -98,22 +104,18 @@ export type StreamGraphDeclaredPort = {
 };
 
 /** A point or a size on the canvas, `[x, y]` or `[width, height]`. */
-export const studioCanvasPairSchema = z.tuple([z.number(), z.number()]);
-/** A point or a size on the canvas. */
-export type StudioCanvasPair = z.infer<typeof studioCanvasPairSchema>;
+export type StudioCanvasPair = [number, number];
 
 /** A node's fixed `studio` fields, each `null` while the graph document holds none, and `metadata` what a client keeps beside them; written back whole, an unset field stays unset. */
-export const streamGraphNodeStudioFieldsSchema = z.object({
-  position: studioCanvasPairSchema.nullable(),
+export type StreamGraphNodeStudioFields = {
+  position: StudioCanvasPair | null;
   /** The labelled group it belongs to, by the group's UUID. */
-  group: z.string().nullable(),
-  comment: z.string().nullable(),
-  colour: z.string().nullable(),
-  collapsed: z.boolean().nullable(),
-  metadata: z.record(z.string(), jsonValueSchema),
-});
-/** A node's fixed `studio` fields. */
-export type StreamGraphNodeStudioFields = z.infer<typeof streamGraphNodeStudioFieldsSchema>;
+  group: string | null;
+  comment: string | null;
+  colour: string | null;
+  collapsed: boolean | null;
+  metadata: { [key: string]: JsonValue };
+};
 
 /** The `studio` fields of a node whose graph document sets none. */
 export const NODE_STUDIO_FIELDS_NONE_SET: Readonly<StreamGraphNodeStudioFields> = Object.freeze({ position: null, group: null, comment: null, colour: null, collapsed: null, metadata: Object.freeze({}) });
@@ -145,9 +147,14 @@ export type StreamGraphInterfacePort = {
 };
 
 /** How a node's code runs, as the runtime spells its `kind`: a shader on the GPU, a function evaluated where its reader reads, a class in a process of its own, or a graph generator's stored output. */
-export const streamGraphNodeKindSchema = z.enum(["shader", "function", "process", "fragment"]);
+export const STREAM_GRAPH_NODE_KINDS = ["shader", "function", "process", "fragment"] as const;
 /** How a node's code runs. */
-export type StreamGraphNodeKind = z.infer<typeof streamGraphNodeKindSchema>;
+export type StreamGraphNodeKind = (typeof STREAM_GRAPH_NODE_KINDS)[number];
+
+/** Whether `kindOnTheWire` is a node kind this app knows. */
+export function isAStreamGraphNodeKind(kindOnTheWire: unknown): kindOnTheWire is StreamGraphNodeKind {
+  return STREAM_GRAPH_NODE_KINDS.some((kind) => kind === kindOnTheWire);
+}
 
 /** One node of a stream's graph, by the name a link end and a port address name it by. */
 export type StreamGraphNode = {
@@ -455,9 +462,7 @@ export type ProjectLogRecord = {
 };
 
 /** The output port of a running node a port viewer reads: the stream's id, the node's id as `graph` lists it, and the port's name. */
-export const portViewerTargetSchema = z.object({ stream: z.string(), node_id: z.string(), port: z.string() });
-/** The output port of a running node a port viewer reads. */
-export type PortViewerTarget = z.infer<typeof portViewerTargetSchema>;
+export type PortViewerTarget = { stream: string; node_id: string; port: string };
 
 /** One channel of a Channels block: the lowest and highest sample of each of its columns, its peak and its RMS. */
 export type PortViewerChannelWaveform = {
@@ -496,22 +501,17 @@ export type PortViewerMessageReading =
   | { family: "unreadable"; port_family: string; because: string };
 
 /** What Studio has selected, which every view shows and any view may change. */
-export const studioSelectionSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("nothing") }),
-  z.object({ kind: z.literal("project"), project_name: z.string(), project_folder: z.string().nullable() }),
-  z.object({ kind: z.literal("stream"), stream: z.string(), project_folder: z.string() }),
+export type StudioSelection =
+  | { kind: "nothing" }
+  | { kind: "project"; project_name: string; project_folder: string | null }
+  | { kind: "stream"; stream: string; project_folder: string }
   /** One node of a stream, by name, at `level`: the path of subgraph node UUIDs from the stream's own level inward, its own level when absent. */
-  z.object({ kind: z.literal("node"), stream: z.string(), node: z.string(), level: z.array(z.string()).optional() }),
+  | { kind: "node"; stream: string; node: string; level?: string[] | undefined }
   /** Two or more nodes of one level of a stream selected together, by name, the one picked last at the end. */
-  z.object({ kind: z.literal("nodes"), stream: z.string(), nodes: z.array(z.string()).min(2), level: z.array(z.string()).optional() }),
-]);
-/** What Studio has selected. */
-export type StudioSelection = z.infer<typeof studioSelectionSchema>;
+  | { kind: "nodes"; stream: string; nodes: string[]; level?: string[] | undefined };
 
 /** A stream a tab is open on: its id, and the project and words its tab is labelled with. */
-export const streamTabAddressSchema = z.object({ stream: z.string(), project_name: z.string(), display_name: z.string() });
-/** A stream a tab is open on. */
-export type StreamTabAddress = z.infer<typeof streamTabAddressSchema>;
+export type StreamTabAddress = { stream: string; project_name: string; display_name: string };
 
 /** The streams the runtime lists; why none are listed while the runtime is not running; or why listing them failed while it runs, in the failure's own words. */
 export type ListedStreamsReading = { kind: "listed"; streams: ListedStream[] } | { kind: "not_listed"; because: string } | { kind: "listing_failed"; because: string };
@@ -658,106 +658,10 @@ export type ProjectTransactionsReading = { kind: "read"; project_transactions: P
 export const TATO_STUDIO_MCP_CLIENT_NAME = "tatolab-app";
 
 /** Whose change an undo or a redo reverses: a person or an agent, by the name history shows. */
-export const projectTransactionAuthorSchema = z.object({ kind: z.enum(["person", "agent"]), name: z.string() });
-/** Whose change an undo or a redo reverses. */
-export type ProjectTransactionAuthor = z.infer<typeof projectTransactionAuthorSchema>;
+export type ProjectTransactionAuthor = { kind: "person" | "agent"; name: string };
 
-/** One end of a link a graph action names: a node by its UUID, or by an `as` an earlier `add_node` of the same transaction gave it, and one of its ports. */
-export const streamGraphActionLinkEndSchema = z.strictObject({ node: z.string(), port: z.string() });
-/** One end of a link a graph action names. */
-export type StreamGraphActionLinkEnd = z.infer<typeof streamGraphActionLinkEndSchema>;
-
-const jsonObjectSchema = z.record(z.string(), jsonValueSchema);
-
-/** The subgraph a graph action edits inside: the path of subgraph node UUIDs from the stream's own level inward; the stream's own level when absent. */
-const streamGraphActionLevelSchema = z.array(z.string()).optional();
-
-/**
- * One action on a stream's graph as the runtime's `transact` takes it (`StreamGraphAction` in streamlib's
- * `stream_graph_action.rs`), tagged by `operation`: `stream` is the stream asset's UUID, a node is named by its
- * UUID or an `as` label, and a key the runtime does not take is refused, here as there.
- */
-export const streamGraphActionSchema = z.discriminatedUnion("operation", [
-  z.strictObject({
-    operation: z.literal("add_node"),
-    stream: z.string(),
-    level: streamGraphActionLevelSchema,
-    type: z.string(),
-    name: z.string().optional(),
-    config: jsonObjectSchema.optional(),
-    pins: jsonObjectSchema.optional(),
-    exposed_config_fields: z.array(z.string()).optional(),
-    studio: jsonObjectSchema.optional(),
-    as: z.string().optional(),
-  }),
-  z.strictObject({ operation: z.literal("remove_node"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string() }),
-  z.strictObject({ operation: z.literal("connect"), stream: z.string(), level: streamGraphActionLevelSchema, source: streamGraphActionLinkEndSchema, target: streamGraphActionLinkEndSchema }),
-  z.strictObject({ operation: z.literal("disconnect"), stream: z.string(), level: streamGraphActionLevelSchema, source: streamGraphActionLinkEndSchema, target: streamGraphActionLinkEndSchema }),
-  /** Replaces the node's config whole. */
-  z.strictObject({ operation: z.literal("set_node_config"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), config: jsonObjectSchema }),
-  /** Sets the value an input holds while unlinked, saved or live as the transaction's mode says; an absent or `null` value takes it off, so the input reads its declared default. */
-  z.strictObject({ operation: z.literal("set_node_input_value"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), input: z.string(), value: jsonValueSchema.optional() }),
-  /** An absent or `null` value takes the input's value off. */
-  z.strictObject({ operation: z.literal("set_pin_value"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), input: z.string(), value: jsonValueSchema.optional() }),
-  z.strictObject({ operation: z.literal("rename_node"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), name: z.string() }),
-  /** Replaces the node's studio fields whole. */
-  z.strictObject({ operation: z.literal("set_studio_fields"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), studio: jsonObjectSchema }),
-  z.strictObject({
-    operation: z.literal("import_graph_generator"),
-    stream: z.string(),
-    generator: z.string(),
-    name: z.string().optional(),
-    config: jsonObjectSchema.optional(),
-    as: z.string().optional(),
-  }),
-  z.strictObject({ operation: z.literal("set_exposed_config_fields"), stream: z.string(), level: streamGraphActionLevelSchema, node: z.string(), exposed_config_fields: z.array(z.string()) }),
-  z.strictObject({
-    operation: z.literal("add_group"),
-    stream: z.string(),
-    level: streamGraphActionLevelSchema,
-    title: z.string(),
-    description: z.string().optional(),
-    colour: z.string().optional(),
-    nodes: z.array(z.string()),
-  }),
-  z.strictObject({
-    operation: z.literal("set_group_fields"),
-    stream: z.string(),
-    level: streamGraphActionLevelSchema,
-    group: z.string(),
-    title: z.string().optional(),
-    description: z.string().optional(),
-    colour: z.string().optional(),
-  }),
-  z.strictObject({ operation: z.literal("remove_group"), stream: z.string(), level: streamGraphActionLevelSchema, group: z.string() }),
-  z.strictObject({
-    operation: z.literal("use_dependency_stream"),
-    stream: z.string(),
-    project: z.string(),
-    dependency_stream: z.string(),
-    name: z.string().optional(),
-    as: z.string().optional(),
-  }),
-  z.strictObject({ operation: z.literal("collapse_selection_into_subgraph"), stream: z.string(), level: streamGraphActionLevelSchema, nodes: z.array(z.string()), name: z.string(), as: z.string().optional() }),
-  z.strictObject({ operation: z.literal("unlock_subgraph"), stream: z.string(), level: streamGraphActionLevelSchema, fragment: z.string() }),
-  z.strictObject({ operation: z.literal("add_note"), stream: z.string(), text: z.string(), position: studioCanvasPairSchema, size: studioCanvasPairSchema }),
-  z.strictObject({
-    operation: z.literal("set_note_fields"),
-    stream: z.string(),
-    note: z.string(),
-    text: z.string().optional(),
-    position: studioCanvasPairSchema.optional(),
-    size: studioCanvasPairSchema.optional(),
-  }),
-  z.strictObject({ operation: z.literal("remove_note"), stream: z.string(), note: z.string() }),
-]);
-/** One action on a stream's graph. */
-export type StreamGraphAction = z.infer<typeof streamGraphActionSchema>;
-
-/** Whether a graph transaction is kept: `commit` applies it, writes each graph document and records it in history; `live` applies it to the running streams alone. */
-export const graphEditModeSchema = z.enum(["commit", "live"]);
-/** Whether a graph transaction is kept. */
-export type GraphEditMode = z.infer<typeof graphEditModeSchema>;
+/** One action on a stream's graph as the runtime's `transact` takes it, tagged by `operation`; one end of a link it names; and whether a graph transaction is kept, `commit` or `live`. */
+export type { GraphEditMode, StreamGraphAction, StreamGraphActionLinkEnd };
 
 /** A link end as the runtime answers it: a node by its UUID, and one of its ports. */
 export type GraphLinkEnd = { node: string; port: string };

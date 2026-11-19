@@ -1,6 +1,8 @@
+import { Result, Schema } from "effect";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { connectToTatoAppOverPort, newGestureIdempotencyKey, type TatoAppViewConnection } from "./tato_app_view_connection.js";
-import { messageFromTheViewSchema, type MessageFromStudio, type MessageFromTheView, type PortViewerEvent, type ViewGrant } from "./view_wire_messages.js";
+import { messageFromTheViewSchema } from "./studio_host/view_message_schemas.js";
+import type { MessageFromStudio, MessageFromTheView, PortViewerEvent, ViewGrant } from "./view_wire_messages.js";
 import type { ProjectActionRefusal, ProjectGraphTransaction, ProjectTransaction } from "./studio_readings.js";
 
 const GRANT: ViewGrant = { view_type_id: "notes", contract: "1.0", placement: "area", inputs: [], outputs: [], capabilities: [] };
@@ -19,7 +21,7 @@ async function connectionToAStandInStudio(answer: (message: MessageFromTheView) 
   channelsOpened.push(channel);
   const messagesFromTheView: MessageFromTheView[] = [];
   channel.port1.addEventListener("message", (event: MessageEvent<unknown>) => {
-    const message = messageFromTheViewSchema.parse(event.data);
+    const message = Schema.decodeUnknownSync(messageFromTheViewSchema)(event.data);
     messagesFromTheView.push(message);
     for (const reply of answer(message)) channel.port1.postMessage(reply);
   });
@@ -170,9 +172,9 @@ describe("connectToTatoAppOverPort", () => {
 
   it("never sends a graph action out of the runtime's shape", () => {
     const askWithAKeyTheRuntimeRefuses = { kind: "ask", ask_id: 1, ask: { kind: "transact_in_the_project", project_folder: "/p", operations: [{ operation: "remove_node", stream: "s", node: "n", force: true }], mode: "commit", idempotency_key: null } };
-    expect(messageFromTheViewSchema.safeParse(askWithAKeyTheRuntimeRefuses).success).toBe(false);
+    expect(Result.isFailure(Schema.decodeUnknownResult(messageFromTheViewSchema)(askWithAKeyTheRuntimeRefuses))).toBe(true);
     const askWithNoOperations = { kind: "ask", ask_id: 1, ask: { kind: "transact_in_the_project", project_folder: "/p", operations: [], mode: "commit", idempotency_key: null } };
-    expect(messageFromTheViewSchema.safeParse(askWithNoOperations).success).toBe(false);
+    expect(Result.isFailure(Schema.decodeUnknownResult(messageFromTheViewSchema)(askWithNoOperations))).toBe(true);
   });
 
   it("answers every ask still waiting as refused once the view closes its connection", async () => {

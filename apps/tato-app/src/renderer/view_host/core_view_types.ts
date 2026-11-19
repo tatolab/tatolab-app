@@ -1,7 +1,7 @@
 // The panels Tato Studio ships with itself, read from their own `tatolab_view.json` like any view's and opened in a frame
 // through the one bridge; their built folders are served beside the window under `core_views/`.
 
-import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk/studio_host";
 import type { CoreView } from "@tatolab/tato-app-core-views";
 import type { JsonValue } from "./studio_view_contract";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";

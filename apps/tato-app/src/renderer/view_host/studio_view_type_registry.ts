@@ -1,4 +1,5 @@
-import { readTatolabViewManifest, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import type { TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk/studio_host";
 import type { ReactNode } from "react";
 import type { ListedStudioView, StudioViewOpening } from "../../shared/tatolab_backend_contract";
 import type { StudioAreaHeaderMenuIcon } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
