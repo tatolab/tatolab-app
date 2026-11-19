@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # The Linux rung of /verify-app on a Mac: builds the committed tree at HEAD in an ubuntu:22.04
 # container (npm run build), runs it unpackaged under Xvfb over the stand-in
-# local API that replays src/main/test-fixtures/, and shoots the Streams list over the DevTools
-# protocol into <output directory>. Linux's node_modules lives in a container volume, so the host's
+# local API that replays src/main/test-fixtures/, opens the stand-in's project doorways from the
+# Projects window, and shoots its streams listed in the Outliner, and front_door's graph, over the
+# DevTools protocol into <output directory>. Linux's node_modules lives in a container volume, so the host's
 # never changes.
 # Usage: apps/tato-app/scripts/verify/run-the-window-in-an-ubuntu-container.sh <output directory>
 set -euo pipefail
@@ -31,8 +32,11 @@ docker run --rm \
   mkdir -p -m 0700 $XDG_RUNTIME_DIR/streamlib
   node /work/apps/tato-app/scripts/verify/linux-stand-ins/tatolabd-local-api-stand-in.mjs \
     $XDG_RUNTIME_DIR/streamlib/local-api.sock >/tmp/local-api-stand-in.log 2>&1 &
+  # The stand-in lists the project doorways in /root/streams; the Projects window offers it as a recent project.
+  mkdir -p "$HOME/.config/com.tatolab.tatolab"
+  printf "{\"recent_projects\":[{\"folder\":\"/root/streams/doorways\",\"opened_at_wall_clock_ms\":%s000}]}" "$(date +%s)" >"$HOME/.config/com.tatolab.tatolab/recent-projects.json"
   Xvfb :99 -screen 0 1440x900x24 >/dev/null 2>&1 & export DISPLAY=:99
   dbus-launch --exit-with-session npx electron . --no-sandbox --remote-debugging-port=9333 >/tmp/electron.log 2>&1 &
   sleep 12
-  node /work/apps/tato-app/scripts/verify/shoot-the-streams-list-over-devtools.mjs /verify-output
+  node /work/apps/tato-app/scripts/verify/shoot-the-streams-list-over-devtools.mjs /verify-output doorways front_door
 '
