@@ -17,6 +17,9 @@ import { createRoot, type Root } from "react-dom/client";
 /** How tall the editor is drawn on each surface, in pixels; a node's row is narrow and short. */
 const EDITOR_HEIGHT_ON_EACH_SURFACE: Readonly<Record<NodeUiSurface, number>> = { node: 72, properties: 140, perform: 140 };
 
+/** How wide the editor is drawn on each surface, in pixels, where the surface does not give it the width of its row: on a node, wide enough to read a line beside its numbers. */
+const EDITOR_WIDTH_ON_EACH_SURFACE: Readonly<Record<NodeUiSurface, number | null>> = { node: 220, properties: null, perform: null };
+
 /** A code editor for a String input. */
 export default class StringCode extends HTMLElement implements InputControlElement<"string"> {
   readonly #partElement = document.createElement("div");
@@ -57,6 +60,8 @@ export default class StringCode extends HTMLElement implements InputControlEleme
   set pin({ declaration, surface }: ControlledPin<"string">) {
     this.#documentKey = `/tatolab-input-control/${declaration.input_name}-${crypto.randomUUID()}.txt`;
     this.#partElement.style.height = `${EDITOR_HEIGHT_ON_EACH_SURFACE[surface]}px`;
+    const width = EDITOR_WIDTH_ON_EACH_SURFACE[surface];
+    this.#partElement.style.width = width === null ? "" : `${width}px`;
     this.#partElement.setAttribute("aria-label", declaration.label);
     this.#drawThePart();
   }
@@ -78,6 +83,8 @@ export default class StringCode extends HTMLElement implements InputControlEleme
   }
 
   connectedCallback(): void {
+    // A code editor's lines cannot be read at the width of a node's row, so on a node it takes the width it is drawn at.
+    this.toggleAttribute("data-takes-its-own-width", true);
     if (this.#partElement.parentNode !== this) this.append(this.#partElement);
     this.#partRoot ??= createRoot(this.#partElement);
     this.#drawThePart();

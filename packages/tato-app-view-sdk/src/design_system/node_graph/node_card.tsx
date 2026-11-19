@@ -108,12 +108,12 @@ function NodeGraphInputValueOfTheRow({ pin }: { pin: NodePin }) {
   const isEditable = useContext(NodeGraphEditableContext);
   const controlled = takesAControl(pin);
   if (controlled !== null && controlled.driven_by !== null) {
-    return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={null} className="ml-auto w-24 shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
+    return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={null} className="ml-auto shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
   }
   if (pin.value_address === null) return null;
   const wordsOfTheValue = <NodeGraphInputValueWords address={pin.value_address} pinType={pin.pin?.pin_type ?? null} />;
   if (controlled === null) return wordsOfTheValue;
-  return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={wordsOfTheValue} className="ml-auto w-24 shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
+  return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={wordsOfTheValue} className="ml-auto shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
 }
 
 /** What the mark beside a setting its node reads as it is set up says while the pointer rests on it. */

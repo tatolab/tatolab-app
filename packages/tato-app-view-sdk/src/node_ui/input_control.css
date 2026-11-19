@@ -15,6 +15,18 @@
   display: none;
 }
 
+/* On a node, a control takes the row's end at one width, so the rows of a card line up; a control that cannot be read or
+   used at that width, as a code editor or a row of segments, says so with `data-takes-its-own-width`, and the card grows
+   to hold it, up to its widest. */
+:host([data-surface="node"]) {
+  width: 88px;
+}
+
+:host([data-surface="node"][data-takes-its-own-width]) {
+  width: max-content;
+  max-width: 260px;
+}
+
 .field {
   position: relative;
   display: flex;

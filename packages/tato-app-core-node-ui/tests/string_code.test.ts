@@ -1,4 +1,4 @@
-import type { ControlledPin, InputControlElementClass, InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
+import type { ControlledPin, InputControlElementClass, InputControlState, NodeUiSurface } from "@tatolab/tato-app-view-sdk/node_ui";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import StringCode from "../node_ui/string_code.ts";
 import { eventsFiredBy, NO_STUDIO_CALLS } from "./control_test_support.ts";
@@ -31,9 +31,9 @@ vi.mock("@tatolab/tato-app-view-sdk/design_system/code_text_editor", async () =>
 
 customElements.define("tato-studio-string_code-test", StringCode);
 
-function mountedCode(value: string, state: InputControlState = "editable"): StringCode {
+function mountedCode(value: string, state: InputControlState = "editable", surface: NodeUiSurface = "properties"): StringCode {
   const control = new StringCode();
-  const pin: ControlledPin<"string"> = { declaration: { input_name: "expression", label: "Expression", pin_type: { type: "string" }, annotations: { control: "code" }, may_be_unset: false }, surface: "properties", studio: NO_STUDIO_CALLS };
+  const pin: ControlledPin<"string"> = { declaration: { input_name: "expression", label: "Expression", pin_type: { type: "string" }, annotations: { control: "code" }, may_be_unset: false }, surface, studio: NO_STUDIO_CALLS };
   control.pin = pin;
   control.state = state;
   control.value = value;
@@ -80,7 +80,17 @@ describe("the String code editor", () => {
     expect(drawn.documentKey).toMatch(/^\/tatolab-input-control\/expression-.+\.txt$/);
     const part = control.querySelector<HTMLElement>(".code-control");
     expect(part?.style.height).toBe("140px");
+    expect(part?.style.width).toBe("");
     expect(part?.getAttribute("aria-label")).toBe("Expression");
+  });
+
+  it("on a node, is drawn wide enough to read a line and says it takes its own width, so the card grows to hold it", async () => {
+    const control = mountedCode("weight: 600;", "editable", "node");
+    await editorShowing("weight: 600;");
+    const part = control.querySelector<HTMLElement>(".code-control");
+    expect(part?.style.width).toBe("220px");
+    expect(part?.style.height).toBe("72px");
+    expect(control.hasAttribute("data-takes-its-own-width")).toBe(true);
   });
 
   it("fires each edit as input, and the text left by leaving the editor as one change", async () => {
