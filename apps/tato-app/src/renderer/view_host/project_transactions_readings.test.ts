@@ -8,6 +8,7 @@ const OPEN_PROJECT_FOLDER = "/home/sam/streams/pattern";
 function readingsOverAFakeBackend(openProjectFolder: string | null) {
   const undosAsked: string[] = [];
   const transactionsAsked: unknown[] = [];
+  const checksAsked: unknown[] = [];
   const readings = new ProjectTransactionsReadings(
     {
       readOpenProjectTransactions: () => new Promise<ProjectTransactionsReading>(() => undefined),
@@ -37,11 +38,16 @@ function readingsOverAFakeBackend(openProjectFolder: string | null) {
         if (operations[0]?.operation === "remove_node") return Promise.reject(new Error("No runtime answers."));
         return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: "n", refused_link: null, refused_field: null, refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "no node n" } };
       },
+      checkLinkCandidatesInTheOpenProject: async (request) => {
+        checksAsked.push(request);
+        if (request.among === "node_type_ports") return Promise.reject(new Error("No runtime answers."));
+        return { candidates: [{ end: { kind: "placed_port", node: "n", port: "video" }, check: { outcome: "connects" } }] };
+      },
       readThePersonEditingInStudio: async () => (openProjectFolder === null ? Promise.reject(new Error("No project is open in this window.")) : { kind: "person", name: "sam" }),
     },
     () => openProjectFolder,
   );
-  return { readings, undosAsked, transactionsAsked };
+  return { readings, undosAsked, transactionsAsked, checksAsked };
 }
 
 test("undo and redo reach the backend only for the window's open project, before any feed is read, and a refusal comes back in its own words", async () => {
@@ -69,6 +75,17 @@ test("a graph transaction reaches the backend only for the window's open project
     { operations: [rename], mode: "commit", idempotencyKey: "k1" },
     { operations: [{ operation: "remove_node", stream: "s", node: "n" }], mode: "live", idempotencyKey: null },
   ]);
+});
+
+test("link candidates are checked only for the window's open project, the runtime's answer unchanged and any rejection in its own words", async () => {
+  const { readings, checksAsked } = readingsOverAFakeBackend(OPEN_PROJECT_FOLDER);
+  const amongPlacedPorts = { stream: "s", from: { output: { node: "m", port: "video" } }, among: "placed_ports", include_refused: true } as const;
+  const amongNodeTypePorts = { stream: "s", from: { output: { node: "m", port: "video" } }, among: "node_type_ports" } as const;
+
+  expect(await readings.checkLinkCandidates("/home/sam/streams/imports/lobby-wall", amongPlacedPorts)).toEqual({ kind: "not_checked", because: onlyTheOpenProjectsFeedRefusal("/home/sam/streams/imports/lobby-wall") });
+  expect(await readings.checkLinkCandidates(OPEN_PROJECT_FOLDER, amongPlacedPorts)).toEqual({ kind: "checked", result: { candidates: [{ end: { kind: "placed_port", node: "n", port: "video" }, check: { outcome: "connects" } }] } });
+  expect(await readings.checkLinkCandidates(OPEN_PROJECT_FOLDER, amongNodeTypePorts)).toEqual({ kind: "not_checked", because: "No runtime answers." });
+  expect(checksAsked).toEqual([amongPlacedPorts, amongNodeTypePorts]);
 });
 
 test("the person editing is read from the main process, or why it was not", async () => {

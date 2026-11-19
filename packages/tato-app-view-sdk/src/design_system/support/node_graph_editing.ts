@@ -1,16 +1,8 @@
-// What the node graph canvas decides on its own while a person edits a graph: whether two pins can be
-// wired, the rectangle a labelled frame is drawn around its cards with, which frame a dropped card
-// belongs to, and which link a dropped card lands on.
+// What the node graph canvas decides on its own while a person edits a graph: the rectangle a labelled
+// frame is drawn around its cards with, which frame a dropped card belongs to, and which link a dropped
+// card lands on.
 
 import type { NodeGraphPosition } from "./node_graph_layout";
-
-/** The family a pin carries, or `null` while none is known. */
-export type NodeGraphEditedPinFamily = string | null;
-
-/** Whether an output of `sourceFamily` can be wired to an input of `targetFamily`: the runtime joins ports of one family, and a pin whose family is unknown is left for the runtime to judge. */
-export function canPinsOfTheseFamiliesBeWired(sourceFamily: NodeGraphEditedPinFamily, targetFamily: NodeGraphEditedPinFamily): boolean {
-  return sourceFamily === null || targetFamily === null || sourceFamily === targetFamily;
-}
 
 /** Where a card sits and how big it is drawn. */
 export interface NodeGraphCardRectangle {

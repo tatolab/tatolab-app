@@ -74,6 +74,7 @@ export const viewAskSchema = schemaOfThePublicType<ViewAsk>()(
       mode: contractValue("GraphEditMode"),
       idempotency_key: Schema.NullOr(Schema.String),
     }),
+    Schema.Struct({ kind: Schema.Literal("check_link_candidates"), project_folder: Schema.String, request: contractValue("CheckLinkCandidatesRequest") }),
     Schema.Struct({ kind: Schema.Literal("read_the_person_editing") }),
     Schema.Struct({
       kind: Schema.Literal("import_assets_into_the_project"),

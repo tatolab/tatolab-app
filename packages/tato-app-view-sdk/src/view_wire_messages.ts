@@ -5,6 +5,8 @@
 // an Image frame crosses as the transferred `VideoFrame`, with no copy.
 
 import type {
+  CheckLinkCandidatesRequest,
+  LinkCandidatesCheckResult,
   AssetPreviewPicture,
   GraphEditMode,
   JsonValue,
@@ -144,6 +146,8 @@ export type ViewAsk =
   | { kind: "redo_in_the_project"; project_folder: string; author: ProjectTransactionAuthor }
   /** Apply `operations`, at least one, on the graphs of the project's streams as one transaction through the runtime's `transact`; `idempotency_key` is minted once per gesture, so a retry answers the first transaction. */
   | { kind: "transact_in_the_project"; project_folder: string; operations: StreamGraphAction[]; mode: GraphEditMode; idempotency_key: string | null }
+  /** What the runtime's `check_link_candidates` answers for `request`, on a stream of the project: how a link from its placed pin to each candidate would connect, or why it would not. */
+  | { kind: "check_link_candidates"; project_folder: string; request: CheckLinkCandidatesRequest }
   /** The person editing in Studio, the author history records their edits under and their own undo takes. */
   | { kind: "read_the_person_editing" }
   /** Ask the person for files in the desktop's open dialog, offering the files of `media` (`null` for any, and when left out), and import each into the project through the runtime's `import_asset`, which places it in its kind's folder. */
@@ -213,6 +217,8 @@ export type ViewAskAnswer =
   | { kind: "project_graph_transaction_applied"; transaction: ProjectGraphTransaction }
   /** The runtime refused the action, structured; a refusal before it reached the runtime is `refused`. */
   | { kind: "project_action_refused"; refusal: ProjectActionRefusal }
+  /** What the runtime's `check_link_candidates` answered, the contract's own answer. */
+  | { kind: "link_candidates_checked"; result: LinkCandidatesCheckResult }
   | { kind: "the_person_editing"; author: ProjectTransactionAuthor }
   | { kind: "project_assets_imported"; assets_imported: ProjectAssetsImported }
   | { kind: "asset_preview_read"; picture: AssetPreviewPicture }

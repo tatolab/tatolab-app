@@ -227,6 +227,7 @@ export function studioViewHostServicesOf(
     undoInTheProject: projectServices.projectTransactionsReadings.undoInTheProject,
     redoInTheProject: projectServices.projectTransactionsReadings.redoInTheProject,
     transactInTheProject: projectServices.projectTransactionsReadings.transactInTheProject,
+    checkLinkCandidates: projectServices.projectTransactionsReadings.checkLinkCandidates,
     readThePersonEditing: projectServices.projectTransactionsReadings.readThePersonEditing,
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
     watchPortViewer: projectServices.portViewerConnections.watchPortViewer,

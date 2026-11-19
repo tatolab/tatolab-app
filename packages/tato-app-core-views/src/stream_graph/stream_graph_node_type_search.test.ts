@@ -64,18 +64,9 @@ test("each_node_type_is_offered_titled_in_words_under_the_category_the_runtime_s
   ]);
 });
 
-test("a_loose_wire_offers_only_the_node_types_with_a_port_of_its_family_on_the_other_side", () => {
-  expect(nodeTypeSearchItems(offered(BLUR, METER), { side: "output", family: "image" }).map((item) => item.item_id)).toEqual(["nodes.blur:GaussianBlur"]);
-  expect(nodeTypeSearchItems(offered(BLUR, METER), { side: "input", family: "image" }).map((item) => item.item_id)).toEqual(["nodes.blur:GaussianBlur"]);
-  expect(nodeTypeSearchItems(offered(BLUR, METER), { side: "input", family: "array" })).toEqual([]);
-  expect(nodeTypeSearchItems([offeredFrom(BUILT_IN, BLUR, null, false)], { side: "output", family: "image" })).toEqual([]);
-});
-
-test("a_loose_wire_offers_no_node_type_for_a_setting_it_lists_among_its_inputs", () => {
-  expect(nodeTypeSearchItems(offered(BLUR_LISTING_ITS_SETTINGS, TONE_OF_SETTINGS_ONLY), { side: "output", family: "image" }).map((item) => item.item_id)).toEqual(["nodes.blur:GaussianBlur"]);
-  expect(nodeTypeSearchItems(offered(BLUR_LISTING_ITS_SETTINGS, TONE_OF_SETTINGS_ONLY), { side: "output", family: "array" })).toEqual([]);
-  expect(nodeTypeSearchItems(offered(TONE_OF_SETTINGS_ONLY), { side: "output", family: null })).toEqual([]);
-  expect(nodeTypeSearchItems(offered(TONE_OF_SETTINGS_ONLY), { side: "input", family: "array" }).map((item) => item.item_id)).toEqual(["nodes.tone:Tone"]);
+test("a_loose_wire_the_runtime_answered_for_offers_only_the_node_types_it_named", () => {
+  expect(nodeTypeSearchItems(offered(BLUR, METER), new Map([["nodes.blur:GaussianBlur", "video_in"]])).map((item) => item.item_id)).toEqual(["nodes.blur:GaussianBlur"]);
+  expect(nodeTypeSearchItems(offered(BLUR, METER), new Map())).toEqual([]);
 });
 
 test("a_previewed_card_draws_no_setting_as_an_input_pin", () => {
@@ -93,12 +84,12 @@ test("a_node_type_is_named_for_the_open_project_its_import_or_its_distribution_a
   expect(originOf(THE_PROJECT, null)).toBeNull();
 });
 
-test("a_loose_wire_narrows_the_search_to_what_takes_or_gives_its_family_and_says_placing_one_links_it", () => {
-  expect(nodeTypeSearchNarrowing({ node_id: "camera", pin: "video", side: "output", family: "image" })).toEqual({
-    heading: "Takes Image",
-    footnote: "Placing one adds it and links video to its first Image input, in one edit. One undo takes both back.",
+test("a_loose_wire_narrows_the_search_to_what_takes_or_feeds_its_pin_and_says_placing_one_links_it", () => {
+  expect(nodeTypeSearchNarrowing({ node_id: "camera", pin: "video", side: "output" })).toEqual({
+    heading: "Can take video",
+    footnote: "Placing one adds it and links video to the first input the runtime says it fits, in one edit. One undo takes both back.",
   });
-  expect(nodeTypeSearchNarrowing({ node_id: "meter", pin: "level", side: "input", family: null }).heading).toBe("Can feed level");
+  expect(nodeTypeSearchNarrowing({ node_id: "meter", pin: "level", side: "input" }).heading).toBe("Can feed level");
 });
 
 test("offers each node type the listing names once, in the order of its sources, with its description, and nothing before the project is listed", () => {
@@ -157,7 +148,7 @@ test("each_graph_generator_of_the_projects_own_source_is_offered_under_this_proj
   ]);
   expect(generatorsOffered.map((item) => graphGeneratorOfTheSearchItem(item.item_id))).toEqual(["generators.mics:mic_levels"]);
   expect(graphGeneratorOfTheSearchItem("nodes.blur:GaussianBlur")).toBeNull();
-  expect(graphGeneratorSearchItems(listing, { side: "output", family: "image" })).toEqual([]);
+  expect(graphGeneratorSearchItems(listing, { node_id: "camera", pin: "video", side: "output" })).toEqual([]);
   expect(graphGeneratorSearchItems(null, null)).toEqual([]);
 });
 
