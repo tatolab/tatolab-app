@@ -63,6 +63,17 @@ const DJ_DECK_MANIFEST = manifestOf({
   settings: { type: "object", properties: { show_waveform: { type: "boolean", default: true }, zoom: { type: "number", minimum: 1, default: 1 } } },
 });
 
+/** An `area` view declaring DJ Deck's settings, which its area keeps. */
+const DECK_SETTINGS_MANIFEST = manifestOf({
+  contract: "1.0",
+  title: "Deck settings",
+  entry: "index.html",
+  placement: "area",
+  inputs: [],
+  outputs: [],
+  settings: { type: "object", properties: { show_waveform: { type: "boolean", default: true }, zoom: { type: "number", minimum: 1, default: 1 } } },
+});
+
 const STREAM_FILE_READ: ProjectFileRead = { file: "/set/stream.py", project_folder: "/set", text: "print()", version: "v1", is_editable: true };
 
 const UNDO_APPLIED: ProjectTransaction = {
@@ -724,7 +735,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
   });
 
   it("hands the view its area's settings checked against what it declares, keeps ones that fit, and refuses ones that do not, naming the setting", async () => {
-    const { connection, saved } = await connectedView(DJ_DECK_MANIFEST, {}, { zoom: 3, show_waveform: "yes" });
+    const { connection, saved } = await connectedView(DECK_SETTINGS_MANIFEST, {}, { zoom: 3, show_waveform: "yes" });
     const settingsSeen: ViewSettings[] = [];
     connection.watchSettings((settings) => settingsSeen.push(settings));
     await messagesDelivered();
@@ -760,13 +771,22 @@ describe("a view's connection to Studio, through the one bridge every view is se
       },
     ]);
     expect(saved.readLatest()).toEqual({ saved: { zoom: 2 } });
+    expect(await connection.rememberSettings({ zoom: 2, show_waveform: false })).toEqual({ kind: "done" });
+    expect(graphTransactionsAsked[1]?.operations).toEqual([{ operation: "set_node_input_value", stream: "s-uuid", node: "id-dj-deck", input: "zoom", value: 2 }]);
     expect(await connection.rememberSettings({ zoom: 0 })).toMatchObject({ kind: "refused", because: expect.stringContaining("`zoom`:") });
 
     hostServices.transactInTheProject = async () => ({ kind: "refused", refusal: VIEW_OUTPUT_VALUE_REFUSAL });
     expect(await connection.rememberSettings({ zoom: 4 })).toEqual({ kind: "refused", because: VIEW_OUTPUT_VALUE_REFUSAL.runtime_words });
     bridge.readdress({ kind: "not_addressed", because: "The runtime's graph of Set names no stream asset, so nothing is set on its Deck node." });
     expect(await connection.rememberSettings({ zoom: 4 })).toEqual({ kind: "refused", because: "The runtime's graph of Set names no stream asset, so nothing is set on its Deck node." });
-    expect(graphTransactionsAsked).toHaveLength(1);
+    expect(graphTransactionsAsked).toHaveLength(2);
+  });
+
+  it("refuses a node view's settings while it has no node, keeping none with its area", async () => {
+    const { connection, saved } = await connectedView(DJ_DECK_MANIFEST, {}, { zoom: 2 });
+
+    expect(await connection.rememberSettings({ zoom: 3 })).toEqual({ kind: "refused", because: "DJ Deck shows its node's settings, and has no node, so its settings reach no stream." });
+    expect(saved.readLatest()).toEqual({ saved: { zoom: 2 } });
   });
 
   it("opens a view of a type on a file, tells views of that type what they were opened on, and says why when no area can show it", async () => {

@@ -58,9 +58,9 @@ export function studioViewInputWiring(stream: string, graph: StreamGraph, viewNo
  * The settings `manifest` declares as the view node `viewNode` holds them: the value its graph document holds for each setting's input,
  * by name, a setting it holds none for left out to read its default; `undefined` for a view that declares no settings.
  */
-export function settingsTheViewNodeHolds(manifest: Pick<TatolabViewManifest, "settings">, viewNode: Pick<StreamGraphNode, "input_values" | "config">): JsonValue | undefined {
+export function settingsTheViewNodeHolds(manifest: Pick<TatolabViewManifest, "settings">, viewNode: Pick<StreamGraphNode, "input_values">): JsonValue | undefined {
   if (manifest.settings === undefined) return undefined;
-  const valuesByInput = jsonObjectMembersOf(viewNode.input_values ?? viewNode.config);
+  const valuesByInput = jsonObjectMembersOf(viewNode.input_values);
   return Object.fromEntries(Object.keys(manifest.settings.properties).flatMap((settingName) => (Object.hasOwn(valuesByInput, settingName) ? [[settingName, valuesByInput[settingName]]] : [])));
 }
 

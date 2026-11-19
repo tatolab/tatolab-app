@@ -139,7 +139,8 @@ export interface TatoAppViewConnection {
   openView(viewTypeId: string, on: ViewOpeningTarget): Promise<ViewAskDone>;
   /**
    * Keep `settings`: an `area` view's with its area, a `node` view's on its node, each setting that changed set as its input's value in
-   * one edit of the stream's history; refused when they do not fit what the view declares, or in the runtime's words.
+   * one edit of the stream's history; refused when they do not fit what the view declares, or in the runtime's words. Each call on a
+   * `node` view is one Undo step, so a slider calls it as it is let go, not on each move.
    */
   rememberSettings(settings: ViewSettings): Promise<ViewAskDone>;
   /** `file`'s text and the version it is at, or why it was not read. */

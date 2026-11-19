@@ -11,12 +11,13 @@ import {
   type ViewAskAnswer,
   type ViewDeclaredPort,
   type ViewSettings,
+  defaultViewSettingsOf,
   type ViewWatchedReading,
   type ViewWatchedSubject,
 } from "@tatolab/tato-app-view-sdk";
 import { setNodeInputValueAction } from "@tatolab/tato-app-view-sdk/pin_model/input_value_actions";
 import { jsonValueSchema, messageFromTheViewSchema, readViewSettings, viewSettingsForAnArea } from "@tatolab/tato-app-view-sdk/studio_host";
-import type { StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { jsonObjectMembersOf, type StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { Result, Schema } from "effect";
 import type {
   JsonValue,
@@ -78,6 +79,8 @@ export class TatolabViewBridge {
   private readonly inputWatchesByWatchId = new Map<number, InputWatch>();
   private readonly pythonLanguageServersByWatchId = new Map<number, PythonLanguageServerConnection>();
   private isClosed = false;
+  /** Each setting a `node` view last set on its node, kept until its node is read holding that value, so a set made before then is judged against it. */
+  private settingsSetAhead: { [settingName: string]: JsonValue } = {};
   private assetPicksOfTheViewHeld = 0;
 
   private readonly onMessageFromTheView = (event: MessageEvent<unknown>): void => {
@@ -169,13 +172,26 @@ export class TatolabViewBridge {
     return this.applyOnTheViewNode(input.graph.project_folder, [setNodeInputValueAction(input, value.success)], "live");
   }
 
-  /** Sets each of `settings` that changed on the view's node, as one edit of its stream's history, which Undo takes back. */
-  private async setTheSettingsOnTheViewNode(viewNode: StudioViewNodeAddress, settings: ViewSettings): Promise<ViewAskAnswer> {
+  /**
+   * Sets each of `settings` that changed on the view's node, as one edit of its stream's history, which Undo takes back: changed from what
+   * the node holds for each setting, its default where it holds none, or from what the view set ahead of the node's next reading.
+   */
+  private async setTheSettingsOnTheViewNode(settings: ViewSettings): Promise<ViewAskAnswer> {
+    const viewNode = this.viewNode;
+    if (viewNode === null) return { kind: "refused", because: `${this.manifest.title} shows its node's settings, and has no node, so its settings reach no stream.` };
     if (viewNode.kind === "not_addressed") return { kind: "refused", because: viewNode.because };
-    const settingsHeld = viewSettingsForAnArea(this.manifest, this.areaServices.readSavedSettings()) ?? {};
-    const settingsSet = settingsSetOnTheViewNode(viewNode, settingsHeld, settings ?? {});
+    const settingsSet = settingsSetOnTheViewNode(viewNode, this.settingsTheViewNodeHoldsOrWasSet(), settings ?? {});
     if (settingsSet.length === 0) return { kind: "done" };
-    return this.applyOnTheViewNode(viewNode.graph.project_folder, settingsSet, "commit");
+    const answer = await this.applyOnTheViewNode(viewNode.graph.project_folder, settingsSet, "commit");
+    if (answer.kind === "done") this.settingsSetAhead = { ...this.settingsSetAhead, ...settings };
+    return answer;
+  }
+
+  /** Each declared setting as the view's node holds it, its default where it holds none, or as the view set it ahead of the node's next reading. */
+  private settingsTheViewNodeHoldsOrWasSet(): { [settingName: string]: JsonValue } {
+    const settingsHeld = { ...defaultViewSettingsOf(this.manifest), ...jsonObjectMembersOf(this.areaServices.readSavedSettings()) };
+    this.settingsSetAhead = Object.fromEntries(Object.entries(this.settingsSetAhead).filter(([settingName, value]) => JSON.stringify(settingsHeld[settingName] ?? null) !== JSON.stringify(value)));
+    return { ...settingsHeld, ...this.settingsSetAhead };
   }
 
   /** `actions` applied in the project at `projectFolder`, in `mode`, as the view's ask answers it: done, or refused in the runtime's words. */
@@ -352,7 +368,7 @@ export class TatolabViewBridge {
       case "remember_settings": {
         const settingsReading = readViewSettings(this.manifest, ask.settings);
         if (settingsReading.kind === "do_not_fit") return { kind: "refused", because: settingsReading.because };
-        if (this.manifest.placement === "node" && this.viewNode !== null) return this.setTheSettingsOnTheViewNode(this.viewNode, settingsReading.settings);
+        if (this.manifest.placement === "node") return this.setTheSettingsOnTheViewNode(settingsReading.settings);
         this.areaServices.rememberSettings(settingsReading.settings);
         return { kind: "done" };
       }
