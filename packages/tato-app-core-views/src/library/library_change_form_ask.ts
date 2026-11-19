@@ -31,6 +31,8 @@ export function useLibraryChangeFormAsk(onClosed: () => void, fallbackFocusSelec
   };
   useEffect(() => {
     isOpen.current = true;
+    // A form atop a scrolled list is brought into view before its field takes the keys.
+    formElement.current?.scrollIntoView?.({ block: "nearest" });
     focusTheFormsFirstControl();
     return () => {
       isOpen.current = false;
