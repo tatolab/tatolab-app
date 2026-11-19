@@ -613,18 +613,12 @@
 
 .xy-pad-words {
   color: var(--fg-2);
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 :host([data-surface="node"]) .xy-pad-area {
   background-color: var(--well);
-}
-
-/* A String's code editor: the design system's editor drawn at a fixed height in the control's own children. */
-.code-control {
-  min-width: 0;
-  overflow: hidden;
-  border-radius: 4px;
 }
 
 /* An Asset's file picker: one button naming the file held, which opens the Studio's asset picker. */

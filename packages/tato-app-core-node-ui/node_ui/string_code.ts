@@ -37,7 +37,10 @@ export default class StringCode extends HTMLElement implements InputControlEleme
     const slot = document.createElement("slot");
     slot.className = "slot-of-the-part";
     shadow.append(slot);
+    // The part is in the control's own children, where the panel's stylesheet applies and the control's does not, so its
+    // layout is set here: a column, so the editor, which fills what is left of its parent, takes the height drawn.
     this.#partElement.className = "code-control";
+    Object.assign(this.#partElement.style, { display: "flex", flexDirection: "column", minWidth: "0", overflow: "hidden", borderRadius: "4px" });
     this.#partElement.setAttribute("role", "group");
     this.addEventListener("focusin", () => {
       this.#isFocused = true;
