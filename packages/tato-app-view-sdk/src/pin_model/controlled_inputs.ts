@@ -4,7 +4,7 @@
 
 import type { BuiltInPinTypeName, PinAnnotations } from "../pin_types.js";
 import type { InputPinDeclaration } from "../node_ui/input_control_element.js";
-import type { StreamGraphPortPin } from "../studio_readings.js";
+import { jsonTextOf, type StreamGraphPortPin } from "../studio_readings.js";
 import type { InputAddress } from "./node_inputs.js";
 
 /** An input a control edits: where its value is kept, and its declaration as the control reads it. */
@@ -36,5 +36,5 @@ export function takesAControl(input: InputAControlMayDraw): ControlledInput | nu
 
 /** Whether `before` and `after` are the same input under the same declaration, so a control drawn for one stays for the other. */
 export function areTheSameControlledInput(before: ControlledInput, after: ControlledInput): boolean {
-  return JSON.stringify([before.address, before.declaration]) === JSON.stringify([after.address, after.declaration]);
+  return jsonTextOf([before.address, before.declaration]) === jsonTextOf([after.address, after.declaration]);
 }

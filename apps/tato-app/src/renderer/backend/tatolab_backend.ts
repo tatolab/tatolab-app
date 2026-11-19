@@ -56,6 +56,7 @@ import type {
 } from "../../shared/tatolab_backend_contract";
 import type { ListedNodeUiElement } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import { TATOLAB_WINDOW_PAGE_SCHEME, type ModuleManagerSectionAsked, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
+import { jsonTextOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 declare global {
   interface Window {
@@ -292,5 +293,5 @@ export function tatolabWindowHost(): TatolabWindowHost {
 export function describeBackendRejection(rejection: unknown): string {
   if (typeof rejection === "string") return rejection;
   if (rejection instanceof Error) return rejection.message;
-  return JSON.stringify(rejection);
+  return jsonTextOf(rejection);
 }

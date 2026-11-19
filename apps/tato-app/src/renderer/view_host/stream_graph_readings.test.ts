@@ -224,3 +224,21 @@ test("a_node_a_commit_adds_has_its_values_told_before_the_graph_that_draws_it", 
   await vi.advanceTimersByTimeAsync(10);
   expect(told).toEqual(["values 1", "graph 1", "values 2", "graph 2"]);
 });
+
+test("a_graph_whose_node_holds_a_config_checksum_past_the_exact_doubles_is_read_and_its_same_reading_tells_no_one_again", async () => {
+  vi.useFakeTimers();
+  const { backend, reads, pushTheStreamGraphChanged } = countingBackend();
+  const graphWithAChecksum = (stream: string): StreamGraph =>
+    aStreamGraph([aGraphNode("n0", { id: "P0", type: "A", kind: "process", config: {}, config_checksum: 6086514543335466803n })], [], { stream, asset: "STREAM-ASSET" });
+  const readings = new StreamGraphReadings({ ...backend, describeStreamGraph: (stream) => backend.describeStreamGraph(stream).then(() => graphWithAChecksum(stream)) });
+  const view: StreamGraphReading[] = [];
+  const stop = readings.watchStreamGraph("main", (reading) => view.push(reading));
+  await vi.advanceTimersByTimeAsync(10);
+  pushTheStreamGraphChanged("main");
+  await vi.advanceTimersByTimeAsync(10);
+  expect(reads.graph).toBe(2);
+  expect(view).toHaveLength(1);
+  const [reading] = view;
+  expect(reading?.kind === "read" ? reading.graph.nodes[0]?.config_checksum : null).toBe(6086514543335466803n);
+  stop();
+});

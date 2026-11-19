@@ -27,6 +27,8 @@ import type {
 import type { PinFlow, PinType } from "./pin_type_readings.js";
 import { PORT_FAMILIES, type PortFamily } from "./port_families.js";
 
+export { jsonTextOf } from "./json_text.js";
+
 /** A value as JSON carries it. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
