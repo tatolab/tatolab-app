@@ -55,8 +55,8 @@ export interface TatolabAppWindowsSources {
   watchFolderEntries: FolderEntriesWatch;
   /** The runtime's list of what a project imports. */
   projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime;
-  /** A connection each studio window follows its project's change feed over. */
-  openTheProjectTransactionsFeedConnection: ProjectTransactionsFeedOfAStudioWindowSources["openTheFeedConnection"];
+  /** What runs each studio window's following of its project's change feed over the runtime. */
+  followOverTheRuntime: ProjectTransactionsFeedOfAStudioWindowSources["followOverTheRuntime"];
   /** Runs `work` once after `delayMs`; the answer cancels it. */
   runAfter: (delayMs: number, work: () => void) => () => void;
   /** Queue the close of the project in `projectFolder` on the runtime as its window closes, which ends its playback and unloads its streams; refused in the runtime's own words. */
@@ -287,7 +287,7 @@ export class TatolabAppWindows {
     if (theRuntimeStartedAnswering) {
       for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
         void studioWindow.openProject.readAgain();
-        void studioWindow.projectTransactionsFeed.followAgain();
+        studioWindow.projectTransactionsFeed.followAgain();
       }
     }
     for (const tatolabMainWindow of this.everyWindow()) tatolabMainWindow.sendTheWindowTheStatus(status);
@@ -350,8 +350,7 @@ export class TatolabAppWindows {
     windowOfTheProject = tatolabMainWindow;
     const openedProject = openProject.readOpenProject();
     const projectTransactionsFeed = new ProjectTransactionsFeedOfAStudioWindow(openedProject.kind === "read" ? openedProject.open_project.project.folder : projectFolder, {
-      openTheFeedConnection: this.sources.openTheProjectTransactionsFeedConnection,
-      runAfter: this.sources.runAfter,
+      followOverTheRuntime: this.sources.followOverTheRuntime,
       sendTheWindowTheProjectTransactions: (reading) => {
         tatolabMainWindow.sendTheWindowTheProjectTransactions(reading);
         for (const poppedOutView of studioWindowOnceMade?.poppedOutViews.values() ?? []) poppedOutView.tatolabMainWindow.sendTheWindowTheProjectTransactions(reading);
@@ -381,7 +380,7 @@ export class TatolabAppWindows {
     this.sources.tatolabAppLog.info("opened a project in its own window", { project_folder: projectFolder });
     tatolabMainWindow.show();
     if (this.lastStatusSent !== null) tatolabMainWindow.sendTheWindowTheStatus(this.lastStatusSent);
-    void projectTransactionsFeed.follow();
+    projectTransactionsFeed.follow();
   }
 
   /** Close a studio window whose project does not play, closing the project on the runtime while it holds it open; for one that plays, keep it open and ask whether to stop and close the project. */

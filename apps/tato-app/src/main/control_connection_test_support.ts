@@ -82,15 +82,16 @@ export class FakeControlConnection implements ControlConnection {
   }
 }
 
-/** A runtime whose connections answer each call as `answers` says, every one opened recorded; it refuses to connect while `answers` is false, and breaks on the next connect while `breaksOnTheNextConnect` is true. */
+/** A runtime whose connections answer each call as `answers` says, every one opened recorded; it refuses to connect while `answers` is false, breaks on the next connect while `breaksOnTheNextConnect` is true, and counts each connect tried. */
 export function fakeRuntimeOfConnections(answers: FakeCallAnswers) {
   const connectionsOpened: FakeControlConnection[] = [];
-  const runtime = { answers: true, breaksOnTheNextConnect: false };
+  const runtime = { answers: true, breaksOnTheNextConnect: false, connectsTried: 0 };
   const layer = Layer.succeed(RuntimeControl, {
     call: (method) => Effect.die(`these tests make no ${method} call outside a connection`),
     discover: Effect.die("these tests make no discover call"),
     get: (requestTarget) => Effect.die(`these tests make no GET ${requestTarget}`),
     connect: Effect.suspend(() => {
+      runtime.connectsTried += 1;
       if (runtime.breaksOnTheNextConnect) {
         runtime.breaksOnTheNextConnect = false;
         return Effect.die(new Error("the connect broke"));
