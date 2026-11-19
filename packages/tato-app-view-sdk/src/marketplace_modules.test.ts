@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAMarketplaceDownloadOf, isTheDistributionOfTheMarketplaceEntry, isTheModuleNamedLikeTheMarketplaceEntry, marketplaceDownloadFileNameOf, moduleFolderNameOf } from "./marketplace_modules.js";
+import { isAMarketplaceDownload, isAMarketplaceDownloadOf, isTheDistributionOfTheMarketplaceEntry, isTheModuleNamedLikeTheMarketplaceEntry, marketplaceDownloadFileNameOf, marketplaceDownloadVersionOf, moduleFolderNameOf } from "./marketplace_modules.js";
 
 describe("a Marketplace entry among a project's modules", () => {
   it("names a module's folder as the runtime does", () => {
@@ -39,5 +39,18 @@ describe("the file a Marketplace entry is downloaded as", () => {
     expect(isAMarketplaceDownloadOf("tatolab-camera-extras", "/home/jo/module-downloads/tatolab-camera-0.68.85.zip")).toBe(false);
     expect(isAMarketplaceDownloadOf("tatolab-camera", "/home/jo/module-downloads/tatolab-camera-0.68.85")).toBe(false);
     expect(isAMarketplaceDownloadOf("tatolab-camera", "/home/jo/shows/camera")).toBe(false);
+  });
+
+  it("reads the version an entry's download was taken at from its file name, and none from another entry's or a source outside the downloads folder", () => {
+    expect(marketplaceDownloadVersionOf("tatolab-camera", "/home/jo/.config/Tato Studio/module-downloads/tatolab-camera-0.69.0+linux.zip")).toBe("0.69.0+linux");
+    expect(marketplaceDownloadVersionOf("tatolab-camera", "C:\\Users\\jo\\module-downloads\\tatolab-camera-1.0.zip")).toBe("1.0");
+    expect(marketplaceDownloadVersionOf("tatolab-camera", "/home/jo/module-downloads/tatolab-camera-extras-0.1.0.zip")).toBeNull();
+    expect(marketplaceDownloadVersionOf("tatolab-camera", "/home/jo/Downloads/tatolab-camera-0.68.85.zip")).toBeNull();
+  });
+
+  it("tells a download of any entry by the folder it is in", () => {
+    expect(isAMarketplaceDownload("/home/jo/module-downloads/tatolab-gone-0.1.0.zip")).toBe(true);
+    expect(isAMarketplaceDownload("/home/jo/Downloads/tatolab-gone-0.1.0.zip")).toBe(false);
+    expect(isAMarketplaceDownload("/home/jo/module-downloads/lobby-wall")).toBe(false);
   });
 });

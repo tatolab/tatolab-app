@@ -244,6 +244,15 @@ export function moduleSourceWordsOf(row: ModuleCardRow): string {
   return dependency.source.toLowerCase().endsWith(".zip") ? "From a .zip" : "From a folder";
 }
 
+/** What a module's page says of the row's module having an update, and leads a refused check with: by the Marketplace's version for a Marketplace download, by where it was copied from for any other. */
+export function moduleUpdateWordsOf(row: ModuleCardRow): { updateAvailable: string; checkRefusedLead: string } {
+  const { catalog_entry: entry, module_of_the_project: dependency } = row;
+  if (entry !== null && dependency !== null && isAMarketplaceDownloadOf(entry.name, dependency.source)) {
+    return { updateAvailable: `Version ${entry.version} is in the Marketplace.`, checkRefusedLead: "It could not be checked for an update:" };
+  }
+  return { updateAvailable: "An update is available from where it was copied.", checkRefusedLead: "Where it was copied from could not be checked:" };
+}
+
 /** How a module's copy stands against where it was copied from: an update there, none, not asked yet, or the check refused in the runtime's words. */
 export type ModuleCopyState = { kind: "update_available" } | { kind: "up_to_date" } | { kind: "not_checked" } | { kind: "check_refused"; because: string };
 

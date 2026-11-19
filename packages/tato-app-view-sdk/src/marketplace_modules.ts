@@ -17,12 +17,23 @@ export function marketplaceDownloadFileNameOf(name: string, version: string): st
 /** A catalog version as a download's file name carries it: digits first, then digits, letters, `.` and `+`, never a `-`, so `tatolab-camera-extras-0.1.zip` is no download of `tatolab-camera`. */
 const DOWNLOADED_VERSION_PATTERN = /^[0-9][0-9A-Za-z.+]*$/;
 
+/** Whether `source`, an import's source as the runtime lists it, is a `.zip` in the Marketplace's downloads folder, of whichever entry. */
+export function isAMarketplaceDownload(source: string): boolean {
+  const segments = source.split(/[/\\]/);
+  return segments.at(-2) === MODULE_DOWNLOADS_FOLDER_NAME && (segments.at(-1) ?? "").endsWith(".zip");
+}
+
+/** The catalog version `source`, an import's source as the runtime lists it, downloaded the entry named `name` at; `null` where it is no Marketplace download of that entry. */
+export function marketplaceDownloadVersionOf(name: string, source: string): string | null {
+  const fileName = source.split(/[/\\]/).at(-1) ?? "";
+  if (!isAMarketplaceDownload(source) || !fileName.startsWith(`${name}-`)) return null;
+  const version = fileName.slice(name.length + 1, -".zip".length);
+  return DOWNLOADED_VERSION_PATTERN.test(version) ? version : null;
+}
+
 /** Whether `source`, an import's source as the runtime lists it, is a Marketplace download of the catalog entry named `name`, at any version. */
 export function isAMarketplaceDownloadOf(name: string, source: string): boolean {
-  const segments = source.split(/[/\\]/);
-  const fileName = segments.at(-1) ?? "";
-  if (segments.at(-2) !== MODULE_DOWNLOADS_FOLDER_NAME || !fileName.startsWith(`${name}-`) || !fileName.endsWith(".zip")) return false;
-  return DOWNLOADED_VERSION_PATTERN.test(fileName.slice(name.length + 1, -".zip".length));
+  return marketplaceDownloadVersionOf(name, source) !== null;
 }
 
 /** A Python distribution's name as packaging compares it: lowercased, each run of `-`, `_` and `.` one `-`. */

@@ -154,7 +154,7 @@ export interface MockTatolabOptions {
   assetImportScenario: MockAssetImportScenario;
   /** `?popped_out_view=<popped-out view as JSON>`: the page is a view popped out of the studio, as Pop out into a window opens it in a new tab; the studio by default. */
   poppedOutView: PoppedOutView | null;
-  /** `?module_manager=open|edited_files|newer`: the page is the open project's Modules and Marketplace window, as File › Marketplace… or Modules… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
+  /** `?module_manager=open|edited_files|newer|marketplace_newer`: the page is the open project's Modules and Marketplace window, as File › Marketplace… or Modules… opens it in a new tab, its import as copied, edited since, or with a newer version on its source, or beside Camera added from the Marketplace before the catalog's version; `null` for any other page. */
   moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
   /** `?module_manager_section=added_to_this_project|marketplace`: the section a Modules and Marketplace window's page opens on, Marketplace when the query names none; with `?module_manager_entry=<catalog name>`, the page of that Marketplace entry, as the node search's See it asks. */
   moduleManagerSectionOpenedOn: ModuleManagerSectionAsked;

@@ -1,13 +1,15 @@
 // The mock's workspace imports, as the runtime's dependency tools would answer them: one project
 // copied from a folder beside the workspace. `?module_manager=newer` has its source hold a newer version;
-// `?module_manager=edited_files` has that and a file of its copy edited since, so Update waits on the overwrite.
+// `?module_manager=edited_files` has that and a file of its copy edited since, so Update waits on the overwrite;
+// `?module_manager=marketplace_newer` adds Camera, downloaded from the Marketplace at a version before the catalog's.
 // Each import's views are those the mock's own project-views listing lists under its folder.
 
 import type { DependencySourceKind, ListedStudioView, ProjectDependency, ViewsOfAWorkspaceDependency, WorkspaceDependency, WorkspaceDependencyUpdate } from "../src/shared/tatolab_backend_contract";
-import { moduleFolderNameOf } from "@tatolab/tato-app-view-sdk/marketplace_modules";
+import { isAMarketplaceDownloadOf, marketplaceDownloadFileNameOf, moduleFolderNameOf, MODULE_DOWNLOADS_FOLDER_NAME } from "@tatolab/tato-app-view-sdk/marketplace_modules";
+import { MOCK_PACKAGE_CATALOG_ENTRIES } from "./mock_package_catalog";
 
 /** The state the mock workspace's imports start in. */
-export type MockWorkspaceDependenciesScenario = "copied" | "edited_files" | "newer";
+export type MockWorkspaceDependenciesScenario = "copied" | "edited_files" | "newer" | "marketplace_newer";
 
 /** The scenario `?module_manager=` names, or `null` where the page is no Module manager window. */
 export function mockWorkspaceDependenciesScenarioNamed(moduleManagerQueryValue: string | null): MockWorkspaceDependenciesScenario | null {
@@ -16,6 +18,7 @@ export function mockWorkspaceDependenciesScenarioNamed(moduleManagerQueryValue: 
       return "copied";
     case "edited_files":
     case "newer":
+    case "marketplace_newer":
       return moduleManagerQueryValue;
     default:
       return null;
@@ -24,6 +27,8 @@ export function mockWorkspaceDependenciesScenarioNamed(moduleManagerQueryValue: 
 
 const MOCK_VERSION_COPIED = "9f2c4e1a7b3d5f60c8e2a4b6d8f0a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5";
 const MOCK_VERSION_ON_THE_SOURCE = "1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d";
+/** The catalog version the Marketplace's Camera was downloaded at in `marketplace_newer`, before the one the catalog lists now. */
+const MOCK_CAMERA_VERSION_DOWNLOADED = "0.68.12";
 
 /** Answers the mock window's dependency asks over the workspace in `workspaceFolder`, rejecting in the runtime's words. */
 export class MockWorkspaceDependencies {
@@ -44,11 +49,33 @@ export class MockWorkspaceDependencies {
         folder_path: `${workspaceFolder}/imports/lobby-wall`,
         name: "lobby-wall",
         edited_files: scenario === "edited_files" ? ["nodes/wall_mapping.py"] : [],
-        newer_version_exists: scenario === "copied" ? null : true,
+        newer_version_exists: scenario === "newer" || scenario === "edited_files" ? true : null,
         check_refused_because: null,
         views: { kind: "listed", views: [] },
       },
+      ...(scenario === "marketplace_newer" ? [this.cameraDownloadedFromTheMarketplace()] : []),
     ];
+  }
+
+  /** The folder the mock's Marketplace downloads are in, beside the workspace. */
+  private get marketplaceDownloadsFolder(): string {
+    return `${this.workspaceFolder.slice(0, this.workspaceFolder.lastIndexOf("/"))}/${MODULE_DOWNLOADS_FOLDER_NAME}`;
+  }
+
+  /** Camera as the runtime lists it once added from the Marketplace at a version the catalog has since replaced. */
+  private cameraDownloadedFromTheMarketplace(): WorkspaceDependency {
+    return {
+      project: "a3c1e5b7-9d2f-4a6c-8e0b-1d3f5a7c9e2b",
+      folder: "camera",
+      source: `${this.marketplaceDownloadsFolder}/${marketplaceDownloadFileNameOf("tatolab-camera", MOCK_CAMERA_VERSION_DOWNLOADED)}`,
+      version: MOCK_VERSION_COPIED,
+      folder_path: `${this.workspaceFolder}/imports/camera`,
+      name: "Camera",
+      edited_files: [],
+      newer_version_exists: true,
+      check_refused_because: null,
+      views: { kind: "listed", views: [] },
+    };
   }
 
   /** Each import, its newer-version mark kept only when `checkForNewer`. */
@@ -102,6 +129,11 @@ export class MockWorkspaceDependencies {
     if (dependency.edited_files.length > 0 && !overwriteEditedFiles) return { kind: "edited_since_its_copy", edited_files: [...dependency.edited_files] };
     dependency.edited_files = [];
     if (dependency.newer_version_exists === true) dependency.version = MOCK_VERSION_ON_THE_SOURCE;
+    // A Marketplace download updates to the catalog's current download, which becomes its source.
+    const cameraInTheCatalog = MOCK_PACKAGE_CATALOG_ENTRIES.find((entry) => entry.name === "tatolab-camera");
+    if (dependency.newer_version_exists === true && cameraInTheCatalog !== undefined && isAMarketplaceDownloadOf(cameraInTheCatalog.name, dependency.source)) {
+      dependency.source = `${this.marketplaceDownloadsFolder}/${marketplaceDownloadFileNameOf(cameraInTheCatalog.name, cameraInTheCatalog.version)}`;
+    }
     dependency.newer_version_exists = false;
     return { kind: "updated", dependency: { project: dependency.project, folder: dependency.folder, source: dependency.source, version: dependency.version } };
   }

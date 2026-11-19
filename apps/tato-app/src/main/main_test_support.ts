@@ -56,7 +56,7 @@ function refusalOfAFolderHoldingNoProject(toolName: string, projectDirectory: st
 /** The `tatolab_view.json` of the one view, `views/meter`, the fake runtime lists in each import. */
 export const FAKE_METER_VIEW_MANIFEST = { contract: "1.0", title: "Meter", entry: "index.html", placement: "node", inputs: [{ name: "level", family: "array" }] };
 
-/** A runtime that answers `list_assets`, `list_dependencies`, `add_dependency`, `update_dependency`, `remove_dependency` and `list_project_views` from each project's `tatolab-project.json`, copying an import whole and taking one out whole, holding every import edited since its copy until an update overwrites it, listing a `meter` view in each import, making a project named for its folder on `import_project`, and no other request. */
+/** A runtime that answers `list_assets`, `list_dependencies`, `add_dependency`, `update_dependency`, `remove_dependency` and `list_project_views` from each project's `tatolab-project.json`, copying an import whole and taking one out whole, holding every import edited since its copy until an update overwrites it, from the `source` it is given where it is given one, listing a `meter` view in each import, making a project named for its folder on `import_project`, and no other request. */
 async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
   const fakeRuntime = await FakeLocalApiServer.answeringEachControlOperation(async (toolName, toolArguments) => {
     const projectDirectory = String(toolArguments["project_directory"]);
@@ -93,7 +93,8 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
         const dependency = projectFile.dependencies.find((dependencyHeld) => dependencyHeld.project === toolArguments["project"]);
         if (dependency === undefined) return controlOperationFailedResponse(`update_dependency failed: the project imports no project ${String(toolArguments["project"])}`);
         if (toolArguments["overwrite_edited_files"] !== true) return controlOperationResultResponse({ dependency, edited_files: ["views/meter/index.html"], overwrite_confirmation_needed: true });
-        return controlOperationResultResponse({ dependency, edited_files: ["views/meter/index.html"], overwrite_confirmation_needed: false, transaction: "5d1c0f2a-3b7e-4c5d-9a1f-2e3b4c5d6e7f", commit: "8e2f4a6c0b1d3e5f7a9c2b4d6e8f0a1c3e5b7d9f" });
+        const copiedFrom = typeof toolArguments["source"] === "string" ? toolArguments["source"] : dependency.source;
+        return controlOperationResultResponse({ dependency: { ...dependency, source: copiedFrom }, edited_files: ["views/meter/index.html"], overwrite_confirmation_needed: false, transaction: "5d1c0f2a-3b7e-4c5d-9a1f-2e3b4c5d6e7f", commit: "8e2f4a6c0b1d3e5f7a9c2b4d6e8f0a1c3e5b7d9f" });
       }
       case "remove_dependency": {
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);

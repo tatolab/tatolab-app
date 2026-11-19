@@ -17,6 +17,7 @@ import {
   type ModuleAsk,
   moduleCopyStateOf,
   moduleCoverNumberOf,
+  moduleUpdateWordsOf,
   whyTheModuleHasNoUpdateToTake,
   moduleViewsShownOf,
   type ModuleCardRow,
@@ -232,6 +233,7 @@ function ModulePageActions({
       );
     }
     const copyState = moduleCopyStateOf(dependency);
+    const updateWords = moduleUpdateWordsOf(row);
     return (
       <div className="flex flex-col gap-3">
         <p className="flex items-center gap-2 text-sm text-fg-2" data-module-manager-in-project={row.row_id}>
@@ -241,10 +243,10 @@ function ModulePageActions({
         {whyItBringsNothingHere !== null && <RefusalLine tone="warning" words={whyItBringsNothingHere} data-module-manager-not-on-this-machine={dependency.folder} />}
         {copyState.kind === "update_available" && (
           <p className="text-xs font-medium text-brand-text" data-module-manager-update-available="">
-            An update is available from where it was copied.
+            {updateWords.updateAvailable}
           </p>
         )}
-        {copyState.kind === "check_refused" && <RefusalLine tone="warning" lead="Where it was copied from could not be checked:" words={copyState.because} />}
+        {copyState.kind === "check_refused" && <RefusalLine tone="warning" lead={updateWords.checkRefusedLead} words={copyState.because} />}
         <PageAction
           appearance={copyState.kind === "update_available" ? "primary" : "secondary"}
           icon={RefreshCw}

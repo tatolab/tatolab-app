@@ -2,10 +2,12 @@ import path from "node:path";
 import { Effect, Schema, type ManagedRuntime } from "effect";
 import { isAModuleManagerSectionAsked, MODULES_SHOWN, type TatolabCommandSignatures } from "../shared/tatolab_electron_bridge_contract.js";
 import { whyTheModuleBringsNothingOnThisMachine } from "../shared/package_catalog_machine_words.js";
+import { isAMarketplaceDownload } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 import { addDependency, listDependencies, listProjectViews, nameTheProject, removeDependency, updateDependency } from "./runtime_operations.js";
 import { makeAProjectOfItsOwnFromTheArchive } from "./open_project.js";
 import type { MarketplaceImport } from "../shared/tatolab_backend_contract.js";
 import { MarketplaceImports } from "./marketplace_imports_followed.js";
+import { checkedAgainstTheMarketplace, marketplacePackageToUpdateTo } from "./marketplace_module_updates.js";
 import { ModuleManagerWindows, PackageCatalog, StatusRounds, type StudioServices } from "./studio_runtime.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import type { TatolabCommandFromWindow, TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
@@ -39,7 +41,10 @@ const workspaceDependenciesListed = Effect.fn("workspaceDependenciesListed")(fun
     ],
     { concurrency: "unbounded" },
   );
-  return yield* workspaceDependenciesOf(workspaceFolder, listed, workspaceViews, nameTheProject);
+  const checked = checkForNewer && listed.some((dependency) => isAMarketplaceDownload(dependency.dependency.source))
+    ? yield* PackageCatalog.use((packageCatalog) => packageCatalog.readTheCatalog).pipe(Effect.map((catalog) => listed.map((dependency) => checkedAgainstTheMarketplace(dependency, catalog))))
+    : listed;
+  return yield* workspaceDependenciesOf(workspaceFolder, checked, workspaceViews, nameTheProject);
 });
 
 /** The catalog entry `name`, the catalog read afresh; refused when the catalog does not read or lists nothing by that name. */
@@ -91,10 +96,24 @@ const dependencyAdded = Effect.fn("dependencyAdded")(function* (workspaceFolder:
   return added;
 });
 
-/** The import `project` of `workspaceFolder` copied again by the runtime's `update_dependency`, overwriting files edited since its copy only with `overwriteEditedFiles`. */
+/**
+ * The source an Update of the import `project` of `workspaceFolder` copies from: the catalog's current download, fetched and checked, for an
+ * import downloaded from the Marketplace at another version; `null`, its own source, for any other.
+ */
+const sourceToUpdateFrom = Effect.fn("sourceToUpdateFrom")(function* (workspaceFolder: string, project: string) {
+  const listed = yield* listDependencies(workspaceFolder, false);
+  const source = listed.find((dependency) => dependency.dependency.project === project)?.dependency.source ?? null;
+  if (source === null || !isAMarketplaceDownload(source)) return null;
+  const catalog = yield* PackageCatalog.use((packageCatalog) => packageCatalog.readTheCatalog);
+  const entry = marketplacePackageToUpdateTo(catalog, source);
+  return entry === null ? null : yield* PackageCatalog.use((packageCatalog) => packageCatalog.downloadTheZipOf(entry, null));
+});
+
+/** The import `project` of `workspaceFolder` copied again by the runtime's `update_dependency`, from the Marketplace's current download where it came from there, overwriting files edited since its copy only with `overwriteEditedFiles`. */
 const dependencyUpdated = Effect.fn("dependencyUpdated")(function* (workspaceFolder: string, project: string, overwriteEditedFiles: boolean) {
-  const update = yield* updateDependency(workspaceFolder, project, overwriteEditedFiles);
-  if (update.kind === "updated") yield* Effect.logInfo("updated an import of the workspace").pipe(Effect.annotateLogs({ project, project_folder: workspaceFolder }));
+  const source = yield* sourceToUpdateFrom(workspaceFolder, project);
+  const update = yield* updateDependency(workspaceFolder, project, overwriteEditedFiles, source);
+  if (update.kind === "updated") yield* Effect.logInfo("updated an import of the workspace").pipe(Effect.annotateLogs({ project, project_folder: workspaceFolder, source: update.dependency.source }));
   return update;
 });
 
