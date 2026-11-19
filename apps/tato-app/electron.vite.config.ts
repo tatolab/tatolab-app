@@ -55,6 +55,7 @@ const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
 };
 
 function isARolldownWatcher(buildOutcome: unknown): buildOutcome is Rolldown.RolldownWatcher {

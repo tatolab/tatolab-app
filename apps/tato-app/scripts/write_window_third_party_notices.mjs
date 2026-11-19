@@ -1,5 +1,6 @@
 // Writes src/renderer/public/licenses/window-third-party-notices.txt: every npm package Vite bundles into the
-// window's out/renderer/, with its version, licence and licence text. It builds the window with source maps
+// window's out/renderer/, the modules the Studio supplies to views in its studio_sdk/ included, with its
+// version, licence and licence text. It builds the window with source maps
 // into a temporary directory and reads which packages the bundle's sources come from, so the list
 // is what ships, not what package.json names; the stylesheet's packages and fonts are added by name. Run it after changing the window's dependencies:
 //   node scripts/write_window_third_party_notices.mjs
@@ -38,16 +39,16 @@ function installedPackageDirectory(packageName) {
 }
 
 try {
+  execFileSync("npm", ["run", "build", "--workspace", "@tatolab/tato-app-view-sdk", "--", "--sourcemap"], { cwd: monorepoRoot, stdio: "ignore" });
   execFileSync("npm", ["run", "build", "--workspace", "@tatolab/tato-app-core-views", "--", "--sourcemap"], { cwd: monorepoRoot, stdio: "ignore" });
   execFileSync("npx", ["electron-vite", "build", "--sourcemap", "--outDir", buildDirectory], { cwd: tatoAppRoot, stdio: "ignore" });
   const packageDirectories = new Set(STYLESHEET_PACKAGES.map(installedPackageDirectory));
-  for (const assetsDirectory of [path.join(buildDirectory, "renderer", "assets"), path.join(buildDirectory, "renderer", "core_views", "assets")]) {
-    for (const mapFile of readdirSync(assetsDirectory).filter((fileName) => fileName.endsWith(".map"))) {
-      const { sources } = JSON.parse(readFileSync(path.join(assetsDirectory, mapFile), "utf8"));
-      for (const source of sources) {
-        const packageDirectory = packageDirectoryOf(path.resolve(assetsDirectory, source));
-        if (packageDirectory !== null) packageDirectories.add(packageDirectory);
-      }
+  const builtDirectories = ["assets", path.join("core_views", "assets"), "studio_sdk"].map((builtDirectory) => path.join(buildDirectory, "renderer", builtDirectory));
+  for (const mapFile of builtDirectories.flatMap((builtDirectory) => readdirSync(builtDirectory, { recursive: true }).filter((fileName) => fileName.endsWith(".map")).map((fileName) => path.join(builtDirectory, fileName)))) {
+    const { sources } = JSON.parse(readFileSync(mapFile, "utf8"));
+    for (const source of sources) {
+      const packageDirectory = packageDirectoryOf(path.resolve(path.dirname(mapFile), source));
+      if (packageDirectory !== null) packageDirectories.add(packageDirectory);
     }
   }
   const notices = [...packageDirectories].sort().map((packageDirectory) => {

@@ -110,7 +110,7 @@ function importsOnlyWhatAnExtensionMayRule(extensionFolder) {
           if (fromTheFolder.startsWith("..") || path.isAbsolute(fromTheFolder)) context.report({ node, message: `${importedFrom} leaves ${path.basename(extensionFolder)}/, which is all of an extension a page is served.` });
           return;
         }
-        if (!SUPPLIED_MODULE_NAMES.has(importedFrom)) context.report({ node, message: `${importedFrom} is not a module the Studio supplies; an extension imports its own files and the SDK's public entries only.` });
+        if (!SUPPLIED_MODULE_NAMES.has(importedFrom)) context.report({ node, message: `${importedFrom} is not a module the Studio supplies; an extension imports its own files, a library it carries in vendor/, and the modules the Studio supplies only.` });
       };
       return {
         ImportDeclaration: (node) => refuseUnlessAnExtensionMay(node.source, node.source.value),
