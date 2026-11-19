@@ -304,7 +304,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
             </div>
           )}
           <div
-            // The row's top padding leaves the tabs headroom; everything in it is centered on the band under that, on the midline of macOS's window buttons.
+            // The tabs reach down to the work under them, so the row is 36px with 4px of headroom and centres everything on the 32px band under it: 20px down, the midline the other windows' 40px bars and macOS's window buttons keep.
             className="flex h-9 items-stretch pt-1 pr-2.5 pl-(--studio-menu-bar-leading-inset)"
             data-window-drag-region={windowDragRegionAttribute(platform, "deep") ?? undefined}
             data-studio-title-row=""

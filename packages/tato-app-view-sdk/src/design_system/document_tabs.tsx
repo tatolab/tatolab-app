@@ -10,7 +10,7 @@ export interface DocumentTab {
   name: string;
 }
 
-/** The open documents' tabs along the bottom of the window's title row, each led by `icon` and as tall as the row, so their labels share its midline; the active one is the colour of the work under it, so the two read as one, and only it, or a tab under the pointer, shows the × that closes it. */
+/** The open documents' tabs along the bottom of the window's title row, each led by `icon` and as tall as the band the row gives them, so their labels share its midline; the active one is the colour of the work under it, so the two read as one, and only it, or a tab under the pointer, shows the × that closes it. */
 export function DocumentTabs({
   label,
   icon,
