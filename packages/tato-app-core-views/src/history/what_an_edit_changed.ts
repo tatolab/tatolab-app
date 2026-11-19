@@ -186,6 +186,14 @@ function whatOneOperationChanged(operation: OperationFields, nodeNames: NodeName
         sentence: { lead: textOf(operation["to"]) === null ? "Removed the project's cover" : "Set the project's cover", subject: null, rest: "" },
         line: `set_project_cover ${wordsOfAValue(operation["from"] ?? undefined)} → ${wordsOfAValue(operation["to"] ?? undefined)}`,
       };
+    case "set_node_type_group": {
+      const nodeType = textOf(operation["node_type"]) ?? "";
+      const to = textOf(operation["to"]);
+      return {
+        sentence: to === null ? { lead: "Put", subject: nodeTypeNameOf(nodeType), rest: "back in its own group" } : { lead: "Moved", subject: nodeTypeNameOf(nodeType), rest: `to the group ${to}` },
+        line: `set_node_type_group ${nodeType} ${wordsOfAValue(operation["from"] ?? undefined)} → ${wordsOfAValue(operation["to"] ?? undefined)}`,
+      };
+    }
     default:
       return { sentence: { lead: operationName, subject: null, rest: "" }, line: operationName };
   }

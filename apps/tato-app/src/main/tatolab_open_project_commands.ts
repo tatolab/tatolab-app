@@ -8,7 +8,7 @@ import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { studioViewsOfTheOpenProject } from "./open_project_views.js";
 import { createANodeFileInTheOpenProject, listTheOpenProjectsFiles, readTheOpenProjectsFile, saveTheOpenProjectsFile } from "./open_project_files.js";
 import { importTheFilesThePersonChooses } from "./project_assets_imported_from_chosen_files.js";
-import { deleteAsset, openProject, pausePlayback, readAssetPreview, relocateAsset, reloadProject, resumePlayback, startPlayback, stopPlayback, undoOrRedo } from "./runtime_operations.js";
+import { deleteAsset, openProject, pausePlayback, readAssetPreview, relocateAsset, reloadProject, resumePlayback, setNodeTypeGroup, startPlayback, stopPlayback, undoOrRedo } from "./runtime_operations.js";
 import { ListedStreams, PersonEditingInStudio, StudioWindows, thenAStatusRound, type StatusRounds, type StudioServices } from "./studio_runtime.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
 import { type TatolabCommandFromWindow, NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL, studioWindowTheCommandCameFrom, oneTextArgumentFrom, type TatolabWindowCommandHandlers, commandAnswerFrom, commandAnswerOfNothingFrom } from "./tatolab_command_answers.js";
@@ -88,6 +88,9 @@ const UndoOrRedoArguments = Schema.Struct({ author: projectTransactionAuthorSche
 
 /** The arguments of `relocate_asset_in_the_open_project`: the UUID of an asset of the open project and its new path in the project. */
 const RelocateAssetArguments = Schema.Struct({ asset: Schema.String, to_path: Schema.String });
+
+/** The arguments of `set_node_type_group_in_the_open_project`: a node type the open project lists and the group to file it under, `null` to put it back where an import or its author files it. */
+const SetNodeTypeGroupArguments = Schema.Struct({ node_type: Schema.String, group: Schema.NullOr(Schema.String) });
 
 /** The arguments of `import_assets_into_the_open_project`: the `media_facts` members the dialog offers files of first, `null` for any. */
 const ImportAssetsArguments = Schema.Struct({ media: Schema.NullOr(Schema.Array(Schema.String)) });
@@ -194,6 +197,7 @@ type OpenProjectCommandName =
   | "relocate_asset_in_the_open_project"
   | "read_asset_preview_of_the_open_project"
   | "delete_asset_from_the_open_project"
+  | "set_node_type_group_in_the_open_project"
   | "read_the_person_editing_in_studio"
   | "redo_in_the_open_project"
   | "start_python_language_server"
@@ -257,6 +261,9 @@ export function openProjectCommandHandlersOf(
     ),
     delete_asset_from_the_open_project: windowCommand(studioRuntime, "delete_asset_from_the_open_project", AssetArguments, ({ asset }, commandFromWindow) =>
       byThePersonEditingInTheWindowsProject(commandFromWindow, (projectFolder, author) => deleteAsset(projectFolder, asset, author)),
+    ),
+    set_node_type_group_in_the_open_project: windowCommand(studioRuntime, "set_node_type_group_in_the_open_project", SetNodeTypeGroupArguments, ({ node_type, group }, commandFromWindow) =>
+      byThePersonEditingInTheWindowsProject(commandFromWindow, (projectFolder, author) => setNodeTypeGroup(projectFolder, node_type, group, author)),
     ),
     read_the_person_editing_in_studio: async () => ({ ok: true, value: sharedState.thePersonEditingInStudio }),
     redo_in_the_open_project: undoOrRedoCommand(studioRuntime, "redo"),

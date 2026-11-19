@@ -35,6 +35,44 @@ describe("the studio", () => {
     expect(coreViewPage("library").querySelector('[data-tree-row-id="source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11"]')).toBeNull();
   });
 
+  it("moves a node type into a group typed from its row's right-click menu and puts it back, a group with a blank name refused in the runtime's words", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await showTheLibraryInTheViewerArea();
+
+    const library = coreViewPage("library");
+    const stageLights = "source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11";
+    const dimmer = "imports/stage-lights/nodes.dimmer:Dimmer";
+    const chooseFromTheRowsMenu = async (rowId: string, choice: string) => {
+      fireEvent.contextMenu(await waitFor(() => libraryRow(rowId)));
+      // A fake core view frame is drawn by the window's own React, so its menu's portal opens in the window's document.
+      fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>(`[data-library-node-type-choice="${choice}"]`) ?? expect.unreachable(`no ${choice} in the menu of ${rowId}`)));
+    };
+    const groupField = () => library.querySelector<HTMLInputElement>("[data-library-node-type-group-field]") ?? expect.unreachable("no Group field");
+    const pressMove = () => fireEvent.click(library.querySelector<HTMLElement>('[data-library-node-type-group-action="move"]') ?? expect.unreachable("no Move button"));
+
+    await chooseFromTheRowsMenu(`${stageLights}/category:Lighting/node_type:${dimmer}`, "move_to_group");
+    await waitFor(() => expect(groupField().value).toBe("Lighting"));
+    fireEvent.change(groupField(), { target: { value: "Show//Levels" } });
+    pressMove();
+    const refusal = await waitFor(() => library.querySelector<HTMLElement>("[data-library-node-type-group-refusal]") ?? expect.unreachable("no refusal"));
+    expect(refusal.textContent).toContain('set_node_type_group failed: "Show//Levels" cannot file `imports/stage-lights/nodes.dimmer:Dimmer`: a group is one or more names split by `/`, none of them blank, as `Effects/Stylize`');
+    fireEvent.change(groupField(), { target: { value: "Show/Levels" } });
+    pressMove();
+    const movedRowId = `${stageLights}/category:Show/Levels/node_type:${dimmer}`;
+    await waitFor(() => libraryRow(movedRowId));
+    await waitFor(() => expect(library.querySelector("[data-library-node-type-group-form]")).toBeNull());
+    expect(library.querySelector(`[data-tree-row-id="${stageLights}/category:Lighting/node_type:${dimmer}"]`)).toBeNull();
+    fireEvent.click(libraryRow(movedRowId));
+    await waitFor(() => expect(library.querySelector(`[data-library-details="${dimmer}"]`)?.textContent).toContain("GroupShow / LevelsFiled byThis project"));
+
+    await chooseFromTheRowsMenu(movedRowId, "put_back");
+    await waitFor(() => libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`));
+    expect(library.querySelector(`[data-tree-row-id="${movedRowId}"]`)).toBeNull();
+    fireEvent.contextMenu(libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`));
+    await waitFor(() => document.querySelector('[data-library-node-type-choice="move_to_group"]') ?? expect.unreachable("no menu"));
+    expect(document.querySelector('[data-library-node-type-choice="put_back"]')).toBeNull();
+  });
+
   it("shows the project's assets in the Library by folder, narrowed by the search, the card pressed outlined and no details beside it, its graph documents left out", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));

@@ -312,6 +312,26 @@ test("renaming, moving and deleting an asset of the open project reach the runti
   expect(await commandHandlers.delete_asset_from_the_open_project({ asset: poster }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
+test("filing a node type of the open project under a group, and putting it back, reach the runtime by the person editing, answering nothing, or the runtime's refusal in its own words", async () => {
+  const blankName = 'set_node_type_group failed: "Show//Levels" cannot file `nodes.mix:Mixer`: a group is one or more names split by `/`, none of them blank, as `Effects/Stylize`';
+  const filed = (group: string | null) => controlOperationResultResponse({ project: "/tmp/harbour-lights", node_type: "nodes.mix:Mixer", group, transaction: "0b9e4f61-3c2a-4d7e-9a51-6f0c2b8d1e73", commit: "5d2f0e1c9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d" });
+  const sharedState = await sharedStateOverFakes([filed("Show/Levels"), controlOperationFailedResponse(blankName), filed(null)], "linux");
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "harbour-lights-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
+  const commandHandlers = commandHandlersOver(sharedState);
+
+  expect(await commandHandlers.set_node_type_group_in_the_open_project({ node_type: "nodes.mix:Mixer", group: "Show/Levels" }, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.set_node_type_group_in_the_open_project({ node_type: "nodes.mix:Mixer", group: "Show//Levels" }, fromTheStudioWindow)).toEqual({ ok: false, refusal: blankName });
+  expect(await commandHandlers.set_node_type_group_in_the_open_project({ node_type: "nodes.mix:Mixer", group: null }, fromTheStudioWindow)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.set_node_type_group_in_the_open_project({ node_type: "nodes.mix:Mixer" }, fromTheStudioWindow)).toEqual({
+    ok: false,
+    refusal: expect.stringMatching(/^set_node_type_group_in_the_open_project: Missing key/),
+  });
+  expect(await commandHandlers.set_node_type_group_in_the_open_project({ node_type: "nodes.mix:Mixer", group: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+});
+
 test("an asset's preview picture of the open project reaches the window as a data URL, or the runtime's refusal in its own words, and only a studio window may ask", async () => {
   const sharedState = await sharedStateOverFakes(
     [

@@ -378,6 +378,10 @@ export class TatolabViewBridge {
         const changing = await this.hostServices.deleteAssetFromTheProject(ask.project_folder, ask.asset);
         return changing.kind === "changed" ? { kind: "done" } : { kind: "refused", because: changing.because };
       }
+      case "set_node_type_group_in_the_project": {
+        const changing = await this.hostServices.setNodeTypeGroupInTheProject(ask.project_folder, ask.node_type, ask.group);
+        return changing.kind === "changed" ? { kind: "done" } : { kind: "refused", because: changing.because };
+      }
       case "show_view_type_in_area": {
         const showing = this.hostServices.showViewTypeInArea(ask.view_type_id, ask.area_id);
         return showing.kind === "opened" ? { kind: "done" } : { kind: "refused", because: showing.because };

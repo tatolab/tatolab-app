@@ -16,6 +16,8 @@ test("a project's own settings read as what they changed, in the runtime's recor
   expect(sentenceAndLinesOf([{ operation: "set_project_description", from: null, to: "The lobby screens" }])[0]).toBe("Described the project");
   expect(sentenceAndLinesOf([{ operation: "set_project_description", from: "The lobby screens", to: null }])[0]).toBe("Removed the project's description");
   expect(sentenceAndLinesOf([{ operation: "set_project_cover", from: null, to: WARM_LUT.asset }])).toEqual(["Set the project's cover", [`set_project_cover nothing → ${WARM_LUT.asset}`]]);
+  expect(sentenceAndLinesOf([{ operation: "set_node_type_group", node_type: "nodes.mix:Mixer", from: null, to: "Show/Levels" }])).toEqual(["Moved Mixer to the group Show/Levels", ["set_node_type_group nodes.mix:Mixer nothing → Show/Levels"]]);
+  expect(sentenceAndLinesOf([{ operation: "set_node_type_group", node_type: "nodes.mix:Mixer", from: "Show/Levels", to: null }])[0]).toBe("Put Mixer back in its own group");
 });
 
 test("a project file and a stream document read by their file names", () => {

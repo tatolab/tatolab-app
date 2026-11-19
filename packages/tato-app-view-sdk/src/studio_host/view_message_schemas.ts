@@ -87,6 +87,7 @@ export const viewAskSchema = schemaOfThePublicType<ViewAsk>()(
     Schema.Struct({ kind: Schema.Literal("relocate_asset_in_the_project"), project_folder: Schema.String, asset: Schema.String, to_path: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("read_asset_preview_in_the_project"), project_folder: Schema.String, asset: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("delete_asset_from_the_project"), project_folder: Schema.String, asset: Schema.String }),
+    Schema.Struct({ kind: Schema.Literal("set_node_type_group_in_the_project"), project_folder: Schema.String, node_type: Schema.String, group: Schema.NullOr(Schema.String) }),
     Schema.Struct({ kind: Schema.Literal("recover_the_projects_streams"), project_folder: Schema.String, recovery: projectStreamsRecoverySchema }),
     Schema.Struct({ kind: Schema.Literal("show_view_type_in_area"), view_type_id: Schema.String, area_id: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema, page: Schema.optional(Schema.String) }),

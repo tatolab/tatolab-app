@@ -70,6 +70,7 @@ function mockDescriptionOfTheNodeAdded(node: MockNodeOfAModuleAdded, distributio
 export class MockNodeTypesTheProjectGains {
   private readonly nodeTypesMade: MockNodeTypeFromTheTemplate[] = [];
   private readonly modulesAdded: MockModuleAdded[] = [];
+  private readonly groupsTheProjectFiles = new Map<string, string>();
   private readonly changedListeners = new Set<() => void>();
 
   constructor(private readonly graphEditGrounds: { nodeTypesDescribed: readonly NodeTypeDescription[] }) {}
@@ -112,8 +113,24 @@ export class MockNodeTypesTheProjectGains {
     this.gain(described);
   }
 
+  /** The group the project files `nodeType` under, as `set_node_type_group` filed it; `undefined` while nothing of the project's own files it. */
+  groupTheProjectFiles(nodeType: string): string | undefined {
+    return this.groupsTheProjectFiles.get(nodeType);
+  }
+
+  /** File `nodeType` under `group`, or with `null` take the project's own filing away, and tell each listener the project's node types changed. */
+  fileUnderAGroup(nodeType: string, group: string | null): void {
+    if (group === null) this.groupsTheProjectFiles.delete(nodeType);
+    else this.groupsTheProjectFiles.set(nodeType, group);
+    this.tellEachListener();
+  }
+
   private gain(described: readonly NodeTypeDescription[]): void {
     this.graphEditGrounds.nodeTypesDescribed = [...this.graphEditGrounds.nodeTypesDescribed, ...described];
+    this.tellEachListener();
+  }
+
+  private tellEachListener(): void {
     for (const listener of this.changedListeners) listener();
   }
 
@@ -128,15 +145,41 @@ function projectFolderTheRecordingsAnswerFor(streamsFolder: string): string {
   return `${streamsFolder}/pattern`;
 }
 
+/** `listed`, under the group the project files it in when it files it, served with `category_from` as the runtime serves it. */
+function filedAsTheProjectFilesIt(listed: NodeTypeListedUnderASource, gained: MockNodeTypesTheProjectGains): NodeTypeListedUnderASource {
+  const group = gained.groupTheProjectFiles(listed.node_type);
+  return group === undefined ? listed : { ...listed, category: group, category_from: "project" };
+}
+
 /** The node types the project in `projectDirectory` lists, as the runtime's `list_node_types` listed them; `null` for a folder holding no project. */
 export function mockNodeTypesListed(projectDirectory: string, streamsFolder: string, gained: MockNodeTypesTheProjectGains): ListNodeTypesToolResult | null {
   if (projectDirectory !== projectFolderTheRecordingsAnswerFor(streamsFolder)) return null;
   const recorded = structuredClone(MOCK_RECORDED_NODE_TYPES_LISTED);
-  const sources = recorded.sources.map((source) => (source.source === "project" ? { ...source, node_types: [...source.node_types, ...gained.made.map(({ listed }) => structuredClone(listed))] } : source));
+  const sources = recorded.sources
+    .map((source) => (source.source === "project" ? { ...source, node_types: [...source.node_types, ...gained.made.map(({ listed }) => structuredClone(listed))] } : source))
+    .map((source) => ({ ...source, node_types: source.node_types.map((listed) => filedAsTheProjectFilesIt(listed, gained)) }));
   const builtInSourceIndex = sources.findIndex((source) => source.source === "built_in");
   const sourcesBeforeTheBuiltIns = builtInSourceIndex === -1 ? sources : sources.slice(0, builtInSourceIndex);
   const builtInSources = builtInSourceIndex === -1 ? [] : sources.slice(builtInSourceIndex);
   return { ...recorded, sources: [...sourcesBeforeTheBuiltIns, ...structuredClone(gained.sourcesOfTheModulesAdded), ...builtInSources], project_directory: projectDirectory };
+}
+
+/**
+ * `nodeType` filed under `group` in the project in `projectDirectory`, or with `null` put back, as the runtime's `set_node_type_group`
+ * files it; the words it refuses in for a node type the project does not list or a group with a blank name in it, else `null`.
+ */
+export function mockSetTheNodeTypeGroup(projectDirectory: string, streamsFolder: string, gained: MockNodeTypesTheProjectGains, nodeType: string, group: string | null): string | null {
+  const listed = mockNodeTypesListed(projectDirectory, streamsFolder, gained);
+  if (listed === null) return `set_node_type_group failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
+  if (group !== null && group.split("/").some((name) => name.trim() === "")) {
+    return `set_node_type_group failed: ${JSON.stringify(group)} cannot file \`${nodeType}\`: a group is one or more names split by \`/\`, none of them blank, as \`Effects/Stylize\``;
+  }
+  const isListed = listed.sources.some((source) => source.node_types.some((listedType) => listedType.node_type === nodeType));
+  if (group !== null && !isListed) {
+    return `set_node_type_group failed: neither the project \`${MOCK_RECORDED_NODE_TYPES_LISTED.project_name}\` nor the runtime offers a node type \`${nodeType}\`; \`list_node_types\` lists the ones they do`;
+  }
+  gained.fileUnderAGroup(nodeType, group);
+  return null;
 }
 
 function withoutPortFamilies(nodeType: NodeTypeDescribedOrWhyNot): NodeTypeDescribedOrWhyNot {

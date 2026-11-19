@@ -264,6 +264,11 @@ export function deleteAsset(projectDirectory: string, asset: string, author: Pro
   return controlOperationReadWith("delete_asset", { project_directory: projectDirectory, asset, author: authorOnTheWire(author) }, (answered) => assetAtItsPathFromTheToolResult("delete_asset", answered));
 }
 
+/** The node type `nodeType` filed under `group`, a `/`-separated path, in the project in `projectDirectory` through the runtime's `set_node_type_group`, or with `null` put back where an import or its author files it, one transaction recorded under `author`. */
+export function setNodeTypeGroup(projectDirectory: string, nodeType: string, group: string | null, author: ProjectTransactionAuthor): Effect.Effect<void, RuntimeControlFailure, RuntimeControl> {
+  return RuntimeControl.use((runtimeControl) => runtimeControl.call("set_node_type_group", { project_directory: projectDirectory, node_type: nodeType, group, author: authorOnTheWire(author) })).pipe(Effect.asVoid);
+}
+
 /** The preview picture of the asset `asset` of the project in `projectDirectory`, an image's own or a video's poster frame, from the runtime's `read_asset_preview`. */
 export function readAssetPreview(projectDirectory: string, asset: string): Effect.Effect<AssetPreviewPictureTheRuntimeRead, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith("read_asset_preview", { project_directory: projectDirectory, asset }, (answered) => assetPreviewPictureFromTheReadAssetPreviewToolResult(asset, answered));

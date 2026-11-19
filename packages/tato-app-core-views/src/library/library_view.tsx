@@ -1,7 +1,7 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Boxes, FilePlus2, Folder, FolderInput, PencilLine, Trash2 } from "lucide-react";
-import { MenuItem, MenuSeparator, MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { Boxes, FilePlus2, Folder, FolderInput, FolderTree, PencilLine, Trash2, Undo2 } from "lucide-react";
+import { MenuItem, MenuSeparator, MenuSingleChoiceGroup, RightClickMenuItem, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { ProjectAssetCard } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
 import { CardGrid } from "@tatolab/tato-app-view-sdk/design_system/card_grid";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
@@ -30,6 +30,7 @@ import { NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS, nodeTypeCategoryPath } from "
 import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../shared/node_type_listing_tree";
 import { inputsAWireReaches } from "../shared/stream_graph_edits";
 import { LibraryAssetChangeForm, type LibraryAssetChange } from "./library_asset_change_form";
+import { LibraryNodeTypeGroupForm, type NodeTypeTheLibraryLists } from "./library_node_type_group_form";
 import { previewPictureNotReadBecauseOf, previewPictureUrlOf } from "./library_asset_preview_pictures";
 import { useAssetPreviewPicturesOfTheProject } from "./use_asset_preview_pictures_of_the_project";
 import { projectAssetMediaWords, projectAssetsTheFieldOffers } from "../shared/project_asset_media";
@@ -102,6 +103,9 @@ function PortsOfTheNodeType({ described }: { described: NodeTypeDescribedOrWhyNo
   );
 }
 
+/** Who files a node type under its group, in words: the project, an import, or the author who declared it. */
+const NODE_TYPE_FILED_BY_WORDS: Record<NonNullable<NodeTypeTheLibraryLists["category_from"]>, string> = { project: "This project", import: "An import", declaration: "Its author" };
+
 function placeInWords(path: string | null, line: number | null): string {
   if (path === null) return "Not stated";
   return line === null ? path : `${path}:${line}`;
@@ -117,6 +121,7 @@ function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowM
         ["Type", <span className="font-mono">{nodeType.node_type}</span>],
         ["Kind", nodeType.kind ?? "Not stated"],
         ["Group", nodeTypeCategoryPath(nodeType.category ?? null).join(" / ") || NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS],
+        ...(nodeType.category_from === undefined || nodeType.category_from === null ? [] : [["Filed by", NODE_TYPE_FILED_BY_WORDS[nodeType.category_from]] satisfies KeyValueRow]),
         ["From", declaration.source_title],
         ["Declared", <span className="font-mono">{placeInWords(declaredAt?.path ?? null, declaredAt?.line ?? null)}</span>],
       ];
@@ -286,6 +291,7 @@ function DeclarationsOfTheProject({
   const [expansionChoices, toggleTheRow] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
   const [chosenRowId, setChosenRowId] = useState<string | null>(null);
   const [openingRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  const [nodeTypeMoveAsked, setNodeTypeMoveAsked] = useState<NodeTypeTheLibraryLists | null>(null);
   const libraryRows = useMemo(
     () => (nodeTypesReading?.kind === "listed" ? libraryTreeOfTheListing(nodeTypesReading.node_types, expansionChoices, declarationsShown) : []),
     [nodeTypesReading, expansionChoices, declarationsShown],
@@ -302,9 +308,33 @@ function DeclarationsOfTheProject({
     return <WaitingState title="No graph generators" explanation="Neither the project nor anything it imports declares one." data-library-state="no_graph_generators" />;
   const meaningOfRow = (rowId: string): LibraryRowMeaning => libraryRows.find((libraryRow) => libraryRow.row.row_id === rowId)?.meaning ?? { kind: "nothing_to_select" };
   const chosenMeaning = chosenRowId === null ? null : meaningOfRow(chosenRowId);
+  const rightClickChoicesOfRow = (rowId: string) => {
+    const meaning = meaningOfRow(rowId);
+    if (meaning.kind !== "node_type_declaration") return null;
+    const nodeType = meaning.node_type;
+    return (
+      <>
+        <RightClickMenuItem icon={FolderTree} onChosen={() => setNodeTypeMoveAsked(nodeType)} data-library-node-type-choice="move_to_group">
+          Move to group…
+        </RightClickMenuItem>
+        {nodeType.category_from === "project" && (
+          <RightClickMenuItem
+            icon={Undo2}
+            onChosen={() => showTheRefusalOf("The node type wasn't put back:", connection.setNodeTypeGroupInTheProject(projectFolder, nodeType.node_type, null))}
+            data-library-node-type-choice="put_back"
+          >
+            Put back in its own group
+          </RightClickMenuItem>
+        )}
+      </>
+    );
+  };
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-library-declarations={declarationsShown}>
       <RefusalOfTheLatestAskBar refusal={openingRefusal} />
+      {nodeTypeMoveAsked !== null && (
+        <LibraryNodeTypeGroupForm key={nodeTypeMoveAsked.node_type} nodeType={nodeTypeMoveAsked} projectFolder={projectFolder} connection={connection} onClosed={() => setNodeTypeMoveAsked(null)} />
+      )}
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
         <TreeView
           label={LIBRARY_SHOWN_WORDS[declarationsShown]}
@@ -317,6 +347,7 @@ function DeclarationsOfTheProject({
             else if (meaning.kind !== "nothing_to_select" && meaning.file !== null) showTheRefusalOf("Didn't open the file:", connection.openView(CODE_VIEW_TYPE_ID, { kind: "file", file: meaning.file }));
           }}
           onExpansionToggled={toggleTheRow}
+          rightClickChoicesOfRow={rightClickChoicesOfRow}
         />
       </div>
       {chosenMeaning !== null && chosenMeaning.kind !== "nothing_to_select" && (

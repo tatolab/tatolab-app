@@ -81,6 +81,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "relocate_asset_in_the_open_project",
   "read_asset_preview_of_the_open_project",
   "delete_asset_from_the_open_project",
+  "set_node_type_group_in_the_open_project",
   "check_for_tatolab_app_updates",
   "take_the_newer_tatolab_app_version",
   "answer_the_app_update_announcement",
@@ -507,6 +508,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   read_asset_preview_of_the_open_project: { commandArguments: { asset: string }; answer: AssetPreviewPicture };
   /** From a studio window only: the runtime's `delete_asset` of `asset`, a UUID the window's project holds, its file and sidecar leaving the project, by the person editing; refused in the runtime's own words, as while a stream's graph document references it. */
   delete_asset_from_the_open_project: { commandArguments: { asset: string }; answer: null };
+  /** From a studio window only: the runtime's `set_node_type_group` of `node_type`, as the window's project lists it, filing it under `group`, a `/`-separated path, or with `null` putting it back where an import or its author files it, by the person editing; refused in the runtime's own words, as for a group with a blank name in it. */
+  set_node_type_group_in_the_open_project: { commandArguments: { node_type: string; group: string | null }; answer: null };
   /** The person editing in Studio, whose graph edits the runtime records under them. */
   read_the_person_editing_in_studio: { commandArguments: undefined; answer: ProjectTransactionAuthor };
   /** The runtime's `redo` by `author` on the asking studio window's project, answering the redo it applied; refused in the runtime's own words. */

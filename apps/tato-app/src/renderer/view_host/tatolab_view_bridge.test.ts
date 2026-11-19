@@ -133,6 +133,7 @@ function recordingHostServices() {
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
   const assetImportsAsked: { projectFolder: string; media: readonly string[] | null }[] = [];
   const assetChangesAsked: string[][] = [];
+  const nodeTypeGroupsAsked: [string, string, string | null][] = [];
   const recoveriesAsked: string[][] = [];
   const modulesAndMarketplaceSectionsOpened: string[] = [];
   const viewTypesShownInAreas: { viewTypeId: string; areaId: string }[] = [];
@@ -202,6 +203,12 @@ function recordingHostServices() {
     deleteAssetFromTheProject: async (projectFolder, asset) => {
       assetChangesAsked.push(["delete", projectFolder, asset]);
       return { kind: "changed" };
+    },
+    setNodeTypeGroupInTheProject: async (projectFolder, nodeType, group) => {
+      nodeTypeGroupsAsked.push([projectFolder, nodeType, group]);
+      return group === "Show//Levels"
+        ? { kind: "not_changed", because: 'set_node_type_group failed: "Show//Levels" cannot file `nodes.mix:Mixer`: a group is one or more names split by `/`, none of them blank, as `Effects/Stylize`' }
+        : { kind: "changed" };
     },
     recoverTheProjectsStreams: async (projectFolder, recovery) => {
       recoveriesAsked.push([projectFolder, recovery]);
@@ -278,7 +285,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, projectAssetPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, recoveriesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked };
+  return { hostServices, projectAssetPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, nodeTypeGroupsAsked, recoveriesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked };
 }
 
 /** An area that keeps the settings it is asked to remember, says where the view's header row lies, and expands while a layout holds it. */
@@ -441,6 +448,21 @@ describe("a view's connection to Studio, through the one bridge every view is se
       ["relocate", "/set", "a-uuid", "media/archive/intro.mp4"],
       ["relocate", "/set", "a-uuid", "media/taken.png"],
       ["delete", "/set", "a-uuid"],
+    ]);
+  });
+
+  it("files a node type of the project under a group and puts it back, a refusal in the runtime's words", async () => {
+    const { connection, nodeTypeGroupsAsked } = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await connection.setNodeTypeGroupInTheProject("/set", "nodes.mix:Mixer", "Show/Levels")).toEqual({ kind: "done" });
+    expect(await connection.setNodeTypeGroupInTheProject("/set", "nodes.mix:Mixer", null)).toEqual({ kind: "done" });
+    expect(await connection.setNodeTypeGroupInTheProject("/set", "nodes.mix:Mixer", "Show//Levels")).toEqual({
+      kind: "refused",
+      because: 'set_node_type_group failed: "Show//Levels" cannot file `nodes.mix:Mixer`: a group is one or more names split by `/`, none of them blank, as `Effects/Stylize`',
+    });
+    expect(nodeTypeGroupsAsked).toEqual([
+      ["/set", "nodes.mix:Mixer", "Show/Levels"],
+      ["/set", "nodes.mix:Mixer", null],
+      ["/set", "nodes.mix:Mixer", "Show//Levels"],
     ]);
   });
 
