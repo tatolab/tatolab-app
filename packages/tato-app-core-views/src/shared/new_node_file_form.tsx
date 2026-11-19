@@ -4,12 +4,13 @@ import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_li
 import { TextField } from "@tatolab/tato-app-view-sdk/design_system/text_field";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { NodeFileCreating } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeFileAskedForFromTheTypedPath } from "./node_file_asked_for";
 
 /** What the New node file field holds as it opens: the folder the runtime's node files usually sit in. */
 const NEW_NODE_FILE_PATH_TO_START_FROM = "nodes/";
 
-/** The New node file form under the header: a path in the open project, created from the runtime's node template and opened in Code; a refusal in the runtime's words. */
+/** The New node file form: a path in the open project, created from the runtime's node template and handed to `onCreated` with the node type it declares; a refusal in the runtime's words. */
 export function NewNodeFileForm({
   connection,
   projectFolder,
@@ -19,7 +20,7 @@ export function NewNodeFileForm({
   connection: Pick<TatoAppViewConnection, "createNodeFile">;
   /** The open project's folder, absolute, which the typed path is inside. */
   projectFolder: string;
-  onCreated: (file: string) => void;
+  onCreated: (created: Extract<NodeFileCreating, { kind: "created" }>) => void;
   onClosed: () => void;
 }) {
   const pathFieldId = useId();
@@ -46,7 +47,7 @@ export function NewNodeFileForm({
         focusThePathField();
         return;
       }
-      onCreated(nodeFileCreating.file);
+      onCreated(nodeFileCreating);
     });
   };
   const closeUnlessCreating = () => {

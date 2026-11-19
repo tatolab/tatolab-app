@@ -29,7 +29,7 @@ function drawTheFormOverAStudioThatAnswersLater() {
       <NewNodeFileForm
         connection={connection}
         projectFolder={PROJECT_FOLDER}
-        onCreated={(file) => filesCreated.push(file)}
+        onCreated={(created) => filesCreated.push(created.file)}
         onClosed={() => {
           closes += 1;
         }}
