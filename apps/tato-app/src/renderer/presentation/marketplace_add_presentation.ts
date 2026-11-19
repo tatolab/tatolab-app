@@ -13,13 +13,17 @@ export interface MarketplaceAddFollowed {
   cancel: MarketplaceAddCancel;
 }
 
-/** How a Marketplace add shows on its module's page: its meter's label, detail line, filled share and stages, and whether Cancel is offered. */
+/** Cancel as a Marketplace add's page offers it: not at all once the download is done, or a button in `words`, greyed for `disabledReason` while a press is answered. */
+export type MarketplaceAddCancelShown = { kind: "not_offered" } | { kind: "offered"; words: string; disabledReason: string | undefined };
+
+/** How a Marketplace add shows on its module's page: its meter's label, detail line, filled share and stages, its Cancel, and why a Cancel was refused. */
 export interface MarketplaceAddShown {
   label: string;
   detail: string;
   percent: number | null;
   parts: ProgressMeterPart[];
-  offersCancel: boolean;
+  cancel: MarketplaceAddCancelShown;
+  cancelRefusedBecause: string | null;
 }
 
 /** The fewest milliseconds of downloading before its rate is said; a rate read off the first run of bytes says little. */
@@ -34,9 +38,13 @@ function secondsLeftWordsOf(seconds: number): string {
   return seconds < 60 ? `about ${Math.max(1, Math.round(seconds))} s left` : `about ${Math.round(seconds / 60)} min left`;
 }
 
+function bytesReadWordsOf(bytesRead: number, bytesTotal: number | null): string {
+  return bytesTotal === null ? megabytesOf(bytesRead) : `${megabytesOf(bytesRead)} of ${megabytesOf(bytesTotal)}`;
+}
+
 function downloadingDetailOf(bytesRead: number, bytesTotal: number | null, elapsedMs: number): string {
   if (bytesRead === 0) return "Starting the download…";
-  const bytesWords = bytesTotal === null ? megabytesOf(bytesRead) : `${megabytesOf(bytesRead)} of ${megabytesOf(bytesTotal)}`;
+  const bytesWords = bytesReadWordsOf(bytesRead, bytesTotal);
   if (elapsedMs < MARKETPLACE_RATE_SAID_AFTER_MS) return bytesWords;
   const bytesPerSecond = bytesRead / (elapsedMs / 1_000);
   const rateWords = `${megabytesOf(bytesPerSecond)}/s`;
@@ -49,7 +57,7 @@ const STAGE_ORDER: Record<MarketplaceImportStage["kind"], number> = { downloadin
 function partsOf(stage: MarketplaceImportStage, projectName: string): ProgressMeterPart[] {
   const reached = STAGE_ORDER[stage.kind];
   const partWords = (order: number, wordsUnderWay: string, wordsDone: string) => (reached > order ? wordsDone : reached === order ? wordsUnderWay : "Waiting");
-  const bytesWords = stage.kind === "downloading" ? (stage.bytes_total === null ? megabytesOf(stage.bytes_read) : `${megabytesOf(stage.bytes_read)} of ${megabytesOf(stage.bytes_total)}`) : "";
+  const bytesWords = stage.kind === "downloading" ? bytesReadWordsOf(stage.bytes_read, stage.bytes_total) : "";
   return [
     { name: "Download", detail: partWords(0, bytesWords, "Done") },
     { name: "Check its SHA-256", detail: partWords(1, "Checking", "Matches") },
@@ -62,15 +70,19 @@ function partsOf(stage: MarketplaceImportStage, projectName: string): ProgressMe
 export function marketplaceAddShownOf(followed: MarketplaceAddFollowed, title: string, projectName: string): MarketplaceAddShown {
   const { stage } = followed;
   const parts = partsOf(stage, projectName);
+  const cancelRefusedBecause = followed.cancel.kind === "refused" ? followed.cancel.because : null;
   if (stage.kind === "downloading") {
+    const isCancelAsked = followed.cancel.kind === "asked";
     return {
       label: `Downloading ${title}…`,
       detail: downloadingDetailOf(stage.bytes_read, stage.bytes_total, followed.told_at_ms - followed.downloading_since_ms),
       percent: stage.bytes_total === null || stage.bytes_total === 0 ? null : Math.min(100, (stage.bytes_read / stage.bytes_total) * 100),
       parts,
-      offersCancel: true,
+      cancel: { kind: "offered", words: isCancelAsked ? "Cancelling…" : "Cancel", disabledReason: isCancelAsked ? "Cancelling the download…" : undefined },
+      cancelRefusedBecause,
     };
   }
-  if (stage.kind === "verifying") return { label: `Checking ${title} against its SHA-256…`, detail: `The catalog's SHA-256: ${stage.sha256}`, percent: null, parts, offersCancel: false };
-  return { label: `Adding ${title} to ${projectName}…`, detail: "Leave this page any time. It keeps going.", percent: null, parts, offersCancel: false };
+  const notOffered: MarketplaceAddCancelShown = { kind: "not_offered" };
+  if (stage.kind === "verifying") return { label: `Checking ${title} against its SHA-256…`, detail: `The catalog's SHA-256: ${stage.sha256}`, percent: null, parts, cancel: notOffered, cancelRefusedBecause };
+  return { label: `Adding ${title} to ${projectName}…`, detail: "Leave this page any time. It keeps going.", percent: null, parts, cancel: notOffered, cancelRefusedBecause };
 }

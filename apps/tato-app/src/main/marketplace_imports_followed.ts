@@ -16,8 +16,8 @@ export class MarketplaceDownloadStopped extends Data.TaggedError("MarketplaceDow
 
 /** One Marketplace add followed: what its download tells and watches, and the telling that the runtime has started adding it. */
 export interface MarketplaceImportFollowed {
-  download: MarketplaceDownloadFollowing;
-  addingStarted: Effect.Effect<void>;
+  readonly download: MarketplaceDownloadFollowing;
+  readonly addingStarted: Effect.Effect<void>;
 }
 
 /** The Marketplace packages being added, each told to the window that asked for it and stoppable from there while it downloads. */
@@ -32,7 +32,7 @@ export class MarketplaceImports extends Context.Service<
 >()("tatolab-app/MarketplaceImports") {}
 
 interface MarketplaceImportUnderWay {
-  stopper: AbortController;
+  readonly stopper: AbortController;
   stage: MarketplaceImportStage;
 }
 
@@ -51,8 +51,12 @@ export function marketplaceImportsTelling(tellTheWindow: (windowContentsId: numb
           let bytesLastToldAtMs: number | null = null;
           const stageReached = (stage: MarketplaceImportStage) => {
             underWay.stage = stage;
-            if (stage.kind === "downloading" && stage.bytes_read !== stage.bytes_total && bytesLastToldAtMs !== null && nowMs() - bytesLastToldAtMs < MARKETPLACE_BYTES_TOLD_EVERY_MS) return;
-            if (stage.kind === "downloading") bytesLastToldAtMs = nowMs();
+            if (stage.kind === "downloading") {
+              const isItsLastRun = stage.bytes_read === stage.bytes_total;
+              const toldAtMs = nowMs();
+              if (!isItsLastRun && bytesLastToldAtMs !== null && toldAtMs - bytesLastToldAtMs < MARKETPLACE_BYTES_TOLD_EVERY_MS) return;
+              bytesLastToldAtMs = toldAtMs;
+            }
             tellTheWindow(commandFromWindow.windowContentsId, { name, stage });
           };
           return Effect.succeed({ key, followed: { download: { stageReached, stopped: underWay.stopper.signal }, addingStarted: Effect.sync(() => stageReached({ kind: "adding" })) } });

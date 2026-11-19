@@ -51,10 +51,10 @@ const catalogEntryNamed = Effect.fn("catalogEntryNamed")(function* (name: string
   return entry;
 });
 
-/** The catalog entry `name`, downloaded as its `.zip` and checked, then copied into `workspaceFolder` by the runtime's `add_dependency`; a sample, or a module bringing nothing on this machine, is refused. */
 /**
- * The catalog's package `name` downloaded, checked and added to the project in `workspaceFolder`, each stage told to the window
- * `commandFromWindow` names, whose Cancel stops it while it downloads.
+ * The catalog entry `name`, downloaded as its `.zip` and checked, then copied into `workspaceFolder` by the runtime's `add_dependency`,
+ * each stage told to the window `commandFromWindow` names, whose Cancel stops it while it downloads; a sample, or a module bringing
+ * nothing on this machine, is refused.
  */
 const marketplaceModuleImported = Effect.fn("marketplaceModuleImported")(function* (workspaceFolder: string, name: string, commandFromWindow: TatolabCommandFromWindow) {
   const entry = yield* catalogEntryNamed(name);

@@ -9,7 +9,7 @@ function followedAt(stage: MarketplaceAddFollowed["stage"], elapsedMs: number): 
 
 test("a download that has read nothing yet says it is starting, with no share filled, and offers Cancel", () => {
   const shown = marketplaceAddShownOf(followedAt({ kind: "downloading", bytes_read: 0, bytes_total: null }, 0), "Camera", "hallways");
-  expect(shown).toMatchObject({ label: "Downloading Camera…", detail: "Starting the download…", percent: null, offersCancel: true });
+  expect(shown).toMatchObject({ label: "Downloading Camera…", detail: "Starting the download…", percent: null, cancel: { kind: "offered", words: "Cancel", disabledReason: undefined } });
   expect(shown.parts).toEqual([
     { name: "Download", detail: "0.0 MB" },
     { name: "Check its SHA-256", detail: "Waiting" },
@@ -20,7 +20,7 @@ test("a download that has read nothing yet says it is starting, with no share fi
 
 test("a download of a known size says its bytes, rate and time left once it has run long enough, its share filled", () => {
   const shown = marketplaceAddShownOf(followedAt({ kind: "downloading", bytes_read: 12_300_000, bytes_total: 40_000_000 }, 6_000), "Camera", "hallways");
-  expect(shown).toMatchObject({ detail: "12.3 MB of 40.0 MB · 2.0 MB/s · about 14 s left", percent: 30.75, offersCancel: true });
+  expect(shown).toMatchObject({ detail: "12.3 MB of 40.0 MB · 2.0 MB/s · about 14 s left", percent: 30.75, cancel: { kind: "offered", words: "Cancel", disabledReason: undefined } });
   expect(shown.parts[0]).toEqual({ name: "Download", detail: "12.3 MB of 40.0 MB" });
 });
 
@@ -41,13 +41,13 @@ test("a long download says its time left in minutes", () => {
 
 test("checking names the catalog's SHA-256, the download done, and offers no Cancel", () => {
   const shown = marketplaceAddShownOf(followedAt({ kind: "verifying", sha256: SHA256 }, 9_000), "Camera", "hallways");
-  expect(shown).toMatchObject({ label: "Checking Camera against its SHA-256…", detail: `The catalog's SHA-256: ${SHA256}`, percent: null, offersCancel: false });
+  expect(shown).toMatchObject({ label: "Checking Camera against its SHA-256…", detail: `The catalog's SHA-256: ${SHA256}`, percent: null, cancel: { kind: "not_offered" } });
   expect(shown.parts.map((part) => part.detail)).toEqual(["Done", "Checking", "Waiting", "Waiting"]);
 });
 
 test("adding names the project, the check matched, and offers no Cancel", () => {
   const shown = marketplaceAddShownOf(followedAt({ kind: "adding" }, 9_500), "Camera", "hallways");
-  expect(shown).toMatchObject({ label: "Adding Camera to hallways…", offersCancel: false });
+  expect(shown).toMatchObject({ label: "Adding Camera to hallways…", cancel: { kind: "not_offered" } });
   expect(shown.parts.map((part) => part.detail)).toEqual(["Done", "Matches", "Adding", "Waiting"]);
 });
 
@@ -56,4 +56,17 @@ test("each stage told keeps when the download began and the Cancel pressed, and 
   expect(first).toEqual({ stage: { kind: "downloading", bytes_read: 0, bytes_total: 10 }, downloading_since_ms: 100, told_at_ms: 100, cancel: { kind: "not_asked" } });
   const later = marketplaceAddFollowedOnceTold({ ...first, cancel: { kind: "asked" } }, { kind: "downloading", bytes_read: 5, bytes_total: 10 }, 900);
   expect(later).toEqual({ stage: { kind: "downloading", bytes_read: 5, bytes_total: 10 }, downloading_since_ms: 100, told_at_ms: 900, cancel: { kind: "asked" } });
+});
+
+test("a pressed Cancel greys while it is answered, and a refused one says why under the meter once the download is done", () => {
+  const downloading = followedAt({ kind: "downloading", bytes_read: 1_000_000, bytes_total: 40_000_000 }, 2_000);
+  expect(marketplaceAddShownOf({ ...downloading, cancel: { kind: "asked" } }, "Camera", "hallways")).toMatchObject({
+    cancel: { kind: "offered", words: "Cancelling…", disabledReason: "Cancelling the download…" },
+    cancelRefusedBecause: null,
+  });
+  const refused = { kind: "refused" as const, because: "tatolab-camera is downloaded already and being added; it can no longer be cancelled." };
+  expect(marketplaceAddShownOf({ ...followedAt({ kind: "verifying", sha256: SHA256 }, 9_000), cancel: refused }, "Camera", "hallways")).toMatchObject({
+    cancel: { kind: "not_offered" },
+    cancelRefusedBecause: refused.because,
+  });
 });

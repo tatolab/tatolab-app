@@ -26,9 +26,9 @@ export type FetchTextOverHttps = (url: string) => Promise<Result<string, string>
 
 /** What a download of bytes tells as it reads them, and watches to stop: the bytes read so far each time more arrive, with the length the server announced (`null` where it announced none). */
 export interface BytesDownloadFollowing {
-  bytesRead: (bytesReadSoFar: number, bytesTotal: number | null) => void;
+  readonly bytesRead: (bytesReadSoFar: number, bytesTotal: number | null) => void;
   /** Stops the download once aborted, which then answers refused. */
-  stopped: AbortSignal;
+  readonly stopped: AbortSignal;
 }
 
 /**

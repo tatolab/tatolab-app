@@ -15,9 +15,9 @@ export const LARGEST_MODULE_DOWNLOAD_BYTES = 1024 * 1024 * 1024;
 
 /** What a Marketplace download tells as it goes, each stage it reaches and its bytes as they are read, and watches to stop while it downloads. */
 export interface MarketplaceDownloadFollowing {
-  stageReached: (stage: MarketplaceImportStage) => void;
+  readonly stageReached: (stage: MarketplaceImportStage) => void;
   /** Stops the download once aborted; checking it against the catalog's SHA-256 is never stopped. */
-  stopped: AbortSignal;
+  readonly stopped: AbortSignal;
 }
 
 /** Why a Marketplace download came to nothing: refused in words, or stopped by its following, with nothing left behind either way. */

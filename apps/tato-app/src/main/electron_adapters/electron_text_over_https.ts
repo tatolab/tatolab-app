@@ -34,7 +34,7 @@ export const fetchBytesOverHttpsThroughElectron: FetchBytesOverHttps = async (ur
       runsRead.push(run);
       following?.bytesRead(bytesReadSoFar, announcedByteCount);
     }
-    return succeeded(Buffer.concat(runsRead));
+    return succeeded(Buffer.concat(runsRead, bytesReadSoFar));
   } catch (fetchFailure) {
     return failedWith(describeCaughtFailure(fetchFailure));
   }

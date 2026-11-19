@@ -136,17 +136,12 @@ function MarketplaceAddProgress({ row, followed, projectName, asks }: { row: Mod
   return (
     <div className="flex flex-col gap-3">
       <ProgressMeter label={shown.label} detail={shown.detail} percent={shown.percent} outcome="in_progress" parts={shown.parts} data-module-manager-work={row.row_id} data-module-manager-add-stage={followed.stage.kind} />
-      {shown.offersCancel && (
-        <PageAction
-          icon={X}
-          disabledReason={followed.cancel.kind === "asked" ? "Cancelling the download…" : undefined}
-          onPressed={() => asks.cancelTheAdd(row)}
-          data-module-manager-cancel-add={row.row_id}
-        >
-          {followed.cancel.kind === "asked" ? "Cancelling…" : "Cancel"}
+      {shown.cancel.kind === "offered" && (
+        <PageAction icon={X} disabledReason={shown.cancel.disabledReason} onPressed={() => asks.cancelTheAdd(row)} data-module-manager-cancel-add={row.row_id}>
+          {shown.cancel.words}
         </PageAction>
       )}
-      {followed.cancel.kind === "refused" && <RefusalLine lead="The download was not cancelled:" words={followed.cancel.because} data-module-manager-cancel-add-refusal="" />}
+      {shown.cancelRefusedBecause !== null && <RefusalLine lead="The download was not cancelled:" words={shown.cancelRefusedBecause} data-module-manager-cancel-add-refusal="" />}
     </div>
   );
 }

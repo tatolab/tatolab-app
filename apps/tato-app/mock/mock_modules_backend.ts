@@ -41,6 +41,7 @@ async function mockMarketplaceDownloadOf(
     await sleep(isNeverEnding ? MOCK_NEVER_ENDING_DOWNLOAD_RUN_MILLISECONDS : MOCK_COMMAND_LATENCY_MILLISECONDS);
   }
   if (isNeverEnding) {
+    if (stopped.aborted) return "stopped";
     await new Promise((stoppedNow) => stopped.addEventListener("abort", stoppedNow, { once: true }));
     return "stopped";
   }

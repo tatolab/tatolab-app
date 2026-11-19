@@ -491,10 +491,11 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
       readTheCatalog: Effect.promise(() => readThePackageCatalog(sharedState.fetchTextOverHttps, sharedState.machineModulesInstallOn)),
       downloadTheZipOf: (entry, following) =>
         Effect.promise(() => downloadTheCatalogEntrysZip(entry, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder, following)).pipe(
-          Effect.flatMap((downloaded): Effect.Effect<string, CommandRefused | MarketplaceDownloadStopped> => {
-            if (downloaded.ok) return Effect.succeed(downloaded.value);
-            return downloaded.failure.kind === "stopped" ? Effect.fail(new MarketplaceDownloadStopped({ words: `The download of ${entry.title} was cancelled; nothing was imported.` })) : Effect.fail(new CommandRefused({ words: downloaded.failure.because }));
-          }),
+          Effect.flatMap((downloaded) =>
+            fromResult(downloaded, (failure) =>
+              failure.kind === "stopped" ? new MarketplaceDownloadStopped({ words: `The download of ${entry.title} was cancelled; nothing was imported.` }) : new CommandRefused({ words: failure.because }),
+            ),
+          ),
         ),
     }),
     Layer.succeed(ThisMachinesFolders, { homeDirectory: sharedState.homeDirectory, documentsDirectory: sharedState.documentsDirectory }),
