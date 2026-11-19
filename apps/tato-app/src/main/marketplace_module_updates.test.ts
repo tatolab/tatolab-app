@@ -18,6 +18,8 @@ function entryNamed(kind: PackageCatalogEntry["kind"], name: string, version: st
     homepage_url: null,
     platforms: null,
     runs_on_this_machine: true,
+    lowest_runtime_version: null,
+    newer_runtime_it_needs: null,
   };
 }
 

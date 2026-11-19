@@ -825,8 +825,8 @@ export type NodeFileCreating = { kind: "created"; file: string; node_type: strin
 /** A `@node` a Marketplace entry brings, as its catalog names it: its class name, as `CameraSource`, and one line on what it does. */
 export type MarketplaceNode = { name: string; summary: string };
 
-/** One package or sample project the Marketplace lists: the catalog's name for it, its title, one line on what it is, the nodes it brings, and whether it brings anything on this machine. */
-export type MarketplaceEntry = { kind: "package" | "sample"; name: string; title: string; summary: string; nodes: MarketplaceNode[]; runs_on_this_machine: boolean };
+/** One package or sample project the Marketplace lists: the catalog's name for it, its title, one line on what it is, the nodes it brings, whether it brings anything on this machine, and whether it needs a newer runtime than the one answering, which a newer Tato Studio carries. */
+export type MarketplaceEntry = { kind: "package" | "sample"; name: string; title: string; summary: string; nodes: MarketplaceNode[]; runs_on_this_machine: boolean; needs_a_newer_runtime: boolean };
 
 /** The Marketplace's entries in its catalog's order, as the catalog lists them now, or why the catalog was not read, in the words of what refused. */
 export type MarketplaceReading = { kind: "read"; entries: MarketplaceEntry[] } | { kind: "not_read"; because: string };

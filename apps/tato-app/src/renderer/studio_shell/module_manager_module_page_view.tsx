@@ -14,6 +14,7 @@ import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/suppor
 import {
   MODULE_ASK_WORDS_ONCE_DONE,
   whyTheRowBringsNothingOnThisMachine,
+  whyTheRowNeedsANewerTatoStudio,
   type ModuleAsk,
   moduleCopyStateOf,
   moduleCoverNumberOf,
@@ -129,6 +130,8 @@ export interface ModuleAsks {
   showTheClonedProject: (row: ModuleCardRow, folder: string) => void;
   /** Stop the download of the row's Marketplace add; an add past its download runs to its end. */
   cancelTheAdd: (row: ModuleCardRow) => void;
+  /** Check for a newer Tato Studio, whose runtime the row's module needs; a refusal of the check shows as the row's add refused. */
+  checkForTatoStudioUpdates: (row: ModuleCardRow) => void;
 }
 
 /** A Marketplace add under way as told so far: its meter, filled by its bytes once their total is known, its stages, and Cancel while it downloads. */
@@ -167,6 +170,7 @@ function ModulePageActions({
 }) {
   const { catalog_entry: entry, module_of_the_project: dependency } = row;
   const whyItBringsNothingHere = whyTheRowBringsNothingOnThisMachine(row);
+  const whyItNeedsANewerTatoStudio = whyTheRowNeedsANewerTatoStudio(row);
   const retry = (ask: ModuleAsk) => ({ add: asks.add, clone: asks.clone, update: asks.update, remove: asks.askBeforeRemoving })[ask](row);
   const action = (() => {
     if (work?.kind === "under_way" && work.ask === "add" && addFollowed !== null) return <MarketplaceAddProgress row={row} followed={addFollowed} projectName={projectName} asks={asks} />;
@@ -223,6 +227,16 @@ function ModulePageActions({
       if (entry === null) return null;
       if (entry.download === null) return <p className="text-xs text-fg-3">The catalog names no download for it yet.</p>;
       if (whyItBringsNothingHere !== null) return <RefusalLine tone="warning" words={whyItBringsNothingHere} data-module-manager-not-on-this-machine={entry.name} />;
+      if (whyItNeedsANewerTatoStudio !== null) {
+        return (
+          <div className="flex flex-col gap-3">
+            <RefusalLine tone="warning" words={whyItNeedsANewerTatoStudio} data-module-manager-needs-a-newer-runtime={entry.name} />
+            <PageAction appearance="primary" icon={RefreshCw} onPressed={() => asks.checkForTatoStudioUpdates(row)} data-module-manager-check-for-updates={entry.name}>
+              Check for Updates…
+            </PageAction>
+          </div>
+        );
+      }
       return (
         <div className="flex flex-col gap-3">
           <PageAction appearance="primary" icon={Download} onPressed={() => asks.add(row)} data-module-manager-import={entry.name}>

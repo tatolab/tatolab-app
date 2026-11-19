@@ -11,6 +11,7 @@ import {
   cleanUpTheFakeShellsAndRuntimesTheLastTestStarted,
   FAKE_IMPORT_VERSION,
   FAKE_METER_VIEW_MANIFEST,
+  FAKE_RUNTIME_RELEASE,
   fakeShellOverARuntimeReadingEachProjectsFile,
   MACOS_PLATFORM_ITEMS,
   type FakeProjectFile,
@@ -388,6 +389,39 @@ describe("Module manager", () => {
       expect(await fakeShell.invokeTheCommand("import_from_the_marketplace", { name: "tatolab-camera" }, 3)).toEqual({
         ok: false,
         refusal: "Camera is built for Linux (x86-64) only, so it brings no node on this computer.",
+      });
+      expect(fakeShell.urlsFetched).not.toContain(CAMERA_PACKAGE_ZIP_URL);
+    });
+
+    test("a package needing a newer runtime than the one answering is marked with the release it needs and refused before it is downloaded; one the runtime can resolve is not", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+      const cameraOnTheWire = {
+        kind: "package",
+        name: "tatolab-camera",
+        title: "Camera",
+        summary: "",
+        version: "0.69.44",
+        download_url: CAMERA_PACKAGE_ZIP_URL,
+        download_sha256: createHash("sha256").update(HALFTONE_SAMPLE_ZIP_BYTES).digest("hex"),
+      };
+      fakeShell.packageCatalogTextServed = JSON.stringify({
+        catalog_version: 1,
+        entries: [
+          { ...cameraOnTheWire, lowest_runtime_version: "0.69.44" },
+          { ...cameraOnTheWire, name: "tatolab-opus", title: "Opus", lowest_runtime_version: FAKE_RUNTIME_RELEASE },
+          { ...cameraOnTheWire, name: "tatolab-rive", title: "Rive" },
+        ],
+      });
+
+      const catalog = await fakeShell.invokeTheCommand("read_package_catalog", undefined, 3);
+      expect(catalog.ok && catalog.value.kind === "read" && catalog.value.entries.map(({ name, lowest_runtime_version, newer_runtime_it_needs }) => [name, lowest_runtime_version, newer_runtime_it_needs])).toEqual([
+        ["tatolab-camera", "0.69.44", "0.69.44"],
+        ["tatolab-opus", FAKE_RUNTIME_RELEASE, null],
+        ["tatolab-rive", null, null],
+      ]);
+      expect(await fakeShell.invokeTheCommand("import_from_the_marketplace", { name: "tatolab-camera" }, 3)).toEqual({
+        ok: false,
+        refusal: "Camera runs on runtime 0.69.44 or later, which a newer Tato Studio carries. Update Tato Studio to add it.",
       });
       expect(fakeShell.urlsFetched).not.toContain(CAMERA_PACKAGE_ZIP_URL);
     });

@@ -425,6 +425,10 @@ export interface PackageCatalogEntry {
   platforms: PackageCatalogMachine[] | null;
   /** Whether it brings anything on this machine: `platforms` is `null` or names this one. On any other the import succeeds and brings no node. */
   runs_on_this_machine: boolean;
+  /** The lowest runtime release it runs on, as the catalog names it; `null` for an entry published before the catalog named one. */
+  lowest_runtime_version: string | null;
+  /** `lowest_runtime_version` where the runtime answering is an older release, so the runtime cannot resolve it; `null` where it can, or where no runtime answered to tell. */
+  newer_runtime_it_needs: string | null;
 }
 
 /** What `read_package_catalog` answers: the catalog's entries and how many it served that the app could not read, or why it was not read, in the words of what refused. */

@@ -75,6 +75,8 @@ export interface ModuleManagerSources {
   /** Calls `listener` with each stage of a Marketplace add this window asked for; the returned function stops it. */
   onMarketplaceImportProgressed(listener: (progressed: MarketplaceImportProgressed) => void): () => void;
   cloneMarketplaceSample(name: string): Promise<ChosenProjectFolder>;
+  /** Check for a newer Tato Studio, which downloads in the background and says so where the app tells of its updates. */
+  checkForTatoStudioUpdates(): Promise<void>;
   /** Bring forward the studio window of the project in `folder`, one a clone just made. */
   showTheClonedProject(folder: string): Promise<void>;
   /** The full path of a file or folder dropped on the window, or `""` for an item with none. */
@@ -337,6 +339,9 @@ export function ModuleManagerWindowView({
       askOfTheModule(row, "clone", `Cloning ${row.title} into a new project…`, () => sources.cloneMarketplaceSample(entry.name), (cloned) => ({ kind: "just_cloned", folder: cloned.folder, showing_it_was_refused_because: null }));
     },
     update: (row) => updateTheModule(row, false),
+    checkForTatoStudioUpdates: (row) => {
+      sources.checkForTatoStudioUpdates().catch((rejection: unknown) => setTheWorkOf(row, "add", { kind: "refused", ask: "add", because: sources.describeRejection(rejection) }));
+    },
     askBeforeRemoving: setRowWaitingOnItsRemoval,
     showTheClonedProject: (row, folder) => {
       const showTheOutcome = (refusedBecause: string | null) => setTheWorkOf(row, "clone", { kind: "just_cloned", folder, showing_it_was_refused_because: refusedBecause });

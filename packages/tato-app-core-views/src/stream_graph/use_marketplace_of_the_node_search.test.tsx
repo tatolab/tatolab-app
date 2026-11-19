@@ -10,7 +10,7 @@ Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
 const MARKETPLACE: MarketplaceReading = {
   kind: "read",
-  entries: [{ kind: "package", name: "tatolab-camera", title: "Camera", summary: "", nodes: [{ name: "CameraSource", summary: "" }], runs_on_this_machine: true }],
+  entries: [{ kind: "package", name: "tatolab-camera", title: "Camera", summary: "", nodes: [{ name: "CameraSource", summary: "" }], runs_on_this_machine: true, needs_a_newer_runtime: false }],
 };
 const NIGHT_SHOW: OpenProject = { project: { folder: "/home/sam/night-show", project: "night-show-uuid", name: "night-show" }, imports: [], imports_not_listed_because: null };
 const NIGHT_SHOW_WITH_THE_CAMERA: OpenProject = {

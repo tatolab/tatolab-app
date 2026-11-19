@@ -3,7 +3,7 @@
 
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { FakeLocalApiServer, controlOperationFailedResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
+import { FakeLocalApiServer, controlOperationFailedResponse, controlOperationResultResponse, runtimeDescribedResponse } from "./fake_local_api_server.js";
 import { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.js";
 import { tatolabPlatformItemsFor } from "./platform/tatolab_platform_items.js";
 
@@ -58,7 +58,10 @@ function refusalOfAFolderHoldingNoProject(toolName: string, projectDirectory: st
 /** The `tatolab_view.json` of the one view, `views/meter`, the fake runtime lists in each import. */
 export const FAKE_METER_VIEW_MANIFEST = { contract: "1.0", title: "Meter", entry: "index.html", placement: "node", inputs: [{ name: "level", family: "array" }] };
 
-/** A runtime that answers `list_assets`, `list_dependencies`, `add_dependency`, `update_dependency`, `remove_dependency` and `list_project_views` from each project's `tatolab-project.json`, copying an import whole and taking one out whole, holding every import edited since its copy until an update overwrites it, from the `source` it is given where it is given one, listing a `meter` view in each import, making a project named for its folder on `import_project`, and no other request. */
+/** The release the runtime reading each project's file describes itself as. */
+export const FAKE_RUNTIME_RELEASE = "0.69.37";
+
+/** A runtime that answers `list_assets`, `list_dependencies`, `add_dependency`, `update_dependency`, `remove_dependency` and `list_project_views` from each project's `tatolab-project.json`, copying an import whole and taking one out whole, holding every import edited since its copy until an update overwrites it, from the `source` it is given where it is given one, listing a `meter` view in each import, making a project named for its folder on `import_project`, describing itself as release `FAKE_RUNTIME_RELEASE` on `describe_runtime`, and no other request. */
 async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
   const fakeRuntime = await FakeLocalApiServer.answeringEachControlOperation(async (toolName, toolArguments) => {
     const projectDirectory = String(toolArguments["project_directory"]);
@@ -120,6 +123,8 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
       }
       case "list_streams":
         return controlOperationResultResponse({ streams: [] });
+      case "describe_runtime":
+        return runtimeDescribedResponse(`${FAKE_RUNTIME_RELEASE}+fake.1`, FAKE_RUNTIME_RELEASE);
       case "list_project_views":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
         return controlOperationResultResponse({

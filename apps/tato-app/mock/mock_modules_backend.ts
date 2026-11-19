@@ -1,5 +1,6 @@
 import { mockPackageCatalogEntryNamed, mockPackageCatalogReading } from "./mock_package_catalog";
 import { whyTheModuleBringsNothingOnThisMachine } from "../src/shared/package_catalog_machine_words";
+import { whyTheModuleNeedsANewerRuntime } from "../src/shared/package_catalog_runtime_words";
 import { marketplaceDownloadFileNameOf, MODULE_DOWNLOADS_FOLDER_NAME } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 import { mockFirstNameNothingHolds, mockNewProjectsFolder } from "./mock_open_project";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
@@ -78,7 +79,7 @@ export function mockModulesBackendOf(simulation: MockTatolabSimulation): Pick<Ta
     onModuleManagerSectionAsked: () => () => undefined,
     readPackageCatalog: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      return mockPackageCatalogReading(mockTatolabOptions.isTheCatalogUnserved, mockTatolabOptions.platform);
+      return mockPackageCatalogReading(mockTatolabOptions.catalogScenario, mockTatolabOptions.platform);
     },
     listWorkspaceDependencies: async (checkForNewer) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * (checkForNewer ? 4 : 1));
@@ -95,10 +96,11 @@ export function mockModulesBackendOf(simulation: MockTatolabSimulation): Pick<Ta
     },
     importFromTheMarketplace: async (name) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 6);
-      const entry = mockPackageCatalogEntryNamed(name, mockTatolabOptions.platform);
+      const entry = mockPackageCatalogEntryNamed(name, mockTatolabOptions.platform, mockTatolabOptions.catalogScenario);
       if (entry === undefined) throw `The catalog lists nothing named ${name}.`;
       if (entry.kind === "sample") throw `${entry.title} is a sample project; clone it into a project of its own instead.`;
       if (!entry.runs_on_this_machine && entry.platforms !== null) throw whyTheModuleBringsNothingOnThisMachine(entry.title, entry.platforms);
+      if (entry.newer_runtime_it_needs !== null) throw whyTheModuleNeedsANewerRuntime(entry.title, entry.newer_runtime_it_needs);
       if (marketplaceDownloadsByName.has(name)) throw `${name} is being added from this window already.`;
       const download: MockMarketplaceDownload = { stage: { kind: "downloading", bytes_read: 0, bytes_total: null }, stopper: new AbortController() };
       marketplaceDownloadsByName.set(name, download);
@@ -139,7 +141,7 @@ export function mockModulesBackendOf(simulation: MockTatolabSimulation): Pick<Ta
     },
     cloneMarketplaceSample: async (name) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 6);
-      const entry = mockPackageCatalogEntryNamed(name, mockTatolabOptions.platform);
+      const entry = mockPackageCatalogEntryNamed(name, mockTatolabOptions.platform, mockTatolabOptions.catalogScenario);
       if (entry === undefined) throw `The catalog lists nothing named ${name}.`;
       if (entry.kind !== "sample") throw `${entry.title} is not a sample project; add it to a project instead.`;
       await mockMarketplaceDownloadOf(entry, mockTatolabOptions.marketplaceAddScenario, () => undefined, new AbortController().signal);
