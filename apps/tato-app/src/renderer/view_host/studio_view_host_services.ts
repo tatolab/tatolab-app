@@ -1,7 +1,7 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { ProjectLogReadings } from "./project_log_readings";
 import type { ProjectListingReadingsWhileWatched } from "./project_listing_readings_while_watched";
-import type { AssetPreviewPicture, AssetPreviewReading, ProjectAssetListing, ProjectNodeTypeListing } from "../../shared/tatolab_backend_contract";
+import type { AssetPreviewPicture, AssetPreviewReading, ProjectAssetListing } from "../../shared/tatolab_backend_contract";
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
@@ -35,7 +35,6 @@ export interface StudioWindowValuesServedToViews {
 export interface StudioViewHostProjectServices {
   backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "openModuleManagerWindow" | "stopOpenProject" | "runOpenProject" | "reloadProject">;
   projectLogReadings: ProjectLogReadings;
-  projectNodeTypeReadings: ProjectListingReadingsWhileWatched<ProjectNodeTypeListing>;
   projectNodeTypesDescribedReadings: ProjectNodeTypesDescribedReadings;
   projectAssetReadings: ProjectListingReadingsWhileWatched<ProjectAssetListing>;
   projectTransactionsReadings: ProjectTransactionsReadings;
@@ -204,7 +203,6 @@ export function studioViewHostServicesOf(
         (rejection: unknown) => ({ kind: "not_listed", because: describeBackendRejection(rejection) }),
       ),
     watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
-    watchProjectNodeTypes: projectServices.projectNodeTypeReadings.watchTheProject,
     watchNodeTypes: projectServices.projectNodeTypesDescribedReadings.watchTheProject,
     watchProjectAssets: projectServices.projectAssetReadings.watchTheProject,
     importAssetsIntoTheProject: (projectFolder, media) =>

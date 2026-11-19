@@ -1,12 +1,12 @@
 import { expect, test } from "vitest";
-import type { ProjectNodeType, ProjectNodeTypeSource } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { NodeTypeListed, NodeTypeSourceListed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeTypeSourceChildren, shownStudioTreeRows } from "./node_type_listing_tree";
 
-const nodeTypeOf = (type: string, category: string): ProjectNodeType => ({ type, kind: "process", description: "", category, inputs: null, outputs: null, path: null, line: null });
+const nodeTypeOf = (nodeType: string, category: string): NodeTypeListed => ({ node_type: nodeType, documentation: "", category, kind: "process", described_from: "interpreter" });
 
-const rowsOfTheSource = (nodeTypes: ProjectNodeType[]) => {
-  const source: ProjectNodeTypeSource = { origin: { source: "project" }, node_types: nodeTypes, graph_generators: [], unreadable_modules: [] };
-  return shownStudioTreeRows(nodeTypeSourceChildren(source, "source:project", "This project", "/p"), {});
+const rowsOfTheSource = (nodeTypes: NodeTypeListed[]) => {
+  const source: NodeTypeSourceListed = { source: "project", node_types: nodeTypes, graph_generators: [], unreadable_modules: [] };
+  return shownStudioTreeRows(nodeTypeSourceChildren(source, new Map(), "source:project", "This project", "/p"), {});
 };
 
 test("a_category_inside_another_is_listed_under_it_before_its_own_node_types_and_a_node_type_served_with_none_comes_last", () => {

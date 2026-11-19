@@ -97,14 +97,13 @@ function requestContractMismatch(method: ControlOperationMethodName, why: string
 export const LOCAL_API_REQUEST_TIMEOUT_MS = 3_000;
 
 /**
- * The time limit of each operation that takes longer than a call's default: `list_project_node_types` and `list_node_types` run
- * the project's interpreter over its source, which the runtime bounds at 60 seconds and refuses soon after, and `describe_node_types`
+ * The time limit of each operation that takes longer than a call's default: `list_node_types` runs the project's
+ * interpreter over its source, which the runtime bounds at 60 seconds and refuses soon after, and `describe_node_types`
  * reads that source again for each project node type no loaded stream has described; a dependency tool locks the
  * project's Python requirements with uv, which may resolve them over the network, and a check for newer versions reads
  * every source; a tool that copies files copies a whole project or asset, or unpacks a `.zip`.
  */
 const CONTROL_OPERATION_TIME_LIMITS_MS: Partial<Readonly<Record<ControlOperationMethodName, number>>> = {
-  list_project_node_types: 65_000,
   list_node_types: 65_000,
   describe_node_types: 65_000,
   add_dependency: 180_000,

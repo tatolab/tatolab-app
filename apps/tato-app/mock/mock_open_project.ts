@@ -7,7 +7,11 @@
 
 import { projectNameNumbered, untitledProjectNameNumbered } from "../src/shared/new_project_folder_name";
 import type { NewProjectDefaults, OpenProjectReading, ProjectArchiveChosenToImport, ProjectTheRuntimeNames, RecentProject } from "../src/shared/tatolab_backend_contract";
-import { MOCK_CAMERA_IMPORT_PROJECT, MOCK_LOBBY_RECORDER_IMPORT_PROJECT } from "./mock_project_node_types";
+
+/** The UUID the mock's camera import is listed by. */
+const MOCK_CAMERA_IMPORT_PROJECT = "3a9d6e21-5b7c-4f08-a1e4-6c2b9f0d8e15";
+/** The UUID the mock's lobby-recorder import is listed by. */
+const MOCK_LOBBY_RECORDER_IMPORT_PROJECT = "8e1f4c37-0d2a-4b96-b5c8-7f3e2a1d9c64";
 
 /** What `?project=` names. */
 export type MockOpenProjectScenario = "read" | "none" | "unreadable";

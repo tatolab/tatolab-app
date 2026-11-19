@@ -7,7 +7,6 @@ import type {
   NewProjectDefaults,
   DescribeNodeTypesToolResult,
   ListNodeTypesToolResult,
-  ProjectNodeTypeListing,
   ProjectAssetListing,
   ProjectAssetsImported,
   AssetPreviewPicture,
@@ -73,7 +72,6 @@ export const TATOLAB_COMMAND_NAMES = [
   "describe_stream_graph",
   "list_node_types",
   "describe_node_types",
-  "list_project_node_types",
   "list_project_assets",
   "import_assets_into_the_open_project",
   "relocate_asset_in_the_open_project",
@@ -358,8 +356,6 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraph };
   list_node_types: { commandArguments: { project_directory: string }; answer: ListNodeTypesToolResult };
   describe_node_types: { commandArguments: { project_directory: string; node_types: readonly string[] }; answer: DescribeNodeTypesToolResult };
-  /** `project_directory` the asking window's project, one of its imports, or a project the runtime lists; refused in the runtime's own words. */
-  list_project_node_types: { commandArguments: { project_directory: string }; answer: ProjectNodeTypeListing };
   /** `project_directory` the asking window's project, one of its imports, or a project the runtime lists; refused in the runtime's own words. */
   list_project_assets: { commandArguments: { project_directory: string }; answer: ProjectAssetListing };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };

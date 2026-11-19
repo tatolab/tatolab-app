@@ -163,6 +163,8 @@ export type {
   NodeTypeSourceListed,
   NodeTypeListed,
   GraphGeneratorListed,
+  GraphGeneratorPromotedSettingReadFromSource,
+  NodeModuleNotReadable,
   NodeTypeDescribedOrWhyNot,
   NodeTypeDescription,
   NodeTypeNotDescribed,
@@ -437,82 +439,6 @@ export function nodeTypeDescriptionsByType(described: readonly NodeTypeDescribed
   return new Map(described.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [[nodeType.node_type, nodeType] as const])));
 }
 
-/** One port of a node type as its declaration states it in source. */
-export type ProjectNodeTypePort = {
-  name: string;
-  description: string;
-  /** `null` where source alone does not say, or for one this app does not know. */
-  family: PortFamily | null;
-  /** A function or shader port's annotation as written; `null` for a process node's port. */
-  annotation: string | null;
-};
-
-/** One node type a project's source declares. */
-export type ProjectNodeType = {
-  /** The type `add_node` takes: the import path `<module>:<qualname>`. */
-  type: string;
-  /** `process`, `function` or `shader`, or a kind newer than this app; `null` where source does not show it. */
-  kind: string | null;
-  description: string;
-  /** The category the runtime files it under, a path with `/` between its levels, as `Effects/Stylize`; `null` for a type served with none. */
-  category: string | null;
-  /** `null` where only the node's native half states its ports. */
-  inputs: ProjectNodeTypePort[] | null;
-  outputs: ProjectNodeTypePort[] | null;
-  /** The declaring file, relative to its source's root. */
-  path: string | null;
-  line: number | null;
-};
-
-/** One setting a graph generator promotes, as its parameter states it. */
-export type ProjectGraphGeneratorPromotedSetting = { name: string; annotation: string | null };
-
-/** One `@graph_generator` a project's source declares. */
-export type ProjectGraphGenerator = {
-  /** The import path `import_graph_generator` takes: `<module>:<function>`. */
-  generator: string;
-  /** Its docstring. */
-  description: string;
-  promoted_config: ProjectGraphGeneratorPromotedSetting[];
-  path: string;
-  line: number;
-};
-
-/** A module of a source that does not parse, with why in the parser's words and where it stopped. */
-export type ProjectNodeModuleNotReadable = {
-  module: string;
-  path: string;
-  line: number | null;
-  column: number | null;
-  why: string;
-};
-
-/** Where a listed source's node code comes from: the project, an import by its UUID, folder under `imports/`, copied version and the name its own project file holds (`null` when that file does not read), an installed distribution, or an origin newer than this app. */
-export type ProjectNodeTypeSourceOrigin =
-  | { source: "project" }
-  | { source: "dependency"; project: string; folder: string; version: string; project_name: string | null }
-  | { source: "installed_distribution"; distribution: string; distribution_version: string }
-  | { source: "newer_than_this_app"; source_name: string };
-
-/** One source's node types, graph generators, and the modules of it that do not parse. */
-export type ProjectNodeTypeSource = {
-  origin: ProjectNodeTypeSourceOrigin;
-  node_types: ProjectNodeType[];
-  graph_generators: ProjectGraphGenerator[];
-  unreadable_modules: ProjectNodeModuleNotReadable[];
-};
-
-/** What the project and each source it draws node code from declares, read from source without running it. */
-export type ProjectNodeTypeListing = {
-  /** The project's folder, its links resolved. */
-  project_directory: string;
-  /** The project's UUID. */
-  project: string;
-  project_name: string;
-  /** The project first, then each import, then each installed distribution. */
-  sources: ProjectNodeTypeSource[];
-};
-
 /** An asset's preview picture as `list_assets` sizes it, in whole pixels above zero: an image's own picture or a video's poster frame, which `read_asset_preview` answers. */
 export type ProjectAssetPreview = {
   pixel_width: number;
@@ -714,9 +640,6 @@ export type StreamInputValuesReading = { kind: "values"; stream_asset: string | 
 
 /** The node types a project offers and each one's inputs and outputs, or why the runtime lists none, in its own words. */
 export type ProjectNodeTypesDescribedReading = { kind: "listed"; node_types: ProjectNodeTypesDescribed } | { kind: "not_listed"; because: string };
-
-/** What a project and each source it draws node code from declares, or why the runtime lists none, in its own words. */
-export type ProjectNodeTypesReading = { kind: "listed"; listing: ProjectNodeTypeListing } | { kind: "not_listed"; because: string };
 
 /** One input or output a `node` view declares: its name and family. */
 export type StudioViewDeclaredPort = { name: string; family: PortFamily; description: string };

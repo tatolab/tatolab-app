@@ -9,7 +9,6 @@ import type {
   NodeFileCreating,
   ProjectFilesListing,
   ProjectLogReading,
-  ProjectNodeTypesReading,
   ProjectAssetsImporting,
   AssetPreviewReading,
   ProjectAssetsReading,
@@ -47,7 +46,6 @@ export type {
   ProjectNodeTypesDescribedReading,
   ProjectFileReading,
   ProjectLogReading,
-  ProjectNodeTypesReading,
   ProjectAssetsImporting,
   ProjectAssetsReading,
   ProjectTransaction,
@@ -139,8 +137,6 @@ export interface StudioViewHostServices {
   listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
   /** `projectFolder`'s log, read while any view watches it and the window is shown; the first reading arrives once read. */
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void): StopWatching;
-  /** What `projectFolder` and each source it draws node code from declares, listed while any view watches it and the window is shown; the first reading arrives once listed. */
-  watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void): StopWatching;
   /** The node types `projectFolder` offers, each described, listed and described while any view watches them and the window is shown, and again as they change or a stream of the project loads; the first reading arrives once described. */
   watchNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesDescribedReading) => void): StopWatching;
   /** `projectFolder`'s assets, listed while any view watches it and the window is shown; the first reading arrives once listed. */

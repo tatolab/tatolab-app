@@ -206,8 +206,6 @@ export class TatolabViewBridge {
       case "project_log":
         keep(this.hostServices.watchProjectLog(subject.project_folder, (reading) => sendReading({ subject: "project_log", reading })));
         return;
-      case "project_node_types":
-        keep(this.hostServices.watchProjectNodeTypes(subject.project_folder, (reading) => sendReading({ subject: "project_node_types", reading })));
         return;
       case "node_types":
         keep(this.hostServices.watchNodeTypes(subject.project_folder, (reading) => sendReading({ subject: "node_types", reading })));

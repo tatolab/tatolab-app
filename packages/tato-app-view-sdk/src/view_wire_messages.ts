@@ -21,7 +21,6 @@ import type {
   ProjectGraphTransaction,
   ProjectLogReading,
   ProjectNodeTypesDescribedReading,
-  ProjectNodeTypesReading,
   ProjectStreamsRecovery,
   ProjectTransaction,
   ProjectTransactionAuthor,
@@ -93,7 +92,6 @@ export type ViewWatchedSubject =
   /** Every input's value in the stream's graph, then each change of one. */
   | { kind: "input_values"; stream: string }
   | { kind: "project_log"; project_folder: string }
-  | { kind: "project_node_types"; project_folder: string }
   /** The node types the project offers, each described, listed and described again each time the project's node types change or one of its streams loads. */
   | { kind: "node_types"; project_folder: string }
   /** The project's assets, listed again while watched. */
@@ -188,7 +186,6 @@ export type ViewWatchedReading =
   | { subject: "stream_graph"; reading: StreamGraphReading }
   | { subject: "input_values"; reading: StreamInputValuesReading }
   | { subject: "project_log"; reading: ProjectLogReading }
-  | { subject: "project_node_types"; reading: ProjectNodeTypesReading }
   | { subject: "node_types"; reading: ProjectNodeTypesDescribedReading }
   | { subject: "project_assets"; reading: ProjectAssetsReading }
   | { subject: "project_transactions"; reading: ProjectTransactionsReading }

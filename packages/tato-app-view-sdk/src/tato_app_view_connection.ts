@@ -15,7 +15,6 @@ import type {
   ProjectFilesListing,
   ProjectGraphTransactionApplying,
   ProjectLogReading,
-  ProjectNodeTypesReading,
   ProjectAssetsImporting,
   AssetPreviewReading,
   ProjectAssetsReading,
@@ -101,8 +100,6 @@ export interface TatoAppViewConnection {
   watchStreamInputValues(stream: string, listener: (reading: StreamInputValuesReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The log of the project in `projectFolder`; the first reading arrives once read. */
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** The node types the project in `projectFolder` offers; the first reading arrives once listed. */
-  watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The node types the project in `projectFolder` offers, each with its inputs and outputs; the first reading arrives once listed and described, and another whenever they change. */
   watchNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesDescribedReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** The assets of the project in `projectFolder`; the first reading arrives once listed, and another whenever the listing changes. */
@@ -283,8 +280,6 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
         watchFor({ kind: "input_values", stream }, (watched) => watched.subject === "input_values" && listener(watched.reading), whenRefused),
       watchProjectLog: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
         watchFor({ kind: "project_log", project_folder: projectFolder }, (watched) => watched.subject === "project_log" && listener(watched.reading), whenRefused),
-      watchProjectNodeTypes: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
-        watchFor({ kind: "project_node_types", project_folder: projectFolder }, (watched) => watched.subject === "project_node_types" && listener(watched.reading), whenRefused),
       watchNodeTypes: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
         watchFor({ kind: "node_types", project_folder: projectFolder }, (watched) => watched.subject === "node_types" && listener(watched.reading), whenRefused),
       watchProjectAssets: (projectFolder, listener, whenRefused = IGNORE_THE_REFUSAL) =>
