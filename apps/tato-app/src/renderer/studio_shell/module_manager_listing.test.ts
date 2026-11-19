@@ -21,6 +21,7 @@ import {
   workKeptForTheRow,
   moduleRowCountsOf,
   moduleSourceWordsOf,
+  moduleUpdateWordsOf,
   moduleViewsShownOf,
   projectModuleRowsShownOf,
   updatesCountWordsOf,
@@ -225,6 +226,9 @@ describe("what the Marketplace window lists", () => {
     const fromAZip = { ...aModule("doorways", null), source: "/shows/Doorways.ZIP" };
     const rows = everyModuleCardRowOf(CATALOG, [fromTheMarketplace, fromAZip, aModule("lobby-wall", null)]);
     expect(rows.map(moduleSourceWordsOf)).toEqual(["", "From the Marketplace", "", "From a .zip", "From a folder"]);
+    const cameraRow = rows[1] ?? expect.unreachable("no Camera row");
+    expect(moduleUpdateWordsOf(cameraRow)).toEqual({ updateAvailable: `Version ${cameraRow.catalog_entry?.version} is in the Marketplace.`, checkRefusedLead: "It could not be checked for an update:" });
+    expect(moduleUpdateWordsOf(rows[3] ?? expect.unreachable("no Doorways row"))).toEqual({ updateAvailable: "An update is available from where it was copied.", checkRefusedLead: "Where it was copied from could not be checked:" });
     const camera = aModule("tatolab-camera", null);
     expect(moduleCopyStateOf(camera)).toEqual({ kind: "not_checked" });
     expect(moduleCopyStateOf({ ...camera, newer_version_exists: false })).toEqual({ kind: "up_to_date" });
@@ -236,6 +240,9 @@ describe("what the Marketplace window lists", () => {
       whyTheModuleHasNoUpdateToTake({ ...camera, newer_version_exists: true }),
       whyTheModuleHasNoUpdateToTake({ ...camera, check_refused_because: "No such file or directory (os error 2)" }),
     ]).toEqual(["Check for updates first.", "It is up to date.", null, "Where it was copied from could not be checked."]);
+    const goneFromTheCatalog = everyModuleCardRowOf(CATALOG, [{ ...aModule("lantern", null), source: "/home/jo/.config/Tato Studio/module-downloads/tatolab-lantern-1.0.zip" }]).find((row) => row.row_id === "import:lantern");
+    expect(moduleUpdateWordsOf(goneFromTheCatalog ?? expect.unreachable("no Lantern row"))).toEqual({ updateAvailable: "A newer version is in the Marketplace.", checkRefusedLead: "It could not be checked for an update:" });
+    expect(whyTheModuleHasNoUpdateToTake({ ...fromTheMarketplace, check_refused_because: "The Marketplace no longer lists it." })).toBe("It could not be checked for an update.");
   });
 
   it("gives a Marketplace download to its catalog entry, though its project names itself by its title", () => {

@@ -213,11 +213,14 @@ export function addDependency(projectDirectory: string, source: string): Effect.
   return controlOperationReadWith("add_dependency", { project_directory: projectDirectory, source }, projectDependencyFromTheAddDependencyToolResult);
 }
 
-/** The import `project` of the project in `projectDirectory` copied again from its source by the runtime's `update_dependency`, overwriting files edited since its copy only with `overwriteEditedFiles`. */
-export function updateDependency(projectDirectory: string, project: string, overwriteEditedFiles: boolean): Effect.Effect<WorkspaceDependencyUpdate, RuntimeControlFailure, RuntimeControl> {
+/**
+ * The import `project` of the project in `projectDirectory` copied again by the runtime's `update_dependency`, from `source` where given and
+ * from the source it was last copied from otherwise, overwriting files edited since its copy only with `overwriteEditedFiles`.
+ */
+export function updateDependency(projectDirectory: string, project: string, overwriteEditedFiles: boolean, source: string | null = null): Effect.Effect<WorkspaceDependencyUpdate, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith(
     "update_dependency",
-    { project_directory: projectDirectory, project, overwrite_edited_files: overwriteEditedFiles },
+    { project_directory: projectDirectory, project, overwrite_edited_files: overwriteEditedFiles, ...(source === null ? {} : { source }) },
     dependencyUpdateFromTheUpdateDependencyToolResult,
   );
 }

@@ -301,6 +301,60 @@ describe("Module manager", () => {
       expect(listed.ok && Array.isArray(listed.value) && listed.value.map((dependency) => ("folder" in dependency ? dependency.folder : null))).toEqual(["lobby-wall"]);
     });
 
+    test("an import downloaded from the Marketplace shows an update when the catalog lists another version, and Update copies the catalog's download in one step, downloading nothing while its edited files wait on the person", async () => {
+      const { fakeShell, nightShowFolder } = await aStudioWindowOfNightShowImportingLobbyWall();
+      serveACatalogOfTheHalftoneSampleAndTheCameraPackage(fakeShell);
+      const downloadsFolder = path.join(fakeShell.tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME);
+      await writeFile(
+        path.join(nightShowFolder, "tatolab-project.json"),
+        JSON.stringify({
+          project: "uuid-of-night-show",
+          name: "night-show",
+          dependencies: [{ project: "uuid-of-lobby-wall", folder: "lobby-wall", source: path.join(downloadsFolder, "tatolab-camera-0.68.12.zip"), version: FAKE_IMPORT_VERSION }],
+          imports_edited: ["uuid-of-lobby-wall"],
+        } satisfies FakeProjectFile),
+      );
+
+      expect(await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: true }, 3)).toMatchObject({ ok: true, value: [{ folder: "lobby-wall", newer_version_exists: true, check_refused_because: null }] });
+      expect(await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: false }, 3)).toMatchObject({ ok: true, value: [{ folder: "lobby-wall", newer_version_exists: null }] });
+
+      expect(await fakeShell.invokeTheCommand("update_workspace_dependency", { project: "uuid-of-lobby-wall", overwrite_edited_files: false }, 3)).toEqual({
+        ok: true,
+        value: { kind: "edited_since_its_copy", edited_files: ["views/meter/index.html"] },
+      });
+      expect(fakeShell.urlsFetched).not.toContain(CAMERA_PACKAGE_ZIP_URL);
+
+      expect(await fakeShell.invokeTheCommand("update_workspace_dependency", { project: "uuid-of-lobby-wall", overwrite_edited_files: true }, 3)).toMatchObject({
+        ok: true,
+        value: { kind: "updated", dependency: { project: "uuid-of-lobby-wall", source: path.join(downloadsFolder, "tatolab-camera-0.68.29.zip") } },
+      });
+      expect(fakeShell.urlsFetched).toContain(CAMERA_PACKAGE_ZIP_URL);
+      expect(await readdir(downloadsFolder)).toEqual(["tatolab-camera-0.68.29.zip"]);
+    });
+
+    test("an import downloaded from the Marketplace says why it was not checked when the catalog does not read or no longer lists it", async () => {
+      const { fakeShell, nightShowFolder } = await aStudioWindowOfNightShowImportingLobbyWall();
+      const downloadsFolder = path.join(fakeShell.tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME);
+      await writeFile(
+        path.join(nightShowFolder, "tatolab-project.json"),
+        JSON.stringify({
+          project: "uuid-of-night-show",
+          name: "night-show",
+          dependencies: [{ project: "uuid-of-lobby-wall", folder: "lobby-wall", source: path.join(downloadsFolder, "tatolab-camera-0.68.12.zip"), version: FAKE_IMPORT_VERSION }],
+        } satisfies FakeProjectFile),
+      );
+
+      expect(await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: true }, 3)).toMatchObject({
+        ok: true,
+        value: [{ folder: "lobby-wall", newer_version_exists: null, check_refused_because: expect.stringMatching(/^The Marketplace could not be read: /) }],
+      });
+      fakeShell.packageCatalogTextServed = JSON.stringify({ catalog_version: 1, entries: [] });
+      expect(await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: true }, 3)).toMatchObject({
+        ok: true,
+        value: [{ folder: "lobby-wall", newer_version_exists: null, check_refused_because: "The Marketplace no longer lists it." }],
+      });
+    });
+
     test("a package is added from a Stream graph popped out of the project's studio window, as its node search adds one", async () => {
       const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
       serveACatalogOfTheHalftoneSampleAndTheCameraPackage(fakeShell);

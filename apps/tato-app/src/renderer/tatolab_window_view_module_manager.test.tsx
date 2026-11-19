@@ -231,6 +231,21 @@ describe("Module manager", () => {
     expect(textOf('[data-module-manager-status="lobby-wall"]')).not.toContain("Update available");
   });
 
+  it("says a module added from the Marketplace has the catalog's newer version on its page once checked, and Update takes it", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=marketplace_newer&module_manager_section=added_to_this_project");
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    pressed("[data-module-manager-check-for-updates]");
+    await waitFor(() => expect(textOf('[data-module-manager-status="camera"] [data-module-card-mark="news"]')).toBe("Update available"));
+    expect(textOf("[data-module-manager-updates-count]")).toBe("1 update");
+
+    openThePageOf("catalog:tatolab-camera");
+    await shown("[data-module-manager-update-available]");
+    expect(textOf("[data-module-manager-update-available]")).toBe("Version 0.68.29 is in the Marketplace.");
+    pressed('[data-module-manager-detail] [data-module-manager-update="camera"]');
+    await waitFor(() => expect(document.querySelector("[data-module-manager-updates-count]")).toBeNull());
+    expect(document.querySelector("[data-module-manager-update-available]")).toBeNull();
+  });
+
   it("uninstalls a module only once Uninstall… is confirmed, and says the runtime's refusal in its own words under its row", async () => {
     let refuseTheRemoval = true;
     const backendOverTheMock = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&module_manager=open&module_manager_section=added_to_this_project")));
