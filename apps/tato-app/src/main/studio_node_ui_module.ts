@@ -8,7 +8,8 @@
 import studioNodeUiManifestJson from "@tatolab/tato-app-core-node-ui/node_ui/tatolab_node_ui.json" with { type: "json" };
 import type { ListedNodeUiElement, NodeUiElementRegistration } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import { Data, Effect } from "effect";
-import { howAProjectViewFileIsServed, projectViewFileAsServed, type ExtensionFileAnswer, type ExtensionFileNotServableAsWritten } from "./extension_files_served_with_types_removed.js";
+import { howAnExtensionFileIsServed } from "./extension_file_serving.js";
+import { projectViewFileAsServed, type ExtensionFileAnswer, type ExtensionFileNotServableAsWritten } from "./extension_files_served_with_types_removed.js";
 import { describeCaughtFailure } from "./result.js";
 import { tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
 import { describeTheContractIssues, readControlContractValue, type NodeUiManifest } from "./tatolab_runtime_control_operation_call.js";
@@ -108,7 +109,7 @@ const studioNodeUiFileServed = Effect.fn("studio_node_ui_file_served")(function*
     catch: (readFailure) => new StudioNodeUiFileUnreadable({ words: `the Studio's own node_ui/${pathInTheModule} could not be read: ${describeCaughtFailure(readFailure)}` }),
   });
   if (fileBytes === null) return yield* new StudioNodeUiFileNotFound({ words: `the Studio's own node UI module holds no ${pathInTheModule}.` });
-  const serving = howAProjectViewFileIsServed(pathInTheModule);
+  const serving = howAnExtensionFileIsServed(pathInTheModule);
   const servedBytes = yield* projectViewFileAsServed(pathInTheModule, Buffer.from(fileBytes), serving.served_as);
   return { kind: "served", content_type: serving.content_type, file_bytes: servedBytes } satisfies ExtensionFileAnswer;
 });

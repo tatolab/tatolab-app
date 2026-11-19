@@ -12,16 +12,20 @@ async function boundaryMessagesOf(sourceText: string): Promise<string[]> {
 }
 
 describe("a first-party control's imports", () => {
-  it("may take the SDK's public entries by name, the control stylesheet among them, and its own folder's files", async () => {
+  it("may take the modules the Studio supplies by name, the SDK's public entries, the control stylesheet, the design system, React and Effect among them, and its own folder's files", async () => {
     expect(
       await boundaryMessagesOf(
         [
           'import { fireInputControlEvent } from "@tatolab/tato-app-view-sdk/node_ui";',
           'import type { PinValues } from "@tatolab/tato-app-view-sdk/pin_types";',
           'import controlStyles from "@tatolab/tato-app-view-sdk/node_ui/input_control.css" with { type: "css" };',
+          'import { ColourPickerDialog } from "@tatolab/tato-app-view-sdk/design_system/colour_picker_dialog";',
+          'import { createElement } from "react";',
+          'import { createRoot } from "react-dom/client";',
+          'import { Effect } from "effect";',
           'import "./float_number.ts";',
           "export type Gain = PinValues['float'];",
-          "export const firing = [fireInputControlEvent, controlStyles];",
+          "export const firing = [fireInputControlEvent, controlStyles, ColourPickerDialog, createElement, createRoot, Effect];",
           "",
         ].join("\n"),
       ),
@@ -29,7 +33,7 @@ describe("a first-party control's imports", () => {
   });
 
   it("never takes what a page does not supply: a library, the Studio's own entries, the app, or a file outside its folder", async () => {
-    for (const importedFrom of ["zod", "effect", "@tatolab/tato-app-view-sdk/node_ui_host", "@tatolab/runtime-client/pin_types", "tato-app/src/renderer/view_host/core_view_types", "../tests/float_number.test.ts", "../../tato-app-view-sdk/src/node_ui.ts"]) {
+    for (const importedFrom of ["zod", "effect/Schema", "react-colorful", "@tatolab/tato-app-view-sdk/node_ui_host", "@tatolab/tato-app-view-sdk/design_system/support/control_data_attributes", "@tatolab/runtime-client/pin_types", "tato-app/src/renderer/view_host/core_view_types", "../tests/float_number.test.ts", "../../tato-app-view-sdk/src/node_ui.ts"]) {
       expect(await boundaryMessagesOf(`import "${importedFrom}";\n`), importedFrom).not.toEqual([]);
     }
   });

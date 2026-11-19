@@ -1,8 +1,10 @@
-// The modules the Studio supplies to a view by name. `supplied_modules.json` lists them; the SDK's
-// build writes each as one `.js` under `dist/studio_sdk/`, or copies a stylesheet there as it is,
-// which the Studio serves at `/studio_sdk/`; and the import map made here resolves each name to
-// that file. A page holds the map before any module script, so a view imports the SDK the Studio
-// serves with no build, and a stylesheet as a CSS module script.
+// The modules the Studio supplies to a view by name. `supplied_modules.json` lists them: each public
+// entry of the SDK, each part of its design system with the design system's compiled stylesheet,
+// and the libraries an extension may draw with, React, React DOM and Effect, at the versions the
+// Studio installs. The SDK's build writes each as one `.js`, or a stylesheet as one `.css`, under
+// `dist/studio_sdk/`, which the Studio serves at `/studio_sdk/`; and the import map made here
+// resolves each name to that file. A page holds the map before any module script, so a view imports
+// what the Studio serves with no build, and a stylesheet as a CSS module script.
 
 import suppliedModulesList from "../supplied_modules.json" with { type: "json" };
 
@@ -16,6 +18,14 @@ export interface SuppliedModule {
 
 /** Every module the Studio supplies, as `supplied_modules.json` lists them. */
 export const SUPPLIED_MODULES: readonly SuppliedModule[] = suppliedModulesList;
+
+/** The SDK's package name, which names each of its own entries among the supplied modules. */
+export const VIEW_SDK_PACKAGE_NAME = "@tatolab/tato-app-view-sdk";
+
+/** Whether `suppliedModule` is an entry of the SDK itself rather than a library the Studio installs. */
+export function isAnEntryOfTheSdk(suppliedModule: SuppliedModule): boolean {
+  return suppliedModule.name === VIEW_SDK_PACKAGE_NAME || suppliedModule.name.startsWith(`${VIEW_SDK_PACKAGE_NAME}/`);
+}
 
 /** Whether `suppliedModule` is a stylesheet, imported as a CSS module script, rather than a JavaScript module. */
 export function isASuppliedStylesheet(suppliedModule: SuppliedModule): boolean {
