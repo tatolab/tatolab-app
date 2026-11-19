@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mountedWindowOverTheMock, pressAsAPointerDoes, coreViewPage, inTheCoreView, showInTheLibrary, libraryRow, showTheLibraryInTheViewerArea, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
+import { mountedWindowOverTheMock, pressAsAPointerDoes, coreViewPage, showInTheLibrary, libraryRow, showTheLibraryInTheViewerArea, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
 // Code's editor here says Monaco didn't load; the code pane's text and saves are tested beside it.
@@ -19,18 +19,19 @@ describe("the studio", () => {
     await waitFor(() => libraryRow("source:project"));
     expect(libraryRow("source:project").textContent).toBe("This project");
     expect(coreViewPage("library").querySelector('[data-tree-row-id="source:project/graph_generators"]')).toBeNull();
-    expect(libraryRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("imports/hall-of-light");
+    expect(libraryRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("imports/stage-lights");
     expect(libraryRow("source:distribution:tatolab-testpattern").getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.click(libraryRow("source:project/unreadable:nodes.half_written"));
     await waitFor(() => expect(coreViewPage("library").querySelector('[data-library-unreadable-why="nodes.half_written"]')?.textContent).toBe("SyntaxError: expected ':'"));
-    fireEvent.click(libraryRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11/category:Lighting/node_type:nodes.gripper:Gripper"));
-    await waitFor(() => expect(coreViewPage("library").querySelector('[data-library-details="nodes.gripper:Gripper"]')).not.toBeNull());
-    expect(coreViewPage("library").querySelector('[data-library-port="grip"]')?.textContent).toContain("grip");
-    expect(inTheCoreView("library").getByText("Outputs stated only by its native half")).toBeTruthy();
+    const dimmer = "imports/stage-lights/nodes.dimmer:Dimmer";
+    fireEvent.click(libraryRow(`source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11/category:Lighting/node_type:${dimmer}`));
+    await waitFor(() => expect(coreViewPage("library").querySelector(`[data-library-details="${dimmer}"]`)).not.toBeNull());
+    expect(coreViewPage("library").querySelector('[data-library-port="picture"]')?.textContent).toContain("picture");
+    expect(coreViewPage("library").querySelector('[data-library-port="dimmed"]')?.textContent).toContain("dimmed");
 
     await showInTheLibrary("graph_generators");
-    await waitFor(() => expect(libraryRow("source:project/graph_generators/nodes.scenes:two_cameras_side_by_side").textContent).toBe("two_cameras_side_by_side"));
+    await waitFor(() => expect(libraryRow("source:project/graph_generators/generators.glow_looks:warm_glow").textContent).toBe("warm_glow"));
     expect(coreViewPage("library").querySelector('[data-tree-row-id="source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11"]')).toBeNull();
   });
 

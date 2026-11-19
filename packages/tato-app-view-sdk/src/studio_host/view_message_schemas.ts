@@ -30,7 +30,6 @@ export const viewWatchedSubjectSchema = schemaOfThePublicType<ViewWatchedSubject
     Schema.Struct({ kind: Schema.Literal("stream_graph"), stream: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("input_values"), stream: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("project_log"), project_folder: Schema.String }),
-    Schema.Struct({ kind: Schema.Literal("project_node_types"), project_folder: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("node_types"), project_folder: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("project_assets"), project_folder: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("project_transactions"), project_folder: Schema.String }),

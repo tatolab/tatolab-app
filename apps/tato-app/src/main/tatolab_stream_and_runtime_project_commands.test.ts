@@ -68,13 +68,13 @@ test("each queued action answers the window null, and a missing argument or a pr
     ok: false,
     refusal: "The runtime lists no stream from /etc.",
   });
-  expect(await commandHandlers.list_project_node_types({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.list_node_types({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
   expect(await commandHandlers.follow_project_log_records({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
   expect(await commandHandlers.follow_project_log_records({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "Only a studio window or a popped-out view follows a project's log.",
   });
-  expect(await commandHandlers.list_project_node_types({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: 'list_project_node_types: Missing key\n  at ["project_directory"]' });
+  expect(await commandHandlers.list_node_types({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: 'list_node_types: Missing key\n  at ["project_directory"]' });
 });
 
 test("reloading a project the runtime lists open queues reload_project, one it lists closed open_project, each answering the action and observing again; one it does not list is refused", async () => {

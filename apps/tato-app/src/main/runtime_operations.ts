@@ -15,7 +15,6 @@ import type {
   ProjectAssetListing,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
-  ProjectNodeTypeListing,
   ProjectStreamActionQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
@@ -56,7 +55,6 @@ import {
   type ProjectFileWriteRecorded,
 } from "./project_files_on_the_wire.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
-import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
 import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
 import { projectViewsFromTheListProjectViewsToolResult, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
@@ -119,11 +117,6 @@ export function listNodeTypes(projectDirectory: string): Effect.Effect<ListNodeT
 /** Each of `nodeTypes`, as the project in `projectDirectory` lists them, described or with why not, the runtime's `describe_node_types` answer passed on as the contract types it. */
 export function describeNodeTypes(projectDirectory: string, nodeTypes: readonly string[]): Effect.Effect<DescribeNodeTypesToolResult, RuntimeControlFailure, RuntimeControl> {
   return RuntimeControl.use((runtimeControl) => runtimeControl.call("describe_node_types", { project_directory: projectDirectory, node_types: [...nodeTypes] }));
-}
-
-/** What the project in `projectDirectory`, each import and each installed distribution declare, from the runtime's `list_project_node_types`, read from source without running it. */
-export function listProjectNodeTypes(projectDirectory: string): Effect.Effect<ProjectNodeTypeListing, RuntimeControlFailure, RuntimeControl> {
-  return controlOperationReadWith("list_project_node_types", { project_directory: projectDirectory }, projectNodeTypeListingFromTheToolResult);
 }
 
 /** Every asset of the project in `projectDirectory`, its graph documents among them, from the runtime's `list_assets`. */

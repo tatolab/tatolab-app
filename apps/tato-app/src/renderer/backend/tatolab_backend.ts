@@ -13,7 +13,6 @@ import type {
   ProjectFiles,
   DescribeNodeTypesToolResult,
   ListNodeTypesToolResult,
-  ProjectNodeTypeListing,
   ProjectAssetListing,
   ProjectAssetsImported,
   AssetPreviewPicture,
@@ -85,8 +84,6 @@ export interface TatolabBackend {
   listNodeTypes(projectDirectory: string): Promise<ListNodeTypesToolResult>;
   /** Each of `nodeTypes`, as the project in `projectDirectory` lists them, described with its inputs and outputs, or with why the runtime could not; rejects in the runtime's own words. */
   describeNodeTypes(projectDirectory: string, nodeTypes: readonly string[]): Promise<DescribeNodeTypesToolResult>;
-  /** What the project in `projectDirectory` and each source it draws node code from declares, read from source without running it; rejects in the runtime's own words. */
-  listProjectNodeTypes(projectDirectory: string): Promise<ProjectNodeTypeListing>;
   /** Every asset of the project in `projectDirectory`, its graph documents among them; rejects in the runtime's own words. */
   listProjectAssets(projectDirectory: string): Promise<ProjectAssetListing>;
   /** Ask the person for files, offering first those of `media` (`null` for any), and import each into the window's project, where the runtime places it in its kind's folder, by the person editing; `null` when they choose nothing, rejecting in Studio's or the runtime's words. */
