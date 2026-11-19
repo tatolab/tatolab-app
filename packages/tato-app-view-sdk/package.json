@@ -13,6 +13,8 @@
     "./node_ui": "./src/node_ui.ts",
     "./node_ui/input_control.css": "./src/node_ui/input_control.css",
     "./node_ui_host": "./src/node_ui_host.ts",
+    "./studio_host": "./src/studio_host.ts",
+    "./studio_host/*": "./src/studio_host/*.ts",
     "./pin_model/*": "./src/pin_model/*.ts",
     "./pin_services/*": "./src/pin_services/*.ts",
     "./supplied_modules": "./src/supplied_modules.ts",
@@ -29,8 +31,8 @@
     "lint": "eslint . && oxlint src scripts && stylelint \"src/design_system/styles/**/*.css\" \"src/node_ui/**/*.css\""
   },
   "dependencies": {
-    "react-colorful": "^5.8.1",
-    "zod": "4.6.7"
+    "effect": "4.1.4",
+    "react-colorful": "^5.8.1"
   },
   "devDependencies": {
     "@base-ui/react": "^1.9.0",

@@ -30,7 +30,7 @@ function valuesOfTheGain(value: JsonValue): StreamInputValuesReading {
 
 /** The Studio's Float control bound to `gain` through a binder over a store whose writes apply at once, each flush run at once. */
 async function boundFloatNumber() {
-  const sent: { value: JsonValue | null; mode: string }[] = [];
+  const sent: { value: unknown; mode: string }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_folder, operations, sending) => {
       for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ value: operation.value ?? null, mode: sending.mode });

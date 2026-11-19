@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { JsonValue, NodeCatalog, PoppedOutView } from "../shared/tatolab_backend_contract";
+import type { NodeCatalog, PoppedOutView } from "../shared/tatolab_backend_contract";
 import { connectToTatoAppOverPort } from "@tatolab/tato-app-view-sdk";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
@@ -316,7 +316,7 @@ describe("the studio", () => {
 
   it("chooses an image for Image File's asset field in the asset picker over the window, sends its UUID, undoes it with one ⌘Z, imports one that is chosen at once, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
-    const assetsSent: JsonValue[] = [];
+    const assetsSent: unknown[] = [];
     const mediaTheImportOffered: (readonly string[] | null)[] = [];
     let refusesTheNextAssetSet = false;
     await mountedWindowOverTheMock("state=node-not-ready", {

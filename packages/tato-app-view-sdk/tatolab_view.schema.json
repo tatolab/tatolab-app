@@ -34,7 +34,6 @@
       ]
     },
     "inputs": {
-      "default": [],
       "type": "array",
       "items": {
         "type": "object",
@@ -66,19 +65,19 @@
                 "type": "number"
               }
             ],
-            "items": false,
-            "minItems": 2,
-            "maxItems": 2
+            "maxItems": 2,
+            "minItems": 2
           }
         },
         "required": [
           "name",
           "family"
-        ]
-      }
+        ],
+        "additionalProperties": false
+      },
+      "default": []
     },
     "outputs": {
-      "default": [],
       "type": "array",
       "items": {
         "type": "object",
@@ -110,57 +109,60 @@
                 "type": "number"
               }
             ],
-            "items": false,
-            "minItems": 2,
-            "maxItems": 2
+            "maxItems": 2,
+            "minItems": 2
           }
         },
         "required": [
           "name",
           "family"
-        ]
-      }
+        ],
+        "additionalProperties": false
+      },
+      "default": []
     },
     "accepts": {
-      "default": {
-        "files": []
-      },
       "type": "object",
       "properties": {
         "files": {
-          "default": [],
           "type": "array",
           "items": {
             "type": "string",
             "pattern": "^\\.[a-z0-9]+$"
-          }
+          },
+          "default": []
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "default": {
+        "files": []
+      }
     },
     "settings": {
       "type": "object",
       "properties": {
         "type": {
           "type": "string",
-          "const": "object"
+          "enum": [
+            "object"
+          ]
         },
         "properties": {
           "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
           "additionalProperties": {
             "type": "object",
             "properties": {
-              "default": {
-                "$ref": "#/$defs/__schema0"
-              }
+              "default": {}
             },
             "required": [
               "default"
             ],
-            "additionalProperties": {}
+            "allOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            ]
           }
         },
         "additionalProperties": {
@@ -171,10 +173,14 @@
         "type",
         "properties"
       ],
-      "additionalProperties": {}
+      "allOf": [
+        {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      ]
     },
     "capabilities": {
-      "default": [],
       "type": "array",
       "items": {
         "type": "string",
@@ -189,7 +195,8 @@
           "camera",
           "microphone"
         ]
-      }
+      },
+      "default": []
     }
   },
   "required": [
@@ -198,38 +205,5 @@
     "entry",
     "placement"
   ],
-  "additionalProperties": false,
-  "$defs": {
-    "__schema0": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema0"
-          }
-        },
-        {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema0"
-          }
-        }
-      ]
-    }
-  }
+  "additionalProperties": false
 }

@@ -1,8 +1,8 @@
 import type { ListedNodeUiElement, NodeUiElementsReading } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import type { ProjectActionRefusal, StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk/studio_host";
 import {
   connectToTatoAppOverPort,
-  readTatolabViewManifest,
   type TatoAppViewConnection,
   type TatolabViewManifest,
   type ViewInputEvent,

@@ -3,14 +3,15 @@
 // The canvas names a card by its node's name, which a link end names it by too.
 
 import {
+  isAJsonValue,
   NODE_STUDIO_FIELDS_NONE_SET,
-  streamGraphNodeStudioFieldsSchema,
   type JsonValue,
   type NodeCatalogEntry,
   type NodeCatalogPort,
   type StreamGraphAction,
   type StreamGraphNode,
   type StreamGraphNodeStudioFields,
+  type StudioCanvasPair,
   type StreamGraphSummary,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { castAsTheRuntimeNamesAnUnnamedNode, nodeTypeClassName } from "./node_words";
@@ -69,13 +70,37 @@ function studioToBuildOn(edited: EditedStreamGraph, node: StreamGraphNode): Stre
   return edited.studioSentAheadByNodeId.get(node.id) ?? node.studio;
 }
 
+/** Whether `value` is a point or a size on the canvas. */
+function isACanvasPair(value: unknown): value is StudioCanvasPair {
+  return Array.isArray(value) && value.length === 2 && value.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate));
+}
+
+/** A field that is unset or of the type `isOfItsType` names. */
+function unsetOr<FieldType>(value: unknown, isOfItsType: (value: unknown) => value is FieldType): value is FieldType | null {
+  return value === null || isOfItsType(value);
+}
+
+const isText = (value: unknown): value is string => typeof value === "string";
+const isTrueOrFalse = (value: unknown): value is boolean => typeof value === "boolean";
+
+/** The studio fields a `set_studio_fields` action's `studio` sets, a field it leaves out unset; `null` when one it sets is not of its field's type. */
+function studioFieldsOfTheAction(studio: { readonly [field: string]: unknown }): StreamGraphNodeStudioFields | null {
+  const { position, group, comment, colour, collapsed, metadata } = { ...NODE_STUDIO_FIELDS_NONE_SET, ...studio };
+  if (!unsetOr(position, isACanvasPair) || !unsetOr(group, isText) || !unsetOr(comment, isText) || !unsetOr(colour, isText) || !unsetOr(collapsed, isTrueOrFalse)) return null;
+  if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) return null;
+  const metadataEntries = Object.entries(metadata);
+  const jsonMetadataEntries = metadataEntries.filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]));
+  if (jsonMetadataEntries.length !== metadataEntries.length) return null;
+  return { position, group, comment, colour, collapsed, metadata: Object.fromEntries(jsonMetadataEntries) };
+}
+
 /** Each node's studio fields that `actions` set, by node UUID, so a second edit sent before the graph shows the first builds on it. */
 export function studioFieldsSetBy(actions: readonly StreamGraphAction[]): Map<string, StreamGraphNodeStudioFields> {
   const studioByNodeId = new Map<string, StreamGraphNodeStudioFields>();
   for (const action of actions) {
     if (action.operation !== "set_studio_fields") continue;
-    const studio = streamGraphNodeStudioFieldsSchema.safeParse({ ...NODE_STUDIO_FIELDS_NONE_SET, ...action.studio });
-    if (studio.success) studioByNodeId.set(action.node, studio.data);
+    const studio = studioFieldsOfTheAction(action.studio);
+    if (studio !== null) studioByNodeId.set(action.node, studio);
   }
   return studioByNodeId;
 }
