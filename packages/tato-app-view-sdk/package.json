@@ -12,6 +12,7 @@
     "./stream_graph_builders": "./src/stream_graph_builders.ts",
     "./pin_type_readings": "./src/pin_type_readings.ts",
     "./pin_types": "./src/pin_types.ts",
+    "./built_in_pin_types": "./src/built_in_pin_types.ts",
     "./node_ui": "./src/node_ui.ts",
     "./node_ui/input_control.css": "./src/node_ui/input_control.css",
     "./node_ui_host": "./src/node_ui_host.ts",

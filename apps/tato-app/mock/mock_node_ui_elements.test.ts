@@ -15,6 +15,7 @@ it("lists each control the Studio's own node UI manifest registers, read from so
     { script: "asset_field.ts", registration: { kind: "control", type: "asset", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/asset_field.ts" } },
     { script: "trigger_button.ts", registration: { kind: "control", type: "trigger", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/trigger_button.ts" } },
     { script: "list_rows.ts", registration: { kind: "control", type: "list_of", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/list_rows.ts" } },
+    { script: "type_choice.ts", registration: { kind: "control", type: "pin_type_choice", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/type_choice.ts" } },
     { script: "integer_slider.ts", registration: { kind: "control", type: "integer", control: "slider" }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/integer_slider.ts" } },
     { script: "float_slider.ts", registration: { kind: "control", type: "float", control: "slider" }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/float_slider.ts" } },
   ]);
@@ -31,6 +32,7 @@ it("lists each control the Studio's own node UI manifest registers, read from so
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/asset_field.ts" },
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/trigger_button.ts" },
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/list_rows.ts" },
+    { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/type_choice.ts" },
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/integer_slider.ts" },
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/float_slider.ts" },
   ]);
