@@ -1,0 +1,4 @@
+{
+  "header": "import type { InputControlElementClass } from \"@tatolab/tato-app-view-sdk/node_ui\";",
+  "controls": "import Control{index} from \"./{script}\";\nexport const control{index}: InputControlElementClass<\"{type}\"> = Control{index};"
+}
