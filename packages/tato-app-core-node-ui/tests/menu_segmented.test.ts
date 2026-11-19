@@ -47,6 +47,12 @@ describe("the Menu segments", () => {
     expect(control.querySelector("[role=group]")?.getAttribute("aria-label")).toBe("Blend");
   });
 
+  it("says it takes its own width, so on a node the card grows to hold every segment's words", async () => {
+    const control = mountedSegments("add");
+    await segmentsOf(control);
+    expect(control.hasAttribute("data-takes-its-own-width")).toBe(true);
+  });
+
   it("fires one change carrying the option pressed, and none for the option held", async () => {
     const control = mountedSegments("over");
     const fired = eventsFiredBy(control);

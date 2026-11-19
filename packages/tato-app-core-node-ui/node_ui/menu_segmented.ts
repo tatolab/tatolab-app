@@ -54,6 +54,8 @@ export default class MenuSegmented extends HTMLElement implements InputControlEl
   }
 
   connectedCallback(): void {
+    // Its segments keep their words whole, so on a node it takes the width they need.
+    this.toggleAttribute("data-takes-its-own-width", true);
     if (this.#partElement.parentNode !== this) this.append(this.#partElement);
     this.#partRoot ??= createRoot(this.#partElement);
     this.#drawThePart();
