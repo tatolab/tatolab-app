@@ -2,7 +2,7 @@
 // what a layout pin an earlier run kept, or a view's ask, names.
 
 import { Schema } from "effect";
-import type { JsonValue, PortViewerTarget, ProjectTransactionAuthor, StreamTabAddress, StudioSelection } from "../studio_readings.js";
+import type { JsonValue, PortViewerTarget, ProjectStreamsRecovery, ProjectTransactionAuthor, StreamTabAddress, StudioSelection } from "../studio_readings.js";
 import { schemaOfThePublicType } from "./schema_of_a_public_type.js";
 
 /** A value as JSON carries it. */
@@ -28,4 +28,7 @@ export const streamTabAddressSchema = schemaOfThePublicType<StreamTabAddress>()(
 export const portViewerTargetSchema = schemaOfThePublicType<PortViewerTarget>()(Schema.Struct({ stream: Schema.String, node_id: Schema.String, port: Schema.String }));
 
 /** Whose change an undo or a redo reverses. */
+/** What a view asks Studio to recover a project's streams with. */
+export const projectStreamsRecoverySchema = schemaOfThePublicType<ProjectStreamsRecovery>()(Schema.Literals(["restart_the_playback", "reload_the_project"]));
+
 export const projectTransactionAuthorSchema = schemaOfThePublicType<ProjectTransactionAuthor>()(Schema.Struct({ kind: Schema.Literals(["person", "agent"]), name: Schema.String }));

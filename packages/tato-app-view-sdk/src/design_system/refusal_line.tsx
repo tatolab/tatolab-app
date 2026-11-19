@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { SquareX, TriangleAlert } from "lucide-react";
+import type { ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 
 /** How bad what was said is: a failure (a refusal, red, announced at once) or a warning (amber, announced politely). */
@@ -8,13 +9,15 @@ export type RefusalTone = "failure" | "warning";
 /**
  * What the runtime or the system said when it refused something, shown in its own words after an optional lead naming
  * what was refused: a line under what it is about, a smaller line under one field of a property panel, or a bar across
- * the top of a tab.
+ * the top of a tab, which can carry the action that recovers from it at its end.
  */
 export function RefusalLine({
   lead,
   words,
   tone = "failure",
   layout = "line",
+  whatRecoversFromIt,
+  action,
   ...controlDataAttributes
 }: {
   /** The window's own words before the refusal's, as "Stop was refused:". */
@@ -23,6 +26,10 @@ export function RefusalLine({
   words: string;
   tone?: RefusalTone;
   layout?: "line" | "under_field" | "bar";
+  /** The window's own words on what recovers from the refusal, on a line of their own under it, so the refusal's stay its own. */
+  whatRecoversFromIt?: string;
+  /** The control that recovers from what was refused, at the line's end. */
+  action?: ReactNode;
 } & ControlDataAttributes) {
   const ToneIcon = tone === "failure" ? SquareX : TriangleAlert;
   return (
@@ -40,7 +47,9 @@ export function RefusalLine({
       <span className="min-w-0 break-words select-text">
         {lead !== undefined && <span className={tone === "failure" ? "text-danger-text" : "text-warn-text"}>{lead} </span>}
         <span className={layout === "bar" ? "text-fg" : undefined}>{words}</span>
+        {whatRecoversFromIt !== undefined && <span className="block">{whatRecoversFromIt}</span>}
       </span>
+      {action !== undefined && <span className="ml-auto shrink-0 pl-2">{action}</span>}
     </p>
   );
 }

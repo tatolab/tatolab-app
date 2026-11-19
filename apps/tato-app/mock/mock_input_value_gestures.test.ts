@@ -36,6 +36,7 @@ it("a drag on an input's value is live while it moves, reads no graph, and is on
     const reading = await settled(backend.readOpenProjectTransactions());
     return reading.kind === "read" ? reading.project_transactions.transactions.length : -1;
   };
+  host.takeTheStreamsListed((await settled(backend.getTatolabStatus())).streams);
   host.watchStreamInputValues(MAIN, (reading) => inputValues.takeTheInputValues(PATTERN_FOLDER, reading));
   const graph = await settled(backend.describeStreamGraph(MAIN));
   const invert = graph.nodes.find((node) => node.name === "invertingeffect");

@@ -22,6 +22,7 @@ import type {
   AssetPreviewReading,
   ProjectAssetsReading,
   ProjectTransactionApplying,
+  ProjectStreamsRecovery,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
   StudioViewsReading,
@@ -164,6 +165,8 @@ export interface TatoAppViewConnection {
   readAssetPreviewInTheProject(projectFolder: string, asset: string): Promise<AssetPreviewReading>;
   /** Stop tracking the asset `asset` of the project, its file leaving it, by the person editing; refused in the runtime's own words, as while a stream's graph document references it. */
   deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ViewAskDone>;
+  /** Recover the project's streams with `recovery`: their playback stopped and started again, or every stream of the project read again from disk; answered once asked, refused in Studio's or the runtime's own words. */
+  recoverTheProjectsStreams(projectFolder: string, recovery: ProjectStreamsRecovery): Promise<ViewAskDone>;
   /** The person editing in Studio: the author their graph edits are recorded under, and so whose edits their own Undo reverts. */
   readThePersonEditing(): Promise<ThePersonEditingReading>;
   /** How a link from `request`'s placed pin to each of its candidates would connect, or why not, as the runtime's `check_link_candidates` judges it on a stream of the project in `projectFolder`; nothing is changed. */
@@ -351,6 +354,7 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
           return { kind: "not_read", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
       deleteAssetFromTheProject: (projectFolder, asset) => ask({ kind: "delete_asset_from_the_project", project_folder: projectFolder, asset }).then(doneOf),
+      recoverTheProjectsStreams: (projectFolder, recovery) => ask({ kind: "recover_the_projects_streams", project_folder: projectFolder, recovery }).then(doneOf),
       showViewTypeInArea: (viewTypeId, areaId) => ask({ kind: "show_view_type_in_area", view_type_id: viewTypeId, area_id: areaId }).then(doneOf),
       openModulesAndMarketplace: (shows) => ask({ kind: "open_modules_and_marketplace", shows }).then(doneOf),
       pickAProjectAsset: (pick) =>

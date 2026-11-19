@@ -32,7 +32,7 @@ function listedStudioStream(state: string, action: string | null): ListedStream 
     state,
     node_count: state === "running" ? 2 : null,
     failed_because: null,
-    capture_devices_whose_access_was_never_asked_for: [],
+    capture_devices_whose_access_was_never_asked_for: [], condition: null,
     action,
     step: null,
   };

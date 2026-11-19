@@ -133,6 +133,7 @@ function recordingHostServices() {
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
   const assetImportsAsked: { projectFolder: string; media: readonly string[] | null }[] = [];
   const assetChangesAsked: string[][] = [];
+  const recoveriesAsked: string[][] = [];
   const modulesAndMarketplaceSectionsOpened: string[] = [];
   const viewTypesShownInAreas: { viewTypeId: string; areaId: string }[] = [];
   const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
@@ -203,6 +204,10 @@ function recordingHostServices() {
       assetChangesAsked.push(["delete", projectFolder, asset]);
       return { kind: "changed" };
     },
+    recoverTheProjectsStreams: async (projectFolder, recovery) => {
+      recoveriesAsked.push([projectFolder, recovery]);
+      return projectFolder === "/set" ? { kind: "asked" } : { kind: "not_asked", because: `Tato Studio recovers the streams of this window's project only, not ${projectFolder}.` };
+    },
     watchAreasForTheViewType: (viewTypeId, listener) => {
       listener(
         viewTypeId === "acme-dj:deck"
@@ -269,7 +274,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, projectAssetPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked };
+  return { hostServices, projectAssetPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, recoveriesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked };
 }
 
 /** An area that keeps the settings it is asked to remember, says where the view's header row lies, and expands while a layout holds it. */
@@ -410,6 +415,16 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(assetImportsAsked).toEqual([
       { projectFolder: "/set", media: ["image"] },
       { projectFolder: "/cancelled", media: null },
+    ]);
+  });
+
+  it("recovers the project's streams as asked, a refusal in Studio's words", async () => {
+    const { connection, recoveriesAsked } = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await connection.recoverTheProjectsStreams("/set", "restart_the_playback")).toEqual({ kind: "done" });
+    expect(await connection.recoverTheProjectsStreams("/elsewhere", "reload_the_project")).toEqual({ kind: "refused", because: "Tato Studio recovers the streams of this window's project only, not /elsewhere." });
+    expect(recoveriesAsked).toEqual([
+      ["/set", "restart_the_playback"],
+      ["/elsewhere", "reload_the_project"],
     ]);
   });
 
