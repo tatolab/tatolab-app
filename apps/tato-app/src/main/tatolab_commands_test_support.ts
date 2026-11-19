@@ -414,7 +414,7 @@ export function listedStreamOfTheProject(projectDirectory: string, state: string
     state,
     node_count: state === "failed" || state === "closed" ? null : 3,
     failed_because: state === "failed" ? "process() raised SyntaxError" : null,
-    capture_devices_whose_access_was_never_asked_for: [],
+    capture_devices_whose_access_was_never_asked_for: [], condition: null,
     action: null,
     step: null,
   };

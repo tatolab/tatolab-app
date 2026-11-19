@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NODE_STUDIO_FIELDS_NONE_SET, type ListedStream, type OpenProject, type StreamGraphNode, type StreamGraphNodeKind, type StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { NODE_STUDIO_FIELDS_NONE_SET, type ListedStream, type OpenProject, type StreamCondition, type StreamGraphNode, type StreamGraphNodeKind, type StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { groupOfTheSelectedNodes, outlinerRowIdsOfTheSelection, outlinerTreeOfTheProject, selectionAfterTheOutlinerPick, streamsTheOutlinerShows } from "./outliner_tree_of_the_project";
 
 const HALL_OF_LIGHT_PROJECT = "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11";
@@ -31,7 +31,7 @@ function listedStream(projectFolder: string, displayName: string): ListedStream 
     state: "running",
     node_count: 2,
     failed_because: null,
-    capture_devices_whose_access_was_never_asked_for: [],
+    capture_devices_whose_access_was_never_asked_for: [], condition: null,
     action: null,
     step: null,
   };
@@ -55,7 +55,7 @@ function graphNode(name: string, type: string, group: string | null, failedBecau
     dropped_bags_by_link: {},
     refused_bags_by_output_port: {},
     studio: { ...NODE_STUDIO_FIELDS_NONE_SET, group },
-    fragment: null, graph_interface: null,
+    fragment: null, graph_interface: null, live: true,
   };
 }
 
@@ -203,6 +203,7 @@ describe("the outliner's tree", () => {
       ["No nodes yet", "waiting", "waiting"],
       ["Lobby Wall", "failed", "failed"],
       ["`uv sync` did not make /w/studio/.venv", "unreadable", "failed"],
+      ["Nodes not read yet", "waiting", "waiting"],
     ]);
   });
 
@@ -233,14 +234,48 @@ describe("the outliner's tree", () => {
     ]);
   });
 
-  it("says a stream not running is not running, keeping the runtime's refusal of its graph for a running one", () => {
+  it("shows the nodes of a stopped stream as of a playing one, and the runtime's refusal of a graph whatever the stream is doing", () => {
+    const stoppedLobbyWall: ListedStream = { ...listedStream("/w/studio", "lobby_wall"), state: "stopped", node_count: null };
+    const stoppedRows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [stoppedLobbyWall] }, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id", {});
+    expect(stoppedRows.map(({ row }) => row.label)).toEqual(["lobby_wall", "Inputs", "Camera Source", "The look", "Halftone", "Display", "stray"]);
     const stoppedStream: ListedStream = { ...listedStream("/w/studio", "stopped"), state: "stopped", node_count: null };
-    const graphs: Record<string, StreamGraphReading> = { "stopped-id": { kind: "not_read", because: "graph failed: no stream with the id `stopped-id` is loaded in this runtime" } };
+    const graphs: Record<string, StreamGraphReading> = { "stopped-id": { kind: "not_read", because: "graph failed: the graph document could not be read" } };
     const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [stoppedStream] }, graphs, null, { "stream:stopped-id": true });
     expect(rows.map(({ row }) => [row.label, row.icon, row.tone ?? "plain"])).toEqual([
       ["stopped", "stream", "plain"],
-      ["Not running", "waiting", "waiting"],
+      ["graph failed: the graph document could not be read", "unreadable", "unreadable"],
     ]);
+  });
+
+  it("shows each diagnostic of the stream's condition on the row it names, and the stream's health on its row", () => {
+    const condition: StreamCondition = {
+      load: "loaded",
+      playback: "playing",
+      health: "degraded",
+      diagnostics: [
+        { kind: "link_refused", place: { on: "link", from_node: "camerasource", from_port: "video", to_node: "display", to_port: "video" }, words: "the ports take different frames", recovery: "fix_the_link" },
+        { kind: "node_type_not_described", place: { on: "node", node_id: "display-uuid", node_name: "display" }, words: "Display's code describes no node type", recovery: "fix_the_code" },
+        { kind: "recorded_by_an_earlier_runtime", place: { on: "stream" }, words: "an earlier runtime recorded it", recovery: "restart_the_playback" },
+      ],
+    };
+    const lobbyWall: ListedStream = { ...listedStream("/w/studio", "lobby_wall"), condition };
+    const graph = LOBBY_WALL_GRAPH.kind === "read" ? LOBBY_WALL_GRAPH.graph : null;
+    if (graph === null) throw new Error("the lobby wall's graph is read");
+    const graphWithAStrayNotLive: StreamGraphReading = { kind: "read", graph: { ...graph, nodes: graph.nodes.map((node) => (node.name === "stray" ? { ...node, live: false } : node)) } };
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [lobbyWall] }, { "lobby_wall-id": graphWithAStrayNotLive }, "lobby_wall-id", {});
+    expect(rows.map(({ row }) => [row.label, row.icon, row.tone ?? "plain"])).toEqual([
+      ["lobby_wall", "not_ready", "not_ready"],
+      ["camerasource.video → display.video: the ports take different frames", "failed", "failed"],
+      ["an earlier runtime recorded it", "not_ready", "not_ready"],
+      ["Inputs", "graph_group", "plain"],
+      ["Camera Source", "graph_node", "plain"],
+      ["The look", "graph_group", "plain"],
+      ["Halftone", "failed", "failed"],
+      ["Display", "failed", "failed"],
+      ["stray", "not_ready", "not_ready"],
+    ]);
+    const failedLobbyWall: ListedStream = { ...lobbyWall, condition: { ...condition, health: "failed", diagnostics: [] } };
+    expect(outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [failedLobbyWall] }, {}, null, {}).map(({ row }) => [row.label, row.icon])).toEqual([["lobby_wall", "failed"]]);
   });
 
   it("says when the project has no streams, while they wait on the runtime, or why listing them failed, in the failure's own words", () => {

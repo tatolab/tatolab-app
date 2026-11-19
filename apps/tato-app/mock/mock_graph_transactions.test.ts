@@ -47,7 +47,7 @@ test("a node added under `as` is wired by that label in the same transaction, an
     { operation: "connect", stream: STREAM_ASSET, source: { node: TEST_PATTERN, port: "video" }, target: { node: "tally", port: "picture" } },
   ]);
   expect(added.transaction.added_nodes).toEqual([{ stream: STREAM_ID, node: mockNodeIdOf(STREAM_ID, "frametally"), name: "frametally", as: "tally" }]);
-  expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "frametally", target_port: "picture", state: "wired" }]);
+  expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "frametally", target_port: "picture", state: "wired", live: true }]);
   const tally = mockNodeIdOf(STREAM_ID, "frametally");
   expect(added.transaction.connected_links).toEqual([{ stream: STREAM_ID, source: { node: TEST_PATTERN, port: "video" }, target: { node: tally, port: "picture" }, state: "wired", error_reason: null }]);
   expect(added.history_operations[1]).toEqual({ stream: STREAM_ASSET, operation: "connect", link: { source: { node: TEST_PATTERN, port: "video" }, target: { node: tally, port: "picture" } } });
@@ -79,7 +79,7 @@ test("a link is made as asked, the mock judging no family or pin of its ends", (
     { operation: "add_node", stream: STREAM_ASSET, type: "nodes.beat:Warmth", as: "warmth" },
     { operation: "connect", stream: STREAM_ASSET, source: { node: TEST_PATTERN, port: "video" }, target: { node: "warmth", port: "base" } },
   ]);
-  expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "warmth", target_port: "base", state: "wired" }]);
+  expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "warmth", target_port: "base", state: "wired", live: true }]);
   expect(graph.nodes[1]?.input_ports.map((port) => [port.name, port.family, port.pin])).toEqual([
     ["count", "channels", { pin_type: { type: "integer" }, flow: "value" }],
     ["accented", "channels", { pin_type: { type: "boolean" }, flow: "value" }],
@@ -200,7 +200,7 @@ test("a node takes a setting as the input its catalog entry lists, fed by a Grap
   expect(tallyNode.exposed_config_fields).toEqual(["report_every_frames"]);
   expect(tallyNode.input_ports.map((port) => port.name)).toEqual(["picture", "report_every_frames"]);
   expect(graph.nodes.find((node) => node.name === "frametally_report_every_frames")).toMatchObject({ state: null, input_ports: [], output_ports: [{ name: "value", family: "channels" }] });
-  expect(graph.links).toMatchObject([{ source_node: "frametally_report_every_frames", target_node: "frametally", target_port: "report_every_frames", state: "wired" }]);
+  expect(graph.links).toMatchObject([{ source_node: "frametally_report_every_frames", target_node: "frametally", target_port: "report_every_frames", state: "wired", live: true }]);
   expect(exposed.inverse_operations.map((operation) => graphActionApplyingTheHistoryOperation(operation)?.operation)).toEqual(["disconnect", "remove_node", "set_exposed_config_fields"]);
 });
 
@@ -253,7 +253,7 @@ function aLookPlacedTwice(): { graph: MockStreamGraph; placedStream: string; loo
   const look = graph.nodes.find((node) => node.name === "look") ?? expect.unreachable("no look");
   graph.nodes.push({ ...structuredClone(look), name: "look-again" });
   graph.nodes.push({ name: "frametally-2", type: FRAME_TALLY, state: "Running", config: {}, input_ports: [{ name: "picture", family: "image", stream_facts: null, values_checked: null, pin: null, value_read: null }], output_ports: [] });
-  graph.links.push({ id: "Lagain", source_node: "look-again", source_port: "testpatternsource-video", target_node: "frametally-2", target_port: "picture", state: "wired" });
+  graph.links.push({ id: "Lagain", source_node: "look-again", source_port: "testpatternsource-video", target_node: "frametally-2", target_port: "picture", state: "wired", live: true });
   return { graph, placedStream: assetPlacedBy(look), look: mockNodeIdOf(STREAM_ID, "look") };
 }
 

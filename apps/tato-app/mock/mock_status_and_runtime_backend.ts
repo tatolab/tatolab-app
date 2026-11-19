@@ -1,6 +1,7 @@
 import { MOCK_RECORDED_NODE_CATALOG } from "./mock_recordings";
 import { isAnOutputOfAValueSource, mockMessageOnTheOutputOfAValueSource } from "./mock_value_sources";
 import { mockGraphNodeIdOf } from "./mock_stream_fixtures";
+import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import type { PoppedOutView, RuntimeDescription } from "../src/shared/tatolab_backend_contract";
@@ -26,7 +27,7 @@ const MOCK_NOTIFICATION_CLICK_MILLISECONDS = 1200;
 
 /** The mock backend's status and runtime methods over `simulation`. */
 export function mockStatusAndRuntimeBackendOf(simulation: MockTatolabSimulation): Pick<TatolabBackend, "getTatolabStatus" | "linkCommandLineTool" | "quitTatolabApp" | "readProjectLogRecords" | "followProjectLogRecords" | "stopFollowingProjectLogRecords" | "onProjectLogRecordsWritten" | "describeStreamGraph" | "followStreamGraphChanges" | "stopFollowingStreamGraphChanges" | "onStreamGraphChanged" | "describeNodeCatalog" | "describeRuntime" | "restartRuntime" | "openRuntimeLogFolder" | "onStreamPageRequested" | "showTheProjectsWindow" | "showTheMenusInTheSystemMenuBar" | "onSystemMenuBarEntryChosen" | "popOutView" | "readPoppedOutView" | "pathOfADroppedFile" | "onTatolabStatusChanged" | "startPythonLanguageServer" | "sendToPythonLanguageServer" | "stopPythonLanguageServer" | "onPythonLanguageServerEvent" | "openPortViewer" | "closePortViewer" | "onPortViewerEvent" | "onPortViewerImageFrame"> {
-  const { fixtures, statusListeners, openProjectListeners, menusKeptForTheSystemMenuBar, chooseTheSystemMenuBarEntryOnceOffered, mockProjectFiles, languageServerEventListeners, mockLanguageServersBySession, mockPortViewers, refuseWithoutAnOpenProject, streamsWhoseGraphsAreFollowed, streamGraphChangedListeners, projectsWhoseLogsAreFollowed, projectLogRecordsWrittenListeners, publishStatus, listStreams, takeRuntimeDown, startRuntime, noRuntimeAnswersRefusal, loadedStreamOfTheId, readMockProjectLog, graphOfLoadedStream, doesTheRuntimeKeepNoOwnLog, isTheRuntimeRestartRefused, streamPageRequestedByANotification, mockTatolabOptions } = simulation;
+  const { fixtures, statusListeners, openProjectListeners, menusKeptForTheSystemMenuBar, chooseTheSystemMenuBarEntryOnceOffered, mockProjectFiles, languageServerEventListeners, mockLanguageServersBySession, mockPortViewers, refuseWithoutAnOpenProject, streamsWhoseGraphsAreFollowed, streamGraphChangedListeners, projectsWhoseLogsAreFollowed, projectLogRecordsWrittenListeners, publishStatus, listStreams, takeRuntimeDown, startRuntime, noRuntimeAnswersRefusal, loadedStreamOfTheId, readMockProjectLog, graphOfLoadedStream, recordedFixturesNotLoaded, loadedStreams, doesTheRuntimeKeepNoOwnLog, isTheRuntimeRestartRefused, streamPageRequestedByANotification, mockTatolabOptions } = simulation;
   return {
     getTatolabStatus: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -63,7 +64,10 @@ export function mockStatusAndRuntimeBackendOf(simulation: MockTatolabSimulation)
     },
     describeStreamGraph: async (streamId) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      return graphOfLoadedStream(loadedStreamOfTheId(streamId));
+      // A stream the runtime holds not loaded answers its saved graph, its nodes not started.
+      const fixtureNotLoaded = loadedStreams.has(streamId) || simulation.mockStatus.runtime_state !== "running" ? undefined : recordedFixturesNotLoaded.get(streamId);
+      if (fixtureNotLoaded === undefined) return graphOfLoadedStream(loadedStreamOfTheId(streamId));
+      return mockStreamGraphSummary(fixtureNotLoaded.listing, fixtures.machine.name, fixtureNotLoaded.graph, { hasSettled: false, secondsSinceSettled: 0 }, mockTatolabOptions.arePortFamiliesServed);
     },
     followStreamGraphChanges: async (streamId) => {
       streamsWhoseGraphsAreFollowed.add(streamId);

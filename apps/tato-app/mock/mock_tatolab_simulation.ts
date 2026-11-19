@@ -11,6 +11,7 @@ import {
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
+import { mockConditionOf } from "./mock_stream_conditions";
 import type { MockInputValueChanged } from "./mock_input_value_changes";
 import { mockFoldersInDocumentsTatoStudio, mockOpenProjectReading, mockRecentProjects } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
@@ -278,7 +279,8 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
       .filter((listing): listing is ListedStream => listing !== null)
       .map((listing) => {
         const renamedTo = displayNamesRenamedTo.get(listing.stream);
-        return renamedTo === undefined ? listing : { ...listing, display_name: renamedTo };
+        const condition = listing.condition ?? mockConditionOf(listing, loadedStreams.has(listing.stream));
+        return { ...listing, display_name: renamedTo ?? listing.display_name, condition };
       });
   };
 
@@ -943,6 +945,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     createMockStreamInTheOpenProject,
     deleteMockStream,
     graphOfLoadedStream,
+    recordedFixturesNotLoaded,
     listedProjectFolderOf,
     downloadTheNewerVersion,
     finishTheUpdateCheck,

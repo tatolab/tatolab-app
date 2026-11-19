@@ -8,7 +8,7 @@ import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_li
 import { SearchPopover } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import { Store } from "lucide-react";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
-import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
+import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings } from "@tatolab/tato-app-view-sdk";
 import { graphAddressOfTheStreamsOwnLevel, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
@@ -28,6 +28,8 @@ import type {
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
+import { StreamConditionChip, StreamDiagnosticBars } from "../shared/stream_condition_bar";
+import type { StreamDiagnosticLine } from "../shared/stream_condition_words";
 import { streamGraphCanvasContents, type StreamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
 import {
@@ -40,6 +42,7 @@ import {
   editedStreamGraphOf,
   frameChangedEdits,
   frameRemovedEdits,
+  linkDisconnectedEdits,
   nodePlacedEdits,
   noteChangedEdits,
   notePlacedEdits,
@@ -122,6 +125,7 @@ function StreamGraphOfTheTab({
   const nodesSelectedAtTheLevelShown = useMemo(() => nodesTheSelectionHoldsInTheStream(selection, streamTab.stream, levelOfTheEdits), [selection, streamTab.stream, levelOfTheEdits]);
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
   const projectFolder = listedStream?.location?.project_directory ?? null;
+  const streamCondition = listedStream?.condition ?? null;
   useInputValuesOfTheStream(connection, inputValues, streamTab.stream, projectFolder);
   const streamAsset = graphReading?.kind === "read" ? graphReading.graph.stream_asset : null;
   const valuesOfTheLevelShown = useMemo(
@@ -137,8 +141,14 @@ function StreamGraphOfTheTab({
     () =>
       levelShown === null
         ? null
-        : streamGraphCanvasContents(levelShown.graph, catalogReading?.kind === "listed" ? catalogReading.catalog : null, canvasContentsBefore.current, valuesOfTheLevelShown),
-    [levelShown, catalogReading, valuesOfTheLevelShown],
+        : streamGraphCanvasContents(
+            levelShown.graph,
+            catalogReading?.kind === "listed" ? catalogReading.catalog : null,
+            canvasContentsBefore.current,
+            valuesOfTheLevelShown,
+            levelShown.subgraphs_stepped_through.length === 0 ? streamCondition : null,
+          ),
+    [levelShown, catalogReading, valuesOfTheLevelShown, streamCondition],
   );
   useLayoutEffect(() => {
     canvasContentsBefore.current = canvasContents;
@@ -286,6 +296,28 @@ function StreamGraphOfTheTab({
     [graphReading, subgraphsSteppedThrough, sendTheGesture, stepToTheLevel, select],
   );
   const whyNoEditCanBeSent = importedProjectName !== null ? `${importedProjectName} is an import` : editedGraph === null ? "The graph isn't read yet" : "because" in editedGraph ? editedGraph.because : null;
+  const editedGraphOfTheStreamsOwnLevel = useMemo(() => (graphReading?.kind === "read" ? editedStreamGraphOf(graphReading.graph) : null), [graphReading]);
+  const [recoveryRefusal, showTheRefusalOfTheRecovery] = useRefusalOfTheLatestAsk();
+  const whyTheDiagnosticActionCannotRun = useCallback(
+    (line: StreamDiagnosticLine): string | null => {
+      if (projectFolder === null) return "The runtime lists this stream in no project, so Studio has no project to recover it in.";
+      if (line.action.kind !== "disconnect_the_link") return null;
+      if (importedProjectName !== null) return `${importedProjectName} is an import`;
+      if (editedGraphOfTheStreamsOwnLevel === null) return "The graph isn't read yet";
+      return "because" in editedGraphOfTheStreamsOwnLevel ? editedGraphOfTheStreamsOwnLevel.because : null;
+    },
+    [projectFolder, importedProjectName, editedGraphOfTheStreamsOwnLevel],
+  );
+  const runTheDiagnosticAction = useCallback(
+    (line: StreamDiagnosticLine) => {
+      if (projectFolder === null) return;
+      if (line.action.kind === "ask_studio") showTheRefusalOfTheRecovery(`${line.action.label} was refused:`, connection.recoverTheProjectsStreams(projectFolder, line.action.recovery));
+      if (line.action.kind === "disconnect_the_link" && line.diagnostic.place.on === "link" && editedGraphOfTheStreamsOwnLevel !== null && !("because" in editedGraphOfTheStreamsOwnLevel)) {
+        void sendTheGesture(linkDisconnectedEdits(editedGraphOfTheStreamsOwnLevel, line.diagnostic.place));
+      }
+    },
+    [connection, projectFolder, editedGraphOfTheStreamsOwnLevel, sendTheGesture, showTheRefusalOfTheRecovery],
+  );
   const watchTheProjectsNodeTypes = useCallback(
     (listener: (reading: ProjectNodeTypesReading) => void): StopWatching =>
       projectFolder === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchProjectNodeTypes(projectFolder, listener),
@@ -372,43 +404,14 @@ function StreamGraphOfTheTab({
   );
   const onViewportLeft = useCallback((viewport: NodeGraphCanvasViewport) => keepWhereTheStreamWasLeft({ viewport }), [keepWhereTheStreamWasLeft]);
 
-  if (listedStream?.state === "failed" && graphReading?.kind !== "read") {
-    return (
-      <WaitingState
-        isFailure
-        title={`${streamTab.display_name} failed`}
-        explanation={
-          listedStream.failed_because === null
-            ? "The runtime lists it failed and gives no reason. Press Live to run it again."
-            : "Fix what the runtime says below, then press Live to run it again."
-        }
-        data-stream-graph-state="failed"
-      >
-        {listedStream.failed_because !== null && <RuntimeFailureWords words={listedStream.failed_because} data-stream-graph-failure={streamTab.stream} />}
-      </WaitingState>
-    );
-  }
-  if (graphReading === null) return null;
-  if (graphReading.kind === "not_read") {
-    const preparingWords = streamPreparingWords(listedStream, streamTab.display_name);
-    if (preparingWords !== null) return <WaitingState title={preparingWords.title} explanation={preparingWords.explanation} data-stream-graph-state="preparing" />;
-    const isRunning = listedStream?.state === "running";
-    return (
-      <WaitingState
-        isFailure={isRunning}
-        title={isRunning ? `${streamTab.display_name}'s graph can't be read` : `${streamTab.display_name} isn't running`}
-        explanation={graphReading.because}
-        data-stream-graph-state="not_read"
-      />
-    );
-  }
-  if (areaSettings.kind !== "read") return null;
-  if (canvasContents === null || (canvasContents.nodes.length === 0 && editing === null && innermostSubgraph === null)) {
-    return <WaitingState title={`${streamTab.display_name} has no nodes`} explanation="Its graph document holds none." data-stream-graph-state="empty" />;
-  }
-  return (
+  const conditionOfTheStream = (
     <>
-      {listedStream?.state === "failed" && (
+      {streamCondition !== null && (
+        <StudioViewToolbarTools label="Stream graph condition">
+          <StreamConditionChip condition={streamCondition} />
+        </StudioViewToolbarTools>
+      )}
+      {streamCondition === null && listedStream?.state === "failed" && (
         <RefusalLine
           layout="bar"
           lead={`${streamTab.display_name} failed:`}
@@ -416,6 +419,36 @@ function StreamGraphOfTheTab({
           data-stream-graph-failure={streamTab.stream}
         />
       )}
+      <StreamDiagnosticBars condition={streamCondition} streamWords={streamTab.display_name} onActionChosen={runTheDiagnosticAction} whyTheActionCannotRun={whyTheDiagnosticActionCannotRun} />
+      <RefusalOfTheLatestAskBar refusal={recoveryRefusal} />
+    </>
+  );
+  if (graphReading === null) return conditionOfTheStream;
+  if (graphReading.kind === "not_read") {
+    const preparingWords = streamPreparingWords(listedStream, streamTab.display_name);
+    return (
+      <>
+        {conditionOfTheStream}
+        {preparingWords !== null ? (
+          <WaitingState title={preparingWords.title} explanation={preparingWords.explanation} data-stream-graph-state="preparing" />
+        ) : (
+          <WaitingState isFailure title={`${streamTab.display_name}'s graph can't be read`} explanation={graphReading.because} data-stream-graph-state="not_read" />
+        )}
+      </>
+    );
+  }
+  if (areaSettings.kind !== "read") return null;
+  if (canvasContents === null || (canvasContents.nodes.length === 0 && editing === null && innermostSubgraph === null)) {
+    return (
+      <>
+        {conditionOfTheStream}
+        <WaitingState title={`${streamTab.display_name} has no nodes`} explanation="Its graph document holds none." data-stream-graph-state="empty" />
+      </>
+    );
+  }
+  return (
+    <>
+      {conditionOfTheStream}
       {editedGraph !== null && "because" in editedGraph && importedProjectName === null && (
         <RefusalLine layout="bar" tone="warning" lead="Read only:" words={editedGraph.because} />
       )}

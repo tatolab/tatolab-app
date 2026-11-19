@@ -24,9 +24,9 @@ const camera: StreamGraphNode = {
   refused_bags_by_output_port: {},
   studio: NODE_STUDIO_FIELDS_NONE_SET,
   fragment: null,
-  graph_interface: null,
+  graph_interface: null, live: true,
 };
-const FROM_THE_CAMERA: LinkedEndOfAPort = { link: { id: "L1", source_node: "camera", source_port: "frames", target_node: "glow", target_port: "video", state: "wired" }, node: camera, port: "frames" };
+const FROM_THE_CAMERA: LinkedEndOfAPort = { link: { id: "L1", source_node: "camera", source_port: "frames", target_node: "glow", target_port: "video", state: "wired", live: true }, node: camera, port: "frames" };
 
 test("an input a link at its level feeds is wired by that link, though the runtime's reading still gives it a value of its own", () => {
   expect(inputRowStateOf({ input: { family: "channels", value_address: AMOUNT }, value_comes_from: "saved", driven_by: [FROM_THE_CAMERA], is_editable: true })).toEqual({ kind: "wired", driven_by: [FROM_THE_CAMERA], can_be_disconnected: true });

@@ -50,7 +50,7 @@ function graphNode(name: string, id: string, ports: { inputs?: [string, "image" 
     dropped_bags_by_link: {},
     refused_bags_by_output_port: {},
     studio,
-    fragment: null, graph_interface: null,
+    fragment: null, graph_interface: null, live: true,
   };
 }
 
@@ -62,7 +62,7 @@ const GRAPH: StreamGraphSummary = {
   stream: "pattern-main-d76f70",
   stream_asset: STREAM_ASSET,
   nodes: [PATTERN, HALFTONE, DISPLAY],
-  links: [{ id: "L1", source_node: "pattern", source_port: "video", target_node: "display", target_port: "video", state: "wired" }],
+  links: [{ id: "L1", source_node: "pattern", source_port: "video", target_node: "display", target_port: "video", state: "wired", live: true }],
   groups: [],
   notes: [],
   graph_document_text: "{}",

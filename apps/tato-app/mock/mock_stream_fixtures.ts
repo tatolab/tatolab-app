@@ -69,7 +69,7 @@ export function mockStreamIdOf(address: MockStreamAddress): string {
 
 /** A stream listed running, its graph loaded with `nodeCount` nodes, under the id its address computes to. */
 function runningListing(address: MockStreamAddress, displayName: string, nodeCount: number): ListedStream {
-  return { stream: mockStreamIdOf(address), display_name: displayName, location: mockStreamLocationOf(address), state: "running", node_count: nodeCount, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
+  return { stream: mockStreamIdOf(address), display_name: displayName, location: mockStreamLocationOf(address), state: "running", node_count: nodeCount, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], condition: null, action: null, step: null };
 }
 
 /** A log record before the mock runtime numbers and stamps it. */
@@ -368,15 +368,15 @@ const HALFTONE_LOOK_GENERATED_SUBGRAPH: MockGraphNode = {
       { name: "video_out", type: "tatolab.stream:GraphOutput", state: null, config: { port: "video_out", family: "image" }, input_ports: portsStatingNoStreamFacts("image", "value"), output_ports: [], studio: { position: [540, 40], group: null, comment: null, colour: null, collapsed: null, metadata: {} } },
     ],
     links: [
-      { id: "Lhalftonelookin00000000001", source_node: "video_in", source_port: "value", target_node: "halftone", target_port: "video_in", state: "wired" },
-      { id: "Lhalftonelookout0000000001", source_node: "halftone", source_port: "video_out", target_node: "video_out", target_port: "value", state: "wired" },
+      { id: "Lhalftonelookin00000000001", source_node: "video_in", source_port: "value", target_node: "halftone", target_port: "video_in", state: "wired", live: true },
+      { id: "Lhalftonelookout0000000001", source_node: "halftone", source_port: "video_out", target_node: "video_out", target_port: "value", state: "wired", live: true },
     ],
     groups: [],
   },
 };
 
 /** The pattern feeding the generated halftone look. */
-const HALFTONE_LOOK_LINK: StreamGraphLink = { id: "Lhalftonelookfeed000000001", source_node: "testpatternsource", source_port: "video", target_node: "halftone-look", target_port: "video_in", state: "wired" };
+const HALFTONE_LOOK_LINK: StreamGraphLink = { id: "Lhalftonelookfeed000000001", source_node: "testpatternsource", source_port: "video", target_node: "halftone-look", target_port: "video_in", state: "wired", live: true };
 
 const TEST_PATTERN_LINKS: StreamGraphLink[] = [
   {
@@ -386,8 +386,9 @@ const TEST_PATTERN_LINKS: StreamGraphLink[] = [
     target_node: "invertingeffect",
     target_port: "video_from_upstream",
     state: "wired",
+    live: true,
   },
-  { id: "Lv5ujotcx5rnh9f4s6xewjot9", source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "wired" },
+  { id: "Lv5ujotcx5rnh9f4s6xewjot9", source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "wired", live: true },
   {
     id: "Lizkqmkmmu5ldam8dbymcc4bc",
     source_node: "invertingeffect",
@@ -395,6 +396,7 @@ const TEST_PATTERN_LINKS: StreamGraphLink[] = [
     target_node: "brightnessmeter",
     target_port: "video_from_upstream",
     state: "wired",
+    live: true,
   },
 ];
 
@@ -440,6 +442,7 @@ const FADER_METER_LINK: StreamGraphLink = {
   target_node: "fadermeter",
   target_port: "level",
   state: "wired",
+  live: true,
 };
 
 const PICTURE_AND_FADER_VIEW_LINK: StreamGraphLink = {
@@ -449,6 +452,7 @@ const PICTURE_AND_FADER_VIEW_LINK: StreamGraphLink = {
   target_node: "pictureandfader",
   target_port: "picture",
   state: "wired",
+  live: true,
 };
 
 /** An alpha-over compositor of two layers over the effect's output, the second offset and half transparent. */
@@ -468,6 +472,7 @@ const ALPHA_OVER_COMPOSITOR_LINK: StreamGraphLink = {
   target_node: "alphaovercompositor",
   target_port: "layer_0",
   state: "wired",
+  live: true,
 };
 
 /** An MP4 recorder of `main`'s effect output, read across streams. */
@@ -489,6 +494,7 @@ function recorderOfMainLink(mainStreamId: string): StreamGraphLink {
     target_node: "mp4writer",
     target_port: "video",
     state: "wired",
+    live: true,
   };
 }
 
@@ -673,8 +679,8 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
         },
       ],
       links: [
-        { id: "Lc8m2w0d1k4q9s7f3x5v6b2nr", source_node: "camerasource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired" },
-        { id: "Le2n8c0d3r5h6k1q4w7y9z2tb", source_node: "camerasource", source_port: "video", target_node: "h264encoder", target_port: "video", state: "wired" },
+        { id: "Lc8m2w0d1k4q9s7f3x5v6b2nr", source_node: "camerasource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired", live: true },
+        { id: "Le2n8c0d3r5h6k1q4w7y9z2tb", source_node: "camerasource", source_port: "video", target_node: "h264encoder", target_port: "video", state: "wired", live: true },
         {
           id: "Lm4t7y1u3i9o0p2a5s8d6f1gh",
           source_node: "microphonesource",
@@ -682,6 +688,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           target_node: "levelmeter",
           target_port: "audio_from_upstream",
           state: "wired",
+          live: true,
         },
       ],
       counterRates: NO_COUNTERS_CLIMB,
@@ -729,13 +736,13 @@ function patternProjectDirectory(machine: MockMachine): string {
 /** A stream its owner stopped with `tatolab stop`. */
 function stoppedPatternTwoListing(machine: MockMachine): ListedStream {
   const address = { project_directory: patternProjectDirectory(machine), stream_name: "pattern_two" };
-  return { stream: mockStreamIdOf(address), display_name: "pattern-two", location: mockStreamLocationOf(address), state: "stopped", node_count: null, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
+  return { stream: mockStreamIdOf(address), display_name: "pattern-two", location: mockStreamLocationOf(address), state: "stopped", node_count: null, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], condition: null, action: null, step: null };
 }
 
 /** A stream that could not load at the runtime's start. */
 function failedLobbyRecorderListing(machine: MockMachine): ListedStream {
   const address = { project_directory: `${machine.homeDirectory}/streams/lobby-recorder`, stream_name: "main" };
-  return { stream: mockStreamIdOf(address), display_name: "lobby-recorder", location: mockStreamLocationOf(address), state: "failed", node_count: null, failed_because: machine.cameraFailure, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
+  return { stream: mockStreamIdOf(address), display_name: "lobby-recorder", location: mockStreamLocationOf(address), state: "failed", node_count: null, failed_because: machine.cameraFailure, capture_devices_whose_access_was_never_asked_for: [], condition: null, action: null, step: null };
 }
 
 /** What `?main_graph=` names `main` to hold in place of the pattern project's own graph. */
@@ -864,7 +871,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       node_count: null,
       failed_because:
         "an earlier runtime recorded it, under record schema 2, and this runtime does not load it; run it again with `tatolab run` in its project, and `tatolab rm doorbell` forgets this record",
-      capture_devices_whose_access_was_never_asked_for: [],
+      capture_devices_whose_access_was_never_asked_for: [], condition: null,
       action: null,
       step: null,
     },

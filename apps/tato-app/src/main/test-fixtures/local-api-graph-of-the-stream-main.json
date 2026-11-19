@@ -40,8 +40,12 @@
           "dropped_bags_by_link": {},
           "refused_bags_by_output_port": {
             "video": 0
-          }
-        }
+          },
+          "written_bags_by_output_port": {}
+        },
+        "failed_because": null,
+        "process_raising_because": null,
+        "not_ready_because": null
       }
     },
     {
@@ -92,8 +96,12 @@
           },
           "refused_bags_by_output_port": {
             "video_to_downstream": 0
-          }
-        }
+          },
+          "written_bags_by_output_port": {}
+        },
+        "failed_because": null,
+        "process_raising_because": null,
+        "not_ready_because": null
       }
     },
     {
@@ -135,8 +143,12 @@
           "dropped_bags_by_link": {
             "Lizkqmkmmu5ldam8dbymcc4bc": 0
           },
-          "refused_bags_by_output_port": {}
-        }
+          "refused_bags_by_output_port": {},
+          "written_bags_by_output_port": {}
+        },
+        "failed_because": null,
+        "process_raising_because": null,
+        "not_ready_because": null
       }
     },
     {
@@ -181,8 +193,12 @@
           "dropped_bags_by_link": {
             "Lv5ujotcx5rnh9f4s6xewjot9": 0
           },
-          "refused_bags_by_output_port": {}
-        }
+          "refused_bags_by_output_port": {},
+          "written_bags_by_output_port": {}
+        },
+        "failed_because": null,
+        "process_raising_because": null,
+        "not_ready_because": null
       }
     }
   ],

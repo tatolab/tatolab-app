@@ -28,6 +28,7 @@ function largeGraphLink(sourceIndex: number, targetIndex: number, inputName: str
     target_node: largeGraphNodeName(targetIndex),
     target_port: inputName,
     state: "wired",
+    live: true,
   };
 }
 

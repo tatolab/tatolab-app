@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { NODE_STUDIO_FIELDS_NONE_SET, type NodeCatalog, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { NODE_STUDIO_FIELDS_NONE_SET, type NodeCatalog, type StreamCondition, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 
 function graphNode(name: string, inputs: string[], outputs: string[]): StreamGraphNode {
@@ -20,7 +20,7 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
     pins: {},
     exposed_config_fields: [],
     studio: NODE_STUDIO_FIELDS_NONE_SET,
-    fragment: null, graph_interface: null,
+    fragment: null, graph_interface: null, live: true,
   };
 }
 
@@ -46,9 +46,9 @@ const GRAPH: StreamGraphSummary = {
     graphNode("invert", ["video_in"], ["video_out"]),
   ],
   links: [
-    { id: "L1", source_node: "camera", source_port: "video", target_node: "invert", target_port: "video_in", state: "wired" },
-    { id: "", source_node: "invert", source_port: "video_out", target_node: "display", target_port: "video", state: "awaiting_remote" },
-    { id: "L3", source_node: "camera", source_port: "video", target_node: "display", target_port: "video", state: "reconnecting_later" },
+    { id: "L1", source_node: "camera", source_port: "video", target_node: "invert", target_port: "video_in", state: "wired", live: true },
+    { id: "", source_node: "invert", source_port: "video_out", target_node: "display", target_port: "video", state: "awaiting_remote", live: true },
+    { id: "L3", source_node: "camera", source_port: "video", target_node: "display", target_port: "video", state: "reconnecting_later", live: true },
   ],
   graph_document_text: "{}",
 };
@@ -226,4 +226,33 @@ test("an_input_that_holds_a_value_is_addressed_by_its_nodes_id_at_the_level_draw
     nodes: GRAPH.nodes.map((node) => (node.name === "invert" ? { ...node, input_ports: node.input_ports.map((port) => ({ ...port, value_read: { value: null, comes_from: "wire" as const } })) } : node)),
   };
   expect(streamGraphCanvasContents(linked, null, null, level).nodes.find((node) => node.node_id === "invert")?.inputs.map((input) => input.value_address)).toEqual([null]);
+});
+
+test("a_node_or_link_the_running_stream_does_not_hold_yet_is_drawn_not_live_and_each_diagnostic_shows_on_what_it_names", () => {
+  const graphWithAnEditNotLive: StreamGraphSummary = {
+    ...GRAPH,
+    nodes: [...GRAPH.nodes, { ...graphNode("display", ["video"], []), live: false }],
+    links: GRAPH.links.map((link) => (link.id === "L3" ? { ...link, live: false } : link)),
+  };
+  const condition: StreamCondition = {
+    load: "loaded",
+    playback: "playing",
+    health: "degraded",
+    diagnostics: [
+      { kind: "link_refused", place: { on: "link", from_node: "camera", from_port: "video", to_node: "invert", to_port: "video_in" }, words: "the ports take different frames", recovery: "fix_the_link" },
+      { kind: "node_type_not_described", place: { on: "node", node_id: "INVERT", node_name: "invert" }, words: "invert's code describes no node type", recovery: "fix_the_code" },
+      { kind: "edit_not_live", place: { on: "node", node_id: "DISPLAY", node_name: "display" }, words: "the running stream refused it", recovery: "restart_the_playback" },
+    ],
+  };
+  const contents = streamGraphCanvasContents(graphWithAnEditNotLive, null, null, null, condition);
+  expect(contents.nodes.map((node) => [node.node_id, node.condition])).toEqual([
+    ["camera", { look: "healthy" }],
+    ["invert", { look: "failed", failed_because: "invert's code describes no node type" }],
+    ["display", { look: "not_ready", not_ready_because: "Not live yet: the running stream hasn't taken this edit. Restart the playback to make it live." }],
+  ]);
+  expect(contents.links.map((link) => [link.link_id, link.look, link.description])).toEqual([
+    ["L1", "failed", "camera.video → invert.video_in, the ports take different frames"],
+    ["invert.video_out->display.video", "waiting", "invert.video_out → display.video, waiting for the other machine"],
+    ["L3", "waiting", "camera.video → display.video, Not live yet: the running stream hasn't taken this edit. Restart the playback to make it live."],
+  ]);
 });

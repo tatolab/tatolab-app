@@ -5,7 +5,7 @@ import { nodeVisualizerSubjectOf, stateKeepingThePlayedNodeFromWriting } from ".
 const STREAM = "show-main-0a1b2c";
 
 function nodeWithOutputs(name: string, outputPorts: StreamGraphNode["output_ports"]): StreamGraphNode {
-  return { id: `id-${name}`, name, type: "Processor", kind: "process", state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config: {}, input_ports: [], output_ports: outputPorts, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
+  return { id: `id-${name}`, name, type: "Processor", kind: "process", state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config: {}, input_ports: [], output_ports: outputPorts, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null, live: true };
 }
 
 const CAMERA = nodeWithOutputs("camera", [{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null, value_read: null }]);
@@ -19,7 +19,7 @@ const DISPLAY = nodeWithOutputs("displaywindow", []);
 const GRAPH: StreamGraphSummary = {
   stream: STREAM,
   nodes: [CAMERA, METER, LFO, DISPLAY],
-  links: [{ id: "camera-to-display", source_node: "camera", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired" }],
+  links: [{ id: "camera-to-display", source_node: "camera", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired", live: true }],
   stream_asset: null,
   groups: [],
   notes: [],

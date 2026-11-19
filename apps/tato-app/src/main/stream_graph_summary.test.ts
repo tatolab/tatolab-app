@@ -28,11 +28,11 @@ function node(
   nodeId = "",
   config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, kind: null, state, failed_because: null, process_raising_because: null, not_ready_because: null, config, ...ports, ...counters, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
+  return { id: nodeId, name, type: nodeType, kind: null, state, failed_because: null, process_raising_because: null, not_ready_because: null, config, ...ports, ...counters, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null, live: true };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
-  return { id, source_node: sourceNode, source_port: sourcePort, target_node: targetNode, target_port: targetPort, state };
+  return { id, source_node: sourceNode, source_port: sourcePort, target_node: targetNode, target_port: targetPort, state, live: true };
 }
 
 test("a_real_graph_reads_as_its_nodes_links_and_counters_beside_its_own_text", async () => {
@@ -535,7 +535,7 @@ test("a recorded graph reads a GraphInput the runtime renders with no graph_inte
 
 test("a graph_interface with no direction, port or family to read is read as none, and one rendering no current_value reads it as null", () => {
   const graphInterfaceOf = (graphInterface: unknown) => {
-    const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify({ nodes: [{ name: "edge", type: "tatolab.stream:GraphOutput", components: { graph_interface: graphInterface } }] }));
+    const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify({ nodes: [{ name: "edge", type: "tatolab.stream:GraphOutput", components: { graph_interface: graphInterface, live: true } }] }));
     if (!summary.ok) return expect.unreachable(summary.failure);
     const [onlyNode] = summary.value.nodes;
     return onlyNode === undefined ? expect.unreachable("no node") : onlyNode.graph_interface;
@@ -565,7 +565,7 @@ test("a_recorded_graph_reads_the_config_fields_a_node_takes_as_inputs_and_the_gr
   expect(summary.value.nodes.find((graphNode) => graphNode.name === "constant")?.exposed_config_fields).toEqual([]);
   const graphInput = summary.value.nodes.find((graphNode) => graphNode.name === "glow_strength") ?? expect.unreachable("no Graph Input");
   expect([graphInput.type, graphInput.config]).toEqual(["tatolab.stream:GraphInput", { family: "channels", port: "glow_strength", range: [0, 1] }]);
-  expect(summary.value.links.find((link) => link.target_node === "glow")).toMatchObject({ source_node: "glow_strength", source_port: "value", target_port: "strength", state: "wired" });
+  expect(summary.value.links.find((link) => link.target_node === "glow")).toMatchObject({ source_node: "glow_strength", source_port: "value", target_port: "strength", state: "wired", live: true });
 });
 
 test("a_port_reads_untyped_unless_it_serves_both_a_pin_type_and_a_flow_the_contract_reads", () => {

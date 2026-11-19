@@ -3,7 +3,7 @@ import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphFragment, type StreamGraph
 import { levelOfTheSubgraphsSteppedThrough, selectionOfTheSubgraphSteppedOutOf, streamGraphLevelAtTheSubgraphIds, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly, whyTheInsideOfTheSubgraphIsReadOnly } from "./stream_graph_levels";
 
 function graphNode(name: string, type: string, fragment: StreamGraphFragment | null = null, config: StreamGraphNode["config"] = {}): StreamGraphNode {
-  return { id: `uuid-${name}`, name, type, kind: fragment === null ? "process" : "fragment", state: null, failed_because: null, process_raising_because: null, not_ready_because: null, config, pins: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment, graph_interface: null };
+  return { id: `uuid-${name}`, name, type, kind: fragment === null ? "process" : "fragment", state: null, failed_because: null, process_raising_because: null, not_ready_because: null, config, pins: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment, graph_interface: null, live: true };
 }
 
 const BLUR = graphNode("blur", "nodes.blur:Blur");
@@ -15,7 +15,7 @@ const LOOK = graphNode(
   {
     kind: "placed_stream",
     nodes: [graphNode("in", "tatolab.stream:GraphInput"), INNER],
-    links: [{ id: "L9", source_node: "in", source_port: "value", target_node: "inner", target_port: "in-video", state: "wired" }],
+    links: [{ id: "L9", source_node: "in", source_port: "value", target_node: "inner", target_port: "in-video", state: "wired", live: true }],
     groups: [{ id: "g", title: "Inside", description: null, colour: null }],
   },
   { stream: { asset: "asset-look" } },

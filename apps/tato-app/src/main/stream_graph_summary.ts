@@ -238,6 +238,7 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     dropped_bags_by_link: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "dropped_bags_by_link"),
     refused_bags_by_output_port: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "refused_bags_by_output_port"),
     studio: nodeStudioFieldsOnTheWire(node.value["studio"]),
+    live: isHeldByTheRunningGraph(node.value),
     fragment: fragment.value,
     graph_interface: graphInterfacePortOnTheWire(components.value["graph_interface"]),
   });
@@ -301,6 +302,11 @@ function declaredPortsUnder(ports: JsonObjectOnTheWire, direction: "inputs" | "o
   });
 }
 
+/** Whether the running graph holds a node or link: only one the runtime renders with `live: false` is not held yet. */
+function isHeldByTheRunningGraph(nodeOrLink: JsonObjectOnTheWire): boolean {
+  return nodeOrLink["live"] !== false;
+}
+
 function streamGraphLinkOnTheWire(linkOnTheWire: unknown): Result<StreamGraphLink, string> {
   const link = jsonObject(linkOnTheWire, "a link");
   if (!link.ok) return link;
@@ -319,6 +325,7 @@ function streamGraphLinkOnTheWire(linkOnTheWire: unknown): Result<StreamGraphLin
     target_node: target.value.nodeNameAsTheWindowShowsIt,
     target_port: target.value.port,
     state: state.value,
+    live: isHeldByTheRunningGraph(link.value),
   });
 }
 

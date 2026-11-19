@@ -39,12 +39,12 @@ function aNode(name: string, inputs: StreamGraphDeclaredPort[], outputs: StreamG
     pins: {},
     exposed_config_fields: [],
     studio: NODE_STUDIO_FIELDS_NONE_SET,
-    fragment: null, graph_interface: null,
+    fragment: null, graph_interface: null, live: true,
   };
 }
 
 function aLink(source: StreamGraphNode, sourcePort: string, target: StreamGraphNode, targetPort: string): StreamGraphLink {
-  return { id: `${source.name}.${sourcePort}->${target.name}.${targetPort}`, source_node: source.name, source_port: sourcePort, target_node: target.name, target_port: targetPort, state: "wired" };
+  return { id: `${source.name}.${sourcePort}->${target.name}.${targetPort}`, source_node: source.name, source_port: sourcePort, target_node: target.name, target_port: targetPort, state: "wired", live: true };
 }
 
 const camera = aNode("camera", [], [aPort("video", "image"), aPort("level", "channels")]);

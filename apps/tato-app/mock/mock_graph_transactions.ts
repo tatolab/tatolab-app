@@ -492,7 +492,7 @@ export function applyMockGraphTransaction(
         const hasThePorts = source.graphNode.output_ports.some((port) => port.name === operation.source.port) && targetEnd.graphNode.input_ports.some((port) => port.name === operation.target.port);
         if (!hasThePorts) throw new MockGraphEditNotApplicable(`no port ${source.graphNode.name}.${operation.source.port} to ${targetEnd.graphNode.name}.${operation.target.port}`);
         mockLinksMade += 1;
-        graph.links.push({ id: `Lmock${mockLinksMade.toString(36).padStart(21, "0")}`, source_node: source.graphNode.name, source_port: operation.source.port, target_node: targetEnd.graphNode.name, target_port: operation.target.port, state: "wired" });
+        graph.links.push({ id: `Lmock${mockLinksMade.toString(36).padStart(21, "0")}`, source_node: source.graphNode.name, source_port: operation.source.port, target_node: targetEnd.graphNode.name, target_port: operation.target.port, state: "wired", live: true });
         const link = { source: source.end, target: targetEnd.end };
         applied.connected_links.push({ stream: target.stream_id, ...link, state: "wired", error_reason: null });
         recordInHistory({ operation: "connect", link }, { operation: "disconnect", link });

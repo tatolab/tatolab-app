@@ -9,7 +9,7 @@ const listed = (state: string, step: string | null): ListedStream => ({
   state,
   node_count: null,
   failed_because: null,
-  capture_devices_whose_access_was_never_asked_for: [],
+  capture_devices_whose_access_was_never_asked_for: [], condition: null,
   action: state === "preparing" ? "start" : null,
   step,
 });

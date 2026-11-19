@@ -9,6 +9,7 @@ import {
   jsonValueSchema,
   graphEditModeSchema,
   portViewerTargetSchema,
+  projectStreamsRecoverySchema,
   projectTransactionAuthorSchema,
   streamGraphActionSchema,
   streamTabAddressSchema,
@@ -178,6 +179,8 @@ export const viewAskSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("read_asset_preview_in_the_project"), project_folder: z.string(), asset: z.string() }),
   /** Stop tracking the asset `asset` of the project, its file leaving it, through the runtime's `delete_asset`, by the person editing. */
   z.object({ kind: z.literal("delete_asset_from_the_project"), project_folder: z.string(), asset: z.string() }),
+  /** Recover the project's streams with `recovery`: their playback stopped and started again, or the project read again from disk. */
+  z.object({ kind: z.literal("recover_the_projects_streams"), project_folder: z.string(), recovery: projectStreamsRecoverySchema }),
   /** Show the view type `view_type_id` in area `area_id` of the layout, in place of what it shows. */
   z.object({ kind: z.literal("show_view_type_in_area"), view_type_id: z.string(), area_id: z.string() }),
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */

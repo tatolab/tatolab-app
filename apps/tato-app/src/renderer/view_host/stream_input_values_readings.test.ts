@@ -26,7 +26,7 @@ function graphNode(id: string, gain: StreamGraphInputValueRead | null, fragmentN
     refused_bags_by_output_port: {},
     studio: NODE_STUDIO_FIELDS_NONE_SET,
     fragment: fragmentNodes === null ? null : { kind: "placed_stream", nodes: fragmentNodes, links: [], groups: [] },
-    graph_interface: null,
+    graph_interface: null, live: true,
   };
 }
 

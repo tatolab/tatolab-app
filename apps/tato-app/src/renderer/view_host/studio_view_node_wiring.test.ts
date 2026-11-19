@@ -4,7 +4,7 @@ import { nodesOfTheStudioViewType, studioViewInputWiring, studioViewNodeAddressO
 import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 function graphNode(name: string, type: string, config: StreamGraphNode["config"], outputs: StreamGraphNode["output_ports"]): StreamGraphNode {
-  return { id: `id-${name}`, name, type, kind: "process", state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config, input_ports: [], output_ports: outputs, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null };
+  return { id: `id-${name}`, name, type, kind: "process", state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config, input_ports: [], output_ports: outputs, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null, live: true };
 }
 
 const DECK = graphNode("djdeck", "acme-dj:deck", { level: 0.5 }, []);
@@ -17,9 +17,9 @@ const GRAPH: StreamGraphSummary = {
     graphNode("otherview", "acme-stage:rig", {}, []),
   ],
   links: [
-    { id: "L1", source_node: "player", source_port: "audio", target_node: "djdeck", target_port: "deck_a", state: "wired" },
-    { id: "L2", source_node: "camera", source_port: "video", target_node: "djdeck", target_port: "deck_b", state: "wired" },
-    { id: "L3", source_node: "lobby-a1b2c3/player", source_port: "audio", target_node: "djdeck", target_port: "booth", state: "wired" },
+    { id: "L1", source_node: "player", source_port: "audio", target_node: "djdeck", target_port: "deck_a", state: "wired", live: true },
+    { id: "L2", source_node: "camera", source_port: "video", target_node: "djdeck", target_port: "deck_b", state: "wired", live: true },
+    { id: "L3", source_node: "lobby-a1b2c3/player", source_port: "audio", target_node: "djdeck", target_port: "booth", state: "wired", live: true },
   ],
   stream_asset: null,
   groups: [],
