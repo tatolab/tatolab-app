@@ -73,5 +73,5 @@ test("params off the contract are not sent, and fail as a contract mismatch nami
 test("the contract type of an operation's params or result is the name the contract gives it, or its place in the contract when it has none", () => {
   expect(controlContractTypeOf("transact", "result")).toBe("GraphTransactionToolResult");
   expect(controlContractTypeOf("describe_runtime", "params")).toBe("DescribeRuntimeRequest");
-  expect(controlContractTypeOf("graph", "result")).toBe('ControlOperations["graph"]["result"]');
+  expect(controlContractTypeOf("graph", "result")).toBe("GraphToolResult");
 });

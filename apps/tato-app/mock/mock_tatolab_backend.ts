@@ -31,8 +31,8 @@ function setTheEffectsAmountLiveFromAShell(backend: TatolabBackend, value: numbe
   window.setTimeout(() => {
     void backend.describeStreamGraph(MAIN_STREAM).then((graph) => {
       const invert = graph.nodes.find((node) => node.name === "invertingeffect");
-      if (invert === undefined || graph.stream_asset === null) return undefined;
-      return backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: graph.stream_asset, node: invert.id, input: "amount", value }], "live", null);
+      if (invert === undefined || graph.asset === undefined || graph.asset === null) return undefined;
+      return backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: graph.asset, node: invert.id, input: "amount", value }], "live", null);
     });
   }, A_SHELL_SETS_THE_VALUE_AFTER_MILLISECONDS);
 }

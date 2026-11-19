@@ -5,7 +5,8 @@ export type {
   JsonValue,
   StreamLocation,
   ListedStream,
-  StreamGraphDeclaredPort,
+  StreamGraph,
+  StreamGraphPort,
   StreamGraphInputValueRead,
   StreamGraphInputValueChange,
   InputValueComesFrom,
@@ -20,10 +21,8 @@ export type {
   StreamGraphNote,
   StreamGraphNode,
   StreamGraphFragment,
-  StreamGraphFragmentKind,
   StreamGraphInterfacePort,
   StreamGraphLink,
-  StreamGraphSummary,
   NodeCatalogPort,
   NodeCatalogPortPin,
   NodeCatalogEntry,
@@ -71,7 +70,7 @@ export type {
   PortViewerMessageReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export { PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
-export { TATO_STUDIO_MCP_CLIENT_NAME, isAStreamGraphNodeKind } from "@tatolab/tato-app-view-sdk/studio_readings";
+export { TATO_STUDIO_MCP_CLIENT_NAME, familyOfThePort, fragmentOfTheNode, inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { JsonValue, ListedStream, PortViewerMessageReading, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The platform the app runs on, which decides the window's chrome. */

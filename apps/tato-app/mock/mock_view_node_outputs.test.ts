@@ -5,6 +5,7 @@ import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inp
 import type { PortViewerEvent } from "../src/shared/tatolab_backend_contract";
 import { createMockTatolabBackend } from "./mock_tatolab_backend";
 import { readMockTatolabOptions } from "./mock_tatolab_options";
+import { familyOfThePort, inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -22,12 +23,13 @@ it("a value set live on the fixture view node's input of its output's name is wh
   };
   const graph = await settled(backend.describeStreamGraph(MAIN));
   const viewNode = graph.nodes.find((node) => node.name === "pictureandfader");
-  if (viewNode === undefined || graph.stream_asset === null) return expect.unreachable("the main stream holds the fixture view's node");
-  expect(viewNode.input_ports.find((port) => port.name === "fader")).toEqual({ name: "fader", family: "array", stream_facts: null, values_checked: null, pin: null, value_read: { value: null, comes_from: null } });
-  const wiredFromTheFader = graph.links.find((link) => link.source_node === "pictureandfader" && link.source_port === "fader");
-  expect(wiredFromTheFader?.target_node).toBe("fadermeter");
+  if (viewNode === undefined || typeof graph.asset !== "string") return expect.unreachable("the main stream holds the fixture view's node");
+  const faderInput = viewNode.ports.inputs.find((port) => port.name === "fader") ?? expect.unreachable("the fixture view's node takes a fader");
+  expect([familyOfThePort(faderInput), inputValueReadOfThePort(faderInput)]).toEqual(["array", { value: null, comes_from: null }]);
+  const wiredFromTheFader = graph.links.find((link) => link.source.node === "pictureandfader" && link.source.port === "fader");
+  expect(wiredFromTheFader?.target.node).toBe("fadermeter");
 
-  const fader: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.stream_asset, level: [] }, node_id: viewNode.id, input: "fader" };
+  const fader: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: viewNode.id, input: "fader" };
   const readingsOfTheFader: PortViewerEvent[] = [];
   backend.onPortViewerEvent((event) => readingsOfTheFader.push(event));
   await settled(backend.openPortViewer({ stream: MAIN, node_id: viewNode.id, port: "fader" }));
@@ -46,5 +48,5 @@ it("a value set live on the fixture view node's input of its output's name is wh
   expect(readingsOfTheFader).toHaveLength(readingsAfterTheFirstSet + 1);
   await settled(backend.transactInTheOpenProject([setNodeInputValueAction(fader, [0.25, 0.75])], "live", null));
   expect(readingsOfTheFader.at(-1)).toMatchObject({ reading: { attributes: [{ shape: [2], statistics: { element_count: 2, minimum: 0.25, maximum: 0.75, mean: 0.5 } }] } });
-  expect((await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === viewNode.id)?.input_ports.find((port) => port.name === "fader")?.value_read).toEqual({ value: [0.25, 0.75], comes_from: "live" });
+  expect((await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === viewNode.id)?.ports.inputs.find((port) => port.name === "fader")).toMatchObject({ value: [0.25, 0.75], value_comes_from: "live" });
 });

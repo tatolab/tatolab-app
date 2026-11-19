@@ -4,6 +4,7 @@ import { fireInputControlEvent, type ControlledPin, type InputControlElement, ty
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PATTERN_MAIN_STREAM, tagOfTheStudiosFloatControl } from "./tatolab_window_view_test_support";
 import type { TatolabBackend } from "./backend/tatolab_backend";
+import { inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 vi.mock("@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_monaco", () => {
   throw new Error("Monaco is not loaded in the window's tests.");
@@ -76,13 +77,14 @@ async function operationsRecorded(backend: TatolabBackend): Promise<string[]> {
 /** What the main stream's node `nodeName` reads on its input `input`, as the mock's graph renders it. */
 async function valueTheGraphReads(backend: TatolabBackend, nodeName: string, input: string): Promise<unknown> {
   const graph = await backend.describeStreamGraph(PATTERN_MAIN_STREAM);
-  return graph.nodes.find((node) => node.name === nodeName)?.input_ports.find((port) => port.name === input)?.value_read;
+  const port = graph.nodes.find((node) => node.name === nodeName)?.ports.inputs.find((candidate) => candidate.name === input);
+  return port === undefined ? undefined : inputValueReadOfThePort(port);
 }
 
 /** The links of the main stream's graph into the node `nodeName`, as `source.port -> input`. */
 async function linksInto(backend: TatolabBackend, nodeName: string): Promise<string[]> {
   const graph = await backend.describeStreamGraph(PATTERN_MAIN_STREAM);
-  return graph.links.filter((link) => link.target_node === nodeName).map((link) => `${link.source_node}.${link.source_port} -> ${link.target_port}`);
+  return graph.links.filter((link) => link.target.node === nodeName).map((link) => `${link.source.node}.${link.source.port} -> ${link.target.port}`);
 }
 
 describe("Properties' Inputs", () => {

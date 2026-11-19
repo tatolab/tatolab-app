@@ -4,7 +4,7 @@
 // while a read is in flight may be missing from what that read answers, so it is applied again once
 // the read lands; one announced before the read started is in the read already.
 
-import type { StreamGraphInputValueChange, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import { fragmentOfTheNode, inputValueReadOfThePort, type StreamGraph, type StreamGraphInputValueChange, type StreamGraphNode } from "../../shared/tatolab_backend_contract";
 import type { StreamInputValue, StreamInputValuesReading } from "./studio_view_contract";
 
 /** The values of one graph reading, each input's by its node and name. */
@@ -18,15 +18,17 @@ const keyOfTheInput = (nodeId: string, input: string): string => JSON.stringify(
 /** Every input of `nodes` at `level`, and of the subgraphs inside them, that holds a value or names the link that feeds it. */
 function keepTheValuesOfTheLevel(nodes: readonly StreamGraphNode[], level: string[], kept: ValuesOfAReading): void {
   for (const node of nodes) {
-    for (const port of node.input_ports) {
-      if (port.value_read !== null) kept.values.set(keyOfTheInput(node.id, port.name), { level, node_id: node.id, input: port.name, value_read: port.value_read });
+    for (const port of node.ports.inputs) {
+      const valueRead = inputValueReadOfThePort(port);
+      if (valueRead !== null) kept.values.set(keyOfTheInput(node.id, port.name), { level, node_id: node.id, input: port.name, value_read: valueRead });
     }
-    if (node.fragment !== null) keepTheValuesOfTheLevel(node.fragment.nodes, [...level, node.id], kept);
+    const fragment = fragmentOfTheNode(node);
+    if (fragment !== null) keepTheValuesOfTheLevel(fragment.nodes, [...level, node.id], kept);
   }
 }
 
-function valuesOfTheReading(graph: StreamGraphSummary): ValuesOfAReading {
-  const kept: ValuesOfAReading = { stream_asset: graph.stream_asset, values: new Map() };
+function valuesOfTheReading(graph: StreamGraph): ValuesOfAReading {
+  const kept: ValuesOfAReading = { stream_asset: graph.asset ?? null, values: new Map() };
   keepTheValuesOfTheLevel(graph.nodes, [], kept);
   return kept;
 }
@@ -72,7 +74,7 @@ export class StreamInputValuesReadings {
   }
 
   /** The read in flight landed with `graph`, or `null` when it failed; values that differ from those kept are told to every watcher. */
-  readLanded(graph: StreamGraphSummary | null): void {
+  readLanded(graph: StreamGraph | null): void {
     const changesSinceTheReadStarted = this.changesSinceTheReadStarted ?? [];
     this.changesSinceTheReadStarted = null;
     if (graph === null) return;

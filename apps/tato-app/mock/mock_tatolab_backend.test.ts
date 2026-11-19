@@ -4,6 +4,7 @@ import { createMockTatolabBackend } from "./mock_tatolab_backend";
 import { readMockTatolabOptions } from "./mock_tatolab_options";
 import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, StreamActionFollowed } from "../src/shared/tatolab_backend_contract";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
+import { familyOfThePort, jsonObjectMembersOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -151,7 +152,7 @@ describe("the mock backend's stream actions", () => {
     const graphBefore = await settled(backend.describeStreamGraph(MAIN));
     const firstNode = graphBefore.nodes[0];
     if (firstNode === undefined) return expect.unreachable("the main stream holds a node");
-    const setSoftness = (softness: number) => ({ operation: "set_node_config" as const, stream: streamAsset, node: firstNode.id, config: { ...firstNode.config, softness } });
+    const setSoftness = (softness: number) => ({ operation: "set_node_config" as const, stream: streamAsset, node: firstNode.id, config: { ...jsonObjectMembersOf(firstNode.config), softness } });
     const gesture = "drag-1";
 
     await settled(backend.transactInTheOpenProject([setSoftness(0.2)], "live", gesture));
@@ -182,11 +183,11 @@ describe("the mock backend's stream actions", () => {
 
     const grouped = await settled(backend.transactInTheOpenProject([{ operation: "add_group", stream: streamAsset, title: "Frame", nodes: [firstNode.id] }], "commit", null));
     if (grouped.kind !== "applied") return expect.unreachable("the group was added");
-    const group = (await settled(backend.describeStreamGraph(MAIN))).groups[0];
+    const group = (await settled(backend.describeStreamGraph(MAIN))).groups?.[0];
     expect(group?.id).toBe(grouped.transaction.added_groups[0]?.group);
     const coloured = await settled(backend.transactInTheOpenProject([{ operation: "set_group_fields", stream: streamAsset, group: group?.id ?? "", colour: "#3fcf8e", description: "The source" }], "commit", null));
     expect(coloured.kind).toBe("applied");
-    expect((await settled(backend.describeStreamGraph(MAIN))).groups[0]).toMatchObject({ colour: "#3fcf8e", description: "The source" });
+    expect((await settled(backend.describeStreamGraph(MAIN))).groups?.[0]).toMatchObject({ colour: "#3fcf8e", description: "The source" });
   });
 
   it("replays the runtime's recorded refusal of a link of another type on the sample's first connect, then makes the link it is next asked for, judging none", async () => {
@@ -219,7 +220,7 @@ describe("the mock backend's stream actions", () => {
     expect(await settled(backend.describeStreamGraph(MAIN))).toEqual(graphBefore);
 
     expect((await settled(backend.transactInTheOpenProject([tallyIntoBase], "commit", null))).kind).toBe("applied");
-    expect((await settled(backend.describeStreamGraph(MAIN))).links.filter((link) => link.target_node === "warmth" && link.target_port === "base").map((link) => link.source_node)).toEqual(["tally"]);
+    expect((await settled(backend.describeStreamGraph(MAIN))).links.filter((link) => link.target.node === "warmth" && link.target.port === "base").map((link) => link.source.node)).toEqual(["tally"]);
   });
 
   it("saves a collapse as a placed stream, commits an edit inside it, and undoes both in turn", async () => {
@@ -237,7 +238,7 @@ describe("the mock backend's stream actions", () => {
     if (collapsed.kind !== "applied") return expect.unreachable("the collapse applied");
     const look = collapsed.transaction.added_nodes[0]?.node ?? "";
     const lookNode = (await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === look);
-    expect(lookNode).toMatchObject({ type: "tatolab.project:StreamFragment", fragment: { kind: "placed_stream" } });
+    expect(lookNode).toMatchObject({ type: "tatolab.project:StreamFragment" });
 
     const addInside = { operation: "add_node" as const, stream: streamAsset, level: [look], type: "nodes.frame_tally:FrameTally", name: "preview" };
     expect((await settled(backend.transactInTheOpenProject([addInside], "commit", null))).kind).toBe("applied");
@@ -511,7 +512,7 @@ describe("the mock backend's port families", () => {
       const read = await graph;
       const listed = await catalog;
       return {
-        graph: read.nodes.flatMap((node) => [...node.input_ports, ...node.output_ports].map((port) => port.family)),
+        graph: read.nodes.flatMap((node) => [...node.ports.inputs, ...node.ports.outputs].map(familyOfThePort)),
         catalog: listed.node_types.flatMap((entry) => [...entry.inputs, ...entry.outputs].map((port) => port.family)),
       };
     };

@@ -1,7 +1,7 @@
 // What Properties sends the runtime for each edit, and what it shows of a node's links. `set_node_config` replaces
 // a node's whole config, so every config edit sends the whole config with the one field changed or removed.
 
-import type { JsonValue, StreamGraphAction, StreamGraphDeclaredPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { familyOfThePort, type JsonValue, type StreamGraph, type StreamGraphAction, type StreamGraphLink, type StreamGraphNode, type StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { GRAPH_INPUT_NODE_TYPE } from "../controls/graph_inputs_of_the_stream";
 import { recordsOfAListField, type ConfigFormField, type JsonObject } from "./config_form_fields";
 
@@ -74,13 +74,13 @@ export interface LinkedEndOfAPort {
 }
 
 /** The link ends joined to the node's `portName`: each output feeding an input, or each input an output feeds. */
-export function linkedEndsOfThePort(graph: Pick<StreamGraphSummary, "nodes" | "links">, node: StreamGraphNode, direction: "input" | "output", portName: string): LinkedEndOfAPort[] {
+export function linkedEndsOfThePort(graph: Pick<StreamGraph, "nodes" | "links">, node: StreamGraphNode, direction: "input" | "output", portName: string): LinkedEndOfAPort[] {
   return graph.links.flatMap((link) => {
-    const isThisPort = direction === "input" ? link.target_node === node.name && link.target_port === portName : link.source_node === node.name && link.source_port === portName;
+    const isThisPort = direction === "input" ? link.target.node === node.name && link.target.port === portName : link.source.node === node.name && link.source.port === portName;
     if (!isThisPort) return [];
-    const otherName = direction === "input" ? link.source_node : link.target_node;
+    const otherName = direction === "input" ? link.source.node : link.target.node;
     const otherNode = graph.nodes.find((candidate) => candidate.name === otherName);
-    return otherNode === undefined ? [] : [{ link, node: otherNode, port: direction === "input" ? link.source_port : link.target_port }];
+    return otherNode === undefined ? [] : [{ link, node: otherNode, port: direction === "input" ? link.source.port : link.target.port }];
   });
 }
 
@@ -140,7 +140,7 @@ export const LIST_ENTRY_MOVED_ON_REFUSAL = "This entry changed before the edit w
 
 /** The config fields of `node` it can take as inputs and does not yet: each number or on-off field of its form. */
 export function configFieldsToExposeAsGraphInputs(node: Pick<StreamGraphNode, "exposed_config_fields">, fields: readonly ConfigFormField[]): ConfigFormField[] {
-  return fields.filter((field) => (field.control.kind === "number" || field.control.kind === "toggle") && !node.exposed_config_fields.includes(field.key));
+  return fields.filter((field) => (field.control.kind === "number" || field.control.kind === "toggle") && !(node.exposed_config_fields ?? []).includes(field.key));
 }
 
 /**
@@ -153,7 +153,7 @@ export function exposeTheConfigFieldAsAGraphInput(stream: string, node: Pick<Str
   const graphInputConfig: JsonObject = { port: graphInputName, family: "channels" };
   if (field.control.kind === "number" && field.control.minimum !== null && field.control.maximum !== null) graphInputConfig["range"] = [field.control.minimum, field.control.maximum];
   return [
-    { operation: "set_exposed_config_fields", stream, node: node.id, exposed_config_fields: [...node.exposed_config_fields, field.key] },
+    { operation: "set_exposed_config_fields", stream, node: node.id, exposed_config_fields: [...(node.exposed_config_fields ?? []), field.key] },
     { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
     { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: field.key } },
   ];
@@ -162,7 +162,7 @@ export function exposeTheConfigFieldAsAGraphInput(stream: string, node: Pick<Str
 /** What a promotion reads of the input it promotes, and of the level of the graph it is at. */
 export interface InputToPromote {
   node: Pick<StreamGraphNode, "id" | "name">;
-  input: Pick<StreamGraphDeclaredPort, "name" | "family">;
+  input: Pick<StreamGraphPort, "name" | "family">;
   /** The value the input shows now, which a value set live since the graph was read has changed in no reading. */
   valueShown: JsonValue | null;
   /** Whether the node is on the stream's own level, where a Graph Input is written by a client and carries a default. */
@@ -182,8 +182,9 @@ export function promoteToGraphInput(stream: string, { node, input, valueShown, i
   let graphInputName = nameWanted;
   for (let number = 2; nodeNamesTaken.has(graphInputName); number += 1) graphInputName = `${nameWanted}_${number}`;
   const graphInputConfig: JsonObject = { port: graphInputName };
-  if (input.family !== null) graphInputConfig["family"] = input.family;
-  if (isOnTheStreamsOwnLevel && input.family === "channels" && typeof valueShown === "number") graphInputConfig["default"] = valueShown;
+  const family = familyOfThePort(input);
+  if (family !== null) graphInputConfig["family"] = family;
+  if (isOnTheStreamsOwnLevel && family === "channels" && typeof valueShown === "number") graphInputConfig["default"] = valueShown;
   return [
     { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
     { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: input.name } },

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { NODE_STUDIO_FIELDS_NONE_SET, type NodeCatalogEntry, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { studioFieldsOfTheNode, type NodeCatalogEntry, type StreamGraph, type StreamGraphNode, type StreamGraphNodeStudioFields } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { aGraphLink, aGraphNode, aGraphPort, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 import {
   canANodeTypeTakeTheLooseWire,
   cardCollapsedEdits,
@@ -31,44 +32,21 @@ import {
 
 const STREAM_ASSET = "7194d1f9-721a-41e5-9cc9-7db50336a1ed";
 
-function graphNode(name: string, id: string, ports: { inputs?: [string, "image" | "array" | null][]; outputs?: [string, "image" | "array" | null][] }, studio = NODE_STUDIO_FIELDS_NONE_SET): StreamGraphNode {
-  const declared = (portsOfOneSide: [string, "image" | "array" | null][] = []) => portsOfOneSide.map(([name, family]) => ({ name, family, stream_facts: null, values_checked: null, pin: null, value_read: null }));
-  return {
-    id,
-    name,
-    type: `nodes.${name}:Node`,
-    kind: "process",
-    state: "Running",
-    failed_because: null,
-    process_raising_because: null,
-    not_ready_because: null,
-    config: {},
-    pins: {},
-    exposed_config_fields: [],
-    input_ports: declared(ports.inputs),
-    output_ports: declared(ports.outputs),
-    dropped_bags_by_link: {},
-    refused_bags_by_output_port: {},
-    studio,
-    fragment: null, graph_interface: null,
-  };
+/** A node's `studio` as the runtime renders it under the studio contract, holding `fields`. */
+const studioOnTheWire = (fields: Partial<StreamGraphNodeStudioFields>): NonNullable<StreamGraphNode["studio"]> => ({ contract: 1, ...fields });
+
+function graphNode(name: string, id: string, ports: { inputs?: [string, "image" | "array" | null][]; outputs?: [string, "image" | "array" | null][] }, studio: Partial<StreamGraphNodeStudioFields> = {}): StreamGraphNode {
+  const declared = (portsOfOneSide: [string, "image" | "array" | null][] = []) => portsOfOneSide.map(([name, family]) => aGraphPort(name, family));
+  return aGraphNode(name, { id, kind: "process", config: {}, inputs: declared(ports.inputs), outputs: declared(ports.outputs), studio: studioOnTheWire(studio), components: { state: "Running" } });
 }
 
-const PATTERN = graphNode("pattern", "uuid-pattern", { outputs: [["video", "image"]] }, { ...NODE_STUDIO_FIELDS_NONE_SET, position: [0, 0], comment: "the source", metadata: { pinned: true } });
+const PATTERN = graphNode("pattern", "uuid-pattern", { outputs: [["video", "image"]] }, { position: [0, 0], comment: "the source", metadata: { pinned: true } });
 const HALFTONE = graphNode("halftone", "uuid-halftone", { inputs: [["level", "array"], ["frames", "image"]], outputs: [["image", "image"]] });
 const DISPLAY = graphNode("display", "uuid-display", { inputs: [["video", "image"]] });
 
-const GRAPH: StreamGraphSummary = {
-  stream: "pattern-main-d76f70",
-  stream_asset: STREAM_ASSET,
-  nodes: [PATTERN, HALFTONE, DISPLAY],
-  links: [{ id: "L1", source_node: "pattern", source_port: "video", target_node: "display", target_port: "video", state: "wired" }],
-  groups: [],
-  notes: [],
-  graph_document_text: "{}",
-};
+const GRAPH: StreamGraph = aStreamGraph([PATTERN, HALFTONE, DISPLAY], [aGraphLink("L1", ["pattern", "video"], ["display", "video"])], { stream: "pattern-main-d76f70", asset: STREAM_ASSET });
 
-function edited(graph: StreamGraphSummary = GRAPH): EditedStreamGraph {
+function edited(graph: StreamGraph = GRAPH): EditedStreamGraph {
   const editedGraph = editedStreamGraphOf(graph);
   if ("because" in editedGraph) return expect.unreachable(editedGraph.because);
   return editedGraph;
@@ -97,7 +75,7 @@ const BLUR_LISTING_ITS_SETTINGS: NodeCatalogEntry = {
 const SETTINGS_ONLY = { ...catalogEntry("nodes.tone:Tone", [], []), inputs: BLUR_LISTING_ITS_SETTINGS.inputs.slice(1) };
 
 test("a_graph_with_no_stream_asset_or_a_node_without_a_uuid_cannot_be_edited_and_says_why", () => {
-  expect(editedStreamGraphOf({ ...GRAPH, stream_asset: null })).toEqual({ because: "The runtime's graph names no stream asset, so an edit has no stream to name." });
+  expect(editedStreamGraphOf({ ...GRAPH, asset: null })).toEqual({ because: "The runtime's graph names no stream asset, so an edit has no stream to name." });
   expect(editedStreamGraphOf({ ...GRAPH, nodes: [{ ...PATTERN, id: "" }] })).toEqual({ because: "The runtime's graph gives pattern no UUID, so an edit cannot name it." });
 });
 
@@ -117,7 +95,7 @@ describe("moving_cards", () => {
 
   test("a_card_let_go_in_a_frame_joins_its_group_and_one_let_go_outside_leaves_it_in_the_same_studio_edit", () => {
     const group = "4b6c1e0a-2f1d-4a57-9b36-0d5e7c1a9f42";
-    const grouped = edited({ ...GRAPH, nodes: [{ ...PATTERN, studio: { ...PATTERN.studio, group } }, HALFTONE, DISPLAY], groups: [{ id: group, title: "Inputs", description: null, colour: null }] });
+    const grouped = edited({ ...GRAPH, nodes: [{ ...PATTERN, studio: { ...PATTERN.studio, group } }, HALFTONE, DISPLAY], groups: [{ id: group, title: "Inputs" }] });
     expect(
       cardsMovedEdits(grouped, [
         { node_id: "halftone", position: { x: 300, y: 20 }, frame_id: group },
@@ -142,13 +120,13 @@ test("a_wire_to_a_card_the_graph_no_longer_holds_asks_nothing_rather_than_naming
 });
 
 test("the_studio_sent_ahead_for_a_node_inside_a_subgraph_is_shown_once_the_subgraph_holds_it", () => {
-  const sentAhead = { ...HALFTONE.studio, collapsed: true };
-  const subgraphHolding = (studio: StreamGraphNode["studio"]): StreamGraphSummary => ({
+  const sentAhead = { ...studioFieldsOfTheNode(HALFTONE), collapsed: true };
+  const subgraphHolding = (studio: StreamGraphNode["studio"]): StreamGraph => ({
     ...GRAPH,
-    nodes: [PATTERN, { ...graphNode("look", "uuid-look", {}), fragment: { kind: "placed_stream", nodes: [{ ...HALFTONE, studio }], links: [], groups: [] } }],
+    nodes: [PATTERN, { ...graphNode("look", "uuid-look", {}), type: "tatolab.project:StreamFragment", kind: "fragment", fragment: { nodes: [{ ...HALFTONE, studio }], links: [], groups: [] } }],
   });
   expect(doesTheGraphShowTheStudioSentAhead(subgraphHolding(HALFTONE.studio), "uuid-halftone", sentAhead)).toBe(false);
-  expect(doesTheGraphShowTheStudioSentAhead(subgraphHolding(sentAhead), "uuid-halftone", sentAhead)).toBe(true);
+  expect(doesTheGraphShowTheStudioSentAhead(subgraphHolding(studioOnTheWire(sentAhead)), "uuid-halftone", sentAhead)).toBe(true);
 });
 
 describe("editing_inside_a_subgraph", () => {
@@ -171,8 +149,8 @@ describe("editing_inside_a_subgraph", () => {
 });
 
 test("the_studio_sent_ahead_is_shown_once_the_graph_holds_each_field_it_set_even_beside_a_field_another_edit_set", () => {
-  const sentAhead = { ...PATTERN.studio, collapsed: true };
-  const graphShowing = (studio: StreamGraphNode["studio"]) => ({ ...GRAPH, nodes: [{ ...PATTERN, studio }, HALFTONE, DISPLAY] });
+  const sentAhead = { ...studioFieldsOfTheNode(PATTERN), collapsed: true };
+  const graphShowing = (studio: Partial<StreamGraphNodeStudioFields>) => ({ ...GRAPH, nodes: [{ ...PATTERN, studio: studioOnTheWire(studio) }, HALFTONE, DISPLAY] });
   expect(doesTheGraphShowTheStudioSentAhead(GRAPH, "uuid-pattern", sentAhead)).toBe(false);
   expect(doesTheGraphShowTheStudioSentAhead(graphShowing(sentAhead), "uuid-pattern", sentAhead)).toBe(true);
   expect(doesTheGraphShowTheStudioSentAhead(graphShowing({ ...sentAhead, colour: "#ff0000" }), "uuid-pattern", sentAhead)).toBe(true);
@@ -265,7 +243,7 @@ test("a_note_is_placed_at_the_point_and_its_change_sets_only_the_fields_that_cha
 
 test("a_frame_changed_sets_only_the_fields_that_differ_trimmed_and_a_blank_title_or_nothing_changed_asks_nothing", () => {
   const group = "21d9c0ee-a01d-40a0-ad61-bd05476819e7";
-  const framed = edited({ ...GRAPH, groups: [{ id: group, title: "Frame", description: null, colour: "#6f9bff" }] });
+  const framed = edited({ ...GRAPH, groups: [{ id: group, title: "Frame", colour: "#6f9bff" }] });
   expect(frameChangedEdits(framed, group, { title: "  Titles " })).toEqual([{ operation: "set_group_fields", stream: STREAM_ASSET, group, title: "Titles" }]);
   expect(frameChangedEdits(framed, group, { title: "   " })).toEqual([]);
   expect(frameChangedEdits(framed, group, { title: "Frame" })).toEqual([]);
@@ -278,7 +256,7 @@ test("a_frame_changed_sets_only_the_fields_that_differ_trimmed_and_a_blank_title
 
 test("a_frame_removed_takes_out_its_group_and_one_the_graph_does_not_hold_asks_nothing", () => {
   const group = "21d9c0ee-a01d-40a0-ad61-bd05476819e7";
-  const framed = edited({ ...GRAPH, groups: [{ id: group, title: "Frame", description: null, colour: null }] });
+  const framed = edited({ ...GRAPH, groups: [{ id: group, title: "Frame" }] });
   expect(frameRemovedEdits(framed, group)).toEqual([{ operation: "remove_group", stream: STREAM_ASSET, group }]);
   expect(frameRemovedEdits(framed, "another-group")).toEqual([]);
 });
@@ -290,7 +268,7 @@ test("a_card_collapsed_keeps_its_other_studio_fields_and_one_already_so_asks_not
   expect(cardCollapsedEdits(edited(), "halftone", false)).toEqual([
     { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-halftone", studio: { collapsed: false } },
   ]);
-  const collapsed = edited({ ...GRAPH, nodes: [{ ...DISPLAY, studio: { ...NODE_STUDIO_FIELDS_NONE_SET, collapsed: true } }] });
+  const collapsed = edited({ ...GRAPH, nodes: [{ ...DISPLAY, studio: studioOnTheWire({ collapsed: true }) }] });
   expect(cardCollapsedEdits(collapsed, "display", true)).toEqual([]);
 });
 

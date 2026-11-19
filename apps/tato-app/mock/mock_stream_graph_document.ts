@@ -1,22 +1,23 @@
-// The browser mock's `graph` tool: a mock stream's graph rendered as the runtime renders its
-// document — node ids, config, ports, components with state and metrics, link ids and ends,
-// `machine` — and the summary the main process would read from it.
+// The browser mock's `graph` tool: a mock stream's graph rendered as the runtime answers `graph`,
+// typed by the control contract — node ids, config, ports, components with state and metrics, link
+// ids and ends, `machine` — which the main process passes on unchanged.
 
-import { mockGraphNodeIdOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
-import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { mockGraphNodeIdOf, type MockGraphLink, type MockGraphNode, type MockGraphPort, type MockStreamGraph } from "./mock_stream_fixtures";
 import type {
   JsonValue,
   ListedStream,
   PortStreamFacts,
-  StreamGraphDeclaredPort,
-  StreamGraphPortPin,
+  StreamGraph,
   StreamGraphInterfacePort,
   StreamGraphLink,
   StreamGraphNode,
   StreamGraphNodeKind,
   StreamGraphNodeStudioFields,
-  StreamGraphSummary,
+  StreamGraphPort,
 } from "../src/shared/tatolab_backend_contract";
+
+/** A node's state as the runtime names it. */
+type NodeState = NonNullable<StreamGraphNode["components"]["state"]>;
 
 /** Where a mock stream's run stands when its graph is read. */
 export interface MockStreamGraphMoment {
@@ -39,12 +40,12 @@ function streamFactsAsTheRuntimeRendersThem(facts: PortStreamFacts): Record<stri
 }
 
 /** `values_checked` as the runtime renders it: only on a port that carries the mark. */
-function valuesCheckedAsTheRuntimeRendersIt(port: StreamGraphDeclaredPort): { values_checked?: boolean } {
+function valuesCheckedAsTheRuntimeRendersIt(port: MockGraphPort): { values_checked?: boolean } {
   return port.values_checked === null ? {} : { values_checked: port.values_checked };
 }
 
 /** An input's value as the runtime renders it beside its pin type: `value` and `value_comes_from`, only `value_comes_from` while a link feeds it, a `null` value alone while it reads none, and neither on an input that takes no stored value. */
-function inputValueAsTheRuntimeRendersIt(port: StreamGraphDeclaredPort): { value?: JsonValue; value_comes_from?: string } {
+function inputValueAsTheRuntimeRendersIt(port: MockGraphPort): Pick<StreamGraphPort, "value" | "value_comes_from"> {
   if (port.value_read === null) return {};
   if (port.value_read.comes_from === null) return { value: null };
   if (port.value_read.comes_from === "wire") return { value_comes_from: "wire" };
@@ -52,17 +53,12 @@ function inputValueAsTheRuntimeRendersIt(port: StreamGraphDeclaredPort): { value
 }
 
 /** A port's pin type and flow as the runtime renders them: both beside its family on a typed port, neither on an untyped one. */
-function pinAsTheRuntimeRendersIt(port: StreamGraphDeclaredPort): Partial<StreamGraphPortPin> {
+function pinAsTheRuntimeRendersIt(port: MockGraphPort): Pick<StreamGraphPort, "pin_type" | "flow"> {
   return port.pin === null ? {} : { pin_type: port.pin.pin_type, flow: port.pin.flow };
 }
 
-/** The runtime's capitalised link state in `components`: `awaiting_remote` reads `AwaitingRemote`. */
-function linkComponentState(linkState: string): string {
-  return linkState
-    .split("_")
-    .map((word) => (word === "" ? word : word[0].toUpperCase() + word.slice(1)))
-    .join("");
-}
+/** The runtime's capitalised link state in `components`. */
+const LINK_COMPONENT_STATE = { pending: "Pending", wired: "Wired", disconnecting: "Disconnecting", disconnected: "Disconnected", error: "Error" } as const;
 
 /** A node's studio fields as the runtime renders them: each one set, under the studio contract. */
 export function studioAsTheRuntimeRendersIt(studio: StreamGraphNodeStudioFields): Record<string, JsonValue> {
@@ -98,22 +94,8 @@ function graphInterfacePortAsTheRuntimeRendersIt(node: MockGraphNode, nodeState:
   const family = familyTheInterfaceNodeCarries(node);
   const carriesAValue = isTopLevel && nodeState === "Running" && isAGraphInputAClientWrites(node);
   const valueRead = node.input_ports.find((input) => input.name === "value")?.value_read?.value ?? null;
-  return { direction, port, family, current_value: carriesAValue ? (valueRead ?? node.config["default"] ?? null) : null };
-}
-
-/** `{ graph_interface }` as the runtime renders it on `node`'s components, its `current_value` left out where it carries none; `{}` on a node that is no interface node. */
-function graphInterfaceComponentOf(node: StreamGraphNode | undefined): Record<string, JsonValue> {
-  const graphInterface = node?.graph_interface ?? null;
-  if (graphInterface === null) return {};
-  const { current_value: currentValue, ...declared } = graphInterface;
-  return { graph_interface: currentValue === null ? declared : { ...declared, current_value: currentValue } };
-}
-
-/** A link's source, a node in another stream rendered with that stream beside it, as `<stream>/<node>` names it in the summary. */
-function linkSourceAsTheRuntimeRendersIt(sourceNode: string, sourcePort: string): { stream?: string; node: string; port: string } {
-  const streamSeparator = sourceNode.indexOf("/");
-  if (streamSeparator === -1) return { node: sourceNode, port: sourcePort };
-  return { stream: sourceNode.slice(0, streamSeparator), node: sourceNode.slice(streamSeparator + 1), port: sourcePort };
+  const currentValue = carriesAValue ? (valueRead ?? node.config["default"] ?? null) : null;
+  return { direction, port, family, ...(currentValue === null ? {} : { current_value: currentValue }) };
 }
 
 /** How the mock node `node`'s code runs, as the runtime renders its `kind`. */
@@ -121,132 +103,102 @@ function mockGraphNodeKindOf(node: MockGraphNode): StreamGraphNodeKind {
   return node.kind ?? (node.fragment === undefined ? "process" : "fragment");
 }
 
-/** The `graph {stream}` document of `graph` for the stream `listing` lists, on `machineName` at `moment`, each top-level Input carrying what its `value` input reads, and the summary read from it; its ports name their families only when `arePortFamiliesServed`. */
-export function mockStreamGraphSummary(
-  listing: ListedStream,
-  machineName: string,
-  graph: MockStreamGraph,
-  moment: MockStreamGraphMoment,
-  arePortFamiliesServed: boolean,
-): StreamGraphSummary {
+/** The state a mock node in `state` renders while its stream settles, as the runtime names a node's state. */
+const NODE_STATES: readonly NodeState[] = ["Pending", "Idle", "Running", "Paused", "Stopping", "Stopped", "Error", "Restarting"];
+
+/** `state` as the runtime names a node's state; a mock node holds only those. */
+function nodeStateOf(state: string): NodeState {
+  const nodeState = NODE_STATES.find((candidate) => candidate === state);
+  if (nodeState === undefined) throw new Error(`a mock node holds the state ${state}, which the runtime never renders`);
+  return nodeState;
+}
+
+/** The `graph {stream}` answer of `graph` for the stream `listing` lists, on `machineName` at `moment`, each top-level Input carrying what its `value` input reads; its ports name their families only when `arePortFamiliesServed`. */
+export function mockStreamGraphOf(listing: ListedStream, machineName: string, graph: MockStreamGraph, moment: MockStreamGraphMoment, arePortFamiliesServed: boolean): StreamGraph {
   const streamId = listing.stream;
   const streamAsset = listing.location?.stream_asset ?? null;
-  const servedPorts = (ports: StreamGraphDeclaredPort[]): StreamGraphDeclaredPort[] => (arePortFamiliesServed ? ports : ports.map((port) => ({ ...port, family: null })));
-  const familyAsTheRuntimeRendersIt = (port: StreamGraphDeclaredPort) => (arePortFamiliesServed && port.family !== null ? { family: port.family } : {});
-  const nodeState = (state: string | null) => (state === null ? null : moment.hasSettled ? state : "Pending");
-  const linkState = (state: string) => (moment.hasSettled ? state : "pending");
+  const nodeState = (state: string | null): NodeState | null => (state === null ? null : moment.hasSettled ? nodeStateOf(state) : "Pending");
+  const linkState = (state: MockGraphLink["state"]): MockGraphLink["state"] => (moment.hasSettled ? state : "pending");
   const climbed = (perSecond: number) => (moment.hasSettled ? Math.floor(perSecond * moment.secondsSinceSettled) : 0);
-  const nodesOfTheLevel = (levelNodes: MockGraphNode[], levelLinks: StreamGraphLink[], isTopLevel: boolean): StreamGraphNode[] =>
-    levelNodes.map((node) => ({
-      id: mockGraphNodeIdOf(streamId, node),
-      name: node.name,
-      type: node.type,
-      kind: mockGraphNodeKindOf(node),
-      state: nodeState(node.state),
-      failed_because: moment.hasSettled ? (node.failed_because ?? null) : null,
-      process_raising_because: moment.hasSettled ? (node.process_raising_because ?? null) : null,
-      not_ready_because: moment.hasSettled ? (node.not_ready_because ?? null) : null,
-      config: node.config,
-      pins: node.pins ?? {},
-      exposed_config_fields: node.exposed_config_fields ?? [],
-      // As the runtime renders it, a link reads `wire` on every input it feeds, one that takes no stored value too.
-      input_ports: servedPorts(node.input_ports).map((port) =>
-        levelLinks.some((link) => link.target_node === node.name && link.target_port === port.name) ? { ...port, value_read: { value: null, comes_from: "wire" } } : port,
-      ),
-      output_ports: servedPorts(node.output_ports),
-      dropped_bags_by_link: Object.fromEntries(
-        levelLinks.filter((link) => link.target_node === node.name).map((link) => [link.id, climbed(graph.counterRates.droppedPerSecondByLinkId[link.id] ?? 0)]),
-      ),
-      refused_bags_by_output_port: Object.fromEntries(
-        [...new Set([...levelLinks.filter((link) => link.source_node === node.name).map((link) => link.source_port)])].map((port) => [
-          port,
-          climbed(graph.counterRates.refusedPerSecondByOutput.find((output) => output.node === node.name && output.port === port)?.perSecond ?? 0),
-        ]),
-      ),
-      studio: node.studio ?? NODE_STUDIO_FIELDS_NONE_SET,
-      fragment:
-        node.fragment === undefined
-          ? null
-          : {
-              kind: node.fragment.kind,
-              nodes: nodesOfTheLevel(node.fragment.nodes, node.fragment.links, false),
-              links: node.fragment.links.map((link) => ({ ...link, state: linkState(link.state) })),
-              groups: node.fragment.groups,
-            },
-      graph_interface: graphInterfacePortAsTheRuntimeRendersIt(node, nodeState(node.state), isTopLevel),
-    }));
-  const nodes = nodesOfTheLevel(graph.nodes, graph.links, true);
+  const portAsTheRuntimeRendersIt = (port: MockGraphPort): StreamGraphPort => ({
+    name: port.name,
+    description: "",
+    port_kind: "data",
+    ...(port.stream_facts === null ? {} : { stream_facts: streamFactsAsTheRuntimeRendersThem(port.stream_facts) }),
+    ...valuesCheckedAsTheRuntimeRendersIt(port),
+    ...(arePortFamiliesServed && port.family !== null ? { family: { family: port.family } } : {}),
+    ...pinAsTheRuntimeRendersIt(port),
+  });
+  const linkAsTheRuntimeRendersIt = (link: MockGraphLink): StreamGraphLink => ({
+    id: link.id,
+    source: { node: link.source_node, port: link.source_port },
+    target: { node: link.target_node, port: link.target_port },
+    capacity: 4,
+    state: linkState(link.state),
+    components: { state: LINK_COMPONENT_STATE[linkState(link.state)] },
+  });
+  const nodesOfTheLevel = (levelNodes: MockGraphNode[], levelLinks: MockGraphLink[], isTopLevel: boolean): StreamGraphNode[] =>
+    levelNodes.map((node) => {
+      const state = nodeState(node.state);
+      const graphInterface = graphInterfacePortAsTheRuntimeRendersIt(node, state, isTopLevel);
+      const isFedByALink = (port: MockGraphPort) => levelLinks.some((link) => link.target_node === node.name && link.target_port === port.name);
+      return {
+        id: mockGraphNodeIdOf(streamId, node),
+        type: node.type,
+        kind: mockGraphNodeKindOf(node),
+        name: node.name,
+        config: node.config,
+        pins: node.pins ?? {},
+        ...(node.exposed_config_fields === undefined || node.exposed_config_fields.length === 0 ? {} : { exposed_config_fields: node.exposed_config_fields }),
+        ...(node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) }),
+        ports: {
+          // As the runtime renders it, a link reads `wire` on every input it feeds, one that takes no stored value too.
+          inputs: node.input_ports.map((port) => ({
+            ...portAsTheRuntimeRendersIt(port),
+            delivery_profile: "newest",
+            ...inputValueAsTheRuntimeRendersIt(isFedByALink(port) ? { ...port, value_read: { value: null, comes_from: "wire" } } : port),
+          })),
+          outputs: node.output_ports.map((port) => ({ ...portAsTheRuntimeRendersIt(port), delivery_profile: null })),
+        },
+        components: {
+          failed_because: moment.hasSettled ? (node.failed_because ?? null) : null,
+          process_raising_because: moment.hasSettled ? (node.process_raising_because ?? null) : null,
+          not_ready_because: moment.hasSettled ? (node.not_ready_because ?? null) : null,
+          ...(graphInterface === null ? {} : { graph_interface: graphInterface }),
+          ...(state === null
+            ? {}
+            : {
+                state,
+                paused: false,
+                metrics: {
+                  frames_dropped: 0,
+                  dropped_bags_by_link: Object.fromEntries(
+                    levelLinks.filter((link) => link.target_node === node.name).map((link) => [link.id, climbed(graph.counterRates.droppedPerSecondByLinkId[link.id] ?? 0)]),
+                  ),
+                  refused_bags_by_output_port: Object.fromEntries(
+                    [...new Set(levelLinks.filter((link) => link.source_node === node.name).map((link) => link.source_port))].map((port) => [
+                      port,
+                      climbed(graph.counterRates.refusedPerSecondByOutput.find((output) => output.node === node.name && output.port === port)?.perSecond ?? 0),
+                    ]),
+                  ),
+                  written_bags_by_output_port: {},
+                },
+              }),
+        },
+        ...(node.fragment === undefined
+          ? {}
+          : { fragment: { nodes: nodesOfTheLevel(node.fragment.nodes, node.fragment.links, false), links: node.fragment.links.map(linkAsTheRuntimeRendersIt), groups: node.fragment.groups } }),
+      };
+    });
   const groups = graph.groups ?? [];
   const notes = graph.notes ?? [];
-  const graphDocument = {
+  return {
     ...(streamAsset === null ? {} : { asset: streamAsset }),
     stream: streamId,
-    nodes: graph.nodes.map((node, nodeIndex) => ({
-      id: mockGraphNodeIdOf(streamId, node),
-      type: node.type,
-      name: node.name,
-      kind: mockGraphNodeKindOf(node),
-      config: node.config,
-      pins: node.pins ?? {},
-      ...(node.exposed_config_fields === undefined || node.exposed_config_fields.length === 0 ? {} : { exposed_config_fields: node.exposed_config_fields }),
-      ...(node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) }),
-      ports: {
-        inputs: node.input_ports.map((port, portIndex) => ({
-          name: port.name,
-          description: "",
-          port_kind: "data",
-          delivery_profile: "newest",
-          ...valuesCheckedAsTheRuntimeRendersIt(port),
-          ...familyAsTheRuntimeRendersIt(port),
-          ...pinAsTheRuntimeRendersIt(port),
-          ...inputValueAsTheRuntimeRendersIt(nodes[nodeIndex]?.input_ports[portIndex] ?? port),
-        })),
-        outputs: node.output_ports.map((port) => ({
-          name: port.name,
-          description: "",
-          port_kind: "data",
-          delivery_profile: null,
-          ...(port.stream_facts === null ? {} : { stream_facts: streamFactsAsTheRuntimeRendersThem(port.stream_facts) }),
-          ...valuesCheckedAsTheRuntimeRendersIt(port),
-          ...familyAsTheRuntimeRendersIt(port),
-          ...pinAsTheRuntimeRendersIt(port),
-        })),
-      },
-      components: {
-        ...graphInterfaceComponentOf(nodes[nodeIndex]),
-        ...(node.state === null ? {} : {
-          state: nodes[nodeIndex]?.state ?? null,
-          failed_because: nodes[nodeIndex]?.failed_because ?? null,
-          process_raising_because: nodes[nodeIndex]?.process_raising_because ?? null,
-          not_ready_because: nodes[nodeIndex]?.not_ready_because ?? null,
-          paused: false,
-          metrics: {
-            frames_dropped: 0,
-            dropped_bags_by_link: nodes[nodeIndex]?.dropped_bags_by_link ?? {},
-            refused_bags_by_output_port: nodes[nodeIndex]?.refused_bags_by_output_port ?? {},
-          },
-        }),
-      },
-    })),
-    links: graph.links.map((link) => ({
-      id: link.id,
-      source: linkSourceAsTheRuntimeRendersIt(link.source_node, link.source_port),
-      target: { node: link.target_node, port: link.target_port },
-      capacity: 4,
-      state: linkState(link.state),
-      components: { state: linkComponentState(linkState(link.state)) },
-    })),
+    nodes: nodesOfTheLevel(graph.nodes, graph.links, true),
+    links: graph.links.map(linkAsTheRuntimeRendersIt),
     ...(groups.length === 0 ? {} : { groups }),
     ...(notes.length === 0 ? {} : { studio: { contract: 1, notes } }),
     machine: machineName,
-  };
-  return {
-    stream: streamId,
-    stream_asset: streamAsset,
-    groups,
-    notes,
-    nodes,
-    links: graph.links.map((link) => ({ ...link, state: linkState(link.state) })),
-    graph_document_text: JSON.stringify(graphDocument, null, 2),
   };
 }

@@ -38,7 +38,7 @@ export type {
   OpenProjectReading,
   PortViewerTarget,
   StreamGraphNode,
-  StreamGraphSummary,
+  StreamGraph,
   ProjectFileRead,
 } from "../../shared/tatolab_backend_contract";
 export type {

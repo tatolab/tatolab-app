@@ -1,45 +1,27 @@
 import { expect, test } from "vitest";
-import type { StreamGraphInputValueChange, StreamGraphInputValueRead, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { StreamGraphInputValueChange, StreamGraphInputValueRead, StreamGraphNode, StreamGraph } from "../../shared/tatolab_backend_contract";
 import { StreamInputValuesReadings } from "./stream_input_values_readings";
 import type { StreamInputValuesReading } from "./studio_view_contract";
-import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { aGraphNode, aGraphPort, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 
 function graphNode(id: string, gain: StreamGraphInputValueRead | null, fragmentNodes: StreamGraphNode[] | null = null): StreamGraphNode {
-  return {
+  return aGraphNode(id.toLowerCase(), {
     id,
-    name: id.toLowerCase(),
-    type: "nodes.mix:Mix",
-    kind: "function",
-    state: "Running",
-    failed_because: null,
-    process_raising_because: null,
-    not_ready_because: null,
+    type: fragmentNodes === null ? "nodes.mix:Mix" : "tatolab.project:StreamFragment",
+    kind: fragmentNodes === null ? "function" : "fragment",
     config: {},
-    pins: {},
-    exposed_config_fields: [],
-    input_ports: [
-      { name: "gain", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "float" }, flow: "value" }, value_read: gain },
-      { name: "video", family: "image", stream_facts: null, values_checked: null, pin: { pin_type: { type: "texture" }, flow: "stream" }, value_read: null },
+    inputs: [
+      aGraphPort("gain", "channels", { pin_type: { type: "float" }, flow: "value", ...(gain === null ? {} : { value: gain.value, value_comes_from: gain.comes_from }) }),
+      aGraphPort("video", "image", { pin_type: { type: "texture" }, flow: "stream" }),
     ],
-    output_ports: [],
-    dropped_bags_by_link: {},
-    refused_bags_by_output_port: {},
-    studio: NODE_STUDIO_FIELDS_NONE_SET,
-    fragment: fragmentNodes === null ? null : { kind: "placed_stream", nodes: fragmentNodes, links: [], groups: [] },
-    graph_interface: null,
-  };
+    ...(fragmentNodes === null ? {} : { fragment: { nodes: fragmentNodes, links: [], groups: [] } }),
+    components: { state: "Running" },
+  });
 }
 
 /** A graph reading of Mix on the stream's own level and Inner inside the subgraph Sub, each with its gain. */
-const graphReading = (gain: StreamGraphInputValueRead, innerGain: StreamGraphInputValueRead = { value: 1, comes_from: "default" }): StreamGraphSummary => ({
-  stream: "main",
-  stream_asset: "STREAM-ASSET",
-  groups: [],
-  notes: [],
-  nodes: [graphNode("MIX-ID", gain), graphNode("SUB-ID", null, [graphNode("INNER-ID", innerGain)])],
-  links: [],
-  graph_document_text: "{}",
-});
+const graphReading = (gain: StreamGraphInputValueRead, innerGain: StreamGraphInputValueRead = { value: 1, comes_from: "default" }): StreamGraph =>
+  aStreamGraph([graphNode("MIX-ID", gain), graphNode("SUB-ID", null, [graphNode("INNER-ID", innerGain)])], [], { asset: "STREAM-ASSET" });
 
 const saved = (value: number): StreamGraphInputValueRead => ({ value, comes_from: "saved" });
 const live = (value: number): StreamGraphInputValueRead => ({ value, comes_from: "live" });

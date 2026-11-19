@@ -5,7 +5,7 @@
 
 import type { GraphAddress, InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { PinAnnotations } from "@tatolab/tato-app-view-sdk/pin_type_readings";
-import type { JsonValue, StreamGraphPortPin, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { graphInterfacePortOfTheNode, jsonObjectMembersOf, type JsonValue, type StreamGraph, type StreamGraphPortPin } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeInputs } from "../shared/node_pins_of_the_graph";
 
 /** The node type a stream declares one of its input ports with. */
@@ -53,14 +53,15 @@ export interface GraphInputOfTheStream {
 }
 
 /** Each top-level Graph Input `graph` declares, in the order the graph lists its nodes, its `value` input read as every surface reads a node's inputs and addressed at `valuesAt`, the stream's own level; `null` addresses none. */
-export function graphInputsOfTheStream(graph: StreamGraphSummary, valuesAt: GraphAddress | null): GraphInputOfTheStream[] {
+export function graphInputsOfTheStream(graph: StreamGraph, valuesAt: GraphAddress | null): GraphInputOfTheStream[] {
   return graph.nodes
     .filter((node) => node.type === GRAPH_INPUT_NODE_TYPE)
     .map((node) => {
-      const { port, family, range, lifetime } = node.config;
+      const config = jsonObjectMembersOf(node.config);
+      const { port, family, range, lifetime } = config;
       // A document saved before the Input's value was an input holds it as `default`; one saved since, as `value`.
-      const declaredDefault = node.config["default"] ?? node.config[GRAPH_INPUT_VALUE_INPUT] ?? null;
-      const declared = node.graph_interface;
+      const declaredDefault = config["default"] ?? config[GRAPH_INPUT_VALUE_INPUT] ?? null;
+      const declared = graphInterfacePortOfTheNode(node);
       const familyDeclared = declared?.family ?? (typeof family === "string" ? family : null);
       const rangeDeclared = graphInputRangeFrom(range);
       const valueInput = nodeInputs(graph, node, undefined, valuesAt).find((input) => input.name === GRAPH_INPUT_VALUE_INPUT);

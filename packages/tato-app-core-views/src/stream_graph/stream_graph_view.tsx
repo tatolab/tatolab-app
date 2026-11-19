@@ -123,7 +123,7 @@ function StreamGraphOfTheTab({
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
   const projectFolder = listedStream?.location?.project_directory ?? null;
   useInputValuesOfTheStream(connection, inputValues, streamTab.stream, projectFolder);
-  const streamAsset = graphReading?.kind === "read" ? graphReading.graph.stream_asset : null;
+  const streamAsset = graphReading?.kind === "read" ? (graphReading.graph.asset ?? null) : null;
   const valuesOfTheLevelShown = useMemo(
     (): GraphAddress | null => {
       const streamsOwnLevel = graphAddressOfTheStreamsOwnLevel(projectFolder, streamAsset);

@@ -34,29 +34,13 @@ export function holdEachNumberAsItsWrittenDigits(_key: string, value: unknown, c
 
 /** `value` as compact JSON text, each number parsed with `holdEachNumberAsItsWrittenDigits` keeping its written digits, and each `bigint` written as its digits. */
 export function jsonTextKeepingTheWrittenNumbers(value: unknown): string {
-  return jsonTextIndentedKeepingTheWrittenNumbers(value, "", "");
-}
-
-/** `value` as JSON text indented two spaces a level, as `JSON.stringify(value, null, 2)` and serde's pretty printer write it, each number keeping its written digits. */
-export function prettyJsonTextKeepingTheWrittenNumbers(value: unknown): string {
-  return jsonTextIndentedKeepingTheWrittenNumbers(value, "  ", "");
-}
-
-function jsonTextIndentedKeepingTheWrittenNumbers(value: unknown, indentPerLevel: string, indentOfThisLevel: string): string {
   if (value instanceof JsonNumberAsWritten) return value.writtenDigits;
   if (typeof value === "bigint") return value.toString();
-  const indentOfTheNextLevel = indentOfThisLevel + indentPerLevel;
-  const lineBreak = indentPerLevel === "" ? "" : "\n";
-  const keySeparator = indentPerLevel === "" ? ":" : ": ";
-  const enclosed = (open: string, members: string[], close: string) =>
-    members.length === 0 ? `${open}${close}` : `${open}${lineBreak}${members.map((member) => indentOfTheNextLevel + member).join(`,${lineBreak}`)}${lineBreak}${indentOfThisLevel}${close}`;
-  if (Array.isArray(value)) return enclosed("[", value.map((element) => jsonTextIndentedKeepingTheWrittenNumbers(element, indentPerLevel, indentOfTheNextLevel)), "]");
+  if (Array.isArray(value)) return `[${value.map(jsonTextKeepingTheWrittenNumbers).join(",")}]`;
   if (typeof value === "object" && value !== null) {
-    return enclosed(
-      "{",
-      Object.entries(value).map(([key, nestedValue]) => `${JSON.stringify(key)}${keySeparator}${jsonTextIndentedKeepingTheWrittenNumbers(nestedValue, indentPerLevel, indentOfTheNextLevel)}`),
-      "}",
-    );
+    return `{${Object.entries(value)
+      .map(([key, nestedValue]) => `${JSON.stringify(key)}:${jsonTextKeepingTheWrittenNumbers(nestedValue)}`)
+      .join(",")}}`;
   }
   return JSON.stringify(value) ?? "null";
 }

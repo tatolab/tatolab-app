@@ -1,13 +1,12 @@
 import { afterEach, expect, test } from "vitest";
 import { controlOperationFailedResponse, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords, runtimeDescribedResponse } from "./fake_local_api_server.js";
-import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
 
 /** The window's TypeScript types read exactly this JSON, key for key and in this order. */
-test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_them", async () => {
+test("the_status_and_a_log_page_serialize_exactly_as_the_window_reads_them", async () => {
   const runningRuntime = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
@@ -96,37 +95,6 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '{"host_ts_ns":null,"level":null,"source":null,"target":null,' +
       '"message":"","attrs":{},"processor_id":null,"sent_by_its_own_process":false,"action":null,"stream":null,"jsonl_line":"{}"}],' +
       '"next_after":"1:90","records_no_longer_held":false}',
-  );
-
-  const graphToolResultText = JSON.stringify({
-      machine: "jonathanf-macbook",
-      links: [
-        { state: "wired", target: { port: "video_from_upstream", node: "invertingeffect" }, source: { port: "video", node: "testpatternsource" }, id: "L1" },
-      ],
-      nodes: [
-        {
-          ports: { outputs: [{ catalog_entry: { entry: {}, section: "binary" }, name: "video" }], inputs: [] },
-          components: { state: "Running" },
-          type: "tatolab.stream:TestPatternSource",
-          name: "testpatternsource",
-          id: "P1",
-        },
-        { type: "nodes.inverting_effect:InvertingEffect", name: "invertingeffect", components: { metrics: { dropped_bags_by_link: { L1: 12 } } } },
-      ],
-      stream: "main",
-  });
-  const graph = streamGraphSummaryFromTheGraphToolResult("main", graphToolResultText);
-  expect(graph.ok && JSON.stringify(graph.value)).toBe(
-    '{"stream":"main","stream_asset":null,"nodes":[' +
-      '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","kind":null,"state":"Running","failed_because":null,"process_raising_because":null,"not_ready_because":null,"config":{},"pins":{},"exposed_config_fields":[],' +
-      '"input_ports":[],"output_ports":[{"name":"video","family":null,"stream_facts":null,"values_checked":null,"pin":null,"value_read":null}],' +
-      '"dropped_bags_by_link":{},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null,"graph_interface":null},' +
-      '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","kind":null,"state":null,"failed_because":null,"process_raising_because":null,"not_ready_because":null,"config":{},"pins":{},"exposed_config_fields":[],' +
-      '"input_ports":[],"output_ports":[],' +
-      '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{},"studio":{"position":null,"group":null,"comment":null,"colour":null,"collapsed":null,"metadata":{}},"fragment":null,"graph_interface":null}],' +
-      '"links":[{"id":"L1","source_node":"testpatternsource","source_port":"video",' +
-      '"target_node":"invertingeffect","target_port":"video_from_upstream","state":"wired"}],"groups":[],"notes":[],' +
-      `"graph_document_text":${JSON.stringify(graphToolResultText)}}`,
   );
 });
 

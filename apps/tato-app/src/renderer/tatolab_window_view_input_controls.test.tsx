@@ -5,6 +5,7 @@ import { NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE } from "@tatolab/tato-app-view-sdk/
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PATTERN_MAIN_STREAM, tagOfTheStudiosFloatControl } from "./tatolab_window_view_test_support";
 import type { TatolabBackend } from "./backend/tatolab_backend";
+import { inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 vi.mock("@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_monaco", () => {
   throw new Error("Monaco is not loaded in the window's tests.");
@@ -68,7 +69,8 @@ async function historyLength(backend: TatolabBackend): Promise<number> {
 /** What the main stream's Inverting Effect reads on its `amount`, as the mock's graph renders it. */
 async function amountTheGraphReads(backend: TatolabBackend): Promise<unknown> {
   const graph = await backend.describeStreamGraph(PATTERN_MAIN_STREAM);
-  return graph.nodes.find((node) => node.name === "invertingeffect")?.input_ports.find((port) => port.name === "amount")?.value_read;
+  const amount = graph.nodes.find((node) => node.name === "invertingeffect")?.ports.inputs.find((port) => port.name === "amount");
+  return amount === undefined ? undefined : inputValueReadOfThePort(amount);
 }
 
 describe("a Float input's control", () => {

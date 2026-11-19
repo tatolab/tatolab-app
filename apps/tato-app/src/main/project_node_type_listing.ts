@@ -12,6 +12,7 @@ import type {
   ProjectNodeTypeSource,
   ProjectNodeTypeSourceOrigin,
 } from "../shared/tatolab_backend_contract.js";
+import { familyOfThePort } from "../shared/tatolab_backend_contract.js";
 import {
   everyOneRead,
   jsonObject,
@@ -23,7 +24,6 @@ import {
   requiredUnsignedInteger,
   textOrDefault,
 } from "./json_on_the_wire.js";
-import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** The listing `list_project_node_types` answered with `operationResult`, or why it could not be read. */
@@ -141,7 +141,7 @@ function portsOrNullUnder(nodeType: JsonObjectOnTheWire, direction: "inputs" | "
     if (!description.ok) return description;
     const annotation = optionalText(port.value, "annotation");
     if (!annotation.ok) return annotation;
-    return succeeded({ name: name.value, description: description.value, family: portFamilyOnTheWire(port.value), annotation: annotation.value });
+    return succeeded({ name: name.value, description: description.value, family: familyOfThePort(port.value), annotation: annotation.value });
   });
 }
 
