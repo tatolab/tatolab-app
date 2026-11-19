@@ -142,6 +142,14 @@ test("the Studio lists its own controls, a default for each type that stores a v
     {
       module: "studio",
       brought_by: "studio",
+      script: "type_choice.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "pin_type_choice", control: null },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/type_choice.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
       script: "integer_slider.ts",
       folder_version: "0.45.0",
       registration: { kind: "control", type: "integer", control: "slider" },
@@ -218,6 +226,22 @@ test("the Studio lists its own controls, a default for each type that stores a v
       folder_version: "0.45.0",
       registration: { kind: "control", type: "asset", control: "file_picker" },
       script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/asset_file_picker.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "wire_preview.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "texture", control: "preview" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/wire_preview.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "wire_meter.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "audio", control: "meter" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/wire_meter.ts" },
     },
   ]);
 });

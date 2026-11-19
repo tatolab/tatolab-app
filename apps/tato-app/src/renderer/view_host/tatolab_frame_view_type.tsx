@@ -10,7 +10,8 @@ import { StudioAreaHeaderRowOfAWaitingView, StudioAreaHeaderWords } from "@tatol
 import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewNodeAddress, StudioViewTypeSource } from "./studio_view_contract";
-import { nodesOfTheStudioViewType, settingsTheViewNodeHolds, studioViewInputWiring, studioViewNodeAddressOf, type StudioViewInputWiring } from "./studio_view_node_wiring";
+import type { InputWiring } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
+import { nodesOfTheStudioViewType, settingsTheViewNodeHolds, studioViewInputWiring, studioViewNodeAddressOf } from "./studio_view_node_wiring";
 import type { RegisteredStudioViewType, StudioAreaOfTheView } from "./studio_view_type_registry";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
@@ -42,7 +43,7 @@ function TatolabViewFrame({
   inputWiring,
   viewNode,
   settingsHeld,
-}: TatolabViewOfAnArea & { inputWiring: Record<string, StudioViewInputWiring>; viewNode: StudioViewNodeAddress | null; settingsHeld: JsonValue | undefined }) {
+}: TatolabViewOfAnArea & { inputWiring: Record<string, InputWiring>; viewNode: StudioViewNodeAddress | null; settingsHeld: JsonValue | undefined }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<TatolabViewBridge | null>(null);
   const inputWiringRef = useRef(inputWiring);

@@ -42,6 +42,7 @@ function studioOfTheDemoProject(ending: ProjectAssetPickEnding): { studio: NodeU
       return () => undefined;
     },
     inputControlFor: () => Promise.reject(new Error("no control in this test")),
+    watchWhatIsWiredInto: () => () => undefined,
   };
   return { studio, picks };
 }

@@ -6,7 +6,9 @@
 // the pointer gives up, cancels it. A Trigger holds no value: each `change` of its control fires it
 // once, on every surface. While a gesture is open the
 // binder never sets the element's value, and every value that arrives is set in one animation-frame
-// flush, so a surface's React tree never sees one. DOM only, no React.
+// flush, so a surface's React tree never sees one. A control on an input of a type only a wire
+// carries is driven by its wire: it holds no value, nothing it fires is acted on, and it reads what
+// the wire carries from the port viewer of the output wired in. DOM only, no React.
 
 import { inputAddressKey, type InputAddress } from "../pin_model/node_inputs.js";
 import type { ControlledInput } from "../pin_model/controlled_inputs.js";
@@ -20,6 +22,7 @@ import type { NodeUiElementHost } from "../node_ui/node_ui_element_host.js";
 import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node_ui_elements_listing.js";
 import { ReadOnlyValueLineElement } from "../node_ui/read_only_value_line_element.js";
 import type { StopWatching, TatoAppViewConnection } from "../tato_app_view_connection.js";
+import type { ViewInputEvent } from "../view_wire_messages.js";
 import type { InputValueGesture, InputValues, ShownValue } from "./input_values.js";
 
 /** Where a control is drawn, and whether the graph there can be edited. */
@@ -76,7 +79,7 @@ export interface InputControlBinder {
 }
 
 /** What a control asks of the project an input's stream is in, through the frame's connection. */
-export type ProjectAControlReaches = Pick<TatoAppViewConnection, "pickAProjectAsset" | "readAssetPreviewInTheProject" | "watchProjectAssets">;
+export type ProjectAControlReaches = Pick<TatoAppViewConnection, "pickAProjectAsset" | "readAssetPreviewInTheProject" | "watchProjectAssets" | "watchPortViewer">;
 
 /** What a binder reads and writes through: the frame's element listing, its store and its reach into a project, and, for tests, how an element loads and when a flush runs. */
 export interface InputControlBinderSources {
@@ -123,9 +126,22 @@ function keyOfTheElement(choice: Extract<NodeUiControlChoice, { kind: "element" 
   return JSON.stringify([choice.listed.module, choice.listed.script, choice.listed.folder_version, input.declaration, place.surface]);
 }
 
-/** The state a control is in at `place`. */
-function stateAt(place: InputControlPlace): InputControlState {
+/** The state a control of `input` is in at `place`: driven by its wire wherever it has one. */
+function stateOf(input: ControlledInput, place: InputControlPlace): InputControlState {
+  if (input.driven_by !== null) return "driven_by_wire";
   return place.read_only ? "read_only" : "editable";
+}
+
+/** One watch an element holds of what is wired into an input: the input it names, what it is told, and how its reading stops, `null` while none runs. */
+interface WireWatch {
+  readonly input: string;
+  readonly onEvent: (event: ViewInputEvent) => void;
+  stopReading: StopWatching | null;
+}
+
+/** Closes the frame `event` carries, for an event no element is told of any more. */
+function closeTheFrameOf(event: ViewInputEvent): void {
+  if (event.kind === "image_frame") event.video_frame.close();
 }
 
 /** A frame's binder, reading its listing and store from `sources`. */
@@ -163,11 +179,12 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
     return control;
   };
 
-  /** The Studio as a control of an input of a stream in the project at `projectFolder` reaches it. */
-  const studioOfTheProject = (projectFolder: string): NodeUiElementHost => ({
+  /** The Studio as a control of an input of a stream in the project at `projectFolder` reaches it, reading the wire into its input through `watchWhatIsWiredInto`. */
+  const studioOfTheProject = (projectFolder: string, watchWhatIsWiredInto: NodeUiElementHost["watchWhatIsWiredInto"]): NodeUiElementHost => ({
     pickAProjectAsset: (pick) => project.pickAProjectAsset(pick),
     readAssetPreview: (asset) => project.readAssetPreviewInTheProject(projectFolder, asset),
     watchProjectAssets: (listener) => project.watchProjectAssets(projectFolder, listener),
+    watchWhatIsWiredInto,
     inputControlFor,
   });
 
@@ -184,6 +201,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
     #isIgnoringTheElement = false;
     #isIgnoringTheElementUntilAPress = false;
     #isUnbound = false;
+    readonly #wireWatches = new Set<WireWatch>();
     #shownValue: ShownValue;
     #stopWatchingTheValue: StopWatching;
 
@@ -203,8 +221,10 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       if (this.#isUnbound) return;
       const isAnotherAddress = inputAddressKey(input.address) !== inputAddressKey(this.#input.address);
       if (isAnotherAddress) this.#cancelTheGesture();
+      const isWiredOtherwise = JSON.stringify(input.driven_by) !== JSON.stringify(this.#input.driven_by);
       this.#input = input;
       this.#place = place;
+      if (isWiredOtherwise) for (const watch of this.#wireWatches) this.#readTheWire(watch);
       if (isAnotherAddress) {
         this.#stopWatchingTheValue();
         this.#shownValue = inputValues.shownValue(input.address);
@@ -258,11 +278,11 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       });
     }
 
-    /** Sets the element's value to the one the store shows, unless a gesture is open on it. */
+    /** Sets the element's value to the one the store shows, unless a gesture is open on it; a control driven by its wire holds none. */
     setTheShownValue(): void {
       const element = this.#element;
       if (element === null || this.#gesture !== null) return;
-      const stored = storedPinValueOfTheJson(this.#input.declaration.pin_type, this.#shownValue.value);
+      const stored = this.#input.driven_by === null ? storedPinValueOfTheJson(this.#input.declaration.pin_type, this.#shownValue.value) : null;
       if (stored !== undefined) element.value = stored;
     }
 
@@ -281,11 +301,13 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
 
     /** Hands `element` its pin, state and value, then puts it in the slot and listens to it. */
     #mount(element: AnyInputControl): void {
-      const pin: ControlledPin<BuiltInPinTypeName> = { declaration: this.#input.declaration, surface: this.#place.surface, studio: studioOfTheProject(this.#input.address.graph.project_folder) };
+      const studio = studioOfTheProject(this.#input.address.graph.project_folder, this.#watchWhatIsWiredInto);
+      const pin: ControlledPin<BuiltInPinTypeName> = { declaration: this.#input.declaration, surface: this.#place.surface, studio };
+      const state = stateOf(this.#input, this.#place);
       element.pin = pin;
       element.setAttribute("data-surface", this.#place.surface);
-      element.setAttribute("data-state", stateAt(this.#place));
-      element.state = stateAt(this.#place);
+      element.setAttribute("data-state", state);
+      element.state = state;
       this.#element = element;
       this.setTheShownValue();
       element.addEventListener("input", this.#elementMoved);
@@ -302,15 +324,66 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       element.removeEventListener("change", this.#elementReleased);
       element.removeEventListener("cancel", this.#elementCancelled);
       this.#cancelTheGesture();
+      this.#stopEveryWireWatch();
       this.#element = null;
       element.remove();
+    }
+
+    /** The element's watch of what is wired into `input`, which reads it until stopped, the element goes, or the slot is unbound. */
+    readonly #watchWhatIsWiredInto: NodeUiElementHost["watchWhatIsWiredInto"] = (input, onEvent) => {
+      const watch: WireWatch = { input, onEvent, stopReading: null };
+      if (this.#isUnbound) return () => undefined;
+      this.#wireWatches.add(watch);
+      this.#readTheWire(watch);
+      return () => {
+        if (!this.#wireWatches.delete(watch)) return;
+        watch.stopReading?.();
+        watch.stopReading = null;
+      };
+    };
+
+    /** Starts `watch` reading what is wired into its input now, ending what it read before. */
+    #readTheWire(watch: WireWatch): void {
+      watch.stopReading?.();
+      watch.stopReading = null;
+      const ownInput = this.#input.declaration.input_name;
+      const wiring = this.#input.driven_by;
+      if (watch.input !== ownInput) {
+        watch.onEvent({ kind: "unwired", because: `A control reads the wire into its own input, ${ownInput}, and not into ${watch.input}.` });
+        return;
+      }
+      if (wiring === null) {
+        watch.onEvent({ kind: "unwired", because: `${ownInput} holds a value of its own and reads no wire.` });
+        return;
+      }
+      if (wiring.kind === "unwired") {
+        watch.onEvent(wiring);
+        return;
+      }
+      let isReading = true;
+      const stopThePortViewer = project.watchPortViewer(
+        wiring.target,
+        (event) => (isReading ? watch.onEvent(event) : closeTheFrameOf(event)),
+        (because) => {
+          if (isReading) watch.onEvent({ kind: "ended", because: `${wiring.wired_from_words} cannot be read: ${because}`, recovery: "open_the_port_again" });
+        },
+      );
+      watch.stopReading = () => {
+        isReading = false;
+        stopThePortViewer();
+      };
+    }
+
+    #stopEveryWireWatch(): void {
+      for (const watch of this.#wireWatches) watch.stopReading?.();
+      this.#wireWatches.clear();
     }
 
     /** Hands the element the state of its place; a gesture open on a control that is no longer editable is cancelled. */
     #setTheState(): void {
       const element = this.#element;
       if (element === null) return;
-      const state = stateAt(this.#place);
+      const state = stateOf(this.#input, this.#place);
       if (element.getAttribute("data-state") === state) return;
       element.setAttribute("data-state", state);
       this.#whileIgnoringTheElement(() => {
@@ -331,7 +404,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
 
     /** Whether what the element fires now is the person's doing, on a slot that may be edited, and so is acted on. */
     #isActedOn(): boolean {
-      return !(this.#isIgnoringTheElement || this.#isIgnoringTheElementUntilAPress || this.#isUnbound || this.#place.read_only);
+      return !(this.#isIgnoringTheElement || this.#isIgnoringTheElementUntilAPress || this.#isUnbound || this.#place.read_only || this.#input.driven_by !== null);
     }
 
     /** The JSON `event` carries for the input, or `undefined` for an event the binder does not act on. */
@@ -403,7 +476,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       if (element !== null) {
         this.#whileIgnoringTheElement(() => {
           element.state = "read_only";
-          element.state = stateAt(this.#place);
+          element.state = stateOf(this.#input, this.#place);
         });
       }
       this.#cancelTheGesture();

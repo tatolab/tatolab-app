@@ -31,7 +31,7 @@ import type {
   ViewOpenedOnAsked,
   ViewOpeningTarget,
 } from "./studio_view_contract";
-import type { StudioViewInputWiring } from "./studio_view_node_wiring";
+import type { InputWiring } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 
 function manifestOf(manifestJson: unknown): TatolabViewManifest {
@@ -328,7 +328,7 @@ afterEach(() => {
   for (const connection of connectionsOpen.splice(0)) connection.close();
 });
 
-async function connectedView(manifest: TatolabViewManifest, inputWiring: Record<string, StudioViewInputWiring>, savedSettings?: JsonValue, viewNode: StudioViewNodeAddress | null = null) {
+async function connectedView(manifest: TatolabViewManifest, inputWiring: Record<string, InputWiring>, savedSettings?: JsonValue, viewNode: StudioViewNodeAddress | null = null) {
   const host = recordingHostServices();
   const area = recordingAreaServices(savedSettings);
   const channel = new MessageChannel();

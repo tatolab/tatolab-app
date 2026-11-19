@@ -31,7 +31,8 @@ import type {
   ViewHeaderRow,
 } from "./studio_view_contract";
 import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import { settingsSetOnTheViewNode, type StudioViewInputWiring } from "./studio_view_node_wiring";
+import type { InputWiring } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
+import { settingsSetOnTheViewNode } from "./studio_view_node_wiring";
 
 /** The parts of a `MessagePort` the bridge uses, so a test can stand in for one. */
 export interface TatolabViewMessagePort {
@@ -101,7 +102,7 @@ export class TatolabViewBridge {
     private readonly manifest: TatolabViewManifest,
     private readonly hostServices: StudioViewHostServices,
     private readonly areaServices: TatolabViewAreaServices,
-    private inputWiring: Record<string, StudioViewInputWiring> = {},
+    private inputWiring: Record<string, InputWiring> = {},
     private viewNode: StudioViewNodeAddress | null = null,
   ) {}
 
@@ -123,7 +124,7 @@ export class TatolabViewBridge {
   }
 
   /** Read each input from what `inputWiring` now wires into it, reopening only the inputs whose wiring changed. */
-  rewireInputs(inputWiring: Record<string, StudioViewInputWiring>): void {
+  rewireInputs(inputWiring: Record<string, InputWiring>): void {
     this.inputWiring = inputWiring;
     for (const [watchId, inputWatch] of this.inputWatchesByWatchId) {
       if (JSON.stringify(this.wiringOfTheInput(inputWatch.input)) === inputWatch.wiringAsJson) continue;
@@ -207,7 +208,7 @@ export class TatolabViewBridge {
     }
   }
 
-  private wiringOfTheInput(input: string): StudioViewInputWiring {
+  private wiringOfTheInput(input: string): InputWiring {
     return this.inputWiring[input] ?? { kind: "unwired", because: `Nothing is wired into ${input}.` };
   }
 

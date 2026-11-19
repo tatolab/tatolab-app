@@ -127,6 +127,7 @@ function nodePinOfTheDescribedPort(port: NodeTypePortDescribed): NodePin {
     stream_facts_words: [],
     value_address: null,
     setting: null,
+    wire: null,
   };
 }
 

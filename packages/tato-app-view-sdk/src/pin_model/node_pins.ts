@@ -4,6 +4,7 @@
 import type { PinAnnotations } from "../pin_type_readings.js";
 import type { NodeTypeInputDescribed, NodeTypePortDescribed, SettingReadTime, StreamGraphPortPin } from "../studio_readings.js";
 import type { PortFamily } from "../port_families.js";
+import type { InputWiring } from "./input_wiring.js";
 import type { InputAddress } from "./node_inputs.js";
 
 /** One pin of a node: its name, its exact type and flow (`null` for a pin with none), what its node type says and annotates of it, and what it states about its stream. */
@@ -21,6 +22,14 @@ export interface NodePin {
   readonly value_address: InputAddress | null;
   /** On a setting, an input that takes a value and no wire, when its node reads it; `null` on every other pin. */
   readonly setting: NodeSetting | null;
+  /** On an input that takes a wire, what it reads through it; `null` on every other pin, and where Studio reads no wire: outside a stream's graph and inside a subgraph. */
+  readonly wire: NodePinWire | null;
+}
+
+/** What an input reads through its wire: the input, where it is in its stream's graph, and the output wired into it, or why it reads none. */
+export interface NodePinWire {
+  readonly into: InputAddress;
+  readonly wiring: InputWiring;
 }
 
 /** When a node reads a setting: once as it is set up, so a change rebuilds the node, or on each run. */
