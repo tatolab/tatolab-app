@@ -89,7 +89,9 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (simulation.openProjectReading.kind !== "read") throw "No project is open in this window.";
       if (simulation.mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const refusal = mockSetTheNodeTypeGroup(simulation.openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, nodeTypesTheProjectGains, nodeType, group);
+      const refusal = mockSetTheNodeTypeGroup(simulation.openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, nodeTypesTheProjectGains, nodeType, group, (operations, inverseOperations) =>
+        mockProjectTransactions?.record(MOCK_PERSON_EDITING_IN_STUDIO, operations, inverseOperations),
+      );
       if (refusal !== null) throw refusal;
     },
     removeProject: async (projectDirectory) => {

@@ -4,7 +4,7 @@
 // runtime from before strict-port-families serves none.
 
 import { MOCK_RECORDED_NODE_TYPES_DESCRIBED, MOCK_RECORDED_NODE_TYPES_LISTED } from "./mock_recordings";
-import type { DescribeNodeTypesToolResult, ListNodeTypesToolResult, NodeTypeDescribedOrWhyNot, NodeTypeDescription } from "../src/shared/tatolab_backend_contract";
+import type { DescribeNodeTypesToolResult, JsonValue, ListNodeTypesToolResult, NodeTypeDescribedOrWhyNot, NodeTypeDescription } from "../src/shared/tatolab_backend_contract";
 
 /** One node type as `list_node_types` lists it under a source. */
 type NodeTypeListedUnderASource = ListNodeTypesToolResult["sources"][number]["node_types"][number];
@@ -125,6 +125,15 @@ export class MockNodeTypesTheProjectGains {
     this.tellEachListener();
   }
 
+  /** File each node type a `set_node_type_group` of `operations` files, as an undo or redo applies them; the other operations, in order. */
+  fileTheGroupsOf(operations: readonly JsonValue[]): JsonValue[] {
+    return operations.filter((operation) => {
+      const filing = mockNodeTypeGroupFiledBy(operation);
+      if (filing !== null) this.fileUnderAGroup(filing.nodeType, filing.group);
+      return filing === null;
+    });
+  }
+
   private gain(described: readonly NodeTypeDescription[]): void {
     this.graphEditGrounds.nodeTypesDescribed = [...this.graphEditGrounds.nodeTypesDescribed, ...described];
     this.tellEachListener();
@@ -164,11 +173,26 @@ export function mockNodeTypesListed(projectDirectory: string, streamsFolder: str
   return { ...recorded, sources: [...sourcesBeforeTheBuiltIns, ...structuredClone(gained.sourcesOfTheModulesAdded), ...builtInSources], project_directory: projectDirectory };
 }
 
+/** The node type and the group a `set_node_type_group` history operation files it under, `null` for putting it back; `null` for any other operation. */
+function mockNodeTypeGroupFiledBy(operation: JsonValue): { nodeType: string; group: string | null } | null {
+  if (typeof operation !== "object" || operation === null || Array.isArray(operation) || operation["operation"] !== "set_node_type_group") return null;
+  const { node_type: nodeType, to } = operation;
+  return typeof nodeType === "string" && (typeof to === "string" || to === null) ? { nodeType, group: to } : null;
+}
+
 /**
  * `nodeType` filed under `group` in the project in `projectDirectory`, or with `null` put back, as the runtime's `set_node_type_group`
- * files it; the words it refuses in for a node type the project does not list or a group with a blank name in it, else `null`.
+ * files it, recorded as one transaction by `recordTheTransaction` with the operation that undoes it; the words it refuses in for a
+ * node type the project does not list or a group with a blank name in it, else `null`.
  */
-export function mockSetTheNodeTypeGroup(projectDirectory: string, streamsFolder: string, gained: MockNodeTypesTheProjectGains, nodeType: string, group: string | null): string | null {
+export function mockSetTheNodeTypeGroup(
+  projectDirectory: string,
+  streamsFolder: string,
+  gained: MockNodeTypesTheProjectGains,
+  nodeType: string,
+  group: string | null,
+  recordTheTransaction: (operations: JsonValue[], inverseOperations: JsonValue[]) => void,
+): string | null {
   const listed = mockNodeTypesListed(projectDirectory, streamsFolder, gained);
   if (listed === null) return `set_node_type_group failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
   if (group !== null && group.split("/").some((name) => name.trim() === "")) {
@@ -178,7 +202,9 @@ export function mockSetTheNodeTypeGroup(projectDirectory: string, streamsFolder:
   if (group !== null && !isListed) {
     return `set_node_type_group failed: neither the project \`${MOCK_RECORDED_NODE_TYPES_LISTED.project_name}\` nor the runtime offers a node type \`${nodeType}\`; \`list_node_types\` lists the ones they do`;
   }
+  const from = gained.groupTheProjectFiles(nodeType) ?? null;
   gained.fileUnderAGroup(nodeType, group);
+  recordTheTransaction([{ operation: "set_node_type_group", node_type: nodeType, from, to: group }], [{ operation: "set_node_type_group", node_type: nodeType, from: group, to: from }]);
   return null;
 }
 

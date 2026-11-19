@@ -76,6 +76,13 @@ test("a view's rename, move or delete of an asset changes the window's open proj
   expect(changesAsked).toBe(2);
 });
 
+test("a view's change to a node type's group on the window's open project lists that project's node types again at once", async () => {
+  const projectsListedAgain: string[] = [];
+  const nodeTypeGroupChangeSources = { readTheOpenProject: () => GALLERY_WALL_OPEN, whatChanges: "node type groups" as const, listTheProjectAgainNow: (projectFolder: string) => projectsListedAgain.push(projectFolder) };
+  expect(await changeTheOpenProjectForAView("/projects/gallery-wall", nodeTypeGroupChangeSources, async () => undefined)).toEqual({ kind: "changed" });
+  expect(projectsListedAgain).toEqual(["/projects/gallery-wall"]);
+});
+
 test("a view's change to a node type's group refuses any other folder in words that name the node type groups, nothing asked", async () => {
   let changesAsked = 0;
   const nodeTypeGroupChangeSources = { readTheOpenProject: () => GALLERY_WALL_OPEN, whatChanges: "node type groups" as const, listTheProjectAgainNow: () => undefined };

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mountedWindowOverTheMock, pressAsAPointerDoes, coreViewPage, showInTheLibrary, libraryRow, showTheLibraryInTheViewerArea, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
@@ -67,9 +67,29 @@ describe("the studio", () => {
     await waitFor(() => expect(library.querySelector(`[data-library-details="${dimmer}"]`)?.textContent).toContain("GroupShow / LevelsFiled byThis project"));
     expect(libraryRow(movedRowId).getAttribute("aria-selected")).toBe("true");
 
+    // The Add node search reads the same node types, so it files Dimmer under Show › Levels too.
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the graph's ribbon")));
+    const nodeSearch = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }));
+    fireEvent.click(await waitFor(() => nodeSearch.querySelector<HTMLElement>('[data-search-popover-entry="category:Show"]') ?? expect.unreachable("no Show in Add node")));
+    fireEvent.click(await waitFor(() => nodeSearch.querySelector<HTMLElement>('[data-search-popover-entry="category:Show/Levels"]') ?? expect.unreachable("no Show › Levels in Add node")));
+    await waitFor(() => expect(nodeSearch.querySelector(`[data-search-popover-item="${dimmer}"]`)).not.toBeNull());
+    fireEvent.keyDown(within(nodeSearch).getByRole("combobox"), { key: "Escape" });
+
     fireEvent.click(library.querySelector<HTMLElement>('[data-library-node-type-action="put_back"]') ?? expect.unreachable("no Put back button in the details"));
     await waitFor(() => libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`));
     expect(library.querySelector(`[data-tree-row-id="${movedRowId}"]`)).toBeNull();
+
+    // One undo takes the put back away, so the project files Dimmer under Show › Levels again.
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+    await waitFor(() => libraryRow(movedRowId));
+    // The details offer Move to group… as a button, reached without a pointer's right-click.
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-node-type-action="move_to_group"]') ?? expect.unreachable("no Move to group… button in the details"));
+    await waitFor(() => expect(groupField().value).toBe("Show/Levels"));
+    fireEvent.keyDown(groupField(), { key: "Escape" });
+    await waitFor(() => expect(library.querySelector("[data-library-node-type-group-form]")).toBeNull());
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-node-type-action="put_back"]') ?? expect.unreachable("no Put back button in the details"));
+    await waitFor(() => libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`));
     fireEvent.contextMenu(libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`));
     await waitFor(() => document.querySelector('[data-library-node-type-choice="move_to_group"]') ?? expect.unreachable("no menu"));
     expect(document.querySelector('[data-library-node-type-choice="put_back"]')).toBeNull();
