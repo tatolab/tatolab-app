@@ -376,6 +376,7 @@ export async function startTatolabApp(
     systemMenuBar,
     fetchTextOverHttps: tatolabElectronAppShell.fetchTextOverHttps,
     fetchBytesOverHttps: tatolabElectronAppShell.fetchBytesOverHttps,
+    readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     machineModulesInstallOn: platformItems.machineModulesInstallOn,
     moduleDownloadsFolder: path.join(tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME),
     dependencySourceDialog: tatolabElectronAppShell.askThePersonForADependencySource,

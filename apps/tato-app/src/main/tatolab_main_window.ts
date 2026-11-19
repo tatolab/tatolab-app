@@ -2,8 +2,9 @@
 // in the tray, or a project's studio window or a view popped out of one, which closing closes.
 // `TatolabAppWindows` holds them all and shows the Dock icon on macOS while any is on screen.
 
-import type { OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, ProjectLogRecordsPushed, PythonLanguageServerEvent, StreamGraphInputValueChange, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { MarketplaceImportProgressed, OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, ProjectLogRecordsPushed, PythonLanguageServerEvent, StreamGraphInputValueChange, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
+  TATOLAB_MARKETPLACE_IMPORT_PROGRESSED_EVENT,
   TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT,
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
   TATOLAB_PROJECT_FILES_CHANGED_EVENT,
@@ -181,6 +182,11 @@ export class TatolabMainWindow implements WindowShowingPortViewers, WindowFollow
   /** Ask the Module manager window to show the section, and page, `asked` names as `tatolab-module-manager-section-asked`; nothing, before the window is first shown, which reads the section last asked when it opens. */
   askTheWindowToShowTheModuleManagerSection(asked: ModuleManagerSectionAsked): void {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT, asked);
+  }
+
+  /** Tell the window how far an add of a Marketplace package it asked for has come, as `tatolab-marketplace-import-progressed`; nothing, before the window is first shown. */
+  tellTheWindowTheMarketplaceImportProgressed(progressed: MarketplaceImportProgressed): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_MARKETPLACE_IMPORT_PROGRESSED_EVENT, progressed);
   }
 
   /** Send the window `reading` as `tatolab-project-transactions-changed`; nothing, before the window is first shown, which reads the feed when it opens. */

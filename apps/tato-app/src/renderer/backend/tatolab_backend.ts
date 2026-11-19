@@ -5,6 +5,8 @@ import type {
   StudioWarningKind,
   JsonValue,
   ListedStudioView,
+  MarketplaceImport,
+  MarketplaceImportProgressed,
   PythonLanguageServerEvent,
   PortViewerEvent,
   PortViewerImageFrameFacts,
@@ -181,8 +183,12 @@ export interface TatolabBackend {
   addDependencyToTheWorkspace(source: string): Promise<ProjectDependency>;
   /** Copy the import `project` again from its source, overwriting files edited since its copy only with `overwriteEditedFiles`; rejects in the runtime's own words. */
   updateWorkspaceDependency(project: string, overwriteEditedFiles: boolean): Promise<WorkspaceDependencyUpdate>;
-  /** Download the catalog entry `name`'s `.zip`, check it, and import it into the workspace; rejects in words. */
-  importFromTheMarketplace(name: string): Promise<ProjectDependency>;
+  /** Download the catalog entry `name`'s `.zip`, check it, and import it into the workspace, each stage told through `onMarketplaceImportProgressed`; `cancelled` once its Cancel stopped the download. Rejects in words. */
+  importFromTheMarketplace(name: string): Promise<MarketplaceImport>;
+  /** Stop this window's download of the catalog entry `name`; rejects in words once it is checked or being added, or where none is under way. */
+  cancelMarketplaceImport(name: string): Promise<void>;
+  /** Calls `listener` with each stage, and each run of bytes, of a Marketplace add this window asked for; the returned function stops it. */
+  onMarketplaceImportProgressed(listener: (progressed: MarketplaceImportProgressed) => void): () => void;
   /** Take the import `project` out of the workspace; rejects in the runtime's own words. */
   removeWorkspaceDependency(project: string): Promise<ProjectDependency>;
   /** Download the catalog's sample `name`, check it, and make a project of its own from it, opened in its studio window; the workspace is not changed. Rejects in words. */

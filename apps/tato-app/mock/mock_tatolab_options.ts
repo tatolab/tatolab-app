@@ -160,7 +160,7 @@ export interface MockTatolabOptions {
   moduleManagerSectionOpenedOn: ModuleManagerSectionAsked;
   /** `?catalog=unserved`: get.tatolab.com answers the catalog with a 404; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
-  /** `?marketplace_add=refused|never_ends`: adding a Marketplace package, or cloning a sample, is refused with a download whose SHA-256 is not the catalog's, or never answers, so its progress stays; it succeeds by default. */
+  /** `?marketplace_add=refused|never_ends`: adding a Marketplace package, or cloning a sample, is refused with a download whose SHA-256 is not the catalog's, or reads 31% of its download and no more, so its progress stays until an add's Cancel stops it (a clone has none and never ends); it succeeds by default. */
   marketplaceAddScenario: "succeeds" | "refused" | "never_ends";
   /** `?module_remove=refused`: removing a module is refused as the runtime refuses one a stream's node still references; it succeeds by default. */
   isRemovingAModuleRefused: boolean;

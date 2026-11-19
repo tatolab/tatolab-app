@@ -1,4 +1,4 @@
-import { ArrowLeft, Box, Check, ChevronLeft, ChevronRight, Copy, Download, RefreshCw, TriangleAlert, Workflow } from "lucide-react";
+import { ArrowLeft, Box, Check, ChevronLeft, ChevronRight, Copy, Download, RefreshCw, TriangleAlert, Workflow, X } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import type { PackageCatalogMember, ViewsOfAWorkspaceDependency } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
@@ -21,6 +21,7 @@ import {
   moduleViewsShownOf,
   type ModuleCardRow,
 } from "./module_manager_listing";
+import { marketplaceAddShownOf, type MarketplaceAddFollowed } from "../presentation/marketplace_add_presentation";
 
 /**
  * Where the last thing asked of one module stands: under way, refused in the words of what refused it, or done in a way its page tells of
@@ -125,12 +126,31 @@ export interface ModuleAsks {
   update: (row: ModuleCardRow) => void;
   askBeforeRemoving: (row: ModuleCardRow) => void;
   showTheClonedProject: (row: ModuleCardRow, folder: string) => void;
+  /** Stop the download of the row's Marketplace add; an add past its download runs to its end. */
+  cancelTheAdd: (row: ModuleCardRow) => void;
+}
+
+/** A Marketplace add under way as told so far: its meter, filled by its bytes once their total is known, its stages, and Cancel while it downloads. */
+function MarketplaceAddProgress({ row, followed, projectName, asks }: { row: ModuleCardRow; followed: MarketplaceAddFollowed; projectName: string; asks: ModuleAsks }) {
+  const shown = marketplaceAddShownOf(followed, row.title, projectName);
+  return (
+    <div className="flex flex-col gap-3">
+      <ProgressMeter label={shown.label} detail={shown.detail} percent={shown.percent} outcome="in_progress" parts={shown.parts} data-module-manager-work={row.row_id} data-module-manager-add-stage={followed.stage.kind} />
+      {shown.cancel.kind === "offered" && (
+        <PageAction icon={X} disabledReason={shown.cancel.disabledReason} onPressed={() => asks.cancelTheAdd(row)} data-module-manager-cancel-add={row.row_id}>
+          {shown.cancel.words}
+        </PageAction>
+      )}
+      {shown.cancelRefusedBecause !== null && <RefusalLine lead="The download was not cancelled:" words={shown.cancelRefusedBecause} data-module-manager-cancel-add-refusal="" />}
+    </div>
+  );
 }
 
 /** The right column of a module's page: what it is, the one thing to do with it, and how that went. */
 function ModulePageActions({
   row,
   work,
+  addFollowed,
   projectName,
   asks,
   onKeepBrowsing,
@@ -138,6 +158,7 @@ function ModulePageActions({
 }: {
   row: ModuleCardRow;
   work: ModuleWork | null;
+  addFollowed: MarketplaceAddFollowed | null;
   projectName: string;
   asks: ModuleAsks;
   onKeepBrowsing: () => void;
@@ -147,6 +168,7 @@ function ModulePageActions({
   const whyItBringsNothingHere = whyTheRowBringsNothingOnThisMachine(row);
   const retry = (ask: ModuleAsk) => ({ add: asks.add, clone: asks.clone, update: asks.update, remove: asks.askBeforeRemoving })[ask](row);
   const action = (() => {
+    if (work?.kind === "under_way" && work.ask === "add" && addFollowed !== null) return <MarketplaceAddProgress row={row} followed={addFollowed} projectName={projectName} asks={asks} />;
     if (work?.kind === "under_way") {
       return <ProgressMeter label={work.words} detail="Leave this page any time. It keeps going." percent={null} outcome="in_progress" data-module-manager-work={row.row_id} />;
     }
@@ -278,6 +300,7 @@ export function ModulePage({
   nextRowId,
   cameFromWords,
   work,
+  addFollowed,
   projectName,
   asks,
   onBack,
@@ -292,6 +315,8 @@ export function ModulePage({
   /** The tab Back returns to, as the breadcrumb names it. */
   cameFromWords: string;
   work: ModuleWork | null;
+  /** The row's Marketplace add as told so far; `null` where none is under way or nothing has been told yet. */
+  addFollowed: MarketplaceAddFollowed | null;
   projectName: string;
   asks: ModuleAsks;
   onBack: () => void;
@@ -380,7 +405,7 @@ export function ModulePage({
               )}
             </section>
           </div>
-          <ModulePageActions row={row} work={work} projectName={projectName} asks={asks} onKeepBrowsing={onBack} onViewInTheProject={onViewInTheProject} />
+          <ModulePageActions row={row} work={work} addFollowed={addFollowed} projectName={projectName} asks={asks} onKeepBrowsing={onBack} onViewInTheProject={onViewInTheProject} />
         </div>
       </div>
     </div>

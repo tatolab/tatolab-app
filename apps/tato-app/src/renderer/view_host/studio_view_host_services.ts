@@ -242,7 +242,8 @@ export function studioViewHostServicesOf(
     readTheMarketplace: () => backend.readPackageCatalog().then(marketplaceReadingOfTheCatalog),
     addFromTheMarketplace: (name) =>
       backend.importFromTheMarketplace(name).then(
-        (added): MarketplaceModuleAdding => ({ kind: "added", folder: added.folder }),
+        // Only the Module manager offers Cancel, so a view's own add is never cancelled; the words say so if one were.
+        (imported): MarketplaceModuleAdding => (imported.kind === "imported" ? { kind: "added", folder: imported.dependency.folder } : { kind: "not_added", because: "Its download was cancelled; nothing was added." }),
         (rejection: unknown): MarketplaceModuleAdding => ({ kind: "not_added", because: describeBackendRejection(rejection) }),
       ),
     watchProjectTransactions: projectServices.projectTransactionsReadings.watchProjectTransactions,

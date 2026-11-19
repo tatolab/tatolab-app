@@ -42,6 +42,9 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
     onModuleManagerSectionAsked() {
       return () => undefined;
     },
+    onMarketplaceImportProgressed() {
+      return () => undefined;
+    },
     onProjectTransactionsChanged() {
       return () => undefined;
     },
