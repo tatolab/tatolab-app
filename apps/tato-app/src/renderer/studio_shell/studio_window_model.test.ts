@@ -345,7 +345,19 @@ describe("opening a view on a file", () => {
     expect(studioWindowModel.studioLayout.readLatest()).toMatchObject({ layout: codeStudioLayout(), edges_hidden: { left: false, bottom: false, right: false } });
   });
 
-  it("refuses a view type no layout Studio ships shows, naming how to show it", () => {
+  it("refuses a view the Code layout shows only to work beside Code, and leaves the layout as it was", () => {
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    studioWindowModel.showViewTypeInArea("viewer", "properties");
+    const layoutShowingNoViewer = studioWindowModel.studioLayout.readLatest()?.layout;
+    expect(studioWindowModel.openView("viewer", { kind: "port", target: { stream: "main", node_id: "glow", port: "video_out" } })).toEqual({
+      kind: "not_opened",
+      because: "No area shows viewer. Choose it in an area's view menu, then open it again.",
+    });
+    expect(studioWindowModel.studioLayout.readLatest()?.layout).toEqual(layoutShowingNoViewer);
+    expect(studioWindowModel.viewsOpenedOn.readLatest().viewer).toBeUndefined();
+  });
+
+  it("refuses a view type no layout Studio ships is home to, naming how to show it", () => {
     const studioWindowModel = studioWindowModelOpenOnSheetCheck();
     expect(studioWindowModel.openView("acme-dj:deck", nodeFile)).toEqual({ kind: "not_opened", because: "No area shows acme-dj:deck. Choose it in an area's view menu, then open it again." });
     expect(studioWindowModel.viewsOpenedOn.readLatest()["acme-dj:deck"]).toBeUndefined();

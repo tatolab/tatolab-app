@@ -8,9 +8,10 @@ import { IconButtonMenu, MenuItem, MenuItemThatCannotBeChosen, RightClickMenuIte
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { Code, Plus } from "lucide-react";
 import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
+import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
-import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import type { ProjectNodeTypesDescribedReading, StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { codeOfTheNodeType, openTheCodeOfTheNodeType } from "../shared/code_of_the_node_type";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
@@ -28,7 +29,6 @@ import {
 const NO_STREAMS_LISTED: readonly string[] = [];
 const OUTLINER_COLUMN_HEADINGS = { label: "Label", aside: "Type" };
 const NO_ROWS_SELECTED = { picked_last: null, all: new Set<string>() };
-const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
 
 /** The latest graph of each stream of `streams`, by stream id, watched for as long as the stream is among them. */
 function useGraphsOfTheStreams(connection: TatoAppViewConnection, streams: readonly string[]): OutlinerStreamGraphReadings {
@@ -61,11 +61,7 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
   );
   const streamGraphs = useGraphsOfTheStreams(connection, shownStreams);
   const openProjectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
-  const watchTheProjectsNodeTypes = useCallback(
-    (listener: (reading: ProjectNodeTypesDescribedReading) => void): StopWatching => (openProjectFolder === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchNodeTypes(openProjectFolder, listener)),
-    [connection, openProjectFolder],
-  );
-  const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+  const nodeTypesReading = useNodeTypesOfTheProject(connection, openProjectFolder);
   const settings = useViewReading(connection.watchSettings);
   const [expansionChoices, toggleTheRow]: [OutlinerRowExpansionChoices, (rowId: string, expand: boolean) => void] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
   const [askRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();

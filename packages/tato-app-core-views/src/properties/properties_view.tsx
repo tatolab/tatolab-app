@@ -48,13 +48,13 @@ import {
   type JsonValue,
   nodeTypeDescriptionsByType,
   type NodeTypeDescription,
-  type ProjectNodeTypesDescribedReading,
   type ProjectAssetsReading,
   type StreamGraph,
   type StreamGraphNode,
   type StreamGraphPort,
   type StreamGraphReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
@@ -71,8 +71,6 @@ import { nodeInputs, nodeOutputs } from "../shared/node_pins_of_the_graph";
 import { selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 import { inputRowStateOf } from "./input_row_state";
 
-/** Stops nothing: while no project is open there are no node types to watch. */
-const NO_NODE_TYPES_TO_WATCH: StopWatching = () => undefined;
 
 /** The stream's own level, which a node selection with no `level` is at. */
 const NO_LEVEL: readonly string[] = [];
@@ -685,12 +683,8 @@ function PropertiesOfTheSelectedNode({
   searchWords: string;
 }) {
   const watchTheStreamsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
-  const watchTheProjectsNodeTypes = useCallback(
-    (listener: (reading: ProjectNodeTypesDescribedReading) => void): StopWatching => (projectFolder === null ? NO_NODE_TYPES_TO_WATCH : connection.watchNodeTypes(projectFolder, listener)),
-    [connection, projectFolder],
-  );
   const graphReading = useViewReading(watchTheStreamsGraph);
-  const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+  const nodeTypesReading = useNodeTypesOfTheProject(connection, projectFolder);
   const describedByType = useMemo(() => nodeTypeDescriptionsByType(nodeTypesReading?.kind === "listed" ? nodeTypesReading.node_types.described : []), [nodeTypesReading]);
   const listedStreams = useViewReading(connection.watchListedStreams);
   const nodeShownWhileItWasSelectedByName = useRef<{ nodeName: string; nodeId: string } | null>(null);

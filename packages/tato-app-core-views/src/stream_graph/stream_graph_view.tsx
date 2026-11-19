@@ -17,7 +17,6 @@ import { InputControlBinderContext, useInputControlsOfTheFrame, useInputValuesOf
 import {
   nodeTypeDescriptionsByType,
   type ListedStreamsReading,
-  type ProjectNodeTypesDescribedReading,
   type OpenProjectReading,
   type StreamGraphAction,
   type StreamGraphNode,
@@ -25,6 +24,7 @@ import {
   type StreamGraphReading,
   type StreamTabAddress,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { codeOfTheNodeType, openTheCodeOfTheNodeType } from "../shared/code_of_the_node_type";
@@ -96,8 +96,6 @@ function importedProjectNameOfTheStream(stream: string, openProject: OpenProject
   return importedProject === undefined ? null : importedProject.name;
 }
 
-/** Stops nothing: a stream the runtime lists in no project has no project node types to watch. */
-const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
 const NO_IMPORTS: readonly ImportedProject[] = [];
 
 /** The graph of the stream tab shown, read while the view is drawn. */
@@ -130,11 +128,7 @@ function StreamGraphOfTheTab({
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
   const projectFolder = listedStream?.location?.project_directory ?? null;
   const streamCondition = listedStream?.condition ?? null;
-  const watchTheProjectsNodeTypes = useCallback(
-    (listener: (reading: ProjectNodeTypesDescribedReading) => void): StopWatching => (projectFolder === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchNodeTypes(projectFolder, listener)),
-    [connection, projectFolder],
-  );
-  const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+  const nodeTypesReading = useNodeTypesOfTheProject(connection, projectFolder);
   const nodeTypesOfTheProject = nodeTypesReading?.kind === "listed" ? nodeTypesReading.node_types : null;
   const describedByType = useMemo(() => nodeTypeDescriptionsByType(nodeTypesOfTheProject?.described ?? []), [nodeTypesOfTheProject]);
   useInputValuesOfTheStream(connection, inputValues, streamTab.stream, projectFolder);

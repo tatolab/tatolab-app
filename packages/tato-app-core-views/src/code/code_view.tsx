@@ -23,12 +23,15 @@ import {
 } from "./code_view_settings";
 import { hasEditsNotSaved, OpenCodeDocuments, type CodeEditsNotSaved, type CodeEditsNotSavedStore, type OpenCodeDocument } from "./open_code_documents";
 
-/** The issue that names the file a node's class is defined in, which opening a node's code waits on. */
-const OPENING_A_NODES_FILE_WAITS_ON = "tatolab/streamlib#2918";
-
 /** The line of `file` an opening of the area asked to be brought into view. */
 interface LineOfAFileAskedFor extends CodeTextEditorLineAskedFor {
   file: string;
+}
+
+/** The line an opening of the area asks for, until the editor has brought it into view and `lineBroughtIntoView` is told its id. */
+interface LineTheAreaIsOpenedAt {
+  lineAskedFor: LineOfAFileAskedFor | null;
+  lineBroughtIntoView(askedId: string): void;
 }
 
 /** Keeps with the area the settings `change` makes of the latest ones, showing why when Studio refuses them. */
@@ -183,7 +186,7 @@ function CodeDocumentNoticeRow({ documents, document }: { documents: OpenCodeDoc
   );
 }
 
-function ShownCodeDocument({ documents, file, lineAskedFor }: { documents: OpenCodeDocuments; file: string; lineAskedFor: LineOfAFileAskedFor | null }) {
+function ShownCodeDocument({ documents, file, lineOpenedAt }: { documents: OpenCodeDocuments; file: string; lineOpenedAt: LineTheAreaIsOpenedAt }) {
   const document = documents.documentOf(file);
   useEffect(() => {
     documents.open(file);
@@ -207,7 +210,8 @@ function ShownCodeDocument({ documents, file, lineAskedFor }: { documents: OpenC
         languageHelp={document.language_help}
         onTextEdited={onTextEdited}
         onSaveAsked={onSaveAsked}
-        lineBroughtIntoView={lineAskedFor?.file === file ? lineAskedFor : null}
+        lineBroughtIntoView={lineOpenedAt.lineAskedFor?.file === file ? lineOpenedAt.lineAskedFor : null}
+        onLineBroughtIntoView={lineOpenedAt.lineBroughtIntoView}
         data-code-text-editor={file}
       />
       {document.language_server_ended_because !== null && (
@@ -242,13 +246,13 @@ function CodeAreaBody({
   documents,
   settings,
   rememberTheSettings,
-  lineAskedFor,
+  lineOpenedAt,
 }: {
   connection: TatoAppViewConnection;
   documents: OpenCodeDocuments;
   settings: CodeViewSettings;
   rememberTheSettings: RememberTheCodeSettings;
-  lineAskedFor: LineOfAFileAskedFor | null;
+  lineOpenedAt: LineTheAreaIsOpenedAt;
 }) {
   const openProject = useViewReading(connection.watchOpenProject);
   const shownDocument = settings.shown_file === null ? undefined : documents.documentOf(settings.shown_file);
@@ -259,12 +263,11 @@ function CodeAreaBody({
     settings.shown_file === null ? (
       <WaitingState
         title="No file open"
-        explanation="Open a file of the project from + above. A node's own file opens from the graph once the runtime names it."
-        waitsOn={OPENING_A_NODES_FILE_WAITS_ON}
+        explanation="Open a file of the project from + above, or a node's own code with Edit code in the graph or the Outliner."
         data-code-document-state="none_open"
       />
     ) : (
-      <ShownCodeDocument documents={documents} file={settings.shown_file} lineAskedFor={lineAskedFor} />
+      <ShownCodeDocument documents={documents} file={settings.shown_file} lineOpenedAt={lineOpenedAt} />
     );
   if (!settings.logs_shown || loggedProjectFolder === null) return <div className="flex min-h-0 flex-1 flex-col">{code}</div>;
   return (
@@ -284,10 +287,11 @@ function CodeAreaBody({
 }
 
 /**
- * Shows the file each opening of the area names, once, and the line it names, which it answers: an opening the area took
- * before, heard again as its frame loads again, is left as the person left the tabs and asks for no line.
+ * Shows the file each opening of the area names, once, and asks for the line it names until the editor has brought it
+ * into view: an opening the area took before, heard again as its frame loads again, is left as the person left the tabs
+ * and asks for no line, and an editor shown again after the line was brought into view leaves the cursor where it was.
  */
-function useTheFileTheAreaIsOpenedOn(connection: TatoAppViewConnection, settings: CodeViewSettings, rememberTheSettings: RememberTheCodeSettings): LineOfAFileAskedFor | null {
+function useTheFileTheAreaIsOpenedOn(connection: TatoAppViewConnection, settings: CodeViewSettings, rememberTheSettings: RememberTheCodeSettings): LineTheAreaIsOpenedAt {
   const openedOn = useViewReading(connection.watchOpenedOn);
   const [lineAskedFor, setLineAskedFor] = useState<LineOfAFileAskedFor | null>(null);
   const openingTakenBefore = useRef(settings.opening_taken);
@@ -298,7 +302,8 @@ function useTheFileTheAreaIsOpenedOn(connection: TatoAppViewConnection, settings
     rememberTheSettings((latest) => (latest.opening_taken === openingId ? latest : { ...withTheFileShown(latest, file), opening_taken: openingId }));
     setLineAskedFor(line === undefined ? null : { file, line, asked_id: openingId });
   }, [openedOn, rememberTheSettings]);
-  return lineAskedFor;
+  const lineBroughtIntoView = useCallback((askedId: string) => setLineAskedFor((latest) => (latest?.asked_id === askedId ? null : latest)), []);
+  return useMemo(() => ({ lineAskedFor, lineBroughtIntoView }), [lineAskedFor, lineBroughtIntoView]);
 }
 
 function CodeOfTheArea({ connection, settings }: { connection: TatoAppViewConnection; settings: CodeViewSettings }) {
@@ -318,11 +323,11 @@ function CodeOfTheArea({ connection, settings }: { connection: TatoAppViewConnec
     },
     [connection, showTheRefusalOf],
   );
-  const lineAskedFor = useTheFileTheAreaIsOpenedOn(connection, settings, rememberTheSettings);
+  const lineOpenedAt = useTheFileTheAreaIsOpenedOn(connection, settings, rememberTheSettings);
   return (
     <CoreViewFrame connection={connection} toolbarLabel="Code tools" toolbarTools={<CodeAreaToolbarTools connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} />}>
       <RefusalOfTheLatestAskBar refusal={settingsRefusal} />
-      <CodeAreaBody connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} lineAskedFor={lineAskedFor} />
+      <CodeAreaBody connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} lineOpenedAt={lineOpenedAt} />
     </CoreViewFrame>
   );
 }

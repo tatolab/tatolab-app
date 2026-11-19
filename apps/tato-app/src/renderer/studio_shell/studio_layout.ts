@@ -1,7 +1,7 @@
 // The studio's one layout per project folder: its tree as the person shaped it, the edges they hid, and the presets they
 // saved, kept in the page's storage so a project reopens as it was left.
 
-import { layoutShowsTheViewType, studioAreaLayoutFromSaved, type StudioArea, type StudioAreaLayoutNode, type StudioAreaSplit } from "./studio_area_layout";
+import { studioAreaLayoutFromSaved, type StudioArea, type StudioAreaLayoutNode, type StudioAreaSplit } from "./studio_area_layout";
 import type { TatolabWindowLocalStorage } from "../tatolab_window_local_storage";
 import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, type StudioLayoutEdgesHidden } from "./studio_layout_shapes";
 
@@ -47,19 +47,21 @@ export function codeStudioLayout(): StudioAreaLayoutNode {
   ]);
 }
 
-/** A layout that ships with Studio, which Window › Layout offers beside the shapes and opening a view it shows can switch to. */
+/** A layout that ships with Studio, which Window › Layout offers beside the shapes, and which opening a view it is home to switches to when no area shows that view. */
 export interface StudioLayoutShipped {
   layout_id: "code";
   title: string;
   layout: StudioAreaLayoutNode;
+  /** The view types whose openings switch to this layout; the other views it shows are there to work beside them. */
+  home_of_view_types: readonly string[];
 }
 
 /** The layouts Studio ships, in the layout menu's order. */
-export const STUDIO_LAYOUTS_SHIPPED: readonly StudioLayoutShipped[] = [{ layout_id: "code", title: "Code", layout: codeStudioLayout() }];
+export const STUDIO_LAYOUTS_SHIPPED: readonly StudioLayoutShipped[] = [{ layout_id: "code", title: "Code", layout: codeStudioLayout(), home_of_view_types: ["code"] }];
 
-/** The first layout Studio ships that shows `viewTypeId`, or `null` when none does. */
-export function shippedStudioLayoutShowing(viewTypeId: string): StudioLayoutShipped | null {
-  return STUDIO_LAYOUTS_SHIPPED.find(({ layout }) => layoutShowsTheViewType(layout, viewTypeId)) ?? null;
+/** The layout Studio ships as `viewTypeId`'s home, or `null` when none is. */
+export function shippedStudioLayoutHomeOf(viewTypeId: string): StudioLayoutShipped | null {
+  return STUDIO_LAYOUTS_SHIPPED.find(({ home_of_view_types: homeOfViewTypes }) => homeOfViewTypes.includes(viewTypeId)) ?? null;
 }
 
 /** `saved`'s field `fieldName`, or `undefined` when `saved` is not an object or has none. */

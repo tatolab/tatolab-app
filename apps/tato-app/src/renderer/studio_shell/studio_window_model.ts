@@ -15,7 +15,7 @@ import { WatchedStudioValue } from "../view_host/watched_studio_value";
 import { ProjectAssetPickHeldInTheWindow } from "../view_host/project_asset_pick_held_in_the_window";
 import type { JsonValue, ListedStreamsReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, type StudioAreaLayoutNode } from "./studio_area_layout";
-import { shippedStudioLayoutShowing, STUDIO_LAYOUTS_SHIPPED, type StudioLayoutKeptInStorage, type StudioLayoutOfAFolder, type StudioLayoutShipped } from "./studio_layout";
+import { shippedStudioLayoutHomeOf, STUDIO_LAYOUTS_SHIPPED, type StudioLayoutKeptInStorage, type StudioLayoutOfAFolder, type StudioLayoutShipped } from "./studio_layout";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
 import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, studioLayoutShapedAs, studioLayoutWithEdgesHidden, studioLayoutWithShownSplitSizes, type StudioLayoutEdge, type StudioLayoutShape } from "./studio_layout_shapes";
 import { showViewTypeInAreaOf, watchAreasForTheViewType, type StudioViewTypeAreaSources } from "./studio_view_type_areas";
@@ -225,7 +225,7 @@ export class StudioWindowModel {
     if (this.poppedOutView.readLatest() !== null) return { kind: "not_opened", because: "A popped-out view's window shows that view alone. Open it from the project's studio window." };
     const studioLayout = this.studioLayout.readLatest();
     if (studioLayout !== null && !layoutShowsTheViewType(studioLayoutWithEdgesHidden(studioLayout.layout, studioLayout.edges_hidden), viewTypeId)) {
-      const shippedLayout = shippedStudioLayoutShowing(viewTypeId);
+      const shippedLayout = shippedStudioLayoutHomeOf(viewTypeId);
       if (shippedLayout === null) return { kind: "not_opened", because: `No area shows ${viewTypeId}. Choose it in an area's view menu, then open it again.` };
       this.applyTheShippedLayout(shippedLayout.layout_id);
     }
