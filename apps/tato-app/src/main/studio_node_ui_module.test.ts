@@ -41,7 +41,7 @@ test("the Studio's own manifest reads as the contract's node UI manifest, each c
   }
 });
 
-test("the Studio lists its own controls, a default for each of Boolean, Integer and Float and a slider for each ranged number, brought by the Studio and served beside the window", async () => {
+test("the Studio lists its own controls, a default for each of Boolean, Integer, Float, Color, Vector, Rectangle and Transform and a slider for each ranged number, brought by the Studio and served beside the window", async () => {
   expect(await Effect.runPromise(theStudiosOwnNodeUiElements("0.45.0"))).toEqual([
     {
       module: "studio",
@@ -66,6 +66,38 @@ test("the Studio lists its own controls, a default for each of Boolean, Integer 
       folder_version: "0.45.0",
       registration: { kind: "control", type: "float", control: null },
       script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/float_number.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "color_swatch.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "color", control: null },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/color_swatch.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "vector_fields.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "vector", control: null },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/vector_fields.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "rectangle_fields.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "rectangle", control: null },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/rectangle_fields.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "transform_fields.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "transform", control: null },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/transform_fields.ts" },
     },
     {
       module: "studio",

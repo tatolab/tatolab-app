@@ -1,7 +1,9 @@
 // The contract between the Studio and a control: a custom element that edits or shows one input.
 // The host sets `pin` once, then `state` and `value`, then connects the element, and never reads a
 // property back, so a control may implement each as a setter alone. The control fires `input`
-// while a gesture moves and `change` once as it ends, each carrying the value in its detail.
+// while a gesture moves and `change` once as it ends, each carrying the value in its detail, or
+// `cancel`, carrying none, when a gesture it opened ends with nothing used, as a picker closed
+// without its Use.
 
 import type { BuiltInPinTypeName, PinAnnotations, PinType, PinValues } from "../pin_types.js";
 import type { NodeUiElementHost } from "./node_ui_element_host.js";
@@ -62,4 +64,19 @@ export interface InputControlEventDetail<TypeName extends string> {
 export function fireInputControlEvent<TypeName extends string>(control: InputControlElement<TypeName>, eventName: InputControlEventName, value: StoredPinValue<TypeName>): void {
   const detail: InputControlEventDetail<TypeName> = { value };
   control.dispatchEvent(new CustomEvent(eventName, { detail, bubbles: false, composed: false }));
+}
+
+/** The detail of the `cancel` a control fires through `fireInputControlCancel`, which tells it from a native `cancel`, such as a dialog's. */
+export interface InputControlCancelDetail {
+  readonly gesture_cancelled: true;
+}
+
+/**
+ * Fires `cancel` on `control`: the gesture it opened with `input` ends with nothing used, so the
+ * host puts the input back as it was before the gesture and records nothing. Like the others it
+ * does not bubble.
+ */
+export function fireInputControlCancel<TypeName extends string>(control: InputControlElement<TypeName>): void {
+  const detail: InputControlCancelDetail = { gesture_cancelled: true };
+  control.dispatchEvent(new CustomEvent("cancel", { detail, bubbles: false, composed: false }));
 }

@@ -6,6 +6,10 @@ it("lists each control the Studio's own node UI manifest registers, read from so
     { script: "boolean_switch.ts", registration: { kind: "control", type: "boolean", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/boolean_switch.ts" } },
     { script: "integer_stepper.ts", registration: { kind: "control", type: "integer", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/integer_stepper.ts" } },
     { script: "float_number.ts", registration: { kind: "control", type: "float", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/float_number.ts" } },
+    { script: "color_swatch.ts", registration: { kind: "control", type: "color", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/color_swatch.ts" } },
+    { script: "vector_fields.ts", registration: { kind: "control", type: "vector", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/vector_fields.ts" } },
+    { script: "rectangle_fields.ts", registration: { kind: "control", type: "rectangle", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/rectangle_fields.ts" } },
+    { script: "transform_fields.ts", registration: { kind: "control", type: "transform", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/transform_fields.ts" } },
     { script: "integer_slider.ts", registration: { kind: "control", type: "integer", control: "slider" }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/integer_slider.ts" } },
     { script: "float_slider.ts", registration: { kind: "control", type: "float", control: "slider" }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/float_slider.ts" } },
   ]);
@@ -13,6 +17,10 @@ it("lists each control the Studio's own node UI manifest registers, read from so
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/boolean_switch.ts" },
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/integer_stepper.ts" },
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/float_number.ts" },
+    { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/color_swatch.ts" },
+    { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/vector_fields.ts" },
+    { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/rectangle_fields.ts" },
+    { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/transform_fields.ts" },
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/integer_slider.ts" },
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/float_slider.ts" },
   ]);

@@ -7,7 +7,8 @@
 // number one step, Shift a finer one, each as one `change`, and so do the field's − and + buttons
 // where it draws them. A dragged, typed or stepped number is put on the input's step, a whole
 // number for an Integer, then inside its range.
-// It is not an element: a control builds one into its shadow root and fires what it reports.
+// It is not an element: a control builds one into its shadow root, or into a part of it when it holds
+// several numbers, and fires what it reports.
 
 import type { InputControlEventName } from "@tatolab/tato-app-view-sdk/node_ui";
 import type { PinAnnotations } from "@tatolab/tato-app-view-sdk/pin_types";
@@ -65,7 +66,6 @@ export class NumberField {
   readonly #unit = document.createElement("span");
   readonly #stepButtons: readonly HTMLButtonElement[];
   readonly #shape: NumberFieldShape;
-  readonly #shadow: ShadowRoot;
   #value = 0;
   #minimum: number | null = null;
   #maximum: number | null = null;
@@ -74,9 +74,8 @@ export class NumberField {
   #press: PressOfTheField | null = null;
   #puttingTheWordsBack = false;
 
-  /** Draws the field into `shadow`, the shadow root of the control that holds it. */
-  constructor(shadow: ShadowRoot, shape: NumberFieldShape) {
-    this.#shadow = shadow;
+  /** Draws the field into `parent`: the shadow root of the control that holds it, or a part of that root. */
+  constructor(parent: ShadowRoot | HTMLElement, shape: NumberFieldShape) {
     this.#shape = shape;
     this.#field.className = "field";
     this.#words.inputMode = shape.whole_numbers ? "numeric" : "decimal";
@@ -87,12 +86,12 @@ export class NumberField {
     this.#stepButtons = shape.step_buttons ? [this.#stepButton(-1, "−", "One step less"), this.#stepButton(1, "+", "One step more")] : [];
     const [lessButton, moreButton] = this.#stepButtons;
     if (lessButton === undefined || moreButton === undefined) {
-      shadow.append(this.#field);
+      parent.append(this.#field);
     } else {
       const stepper = document.createElement("div");
       stepper.className = "stepper";
       stepper.append(lessButton, this.#field, moreButton);
-      shadow.append(stepper);
+      parent.append(stepper);
     }
     this.#field.addEventListener("pointerdown", (pointerEvent) => this.#pressed(pointerEvent));
     this.#field.addEventListener("pointermove", (pointerEvent) => this.#pointerMoved(pointerEvent));
@@ -256,7 +255,8 @@ export class NumberField {
   }
 
   #isTyping(): boolean {
-    return this.#shadow.activeElement === this.#words;
+    const root = this.#words.getRootNode();
+    return (root instanceof ShadowRoot || root instanceof Document) && root.activeElement === this.#words;
   }
 
   /** How much one pixel of drag moves the number: its step, a two-hundredth of its range, or a hundredth. */
