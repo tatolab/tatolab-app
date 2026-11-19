@@ -2,8 +2,8 @@
 # Signs an assembled Tatolab.app inside-out with the Developer ID, the hardened runtime and a secure
 # timestamp. The runtime's helper, Contents/Helpers/Tatolab Runtime.app, first: every Mach-O in its
 # Frameworks (the runtime's dylibs), the CEF browser host in its Frameworks inside-out (CEF's
-# libraries, its framework, its helper apps, the host app), its tatolab-cli, uv and
-# tatolab-video-poster-frame, then the helper itself, whose
+# libraries, its framework, its helper apps, the host app), its tatolab-cli, uv,
+# tatolab-video-poster-frame, oxlint and typescript/tsc, then the helper itself, whose
 # main executable is tatolabd, with the device and keychain access group entitlements and the
 # provisioning profile that authorizes the latter. Then the app: every loose Mach-O
 # in Contents/Frameworks (Electron's libraries), each framework, each Electron helper app, then the
@@ -100,6 +100,11 @@ codesign "${codesign_common_arguments[@]}" "$browser_host_app"
 codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.tatolab-cli "$helper_contents/MacOS/tatolab-cli"
 codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.runtime-uv "$helper_contents/MacOS/uv"
 codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.video-poster-frame "$helper_contents/MacOS/tatolab-video-poster-frame"
+# A runtime unit built before streamlib carried the code checkers holds neither.
+if [ -e "$helper_contents/MacOS/typescript/tsc" ]; then
+  codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.runtime-oxlint "$helper_contents/MacOS/oxlint"
+  codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.runtime-tsc "$helper_contents/MacOS/typescript/tsc"
+fi
 codesign "${codesign_common_arguments[@]}" --entitlements "$tatolabd_entitlements" "$helper_bundle"
 codesign --verify --deep --strict "$helper_bundle"
 
@@ -131,4 +136,4 @@ done < <(find "$contents/Frameworks" -maxdepth 1 -name '*.app' -print0)
 codesign "${codesign_common_arguments[@]}" --entitlements "$app_entitlements" "$app_bundle"
 
 codesign --verify --deep --strict "$app_bundle"
-echo "signed $app_bundle with the Developer ID: Tatolab Runtime.app ($helper_mach_o_count Mach-O in its Frameworks, tatolab-browser-host.app with $browser_host_mach_o_count Mach-O in its Frameworks and $browser_host_helper_app_count CEF helper apps, tatolab-cli, uv, tatolab-video-poster-frame, tatolabd, the $runtime_application_identifier provisioning profile), $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count Electron helper apps, the app"
+echo "signed $app_bundle with the Developer ID: Tatolab Runtime.app ($helper_mach_o_count Mach-O in its Frameworks, tatolab-browser-host.app with $browser_host_mach_o_count Mach-O in its Frameworks and $browser_host_helper_app_count CEF helper apps, tatolab-cli, uv, tatolab-video-poster-frame$([ -e "$helper_contents/MacOS/typescript/tsc" ] && echo ", oxlint, typescript/tsc"), tatolabd, the $runtime_application_identifier provisioning profile), $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count Electron helper apps, the app"

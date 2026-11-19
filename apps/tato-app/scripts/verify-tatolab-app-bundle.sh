@@ -8,8 +8,9 @@
 # commit it was built from, the lend's CPython 3.10-3.14 bytecode, the first-party module wheels beside it, every
 # Mach-O inside the carried wheels and Python signed like the bundle's own, the
 # runtime's uv beside the helper's tatolabd and no Python of the app's own, the CEF browser host in the
-# helper's Frameworks, the entitlements of the helper's tatolabd, uv, tatolab-cli and
-# tatolab-video-poster-frame, the app, Electron's helpers, the browser host and CEF's helpers, Electron's
+# helper's Frameworks, the helper's TypeScript compiler and linter running from inside it, the
+# entitlements of the helper's tatolabd, uv, tatolab-cli, tatolab-video-poster-frame, oxlint and
+# typescript/tsc, the app, Electron's helpers, the browser host and CEF's helpers, Electron's
 # fuses, and the build features the app was built with and the tatolab-app commit they name.
 # Reading the fuses and the build features needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
@@ -38,6 +39,30 @@ done
 failure_count=0
 pass() { printf '  ok    %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1" >&2; failure_count=$((failure_count + 1)); }
+
+# The compiler and the linter the helper's tatolabd checks a project's views and controls with, each
+# run from inside the signed bundle: the compiler checks a file against the library files it reads
+# through the links beside it, and refuses the same file under a library that lacks what it uses.
+# A bundle whose runtime unit predates them carries neither.
+check_the_code_checkers_run_from_inside_the_bundle() {
+  local bundled_compiler="$helper_contents/MacOS/typescript/tsc" checked_file
+  if [ ! -e "$bundled_compiler" ] && [ ! -e "$helper_contents/MacOS/oxlint" ]; then
+    pass "Tatolab Runtime.app carries no code checkers: its runtime unit predates them"
+    return
+  fi
+  checked_file="$(mktemp -d)/checked.ts"
+  printf 'export const found: boolean = [1, 2].includes(2);\n' > "$checked_file"
+  env -i "$bundled_compiler" --ignoreConfig --strict --noEmit --target es2023 "$checked_file" >/dev/null 2>&1 \
+    && pass "Tatolab Runtime.app's MacOS/typescript/tsc checks a file with its library files from inside the bundle" \
+    || fail "Tatolab Runtime.app's MacOS/typescript/tsc does not check a file from inside the bundle"
+  ! env -i "$bundled_compiler" --ignoreConfig --strict --noEmit --lib es5 "$checked_file" >/dev/null 2>&1 \
+    && pass "Tatolab Runtime.app's MacOS/typescript/tsc refuses a file its es5 library files lack" \
+    || fail "Tatolab Runtime.app's MacOS/typescript/tsc takes a file under es5's library files, so it read none"
+  rm -rf "$(dirname "$checked_file")"
+  env -i "$helper_contents/MacOS/oxlint" --version >/dev/null 2>&1 \
+    && pass "Tatolab Runtime.app's MacOS/oxlint runs from inside the bundle" \
+    || fail "Tatolab Runtime.app's MacOS/oxlint does not run from inside the bundle"
+}
 is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
 
 # Why the code `codesign -dvv` described in $1 is not signed by Tatolab's Developer ID, or nothing
@@ -187,6 +212,7 @@ verify_app_bundle() {
     && pass "the app executable Contents/MacOS/$bundle_executable is present" || fail "the app executable '$bundle_executable' is missing"
   [ -x "$helper_contents/MacOS/uv" ] && pass "Tatolab Runtime.app's MacOS/uv, beside its tatolabd, is present" \
     || fail "Tatolab Runtime.app's MacOS/uv is missing: tatolabd makes no project's .venv without it"
+  check_the_code_checkers_run_from_inside_the_bundle
   [ ! -e "$contents/Resources/install.sh" ] && pass "Resources/install.sh, which the app never runs, is absent" \
     || fail "Resources/install.sh is present: the app runs its runtime as its child and carries no installer"
   local helper_info_plist="$helper_contents/Info.plist"
@@ -377,8 +403,11 @@ verify_app_bundle() {
     && pass "Tatolab Runtime.app embeds the provisioning profile for $runtime_keychain_access_group" \
     || fail "Tatolab Runtime.app embeds no provisioning profile for $runtime_keychain_access_group (found '${embedded_runtime_profile_application_identifier:-none}')"
   local unentitled_executable
-  for unentitled_executable in "$helper_contents/MacOS/uv" "$helper_contents/MacOS/tatolab-cli" \
-    "$helper_contents/MacOS/tatolab-video-poster-frame"; do
+  local unentitled_executables=("$helper_contents/MacOS/uv" "$helper_contents/MacOS/tatolab-cli" \
+    "$helper_contents/MacOS/tatolab-video-poster-frame")
+  [ -e "$helper_contents/MacOS/typescript/tsc" ] \
+    && unentitled_executables+=("$helper_contents/MacOS/oxlint" "$helper_contents/MacOS/typescript/tsc")
+  for unentitled_executable in "${unentitled_executables[@]}"; do
     signed_code_entitlement_keys="$(entitlement_keys_of "$unentitled_executable")"
     [ -z "$signed_code_entitlement_keys" ] && pass "${unentitled_executable#"$contents/"} carries no entitlements" \
       || fail "${unentitled_executable#"$contents/"}'s entitlements are '$signed_code_entitlement_keys', not none"

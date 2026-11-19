@@ -303,6 +303,28 @@ APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$appimage_tools_directory/appimagetool" 
   --runtime-file "$appimage_tools_directory/runtime-x86_64" "$app_directory" "$output_appimage"
 chmod 0755 "$output_appimage"
 
+# The compiler and the linter the carried tatolabd checks a project's views and controls with, run
+# from the AppImage's own tree, unpacked without FUSE, with an empty environment: the compiler checks
+# a file against its library files, and refuses it under a library that lacks what it uses. A unit
+# built before streamlib carried them holds neither.
+if [ -e "$runtime_unit_directory/bin/typescript/tsc" ] || [ -e "$runtime_unit_directory/bin/oxlint" ]; then
+  echo "==> the AppImage's TypeScript compiler and linter"
+  appimage_extraction_directory="$linux_build_directory/appimage-extracted"
+  rm -rf "$appimage_extraction_directory"
+  mkdir -p "$appimage_extraction_directory"
+  (cd "$appimage_extraction_directory" && "$output_appimage" --appimage-extract >/dev/null)
+  appimage_carried_runtime_unit="$appimage_extraction_directory/squashfs-root/$installed_app_directory/resources/tatolab-runtime"
+  printf 'export const found: boolean = [1, 2].includes(2);\n' > "$linux_build_directory/checked.ts"
+  env -i "$appimage_carried_runtime_unit/bin/typescript/tsc" --ignoreConfig --strict --noEmit --target es2023 "$linux_build_directory/checked.ts" \
+    || { echo "the AppImage's bin/typescript/tsc does not check a file with its library files" >&2; exit 1; }
+  ! env -i "$appimage_carried_runtime_unit/bin/typescript/tsc" --ignoreConfig --strict --noEmit --lib es5 "$linux_build_directory/checked.ts" >/dev/null \
+    || { echo "the AppImage's bin/typescript/tsc takes a file under es5's library files, so it read none" >&2; exit 1; }
+  env -i "$appimage_carried_runtime_unit/bin/oxlint" --version \
+    || { echo "the AppImage's bin/oxlint does not run" >&2; exit 1; }
+  echo "    bin/typescript $(du -sh "$appimage_carried_runtime_unit/bin/typescript" | cut -f1), bin/oxlint $(du -sh "$appimage_carried_runtime_unit/bin/oxlint" | cut -f1)"
+  rm -rf "$appimage_extraction_directory" "$linux_build_directory/checked.ts"
+fi
+
 echo "==> update"
 node scripts/write_tatolab_app_update_manifest.mjs "$output_update_manifest" "$app_version" "$output_appimage" "$output_deb"
 

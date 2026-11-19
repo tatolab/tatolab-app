@@ -9,6 +9,13 @@
 #   <helper>/Contents/MacOS/uv                            the uv tatolabd runs from beside itself
 #   <helper>/Contents/MacOS/tatolab-video-poster-frame    the poster frame helper tatolabd runs from
 #                                                         beside itself
+#   <helper>/Contents/MacOS/oxlint                        the linter tatolabd checks a project's views
+#                                                         and controls with, from beside itself
+#   <helper>/Contents/MacOS/typescript/tsc                the TypeScript compiler it checks them with,
+#                                                         beside a relative link to each library file
+#                                                         it reads from beside its own real path
+#   <helper>/Contents/Resources/typescript/               those library files, and the compiler's
+#                                                         LICENSE and NOTICE.txt
 #   <helper>/Contents/Frameworks/tatolab-runtime/<path>   every Mach-O of lend/tatolab/runtime
 #   <helper>/Contents/Frameworks/tatolab-browser-host.app the CEF browser host BrowserSource opens
 #                                                         pages in, where tatolabd finds it from the lend
@@ -84,7 +91,7 @@ done
 # Anything streamlib adds to the unit would otherwise be left out of the bundle without a word.
 for runtime_unit_entry in "$runtime_unit_directory"/bin/* "$runtime_unit_directory"/lib/tatolab/*; do
   case "${runtime_unit_entry#"$runtime_unit_directory/"}" in
-    bin/tatolabd|bin/tatolab|bin/uv|bin/tatolab-video-poster-frame|lib/tatolab/lend|lib/tatolab/imports|lib/tatolab/samples|lib/tatolab/core-projects|lib/tatolab/carried-wheels|lib/tatolab/python-downloads) ;;
+    bin/tatolabd|bin/tatolab|bin/uv|bin/tatolab-video-poster-frame|bin/oxlint|bin/typescript|lib/tatolab/lend|lib/tatolab/imports|lib/tatolab/samples|lib/tatolab/core-projects|lib/tatolab/carried-wheels|lib/tatolab/python-downloads) ;;
     # The TypeScript control client is what Studio is built against; nothing in the bundle runs it.
     lib/tatolab/runtime-client) ;;
     lib/tatolab/browser-host) ;;
@@ -120,6 +127,25 @@ for first_party_modules_entry in "$first_party_modules_source"/* "$first_party_m
   first_party_module_wheel_count=$((first_party_module_wheel_count + 1))
 done
 [ "$first_party_module_wheel_count" -gt 0 ] || { echo "runtime unit $runtime_unit_directory carries no first-party module wheel in lib/tatolab/imports" >&2; exit 1; }
+# A unit built before streamlib carried the code checkers holds neither, and is placed without them.
+# One that holds either holds both, and the compiler's folder holds the compiler.
+typescript_compiler_source="$runtime_unit_directory/bin/typescript"
+if [ -e "$runtime_unit_directory/bin/oxlint" ] || [ -e "$typescript_compiler_source" ]; then
+  unit_carries_the_code_checkers=true
+  for required in bin/oxlint bin/typescript/tsc; do
+    [ -f "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required, which it carries with the other code checker" >&2; exit 1; }
+  done
+  # Resources/ is sealed as data, so the compiler's folder holds no Mach-O but the compiler.
+  while IFS= read -r -d '' typescript_compiler_file; do
+    [ "$typescript_compiler_file" = "$typescript_compiler_source/tsc" ] && continue
+    if [ ! -f "$typescript_compiler_file" ] || is_mach_o "$typescript_compiler_file"; then
+      echo "runtime unit $runtime_unit_directory ships ${typescript_compiler_file#"$runtime_unit_directory/"}, which Resources/typescript cannot carry" >&2
+      exit 1
+    fi
+  done < <(find "$typescript_compiler_source" -mindepth 1 -print0)
+else
+  unit_carries_the_code_checkers=false
+fi
 # Resources/ is sealed as data, so a sample carrying a Mach-O would ship unsigned code.
 sample_project_count=0
 for sample_project in "$sample_projects_source"/*/; do
@@ -196,6 +222,19 @@ install -m 0755 "$runtime_unit_directory/bin/tatolabd" "$helper_contents/MacOS/t
 install -m 0755 "$runtime_unit_directory/bin/tatolab" "$helper_contents/MacOS/tatolab-cli"
 install -m 0755 "$runtime_unit_directory/bin/uv" "$helper_contents/MacOS/uv"
 install -m 0755 "$runtime_unit_directory/bin/tatolab-video-poster-frame" "$helper_contents/MacOS/tatolab-video-poster-frame"
+if $unit_carries_the_code_checkers; then
+  install -m 0755 "$runtime_unit_directory/bin/oxlint" "$helper_contents/MacOS/oxlint"
+  mkdir -p "$helper_contents/MacOS/typescript" "$helper_contents/Resources/typescript"
+  install -m 0755 "$typescript_compiler_source/tsc" "$helper_contents/MacOS/typescript/tsc"
+  # tsc reads its library files from beside its own real path, and MacOS/ holds only code: each is
+  # data in Resources/, read through a link beside the compiler.
+  for typescript_compiler_file in "$typescript_compiler_source"/*; do
+    typescript_compiler_file_name="${typescript_compiler_file##*/}"
+    [ "$typescript_compiler_file_name" = tsc ] && continue
+    install -m 0644 "$typescript_compiler_file" "$helper_contents/Resources/typescript/$typescript_compiler_file_name"
+    ln -s "../../Resources/typescript/$typescript_compiler_file_name" "$helper_contents/MacOS/typescript/$typescript_compiler_file_name"
+  done
+fi
 
 ditto "$lend_source" "$helper_contents/Resources/lend"
 ditto "$first_party_modules_source" "$helper_contents/Resources/imports"
@@ -240,4 +279,4 @@ if $local_proof_test_root; then
   cp "$runtime_unit_directory/$marker_file_name" "$helper_contents/Resources/$marker_file_name"
 fi
 
-echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, uv, tatolab-video-poster-frame, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, the lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) $first_party_module_wheel_count first-party module wheel(s) in Resources/imports, $sample_project_count sample project(s) in Resources/samples, the core projects in Resources/core-projects, and $carried_wheel_count carried wheel(s) and the carried Python in Resources/carried-wheels and Resources/python-downloads$($local_proof_test_root && echo ' (local proof)')"
+echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, uv, tatolab-video-poster-frame, $($unit_carries_the_code_checkers && echo 'oxlint and typescript/tsc with its library files in Resources/typescript, ')$relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, the lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) $first_party_module_wheel_count first-party module wheel(s) in Resources/imports, $sample_project_count sample project(s) in Resources/samples, the core projects in Resources/core-projects, and $carried_wheel_count carried wheel(s) and the carried Python in Resources/carried-wheels and Resources/python-downloads$($local_proof_test_root && echo ' (local proof)')"
