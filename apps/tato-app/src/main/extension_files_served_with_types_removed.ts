@@ -2,13 +2,15 @@
 // answers, under the window page's own scheme: `tatolab-app://app/project_views/<open project>/
 // <view folder>/<file>`, the open project's folder written as base64url so the URL names which
 // project's history the bytes come from, and only for a view a studio window listed as one that
-// opens. The app reads no project file from disk. A `.ts` file is served as JavaScript with its
-// types removed, and a page holds the supplied modules' import map, so a view an author writes in
-// `.ts` opens with no build; any other file is served as the runtime read it.
+// opens. The app reads no project file from disk. Each file is served as `extension_file_serving.ts`
+// says: a `.ts` file as JavaScript with its types removed and a page holding the supplied modules'
+// import map, so a view an author writes in `.ts` opens with no build, and a library the view carries
+// in its `vendor/` as it is written.
 
 import path from "node:path";
 import { withTheSuppliedModulesImportMap } from "@tatolab/tato-app-view-sdk/supplied_modules";
 import { Cause, Data, Effect, Exit, type ManagedRuntime } from "effect";
+import { howAnExtensionFileIsServed, type ExtensionFileServedAs } from "./extension_file_serving.js";
 import { bytesOfTheBase64ContentOfTheContract } from "./project_files_on_the_wire.js";
 import { describeCaughtFailure } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
@@ -24,48 +26,6 @@ export const PROJECT_VIEW_FILES_PATH = "/project_views/";
 
 /** A view's folder inside a project: its own `views/<folder>`, or an import's `imports/<import>/views/<folder>`. */
 const VIEW_FOLDER_IN_A_PROJECT = /^(?:views\/[^/]+|imports\/[^/]+\/views\/[^/]+)(?=\/)/;
-
-/** What is done to a file of a view's folder on its way to the page: nothing, its types removed, or the supplied modules' import map written into it. */
-export type ProjectViewFileServedAs = "as_read" | "types_removed" | "with_import_map";
-
-/** How one kind of file of a view's folder is served: its content type and what is done to it on the way. */
-export interface ProjectViewFileServing {
-  readonly content_type: string;
-  readonly served_as: ProjectViewFileServedAs;
-}
-
-/** A file served with `contentType` as the runtime read it. */
-function servedAsRead(contentType: string): ProjectViewFileServing {
-  return { content_type: contentType, served_as: "as_read" };
-}
-
-/** How each file a view's folder may hold is served, by its extension; any other is served as bytes, as read. */
-const HOW_EACH_FILE_IS_SERVED_BY_EXTENSION: ReadonlyMap<string, ProjectViewFileServing> = new Map([
-  [".html", { content_type: "text/html; charset=utf-8", served_as: "with_import_map" }],
-  [".ts", { content_type: "text/javascript; charset=utf-8", served_as: "types_removed" }],
-  [".js", servedAsRead("text/javascript; charset=utf-8")],
-  [".mjs", servedAsRead("text/javascript; charset=utf-8")],
-  [".css", servedAsRead("text/css; charset=utf-8")],
-  [".json", servedAsRead("application/json")],
-  [".map", servedAsRead("application/json")],
-  [".svg", servedAsRead("image/svg+xml")],
-  [".png", servedAsRead("image/png")],
-  [".jpg", servedAsRead("image/jpeg")],
-  [".jpeg", servedAsRead("image/jpeg")],
-  [".gif", servedAsRead("image/gif")],
-  [".webp", servedAsRead("image/webp")],
-  [".ico", servedAsRead("image/x-icon")],
-  [".woff", servedAsRead("font/woff")],
-  [".woff2", servedAsRead("font/woff2")],
-  [".ttf", servedAsRead("font/ttf")],
-  [".otf", servedAsRead("font/otf")],
-  [".wasm", servedAsRead("application/wasm")],
-  [".mp3", servedAsRead("audio/mpeg")],
-  [".wav", servedAsRead("audio/wav")],
-  [".mp4", servedAsRead("video/mp4")],
-  [".webm", servedAsRead("video/webm")],
-  [".txt", servedAsRead("text/plain; charset=utf-8")],
-]);
 
 /** The URL the view folder `viewFolderInTheProject` of the project in `openProjectFolder` is served under, which its entry and every file it loads resolve against. */
 export function projectViewFolderUrl(openProjectFolder: string, viewFolderInTheProject: string): string {
@@ -96,11 +56,6 @@ export function projectViewFileOfTheRequest(requestUrl: string): ProjectViewFile
   const viewFolderInTheProject = VIEW_FOLDER_IN_A_PROJECT.exec(pathInTheProject)?.[0];
   if (viewFolderInTheProject === undefined) return null;
   return { open_project_folder: openProjectFolder, view_folder_in_the_project: viewFolderInTheProject, path_in_the_project: pathInTheProject };
-}
-
-/** How the file at `pathInTheProject` is served, by its extension. */
-export function howAProjectViewFileIsServed(pathInTheProject: string): ProjectViewFileServing {
-  return HOW_EACH_FILE_IS_SERVED_BY_EXTENSION.get(path.posix.extname(pathInTheProject).toLowerCase()) ?? servedAsRead("application/octet-stream");
 }
 
 /** How a request for an extension's file, a project view's or the Studio's own node UI module's, is answered: its bytes, or a status with why. */
@@ -190,7 +145,7 @@ function pageWithTheSuppliedModulesImportMap(pathInTheProject: string, pageBytes
 export function projectViewFileAsServed(
   pathInTheProject: string,
   fileBytes: Buffer,
-  servedAs: ProjectViewFileServedAs,
+  servedAs: ExtensionFileServedAs,
 ): Effect.Effect<Buffer, ExtensionFileNotServableAsWritten> {
   switch (servedAs) {
     case "types_removed":
@@ -217,7 +172,7 @@ const projectViewFileServed = Effect.fn("project_view_file_served")(function* (r
   const runtimeControl = yield* RuntimeControl;
   const fileRead = yield* runtimeControl.call("read_project_file", { project_directory: fileAsked.open_project_folder, path: fileAsked.path_in_the_project });
   const fileBytes = yield* fromResult(bytesOfTheBase64ContentOfTheContract(fileRead), (failure) => new ProjectFileBytesUnreadable({ words: `the runtime's read_project_file result could not be read: ${failure}` }));
-  const serving = howAProjectViewFileIsServed(fileAsked.path_in_the_project);
+  const serving = howAnExtensionFileIsServed(fileAsked.path_in_the_project.slice(fileAsked.view_folder_in_the_project.length + 1));
   const servedBytes = yield* projectViewFileAsServed(fileAsked.path_in_the_project, fileBytes, serving.served_as);
   return { kind: "served", content_type: serving.content_type, file_bytes: servedBytes } satisfies ExtensionFileAnswer;
 });

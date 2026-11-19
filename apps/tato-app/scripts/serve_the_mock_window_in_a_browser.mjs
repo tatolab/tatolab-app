@@ -8,75 +8,86 @@ import { readFile } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { withTheSuppliedModulesImportMap } from "@tatolab/tato-app-view-sdk/supplied_modules";
 import { loadConfigFromFile } from "electron-vite";
 import { createServer } from "vite";
+import { howAnExtensionFileIsServed } from "../src/main/extension_file_serving.ts";
 
 const tatoAppRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // The window serves the built core views beside it, so they are built first.
 execFileSync("npm", ["run", "build", "--workspace", "@tatolab/tato-app-core-views"], { cwd: tatoAppRoot, stdio: "inherit" });
 const { config: electronViteConfig } = await loadConfigFromFile({ command: "serve", mode: "development" }, undefined, tatoAppRoot);
-// Vite transforms only the pages under its root, so the fixture view's page, served from mock/ through `/@fs/`, would miss
-// the React refresh preamble its modules check for.
-const mockStudioViewFolder = path.resolve(tatoAppRoot, "mock/mock_studio_view");
-const mockStudioViewPagesTransformedByVite = {
-  name: "mock-studio-view-pages-transformed-by-vite",
-  configureServer(viteDevServer) {
-    viteDevServer.middlewares.use(async (request, response, next) => {
-      try {
-        const requestPath = request.url?.split("?")[0] ?? "";
-        const pagePath = requestPath.startsWith("/@fs/") ? decodeURIComponent(requestPath.slice("/@fs".length)) : "";
-        if (!pagePath.endsWith(".html") || !pagePath.startsWith(`${mockStudioViewFolder}/`)) {
-          next();
-          return;
-        }
-        const page = await viteDevServer.transformIndexHtml(requestPath, await readFile(pagePath, "utf8"));
-        response.setHeader("Content-Type", "text/html");
-        response.end(page);
-      } catch (failure) {
-        next(failure);
-      }
-    });
-  },
-};
-// The app's page protocol serves the Studio's own node UI module with its types removed; the dev server serves it as
-// written, for that protocol to read. The mock window has no such protocol, so each `.ts` is served here as the
-// protocol serves it, ahead of the dev server's own answer.
+// The app's page protocol serves an extension's folder, the Studio's own node UI module or a project's view, with each
+// `.ts` file's types removed, the supplied modules' import map written into each page and a library in `vendor/` as it
+// is written. The mock window has no such protocol, so the Studio's node UI module and the fixture view's folder are
+// served here by the same rule, ahead of the dev server's own answer, and the fixture view is never bundled.
 const studioNodeUiModuleFolder = path.resolve(tatoAppRoot, "../../packages/tato-app-core-node-ui/node_ui");
-const studioNodeUiModuleServedWithItsTypesRemoved = {
-  name: "studio-node-ui-module-served-with-its-types-removed",
+const mockStudioViewFolder = path.resolve(tatoAppRoot, "mock/mock_studio_view");
+// Where `mock/mock_studio_view/mock_studio_view_listing.ts` lists the fixture views' folders as served.
+const MOCK_STUDIO_VIEWS_PATH = "/mock_studio_view/";
+
+/** The extension folder and the `/`-separated path in it that `requestPath` names, or `null` when it names no file of one. */
+function extensionFileOfTheRequest(requestPath) {
+  if (requestPath.startsWith("/core_node_ui/")) return { extensionFolder: studioNodeUiModuleFolder, pathInTheFolder: requestPath.slice("/core_node_ui/".length) };
+  if (!requestPath.startsWith(MOCK_STUDIO_VIEWS_PATH)) return null;
+  const [viewFolder, ...pathInTheView] = requestPath.slice(MOCK_STUDIO_VIEWS_PATH.length).split("/");
+  if (viewFolder === undefined || pathInTheView.length === 0) return null;
+  return { extensionFolder: path.join(mockStudioViewFolder, viewFolder), pathInTheFolder: pathInTheView.join("/") };
+}
+
+/** The bytes of `fileBytes`, read from `pathInTheFolder`, as the app's page protocol serves them, or why they are not servable as written. */
+function extensionFileAsServed(pathInTheFolder, fileBytes, servedAs) {
+  switch (servedAs) {
+    case "types_removed":
+      return stripTypeScriptTypes(fileBytes.toString("utf8"), { mode: "strip", sourceUrl: pathInTheFolder });
+    case "with_import_map":
+      return withTheSuppliedModulesImportMap(fileBytes.toString("utf8"));
+    case "as_read":
+      return fileBytes;
+  }
+}
+
+const extensionFoldersServedAsTheAppServesThem = {
+  name: "extension-folders-served-as-the-app-serves-them",
   configureServer(viteDevServer) {
     viteDevServer.middlewares.use(async (request, response, next) => {
       try {
         const requestPath = decodeURIComponent(request.url?.split("?")[0] ?? "");
-        const moduleFile = requestPath.startsWith("/core_node_ui/") ? path.resolve(studioNodeUiModuleFolder, `.${requestPath.slice("/core_node_ui".length)}`) : "";
-        if (!moduleFile.endsWith(".ts") || !moduleFile.startsWith(`${studioNodeUiModuleFolder}${path.sep}`)) {
+        const fileAsked = extensionFileOfTheRequest(requestPath);
+        if (fileAsked === null) {
           next();
           return;
         }
-        let moduleText;
+        const extensionFile = path.resolve(fileAsked.extensionFolder, fileAsked.pathInTheFolder);
+        if (!extensionFile.startsWith(`${fileAsked.extensionFolder}${path.sep}`)) {
+          answerThatItIsNotServed(response, 403, `${requestPath} leaves its extension's folder`);
+          return;
+        }
+        let fileBytes;
         try {
-          moduleText = await readFile(moduleFile, "utf8");
+          fileBytes = await readFile(extensionFile);
         } catch (readFailure) {
-          if (readFailure?.code !== "ENOENT") throw readFailure;
-          answerThatItIsNotServed(response, 404, `${requestPath} is not in the Studio's node UI module`);
+          if (readFailure?.code !== "ENOENT" && readFailure?.code !== "EISDIR") throw readFailure;
+          answerThatItIsNotServed(response, 404, `${requestPath} is not in its extension's folder`);
           return;
         }
-        let moduleScript;
+        const serving = howAnExtensionFileIsServed(fileAsked.pathInTheFolder);
+        let servedBytes;
         try {
-          moduleScript = stripTypeScriptTypes(moduleText, { mode: "strip", sourceUrl: path.relative(studioNodeUiModuleFolder, moduleFile) });
-        } catch (stripFailure) {
-          answerThatItIsNotServed(response, 422, `${requestPath} is not servable as written: ${stripFailure instanceof Error ? stripFailure.message : String(stripFailure)}`);
+          servedBytes = extensionFileAsServed(fileAsked.pathInTheFolder, fileBytes, serving.served_as);
+        } catch (serveFailure) {
+          answerThatItIsNotServed(response, 422, `${requestPath} is not servable as written: ${serveFailure instanceof Error ? serveFailure.message : String(serveFailure)}`);
           return;
         }
-        response.setHeader("Content-Type", "text/javascript; charset=utf-8");
-        response.end(moduleScript);
+        response.setHeader("Content-Type", serving.content_type);
+        response.end(servedBytes);
       } catch (failure) {
         next(failure);
       }
     });
   },
 };
-/** Answers a request for a node UI file with `status` and why, as the app's page protocol answers one it does not serve. */
+/** Answers a request for an extension's file with `status` and why, as the app's page protocol answers one it does not serve. */
 function answerThatItIsNotServed(response, status, because) {
   response.statusCode = status;
   response.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -86,7 +97,7 @@ const mockWindowServer = await createServer({
   ...electronViteConfig.renderer,
   root: path.resolve(tatoAppRoot, electronViteConfig.renderer.root),
   configFile: false,
-  plugins: [studioNodeUiModuleServedWithItsTypesRemoved, ...(electronViteConfig.renderer.plugins ?? []), mockStudioViewPagesTransformedByVite],
+  plugins: [extensionFoldersServedAsTheAppServesThem, ...(electronViteConfig.renderer.plugins ?? [])],
   server: electronViteConfig.renderer.server,
 });
 await mockWindowServer.listen();
