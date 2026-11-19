@@ -166,8 +166,8 @@ describe("a node's own code", () => {
     expect(monacoStandIn.linesBroughtIntoView).toEqual([{ file: GLOW_FILE, line: 24 }]);
   });
 
-  it("makes a new node from Create new node beside the Add node search: its file from the runtime's template, its node at the place asked for, and the Code layout on its file", { timeout: 20_000 }, async () => {
-    await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind&outliner=open");
+  it("makes a new node from Create new node beside the Add node search: its file from the runtime's template, its node in the graph, and the Code layout on its file, and one undo takes the node back and leaves the file", { timeout: 20_000 }, async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind&outliner=open");
     fireEvent.doubleClick(await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`)));
     const streamGraph = coreViewPage("stream_graph", "stream-graph");
     await waitFor(() => streamGraph.querySelector('[data-node-graph-card="glow"]') ?? expect.unreachable("no Glow card"));
@@ -175,7 +175,7 @@ describe("a node's own code", () => {
     const nodeSearch = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }));
 
     fireEvent.click(within(nodeSearch).getByRole("button", { name: "Create new node" }));
-    const newNode = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Create new node" }));
+    const newNode = await waitFor(() => within(document.body).getByRole("dialog", { name: "Create new node" }));
     expect(within(streamGraph.body).queryByRole("dialog", { name: "Add a node" })).toBeNull();
     const pathField = newNode.querySelector<HTMLInputElement>("[data-new-node-file-path]") ?? expect.unreachable("no path field");
     expect(pathField.value).toBe("nodes/");
@@ -190,7 +190,31 @@ describe("a node's own code", () => {
     await theAreasShownAre(AREAS_OF_THE_CODE_LAYOUT);
     await codeShowsTheFile(`${PATTERN_PROJECT}/nodes/sparkle.py`);
     const codeLayoutsGraph = coreViewPage("stream_graph", "code-stream-graph");
-    await waitFor(() => expect([...codeLayoutsGraph.querySelectorAll("[data-node-graph-card]")].map((card) => card.getAttribute("data-node-graph-card"))).toContain("sparkle"));
+    const cardsOfTheCodeLayoutsGraph = () => [...codeLayoutsGraph.querySelectorAll("[data-node-graph-card]")].map((card) => card.getAttribute("data-node-graph-card"));
+    await waitFor(() => expect(cardsOfTheCodeLayoutsGraph()).toContain("sparkle"));
+
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+    await waitFor(() => expect(cardsOfTheCodeLayoutsGraph()).not.toContain("sparkle"));
+    await expect(backend.readProjectFile(`${PATTERN_PROJECT}/nodes/sparkle.py`)).resolves.toMatchObject({ text: expect.stringContaining("class Sparkle:") });
+  });
+
+  it("keeps the new node's file, shows why, and stays on the layout it was on, when the runtime refuses to place its node", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind&outliner=open", {
+      createNodeFile: async (file) => ({ file, node_type: "nodes.unread:Unread" }),
+    });
+    fireEvent.doubleClick(await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`)));
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    await waitFor(() => streamGraph.querySelector('[data-node-graph-card="glow"]') ?? expect.unreachable("no Glow card"));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the ribbon")));
+    fireEvent.click(within(await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }))).getByRole("button", { name: "Create new node" }));
+    const pathField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-new-node-file-path]") ?? expect.unreachable("no path field"));
+    fireEvent.change(pathField, { target: { value: "nodes/unread.py" } });
+    fireEvent.keyDown(pathField, { key: "Enter" });
+
+    await waitFor(() => expect(streamGraph.body.textContent).toContain("the recorded node types describe no node type `nodes.unread:Unread`"));
+    await waitFor(() => expect(within(document.body).queryByRole("dialog", { name: "Create new node" })).toBeNull());
+    expect(areaIdsOfTheDefaultLayoutStillShown()).toBe(true);
+    expect(document.querySelector('[data-studio-area="code"]')).toBeNull();
   });
 
 });

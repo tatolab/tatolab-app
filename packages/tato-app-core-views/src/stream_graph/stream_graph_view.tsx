@@ -5,6 +5,7 @@ import { NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX, NodeGraphCardPreview } from
 import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
 import type { NodeGraphCanvasEditing, NodeGraphCanvasPoint, NodeGraphCanvasViewport, NodeGraphCardCode } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
+import { FormDialog } from "@tatolab/tato-app-view-sdk/design_system/form_dialog";
 import { SearchPopover, type SearchPopoverAction } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import { Plus, Store } from "lucide-react";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
@@ -71,10 +72,7 @@ import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, t
 const NEXT_PLACED_NODE_OFFSET = 36;
 
 /** The search over a loose wire offers no way on beside its field. */
-const NO_WAY_ON_FROM_A_LOOSE_WIRE: readonly SearchPopoverAction[] = [];
 
-/** How wide the Create new node form is drawn where the Add node search was. */
-const NEW_NODE_FORM_WIDTH_PX = 360;
 
 /** Where the Add node search was asked for, the wire it was dragged off when it was, and the port of each node type the runtime answered that wire fits; `null` until it answers, or when it did not, so the search judges nothing. */
 interface NodeTypeSearchAsked {
@@ -392,20 +390,24 @@ function StreamGraphOfTheTab({
   const canANewNodeBeCreated = editing !== null && openProjectOfTheStream !== null;
   const atOfTheNodeTypeSearch = nodeTypeSearchAsked?.at ?? null;
   const nodeTypeSearchActions = useMemo((): readonly SearchPopoverAction[] => {
-    if (looseWireOfTheSearch !== null) return NO_WAY_ON_FROM_A_LOOSE_WIRE;
     const toTheMarketplace: SearchPopoverAction = {
       label: "Install modules from marketplace",
       icon: Store,
       onPressed: () => showTheRefusalOfOpeningTheMarketplace("Didn't open the Marketplace:", connection.openModulesAndMarketplace("marketplace")),
     };
-    if (!canANewNodeBeCreated || atOfTheNodeTypeSearch === null) return [toTheMarketplace];
+    // A node made new declares no port the wire could be linked to, so the search over a loose wire offers no Create new node.
+    if (looseWireOfTheSearch !== null || !canANewNodeBeCreated || atOfTheNodeTypeSearch === null) return [toTheMarketplace];
     return [toTheMarketplace, { label: "Create new node", icon: Plus, onPressed: () => setNewNodeAskedAt(atOfTheNodeTypeSearch) }];
   }, [connection, showTheRefusalOfOpeningTheMarketplace, looseWireOfTheSearch, canANewNodeBeCreated, atOfTheNodeTypeSearch]);
   const placeTheNewNode = useCallback(
     ({ file, node_type: nodeType }: { file: string; node_type: string }) => {
       const at = newNodeAskedAt;
       setNewNodeAskedAt(null);
-      if (at === null || editedGraph === null || "because" in editedGraph) return;
+      if (at === null) return;
+      if (editedGraph === null || "because" in editedGraph) {
+        showTheRefusalOfOpeningTheCode("Didn't place the new node:", Promise.resolve({ kind: "refused", because: editedGraph === null ? `${file} was created, but the stream's graph isn't read.` : `${file} was created, but ${editedGraph.because}` }));
+        return;
+      }
       // The file stays when placing its node is refused: the runtime made it, and the refusal says why the node was not placed.
       void sendTheGestureAtTheLevelShown(nodePlacedEdits(editedGraph, nodeType, at.on_the_canvas, null)).then((answer) => {
         if (answer === "applied") showTheRefusalOfOpeningTheCode("Didn't open the new node's code:", connection.openView(CODE_VIEW_TYPE_ID, { kind: "file", file }));
@@ -558,21 +560,19 @@ function StreamGraphOfTheTab({
                   data-stream-graph-node-type-search={streamTab.stream}
                 />
               )}
-              {newNodeAskedAt !== null && openProjectOfTheStream !== null && (
-                <div
-                  role="dialog"
-                  aria-label="Create new node"
-                  className="absolute z-20 overflow-hidden rounded-lg border border-line-strong bg-raised shadow-(--shadow-pop)"
-                  style={{
-                    left: `max(8px, min(${newNodeAskedAt.in_the_element.x}px, calc(100% - ${NEW_NODE_FORM_WIDTH_PX + 8}px)))`,
-                    top: `max(8px, ${newNodeAskedAt.in_the_element.y}px)`,
-                    width: `min(${NEW_NODE_FORM_WIDTH_PX}px, calc(100% - 16px))`,
+              {openProjectOfTheStream !== null && (
+                <FormDialog
+                  isOpen={newNodeAskedAt !== null}
+                  onOpenChange={(isOpen) => {
+                    if (!isOpen) setNewNodeAskedAt(null);
                   }}
+                  title="Create new node"
+                  description="A node file made from the runtime's node template, its node placed where the search opened, and its code opened in the Code layout."
+                  focusOnOpen="first_field_at_its_end"
                   data-stream-graph-new-node={streamTab.stream}
                 >
-                  <p className="px-3 pt-2 text-xs font-medium text-fg">Create new node</p>
-                  <NewNodeFileForm connection={connection} projectFolder={openProjectOfTheStream.project.folder} onCreated={placeTheNewNode} onClosed={() => setNewNodeAskedAt(null)} />
-                </div>
+                  <NewNodeFileForm connection={connection} projectFolder={openProjectOfTheStream.project.folder} layout="in_a_dialog" onCreated={placeTheNewNode} onClosed={() => setNewNodeAskedAt(null)} />
+                </FormDialog>
               )}
               {subgraphKeepingTheLevelReadOnly !== null && (
                 <div className="absolute top-2 right-2 z-10 max-w-[calc(100%-4rem)]">

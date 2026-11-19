@@ -14,12 +14,15 @@ const NEW_NODE_FILE_PATH_TO_START_FROM = "nodes/";
 export function NewNodeFileForm({
   connection,
   projectFolder,
+  layout = "under_a_header",
   onCreated,
   onClosed,
 }: {
   connection: Pick<TatoAppViewConnection, "createNodeFile">;
   /** The open project's folder, absolute, which the typed path is inside. */
   projectFolder: string;
+  /** Under a view's header, ruled off from what is below it; or the whole body of a dialog, which gives it its room. */
+  layout?: "under_a_header" | "in_a_dialog";
   onCreated: (created: Extract<NodeFileCreating, { kind: "created" }>) => void;
   onClosed: () => void;
 }) {
@@ -61,7 +64,7 @@ export function NewNodeFileForm({
     createIt();
   };
   return (
-    <div ref={formElement} className="shrink-0 border-b px-3 py-2" onKeyDown={answerTheKeyInTheForm} data-new-node-file-form="">
+    <div ref={formElement} className={layout === "under_a_header" ? "shrink-0 border-b px-3 py-2" : undefined} onKeyDown={answerTheKeyInTheForm} data-new-node-file-form="">
       <label htmlFor={pathFieldId} className="block pb-1 text-2xs text-fg-3">
         Path in the project
       </label>
