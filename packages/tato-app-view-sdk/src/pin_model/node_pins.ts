@@ -1,11 +1,12 @@
 // A node's pins as every surface lays them out: one row per pin, outputs first and then inputs, each
 // carrying the pin's exact type and flow where the runtime serves them.
 
+import type { PinAnnotations } from "../pin_type_readings.js";
 import type { NodeCatalogPortPin, StreamGraphPortPin } from "../studio_readings.js";
 import type { PortFamily } from "../port_families.js";
 import type { InputAddress } from "./node_inputs.js";
 
-/** One pin of a node: its name, its exact type and flow (`null` for a pin with none), what its node type says of it, and what it states about its stream. */
+/** One pin of a node: its name, its exact type and flow (`null` for a pin with none), what its node type says and annotates of it, and what it states about its stream. */
 export interface NodePin {
   readonly name: string;
   readonly pin: StreamGraphPortPin | null;
@@ -13,6 +14,8 @@ export interface NodePin {
   readonly family: PortFamily | null;
   /** The port's description as its node type declares it; `null` for none. */
   readonly description: string | null;
+  /** What its node type's annotations state of its value, such as its range and the control that edits it; empty where it states none. */
+  readonly annotations: PinAnnotations;
   readonly stream_facts_words: readonly string[];
   /** Where the value an input holds while unwired is kept, the key its row reads the value by; `null` on an output, on an input that takes no stored value or that a link feeds, and outside a stream's graph. */
   readonly value_address: InputAddress | null;

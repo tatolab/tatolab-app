@@ -79,8 +79,8 @@ const catalogEntry = (type: string, inputs: [string, "image" | "array" | null][]
   description: "",
   category: null,
   config_schema: null,
-  inputs: inputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null })),
-  outputs: outputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null })),
+  inputs: inputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null, annotations: {} })),
+  outputs: outputs.map(([name, family]) => ({ name, description: "", family, pin: null, input_mode: null, annotations: {} })),
 });
 const BLUR = catalogEntry("nodes.blur:GaussianBlur", [["strength", "array"], ["video_in", "image"]], [["video_out", "image"]]);
 
@@ -89,9 +89,9 @@ const A_SETTING = { mode: "setting_only", read: "at_setup" } as const;
 const BLUR_LISTING_ITS_SETTINGS: NodeCatalogEntry = {
   ...catalogEntry("nodes.blur:GaussianBlur", [["video_in", "image"]], [["video_out", "image"]]),
   inputs: [
-    { name: "video_in", description: "the picture", family: "image", pin: { pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" }, input_mode: null },
-    { name: "gain", description: "How loud.", family: null, pin: { pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value" }, input_mode: A_SETTING },
-    { name: "layers", description: "", family: null, pin: null, input_mode: A_SETTING },
+    { name: "video_in", description: "the picture", family: "image", pin: { pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" }, input_mode: null, annotations: {} },
+    { name: "gain", description: "How loud.", family: null, pin: { pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value" }, input_mode: A_SETTING, annotations: {} },
+    { name: "layers", description: "", family: null, pin: null, input_mode: A_SETTING, annotations: {} },
   ],
 };
 const SETTINGS_ONLY = { ...catalogEntry("nodes.tone:Tone", [], []), inputs: BLUR_LISTING_ITS_SETTINGS.inputs.slice(1) };

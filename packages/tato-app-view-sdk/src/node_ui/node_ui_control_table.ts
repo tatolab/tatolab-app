@@ -1,17 +1,18 @@
 // The one table that picks the control for an input, the same on every surface. First match wins:
-// the control the input's annotation names, then the Studio's default for its built-in type, then
-// the read-only line with its reason. Each key has one candidate, because the table reads a type's
+// the control the input's annotation names, then the Studio's slider for its type when the input
+// states both ends of its range, then the Studio's default for its built-in type, then the read-only
+// line with its reason. Each key has one candidate, because the table reads a type's
 // default only from the module that declares the type, which for a built-in type is the Studio's,
 // and a node body only from the module that brings the node type. A control registers for a pin
 // type by its name alone, so one registered for `named` would draw every named type; the table
 // uses none, and a named type's input ends at the read-only line.
 
-import type { BuiltInPinTypeName, PinType } from "../pin_types.js";
+import type { BuiltInPinTypeName, PinAnnotations, PinType } from "../pin_types.js";
 import type { InputPinDeclaration } from "./input_control_element.js";
 import type { ListedNodeUiElement, NodeUiElementsReading } from "./node_ui_elements_listing.js";
 
-/** Why the table chose an element: the input's annotation named it, or it is the default of the input's type. */
-export type NodeUiControlChosenBy = "annotation" | "type_default";
+/** Why the table chose an element: the input's annotation named it, the input states both ends of its range so its type's slider draws it, or it is the default of the input's type. */
+export type NodeUiControlChosenBy = "annotation" | "stated_range" | "type_default";
 
 /**
  * The control the table picks for an input: a listed element, with why the annotation's control
@@ -37,10 +38,21 @@ function namedControlKey(type: BuiltInPinTypeName, controlName: string): string 
   return JSON.stringify([type, controlName]);
 }
 
+/** The key of the Studio's control named `slider` for `type`, which draws an input of it whose range has both ends; a project's control is keyed by its qualified name, so it is never this one. */
+function studioSliderKey(type: BuiltInPinTypeName): string {
+  return namedControlKey(type, "slider");
+}
+
 /** The module part of a qualified name such as `acme:Crossfade`, or `null` when it has none. */
 function moduleOfTheQualifiedName(qualifiedName: string): string | null {
   const colon = qualifiedName.indexOf(":");
   return colon > 0 ? qualifiedName.slice(0, colon) : null;
+}
+
+/** Whether `annotations` state both the lowest and the highest number an input holds. */
+function statesBothEndsOfItsRange(annotations: PinAnnotations): boolean {
+  const range = annotations.range ?? null;
+  return range !== null && typeof range.minimum === "number" && typeof range.maximum === "number";
 }
 
 /** How a person reads a built-in pin type's name, such as `encoded video`. */
@@ -89,6 +101,10 @@ export class NodeUiControlTable {
     const annotatedListed = annotatedControl === null ? undefined : this.#namedControls.get(namedControlKey(pinType.type, annotatedControl));
     if (annotatedListed !== undefined) return { kind: "element", listed: annotatedListed, chosen_by: "annotation", because: null };
     const missingControl = annotatedControl === null ? null : `No control named ${annotatedControl} is registered for an input of type ${typeWords}`;
+    const slider = statesBothEndsOfItsRange(declaration.annotations) ? this.#namedControls.get(studioSliderKey(pinType.type)) : undefined;
+    if (slider !== undefined) {
+      return { kind: "element", listed: slider, chosen_by: "stated_range", because: missingControl === null ? null : `${missingControl}; its range's slider draws it.` };
+    }
     const typeDefault = this.#typeDefaults.get(pinType.type);
     if (typeDefault !== undefined) {
       return { kind: "element", listed: typeDefault, chosen_by: "type_default", because: missingControl === null ? null : `${missingControl}; its type's default draws it.` };

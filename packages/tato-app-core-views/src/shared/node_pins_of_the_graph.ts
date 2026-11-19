@@ -12,10 +12,14 @@ export function descriptionWords(description: string | undefined): string | null
   return description === undefined || description.trim() === "" ? null : description.trim();
 }
 
-const portDescription = (ports: readonly NodeCatalogPort[] | undefined, portName: string): string | null => descriptionWords(ports?.find((port) => port.name === portName)?.description);
+/** What a node type's catalog says and annotates of its port `portName`: its description, `null` for none, and its annotations, empty for none. */
+function catalogWordsOfThePort(ports: readonly NodeCatalogPort[] | undefined, portName: string): Pick<NodePin, "description" | "annotations"> {
+  const port = ports?.find((catalogPort) => catalogPort.name === portName);
+  return { description: descriptionWords(port?.description), annotations: port?.annotations ?? {} };
+}
 
 /**
- * The inputs of `node` in `graph`, each described as `catalogEntry` describes its port, with the stream facts it receives,
+ * The inputs of `node` in `graph`, each described and annotated as `catalogEntry` describes its port, with the stream facts it receives,
  * and addressed at `valuesAt`, the level of the graph it is at, where it holds a value of its own; a link renders on every
  * input it feeds, so an input the runtime reads from a wire is addressed by none, and `null` addresses none.
  */
@@ -24,19 +28,19 @@ export function nodeInputs(graph: StreamGraphSummary, node: StreamGraphNode, cat
     name: port.name,
     pin: port.pin,
     family: port.family,
-    description: portDescription(catalogEntry?.inputs, port.name),
+    ...catalogWordsOfThePort(catalogEntry?.inputs, port.name),
     stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)),
     value_address: valueAddressOfTheInput(valuesAt, node.id, port),
   }));
 }
 
-/** The outputs of `node`, each described as `catalogEntry` describes its port, with the stream facts it states. */
+/** The outputs of `node`, each described and annotated as `catalogEntry` describes its port, with the stream facts it states. */
 export function nodeOutputs(node: StreamGraphNode, catalogEntry: NodeCatalogEntry | undefined): NodePin[] {
   return node.output_ports.map((port) => ({
     name: port.name,
     pin: port.pin,
     family: port.family,
-    description: portDescription(catalogEntry?.outputs, port.name),
+    ...catalogWordsOfThePort(catalogEntry?.outputs, port.name),
     stream_facts_words: portStreamFactsWords(port),
     value_address: null,
   }));

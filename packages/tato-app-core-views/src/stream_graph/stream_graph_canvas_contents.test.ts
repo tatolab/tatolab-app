@@ -55,15 +55,15 @@ const GRAPH: StreamGraphSummary = {
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_types_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH, null).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, stream_facts_words: ["29.97 fps"], value_address: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
+    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
     {
       node_id: "invert",
       title: "invert",
       type_name: "Effect",
       description: null,
       condition: { look: "healthy" },
-      inputs: [{ name: "video_in", pin: null, family: "image", description: null, stream_facts_words: ["29.97 fps"], value_address: null }],
-      outputs: [{ name: "video_out", pin: null, family: null, description: null, stream_facts_words: [], value_address: null }],
+      inputs: [{ name: "video_in", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null }],
+      outputs: [{ name: "video_out", pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null }],
       saved_position: null,
       frame_id: null,
       is_collapsed: false,
@@ -169,8 +169,8 @@ test("a card and its pins carry their node type's descriptions from the stream's
         description: "Inverts each frame's colours.",
         category: null,
         config_schema: null,
-        inputs: [{ name: "video_in", description: "The frames to invert.", family: "image", pin: null, input_mode: null }],
-        outputs: [{ name: "video_out", description: "  ", family: "image", pin: null, input_mode: null }],
+        inputs: [{ name: "video_in", description: "The frames to invert.", family: "image", pin: null, input_mode: null, annotations: {} }],
+        outputs: [{ name: "video_out", description: "  ", family: "image", pin: null, input_mode: null, annotations: {} }],
       },
     ],
   };

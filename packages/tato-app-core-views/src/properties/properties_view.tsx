@@ -49,7 +49,6 @@ import type {
   ProjectAssetsReading,
   StreamGraphDeclaredPort,
   StreamGraphNode,
-  StreamGraphPortPin,
   StreamGraphReading,
   StreamGraphSummary,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
@@ -517,7 +516,7 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
       }
       unlinkedValue={
         state.kind === "holds_a_value" ? (
-          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} pin={pin.pin} address={state.address} />
+          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} nodePin={pin} address={state.address} />
         ) : state.kind === "wired_from_outside_the_level" ? (
           <span className="text-fg-3" data-properties-input-wired-from-outside-the-level>
             Wired
@@ -533,15 +532,15 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
  * words while that control loads, and the panel's own field where the table has no control for it. Under it, the store's
  * refusal of the last value sent to it.
  */
-function ValueOfTheUnwiredInput({ fieldId, pin, address }: { fieldId: string; pin: StreamGraphPortPin | null; address: InputAddress }) {
-  const controlled = takesAControl({ name: address.input, pin, value_address: address });
+function ValueOfTheUnwiredInput({ fieldId, nodePin, address }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations">; address: InputAddress }) {
+  const controlled = takesAControl({ name: address.input, pin: nodePin.pin, annotations: nodePin.annotations, value_address: address });
   const ownField = <OwnFieldOfTheInput fieldId={fieldId} address={address} />;
   return (
     <div className="flex w-full min-w-0 flex-col gap-1">
       {controlled === null ? (
         ownField
       ) : (
-        <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={<InputValueWords address={address} pinType={pin?.pin_type ?? null} data-properties-input-value-words={address.input} />} noControl={ownField} className="w-full" />
+        <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={<InputValueWords address={address} pinType={nodePin.pin?.pin_type ?? null} data-properties-input-value-words={address.input} />} noControl={ownField} className="w-full" />
       )}
       <RefusalOfTheInputsValue address={address} />
     </div>
