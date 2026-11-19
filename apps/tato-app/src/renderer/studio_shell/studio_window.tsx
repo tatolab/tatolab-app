@@ -312,7 +312,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
             {presentPlatform(platform).hasOverlayTitleBar && (
               // macOS's overlay title bar draws no title of its own, so the row names the project, set apart from the window buttons and the tabs; Linux's window title bar shows it.
               <>
-                <p className="flex max-w-60 shrink-0 items-center pr-3 pl-3 text-xs font-medium text-fg-2" data-studio-window-title="">
+                <p className="flex max-w-60 shrink-0 items-center px-3 text-xs font-medium text-fg-2" data-studio-window-title="">
                   <span className="truncate">{openProjectTitleInTheTitleRow(openProject)}</span>
                 </p>
                 <ToolbarDivider />
