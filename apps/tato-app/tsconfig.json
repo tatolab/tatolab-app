@@ -1,5 +1,5 @@
 {
   "files": [],
-  "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.web.json" }],
+  "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.web.json" }, { "path": "./tsconfig.mock_studio_view.json" }],
   "compilerOptions": { "paths": { "@/*": ["./src/renderer/*"] } }
 }
