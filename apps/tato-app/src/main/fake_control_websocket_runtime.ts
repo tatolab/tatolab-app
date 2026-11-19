@@ -1,6 +1,7 @@
 // Tests' stand-in for the runtime's `/control/ws`: a Unix socket that upgrades each connection, answers
 // `discover` as a runtime of the asked-for age does, and every later call as the test says, and any
-// other request, `/health` or `POST /control`, as the test says too. Never imported by shipped code.
+// other request, `/health` or `POST /control`, as the test says too. The Linux rung's local API
+// stand-in (scripts/verify/linux-stand-ins/) serves through it too. Never imported by shipped code.
 
 import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -77,14 +78,18 @@ export async function fakeControlWebSocketRuntime(
   {
     answersTheClose = true,
     answerHttpRequest = () => null,
+    listenAt,
   }: {
     answersTheClose?: boolean;
+    /** The socket to listen on, replacing any file already there; by default one in a fresh temporary folder, removed on `close`. */
+    listenAt?: string;
     /** The raw response to any other request than the upgrade, read whole, as `/health` or `POST /control`; `null` closes it unanswered. */
     answerHttpRequest?: (request: string) => Buffer | null;
   } = {},
 ): Promise<FakeControlWebSocketRuntime> {
-  const socketDirectory = await mkdtemp("/tmp/tl-app-");
-  const localApiSocketPath = path.join(socketDirectory, "local-api.sock");
+  const socketDirectory = listenAt === undefined ? await mkdtemp("/tmp/tl-app-") : null;
+  const localApiSocketPath = listenAt ?? path.join(socketDirectory ?? "", "local-api.sock");
+  if (listenAt !== undefined) await rm(listenAt, { force: true });
   const upgradeRequestsRead: string[] = [];
   const callsRead: Record<string, unknown>[] = [];
   const connectionsOpen: net.Socket[] = [];
@@ -148,7 +153,7 @@ export async function fakeControlWebSocketRuntime(
     close: async () => {
       for (const connection of connectionsOpen) connection.destroy();
       await new Promise<void>((closed) => server.close(() => closed()));
-      await rm(socketDirectory, { recursive: true, force: true });
+      await rm(socketDirectory ?? localApiSocketPath, { recursive: true, force: true });
     },
   };
 }
