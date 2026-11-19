@@ -18,9 +18,41 @@
   background: var(--studio-graph-card);
   box-shadow: var(--studio-graph-card-shadow);
 }
+/* A card's header is tinted in its kind's colour, and leads with a square of that colour holding the kind's icon, as
+   Blender and Unreal colour a node's header by its kind; the pins keep the loudest colours. Each tint keeps the title,
+   the type and the language tag at AA against it. The keys are NodeGraphCardKind's looks. */
+.node-graph-card-header[data-kind="process"] { --node-graph-kind-colour: var(--studio-graph-kind-process); }
+.node-graph-card-header[data-kind="shader"] { --node-graph-kind-colour: var(--studio-graph-kind-shader); }
+.node-graph-card-header[data-kind="function"] { --node-graph-kind-colour: var(--studio-graph-kind-function); }
+.node-graph-card-header[data-kind="subgraph"] { --node-graph-kind-colour: var(--studio-graph-kind-subgraph); }
+.node-graph-card-header[data-kind="placed_stream"] { --node-graph-kind-colour: var(--studio-graph-kind-placed-stream); }
+.node-graph-card-header[data-kind="unknown"] { --node-graph-kind-colour: var(--studio-graph-kind-unknown); }
 .node-graph-card-header {
+  border-bottom: 1px solid color-mix(in srgb, var(--node-graph-kind-colour) 45%, var(--studio-graph-card));
   border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
-  background: var(--studio-graph-card-header);
+  background: color-mix(in srgb, var(--node-graph-kind-colour) 22%, var(--studio-graph-card));
+}
+.node-graph-card[data-collapsed] .node-graph-card-header { border-bottom-color: transparent; border-radius: calc(var(--radius-lg) - 1px); }
+.node-graph-card-kind-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--node-graph-kind-colour);
+  color: var(--studio-graph-kind-mark-ink);
+}
+.node-graph-card-kind-mark-letters { font-family: var(--font-mono); font-size: 10px; font-style: italic; font-weight: 600; line-height: 1; letter-spacing: -0.04em; }
+.node-graph-card-type { color: color-mix(in srgb, var(--node-graph-kind-colour) 45%, var(--fg)); }
+.node-graph-card-language-tag {
+  padding: 0 4px;
+  border: 1px solid color-mix(in srgb, var(--node-graph-kind-colour) 45%, var(--studio-graph-card));
+  border-radius: 3px;
+  color: color-mix(in srgb, var(--node-graph-kind-colour) 45%, var(--fg));
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 13px;
 }
 .node-graph-card[data-condition="failed"] { border-color: var(--danger); }
 .node-graph-card[data-condition="not_ready"] { border-color: var(--warn); }

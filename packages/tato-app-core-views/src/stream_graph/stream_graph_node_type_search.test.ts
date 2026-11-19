@@ -163,9 +163,21 @@ test("a_previewed_pin_shows_the_type_its_node_type_states_exactly_and_none_where
   expect(previewCard?.outputs.map((pin) => pin.pin)).toEqual([null]);
 });
 
+test("a_previewed_card_shows_how_its_node_types_code_runs_and_no_language_its_description_does_not_name", () => {
+  const ofKind = (kind: NodeTypeDescription["kind"]) => nodeTypeSearchPreviewCard(offered({ ...BLUR, kind }), BLUR.node_type)?.kind;
+  expect([ofKind("process"), ofKind("shader"), ofKind("function"), ofKind(null), ofKind(undefined)]).toEqual([
+    { look: "process" },
+    { look: "shader" },
+    { look: "function", language: null },
+    { look: "unknown" },
+    { look: "unknown" },
+  ]);
+});
+
 test("a_node_type_is_previewed_as_its_card_titled_in_words_with_its_pins_and_a_graph_generator_as_nothing", () => {
   expect(nodeTypeSearchPreviewCard(offered(BLUR, METER), "nodes.blur:GaussianBlur")).toEqual({
     title: "Gaussian Blur",
+    kind: { look: "unknown" },
     inputs: [{ name: "video_in", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null }],
     outputs: [{ name: "video_out", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null }],
   });

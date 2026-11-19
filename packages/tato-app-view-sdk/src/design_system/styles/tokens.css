@@ -172,7 +172,6 @@
   --studio-graph-grid: #26262a;
   --studio-graph-tools: rgba(22, 22, 24, 0.92);
   --studio-graph-card: #2a2a2e;
-  --studio-graph-card-header: #333338;
   --studio-graph-card-line: #3a3a40;
   --studio-graph-card-selected: #f0f0f2;
   --studio-graph-pin: #9a9aa3;
@@ -181,6 +180,13 @@
   --studio-graph-note-line: #4a4532;
   --studio-graph-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   --studio-graph-frame: #9a9aa3;
+  --studio-graph-kind-process: #2fd6a0;
+  --studio-graph-kind-shader: #ff3d8b;
+  --studio-graph-kind-function: #7c9bff;
+  --studio-graph-kind-subgraph: #a58bff;
+  --studio-graph-kind-placed-stream: #ffd60a;
+  --studio-graph-kind-unknown: #9a9aa3;
+  --studio-graph-kind-mark-ink: #14101f;
   --studio-family-image: #6f9bff;
   --studio-family-array: #f0a845;
   --studio-family-channels: #3fcf8e;

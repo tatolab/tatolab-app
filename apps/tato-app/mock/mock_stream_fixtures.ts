@@ -9,6 +9,7 @@ import type {
   ProjectLogRecord,
   StreamGraphGroup,
   StreamGraphInputValueRead,
+  StreamGraphNode,
   StreamGraphNodeKind,
   StreamGraphNodeStudioFields,
   StreamGraphNote,
@@ -134,6 +135,8 @@ export interface MockGraphNode {
   type: string;
   /** How its code runs; a subgraph is a `fragment` and every other node a `process` when absent. */
   kind?: StreamGraphNodeKind;
+  /** The language a `function` node is written in; absent on every other kind. */
+  language?: NonNullable<StreamGraphNode["language"]>;
   /** `null` for an interface node, which runs nothing and so reads no state. */
   state: string | null;
   /** Why it failed, in the runtime's words, while `state` reads `Error`. */
@@ -335,6 +338,7 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
   {
     name: "invertingeffect",
     type: "nodes.inverting_effect:InvertingEffect",
+    kind: "shader",
     state: "Running",
     config: {},
     input_defaults: { amount: 1 },
@@ -352,6 +356,8 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
   {
     name: "brightnessmeter",
     type: "nodes.brightness_meter:BrightnessMeter",
+    kind: "function",
+    language: "python",
     state: "Running",
     config: {},
     input_ports: portsStatingNoStreamFacts("image", "video_from_upstream"),
