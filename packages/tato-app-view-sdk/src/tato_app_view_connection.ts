@@ -8,6 +8,8 @@ import type {
   JsonValue,
   LinkCandidatesChecking,
   ListedStreamsReading,
+  MarketplaceModuleAdding,
+  MarketplaceReading,
   ProjectNodeTypesDescribedReading,
   OpenProjectReading,
   PortViewerTarget,
@@ -152,8 +154,12 @@ export interface TatoAppViewConnection {
   watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** Show the view type `viewTypeId` in area `areaId` of the layout, in place of what it shows. */
   showViewTypeInArea(viewTypeId: string, areaId: string): Promise<ViewAskDone>;
-  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
-  openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewAskDone>;
+  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it; on the page of the Marketplace entry `page` names, by the catalog's name for it, when given. */
+  openModulesAndMarketplace(shows: ModulesAndMarketplaceSection, page?: string): Promise<ViewAskDone>;
+  /** The Marketplace's packages and samples in its catalog's order, as the catalog lists them now, or why it was not read. */
+  readTheMarketplace(): Promise<MarketplaceReading>;
+  /** Download the Marketplace's package `name`, by the catalog's name for it, and add it to the open project as a module under `imports/`, or why it was not, in the words of what refused. */
+  addFromTheMarketplace(name: string): Promise<MarketplaceModuleAdding>;
   /** Ask the person for files in the desktop's open dialog, offering the files of `media` (`null` for any), and import each into the project, where the runtime places it in its kind's folder under its own name, numbered past a name already taken. */
   importAssetsIntoTheProject(projectFolder: string, media: readonly string[] | null): Promise<ProjectAssetsImporting>;
   /** Put the asset `asset` of the project at `toPath`, `/`-separated in the project, renaming it, moving it or both, by the person editing; refused in the runtime's own words, as for a path another asset takes. */
@@ -352,7 +358,17 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       deleteAssetFromTheProject: (projectFolder, asset) => ask({ kind: "delete_asset_from_the_project", project_folder: projectFolder, asset }).then(doneOf),
       recoverTheProjectsStreams: (projectFolder, recovery) => ask({ kind: "recover_the_projects_streams", project_folder: projectFolder, recovery }).then(doneOf),
       showViewTypeInArea: (viewTypeId, areaId) => ask({ kind: "show_view_type_in_area", view_type_id: viewTypeId, area_id: areaId }).then(doneOf),
-      openModulesAndMarketplace: (shows) => ask({ kind: "open_modules_and_marketplace", shows }).then(doneOf),
+      openModulesAndMarketplace: (shows, page) => ask({ kind: "open_modules_and_marketplace", shows, ...(page === undefined ? {} : { page }) }).then(doneOf),
+      readTheMarketplace: () =>
+        ask({ kind: "read_the_marketplace" }).then((answer): MarketplaceReading => {
+          if (answer.kind === "marketplace_read") return { kind: "read", entries: answer.entries };
+          return { kind: "not_read", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
+      addFromTheMarketplace: (name) =>
+        ask({ kind: "add_from_the_marketplace", name }).then((answer): MarketplaceModuleAdding => {
+          if (answer.kind === "marketplace_module_added") return { kind: "added", folder: answer.folder };
+          return { kind: "not_added", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
       pickAProjectAsset: (pick) =>
         ask({ kind: "pick_a_project_asset", pick }).then((answer): ProjectAssetPickEnding => {
           if (answer.kind === "project_asset_chosen") return { kind: "chosen", asset: answer.asset };

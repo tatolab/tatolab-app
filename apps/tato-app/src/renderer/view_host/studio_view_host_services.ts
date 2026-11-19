@@ -1,11 +1,11 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { ProjectLogReadings } from "./project_log_readings";
 import type { ProjectListingReadingsWhileWatched } from "./project_listing_readings_while_watched";
-import type { AssetPreviewPicture, AssetPreviewReading, ProjectAssetListing } from "../../shared/tatolab_backend_contract";
+import type { AssetPreviewPicture, AssetPreviewReading, PackageCatalogReading, ProjectAssetListing } from "../../shared/tatolab_backend_contract";
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
-import type { ProjectStreamsRecovery } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { MarketplaceModuleAdding, MarketplaceReading, ProjectStreamsRecovery } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { AreasForAViewTypeInTheWindow, ListedStreamsReading, OpenProjectReading, StopWatching, ProjectAssetChanging, ProjectStreamsRecovering, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, StudioViewsReading, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphReadings } from "./stream_graph_readings";
 import type { ProjectNodeTypesDescribedReadings } from "./project_node_types_described_readings";
@@ -33,7 +33,7 @@ export interface StudioWindowValuesServedToViews {
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
 export interface StudioViewHostProjectServices {
-  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "openModuleManagerWindow" | "stopOpenProject" | "runOpenProject" | "reloadProject">;
+  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "openModuleManagerWindow" | "readPackageCatalog" | "importFromTheMarketplace" | "stopOpenProject" | "runOpenProject" | "reloadProject">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypesDescribedReadings: ProjectNodeTypesDescribedReadings;
   projectAssetReadings: ProjectListingReadingsWhileWatched<ProjectAssetListing>;
@@ -44,6 +44,22 @@ export interface StudioViewHostProjectServices {
   watchStudioViews(listener: (reading: StudioViewsReading) => void): StopWatching;
   /** The node UI elements every view's control table picks from, once listed and again on each change. */
   watchNodeUiElements(listener: (reading: NodeUiElementsReading) => void): StopWatching;
+}
+
+/** The catalog as a view reads the Marketplace: each entry's kind, name, title, summary, nodes and whether it runs on this machine, or why the catalog was not read. */
+function marketplaceReadingOfTheCatalog(catalog: PackageCatalogReading): MarketplaceReading {
+  if (catalog.kind === "not_read") return catalog;
+  return {
+    kind: "read",
+    entries: catalog.entries.map((entry) => ({
+      kind: entry.kind,
+      name: entry.name,
+      title: entry.title,
+      summary: entry.summary,
+      nodes: entry.nodes.map((node) => ({ name: node.name, summary: node.summary })),
+      runs_on_this_machine: entry.runs_on_this_machine,
+    })),
+  };
 }
 
 /** Why a view naming a folder other than the window's open project imports nothing into it. */
@@ -218,10 +234,16 @@ export function studioViewHostServicesOf(
     readAssetPreviewInTheProject: (projectFolder, asset) => readAnAssetPreviewOfTheOpenProjectForAView(projectFolder, sources.openProject.readLatest, () => backend.readAssetPreviewOfTheOpenProject(asset)),
     deleteAssetFromTheProject: (projectFolder, asset) => changeAnAssetOfTheOpenProjectForAView(projectFolder, assetChangeSources, () => backend.deleteAssetFromTheOpenProject(asset)),
     recoverTheProjectsStreams: (projectFolder, recovery) => recoverTheOpenProjectsStreamsForAView(projectFolder, recovery, { readTheOpenProject: sources.openProject.readLatest, readTheListedStreams: sources.listedStreams.readLatest, backend }),
-    openModulesAndMarketplace: (shows) =>
-      backend.openModuleManagerWindow(shows).then(
+    openModulesAndMarketplace: (shows, page) =>
+      backend.openModuleManagerWindow({ shows, page }).then(
         (): ViewOpening => ({ kind: "opened" }),
         (rejection: unknown): ViewOpening => ({ kind: "not_opened", because: describeBackendRejection(rejection) }),
+      ),
+    readTheMarketplace: () => backend.readPackageCatalog().then(marketplaceReadingOfTheCatalog),
+    addFromTheMarketplace: (name) =>
+      backend.importFromTheMarketplace(name).then(
+        (added): MarketplaceModuleAdding => ({ kind: "added", folder: added.folder }),
+        (rejection: unknown): MarketplaceModuleAdding => ({ kind: "not_added", because: describeBackendRejection(rejection) }),
       ),
     watchProjectTransactions: projectServices.projectTransactionsReadings.watchProjectTransactions,
     undoInTheProject: projectServices.projectTransactionsReadings.undoInTheProject,

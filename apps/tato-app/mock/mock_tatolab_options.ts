@@ -6,7 +6,7 @@ import { mockReplayedRefusalNamed, type MockReplayedRefusal } from "./mock_repla
 import { mockOpenProjectScenarioNamed, type MockOpenProjectScenario } from "./mock_open_project";
 import { mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import type { MockAssetImportScenario } from "./mock_project_assets";
-import { isModulesShown, type ModulesShown } from "../src/shared/tatolab_electron_bridge_contract";
+import { isModulesShown, type ModuleManagerSectionAsked } from "../src/shared/tatolab_electron_bridge_contract";
 import type {
   PoppedOutView,
   TatolabAppBuild,
@@ -156,8 +156,8 @@ export interface MockTatolabOptions {
   poppedOutView: PoppedOutView | null;
   /** `?module_manager=open|edited_files|newer`: the page is the open project's Modules and Marketplace window, as File › Marketplace… or Modules… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
   moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
-  /** `?module_manager_section=added_to_this_project|marketplace`: the section a Modules and Marketplace window's page opens on, Marketplace when the query names none. */
-  moduleManagerSectionOpenedOn: ModulesShown;
+  /** `?module_manager_section=added_to_this_project|marketplace`: the section a Modules and Marketplace window's page opens on, Marketplace when the query names none; with `?module_manager_entry=<catalog name>`, the page of that Marketplace entry, as the node search's See it asks. */
+  moduleManagerSectionOpenedOn: ModuleManagerSectionAsked;
   /** `?catalog=unserved`: get.tatolab.com answers the catalog with a 404; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
   /** `?marketplace_add=refused|never_ends`: adding a Marketplace package, or cloning a sample, is refused with a download whose SHA-256 is not the catalog's, or never answers, so its progress stays; it succeeds by default. */
@@ -190,9 +190,12 @@ export const MODULE_MANAGER_QUERY_PARAMETER = "module_manager";
 /** The query parameter naming the section a Module manager window's page opens on. */
 export const MODULE_MANAGER_SECTION_QUERY_PARAMETER = "module_manager_section";
 
-/** The Modules and Marketplace section `sectionName` names; Marketplace for none or an unknown one. */
-function moduleManagerSectionNamed(sectionName: string | null): ModulesShown {
-  return isModulesShown(sectionName) ? sectionName : "marketplace";
+/** The query parameter naming the Marketplace entry, by the catalog's name for it, whose page a Module manager window's page opens on. */
+export const MODULE_MANAGER_ENTRY_QUERY_PARAMETER = "module_manager_entry";
+
+/** The Modules and Marketplace section `sectionName` names, Marketplace for none or an unknown one, on the page of the entry `entryName` names. */
+function moduleManagerSectionNamed(sectionName: string | null, entryName: string | null): ModuleManagerSectionAsked {
+  return { shows: isModulesShown(sectionName) ? sectionName : "marketplace", page: entryName };
 }
 
 /** The query parameter a popped-out view's page carries what it is in, as JSON. */
@@ -299,7 +302,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     assetImportScenario: pageQuery.get("asset_import") === "refuses_one" ? "refuses_one" : "imports_one",
     poppedOutView: mockPoppedOutViewFrom(pageQuery.get(POPPED_OUT_VIEW_QUERY_PARAMETER)),
     moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),
-    moduleManagerSectionOpenedOn: moduleManagerSectionNamed(pageQuery.get(MODULE_MANAGER_SECTION_QUERY_PARAMETER)),
+    moduleManagerSectionOpenedOn: moduleManagerSectionNamed(pageQuery.get(MODULE_MANAGER_SECTION_QUERY_PARAMETER), pageQuery.get(MODULE_MANAGER_ENTRY_QUERY_PARAMETER)),
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
     marketplaceAddScenario: pageQuery.get("marketplace_add") === "refused" ? "refused" : pageQuery.get("marketplace_add") === "never_ends" ? "never_ends" : "succeeds",
     isRemovingAModuleRefused: pageQuery.get("module_remove") === "refused",

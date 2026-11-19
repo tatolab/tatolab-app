@@ -168,6 +168,10 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
     }),
     Layer.succeed(ModuleManagerWindows, {
       workspaceFolderOfTheWindow: () => Effect.fail(new CommandRefused({ words: "Only a Module manager window imports into a project." })),
+      projectFolderOfAWindowOfTheProject: (commandFromWindow) =>
+        commandFromWindow.windowContentsId === studioWindow.windowContentsId
+          ? Effect.succeed(studioWindow.projectFolder)
+          : Effect.fail(new CommandRefused({ words: "Only a project's studio window, a view popped out of it, or its Module manager window imports into the project." })),
       chooseDependencySource: () => Effect.succeed(null),
     }),
     Layer.succeed(PackageCatalog, {

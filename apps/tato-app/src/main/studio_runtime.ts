@@ -30,6 +30,7 @@ import { failedWith, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import type { TatolabAppLog, TatolabAppLogFields, TatolabAppLogLevel } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
+import type { StudioWindowOfAProject } from "./tatolab_app_windows.js";
 import { studioWindowTheCommandCameFrom, type TatolabCommandFromWindow } from "./tatolab_command_answers.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
@@ -139,6 +140,8 @@ export class ModuleManagerWindows extends Context.Service<
   {
     /** The folder of the project the Module manager window a command came from imports into; refused in any other window. */
     readonly workspaceFolderOfTheWindow: (commandFromWindow: TatolabCommandFromWindow) => Effect.Effect<string, CommandRefused>;
+    /** The folder of the project the window a command came from belongs to: its studio window, a view popped out of it, or its Module manager window; refused in any other window. */
+    readonly projectFolderOfAWindowOfTheProject: (commandFromWindow: TatolabCommandFromWindow) => Effect.Effect<string, CommandRefused>;
     /** The desktop's open dialog for a project's folder or `.zip`, opened at `defaultFolder`; `null` when the person cancels. */
     readonly chooseDependencySource: (sourceKind: DependencySourceKind, defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
   }
@@ -263,6 +266,11 @@ export class ProjectLogsFollowed extends Context.Service<ProjectLogsFollowed, Pr
 
 /** A window that follows the runtime's pushes: told each change of a stream graph and each project log record it follows. */
 export type WindowFollowingTheRuntime = WindowFollowingStreamGraphs & WindowFollowingProjectLogs;
+
+/** The folder of the project `studioWindow` shows, refused in `words` where no window was found. */
+function projectFolderOrRefusal(studioWindow: StudioWindowOfAProject | null, words: string): Effect.Effect<string, CommandRefused> {
+  return studioWindow === null ? Effect.fail(new CommandRefused({ words })) : Effect.succeed(studioWindow.openProject.projectFolder);
+}
 
 /** The stream graphs and project logs the windows follow, over the runtime's connections while the layer's scope is open. */
 export function runtimePushesFollowedLayerOver(runtimeControl: Layer.Layer<RuntimeControl>, tatolabAppLog: TatolabAppLog): Layer.Layer<StreamGraphsFollowed | ProjectLogsFollowed> {
@@ -464,7 +472,12 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
     Layer.succeed(ModuleManagerWindows, {
       workspaceFolderOfTheWindow: (commandFromWindow) => {
         const studioWindow = sharedState.appWindows.studioWindowOfTheModuleManagerWindowWithContents(commandFromWindow.windowContentsId);
-        return studioWindow === null ? Effect.fail(new CommandRefused({ words: "Only a Module manager window imports into a project." })) : Effect.succeed(studioWindow.openProject.projectFolder);
+        return projectFolderOrRefusal(studioWindow, "Only a Module manager window imports into a project.");
+      },
+      projectFolderOfAWindowOfTheProject: (commandFromWindow) => {
+        const studioWindow =
+          sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId) ?? sharedState.appWindows.studioWindowOfTheModuleManagerWindowWithContents(commandFromWindow.windowContentsId);
+        return projectFolderOrRefusal(studioWindow, "Only a project's studio window, a view popped out of it, or its Module manager window imports into the project.");
       },
       chooseDependencySource: (sourceKind, defaultFolder) => commandAnswerOfPlainCode(() => sharedState.dependencySourceDialog(sourceKind, defaultFolder)),
     }),

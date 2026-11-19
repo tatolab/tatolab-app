@@ -32,7 +32,7 @@ describe("Module manager", () => {
       } satisfies FakeProjectFile),
     );
     await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
-    await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "marketplace" }, 2);
+    await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "marketplace", page: null }, 2);
     return { fakeShell, nightShowFolder, lobbyWallFolder };
   }
 
@@ -48,43 +48,50 @@ describe("Module manager", () => {
     );
     expect(await fakeShell.invokeTheCommand("read_module_manager_workspace", undefined, 3)).toMatchObject({ ok: true, value: { kind: "read", open_project: { project: { name: "night-show" } } } });
     expect(await fakeShell.invokeTheCommand("read_module_manager_workspace", undefined, 2)).toEqual({ ok: true, value: null });
-    expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "marketplace" })).toEqual({ ok: false, refusal: "Only a project's studio window opens Module manager." });
+    expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "marketplace", page: null })).toEqual({ ok: false, refusal: "Only a project's studio window, or a view popped out of it, opens Module manager." });
     expect(await fakeShell.invokeTheCommand("open_module_manager_window", undefined, 2)).toEqual({
       ok: false,
-      refusal: "open_module_manager_window needs `shows`, one of added_to_this_project, marketplace.",
+      refusal: "open_module_manager_window needs `shows`, one of added_to_this_project, marketplace, and `page`, a catalog entry's name or null.",
     });
 
     fakeShell.forgetTheRecords();
-    await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "marketplace" }, 2);
+    await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "marketplace", page: null }, 2);
     expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
 
     expect(fakeShell.requestTheCloseOfTheWindow(2)).toBe("let_it_close");
     expect(fakeShell.studioWindowsOpen()).toEqual([]);
   });
 
-  test("answers the section it opened on, and asked again from the studio window comes forward and is told the section asked", async () => {
+  test("answers the section it opened on, and asked again from the studio window comes forward and is told the section, and page, asked", async () => {
     const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
 
-    expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: "marketplace" });
+    expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: { shows: "marketplace", page: null } });
     expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 2)).toEqual({ ok: true, value: null });
 
     fakeShell.forgetTheRecords();
-    expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "added_to_this_project" }, 2)).toEqual({ ok: true, value: null });
+    expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "added_to_this_project", page: null }, 2)).toEqual({ ok: true, value: null });
     expect(fakeShell.records).toContainEqual(
-      expect.objectContaining({ asked: "send_window_event", eventChannel: "tatolab-module-manager-section-asked", eventPayload: { shows: "added_to_this_project" }, windowContentsId: 3 }),
+      expect.objectContaining({ asked: "send_window_event", eventChannel: "tatolab-module-manager-section-asked", eventPayload: { shows: "added_to_this_project", page: null }, windowContentsId: 3 }),
     );
     expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
-    expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: "added_to_this_project" });
+    expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: { shows: "added_to_this_project", page: null } });
+
+    expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "marketplace", page: "camera-halftone" }, 2)).toEqual({ ok: true, value: null });
+    expect(fakeShell.records).toContainEqual(
+      expect.objectContaining({ asked: "send_window_event", eventChannel: "tatolab-module-manager-section-asked", eventPayload: { shows: "marketplace", page: "camera-halftone" }, windowContentsId: 3 }),
+    );
+    expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: { shows: "marketplace", page: "camera-halftone" } });
+    expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "marketplace", page: 7 }, 2)).toMatchObject({ ok: false });
   });
 
   test("closed and opened again on another section, answers that section", async () => {
     const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
 
     expect(fakeShell.requestTheCloseOfTheWindow(3)).toBe("let_it_close");
-    expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "added_to_this_project" }, 2)).toEqual({ ok: true, value: null });
+    expect(await fakeShell.invokeTheCommand("open_module_manager_window", { shows: "added_to_this_project", page: null }, 2)).toEqual({ ok: true, value: null });
     const reopenedWindow = fakeShell.studioWindowsOpen().find(({ title }) => title === "Modules and Marketplace · night-show") ?? expect.unreachable("no Modules and Marketplace window");
 
-    expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, reopenedWindow.windowContentsId)).toEqual({ ok: true, value: "added_to_this_project" });
+    expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, reopenedWindow.windowContentsId)).toEqual({ ok: true, value: { shows: "added_to_this_project", page: null } });
     expect(await fakeShell.invokeTheCommand("read_module_manager_section_last_asked", undefined, 3)).toEqual({ ok: true, value: null });
   });
 
@@ -236,6 +243,32 @@ describe("Module manager", () => {
       expect(await fakeShell.invokeTheCommand("clone_marketplace_sample", undefined, 3)).toMatchObject({ ok: false, refusal: expect.stringMatching(/^clone_marketplace_sample: /) });
       expect(fakeShell.urlsFetched).not.toContain(HALFTONE_SAMPLE_ZIP_URL);
       expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "Modules and Marketplace · night-show"]);
+    });
+
+    test("a package is added from the project's studio window too, as its node search adds one, and from no other window", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+      serveACatalogOfTheHalftoneSampleAndTheCameraPackage(fakeShell);
+
+      expect(await fakeShell.invokeTheCommand("import_from_the_marketplace", { name: "tatolab-camera" }, 1)).toEqual({
+        ok: false,
+        refusal: "Only a project's studio window, a view popped out of it, or its Module manager window imports into the project.",
+      });
+      expect(fakeShell.urlsFetched).not.toContain(CAMERA_PACKAGE_ZIP_URL);
+      const imported = await fakeShell.invokeTheCommand("import_from_the_marketplace", { name: "tatolab-camera" }, 2);
+      expect(fakeShell.urlsFetched).toContain(CAMERA_PACKAGE_ZIP_URL);
+      // The fake runtime reads a project's file from a folder, never from inside a `.zip`, so it answers the download with add_dependency's refusal.
+      expect(imported).toMatchObject({ ok: false, refusal: expect.stringMatching(/^add_dependency failed: .*tatolab-camera-0\.68\.29\.zip holds no tatolab-project\.json$/) });
+    });
+
+    test("a package is added from a Stream graph popped out of the project's studio window, as its node search adds one", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+      serveACatalogOfTheHalftoneSampleAndTheCameraPackage(fakeShell);
+      expect(await fakeShell.invokeTheCommand("pop_out_view", { view_type_id: "stream_graph", window_title: "main · Stream graph", pinned_to: null }, 2)).toEqual({ ok: true, value: null });
+      const poppedOutWindow = fakeShell.studioWindowsOpen().find(({ title }) => title === "main · Stream graph") ?? expect.unreachable("no popped-out window");
+
+      await fakeShell.invokeTheCommand("import_from_the_marketplace", { name: "tatolab-camera" }, poppedOutWindow.windowContentsId);
+
+      expect(fakeShell.urlsFetched).toContain(CAMERA_PACKAGE_ZIP_URL);
     });
 
     test("a package whose wheels leave this Mac out is refused before it is downloaded, naming the machines it is built for", async () => {

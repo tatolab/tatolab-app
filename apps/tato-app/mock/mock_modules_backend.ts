@@ -1,10 +1,10 @@
 import { mockPackageCatalogEntryNamed, mockPackageCatalogReading } from "./mock_package_catalog";
 import { whyTheModuleBringsNothingOnThisMachine } from "../src/shared/package_catalog_machine_words";
-import { marketplaceDownloadFileNameOf, MODULE_DOWNLOADS_FOLDER_NAME } from "../src/shared/marketplace_module_download_file";
+import { marketplaceDownloadFileNameOf, MODULE_DOWNLOADS_FOLDER_NAME } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 import { mockFirstNameNothingHolds, mockNewProjectsFolder } from "./mock_open_project";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
-import type { PackageCatalogEntry } from "../src/shared/tatolab_backend_contract";
-import { MODULE_MANAGER_QUERY_PARAMETER, MODULE_MANAGER_SECTION_QUERY_PARAMETER, type MockTatolabOptions } from "./mock_tatolab_options";
+import type { PackageCatalogEntry, ProjectDependency } from "../src/shared/tatolab_backend_contract";
+import { MODULE_MANAGER_ENTRY_QUERY_PARAMETER, MODULE_MANAGER_QUERY_PARAMETER, MODULE_MANAGER_SECTION_QUERY_PARAMETER, type MockTatolabOptions } from "./mock_tatolab_options";
 import { MOCK_COMMAND_LATENCY_MILLISECONDS } from "./mock_tatolab_simulation_constants";
 import { mockPageUrlWith, sleep, type MockTatolabSimulation } from "./mock_tatolab_simulation";
 
@@ -19,10 +19,20 @@ function mockMarketplaceDownloadOf(entry: PackageCatalogEntry, scenario: MockTat
 
 /** The mock backend's modules methods over `simulation`. */
 export function mockModulesBackendOf(simulation: MockTatolabSimulation): Pick<TatolabBackend, "openModuleManagerWindow" | "readModuleManagerWorkspace" | "readModuleManagerSectionLastAsked" | "onModuleManagerSectionAsked" | "readPackageCatalog" | "listWorkspaceDependencies" | "chooseDependencySource" | "addDependencyToTheWorkspace" | "updateWorkspaceDependency" | "importFromTheMarketplace" | "removeWorkspaceDependency" | "cloneMarketplaceSample"> {
-  const { fixtures, workspaceDependencies, mockFoldersOnDisk, rememberTheProjectAsOpenedLast, projectFolders, mockTatolabOptions } = simulation;
+  const { fixtures, workspaceDependencies, mockFoldersOnDisk, rememberTheProjectAsOpenedLast, projectFolders, mockTatolabOptions, nodeTypesTheProjectGains, openProjectListeners } = simulation;
+  /** The open project listing `added` among its imports, as the runtime's `list_dependencies` lists a module once its copy is in `imports/`, each window watching it told. */
+  const theOpenProjectTakesTheModule = (added: ProjectDependency, name: string) => {
+    const reading = simulation.openProjectReading;
+    if (reading.kind !== "read") return;
+    const folder = `${reading.open_project.project.folder}/imports/${added.folder}`;
+    const importedProject = { project: added.project, name, folder: added.folder, copied_from: added.source, source: { kind: "folder" as const, project: { folder, project: added.project, name } } };
+    simulation.openProjectReading = { ...reading, open_project: { ...reading.open_project, imports: [...reading.open_project.imports, importedProject] } };
+    for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(simulation.openProjectReading));
+  };
   return {
-    openModuleManagerWindow: async (shows) => {
-      window.open(mockPageUrlWith(mockPageUrlWith(window.location.href, MODULE_MANAGER_QUERY_PARAMETER, "open"), MODULE_MANAGER_SECTION_QUERY_PARAMETER, shows), "_blank");
+    openModuleManagerWindow: async ({ shows, page }) => {
+      const moduleManagerUrl = mockPageUrlWith(mockPageUrlWith(window.location.href, MODULE_MANAGER_QUERY_PARAMETER, "open"), MODULE_MANAGER_SECTION_QUERY_PARAMETER, shows);
+      window.open(page === null ? moduleManagerUrl : mockPageUrlWith(moduleManagerUrl, MODULE_MANAGER_ENTRY_QUERY_PARAMETER, page), "_blank");
     },
     readModuleManagerWorkspace: async () => (mockTatolabOptions.moduleManagerWorkspaceDependencies !== null ? structuredClone(simulation.openProjectReading) : null),
     readModuleManagerSectionLastAsked: async () => (mockTatolabOptions.moduleManagerWorkspaceDependencies !== null ? mockTatolabOptions.moduleManagerSectionOpenedOn : null),
@@ -52,7 +62,10 @@ export function mockModulesBackendOf(simulation: MockTatolabSimulation): Pick<Ta
       if (!entry.runs_on_this_machine && entry.platforms !== null) throw whyTheModuleBringsNothingOnThisMachine(entry.title, entry.platforms);
       await mockMarketplaceDownloadOf(entry, mockTatolabOptions.marketplaceAddScenario);
       const downloadsFolder = `${fixtures.machine.homeDirectory}/Library/Application Support/Tato Studio/${MODULE_DOWNLOADS_FOLDER_NAME}`;
-      return workspaceDependencies.add(`${downloadsFolder}/${marketplaceDownloadFileNameOf(entry.name, entry.version)}`, entry.title);
+      const added = workspaceDependencies.add(`${downloadsFolder}/${marketplaceDownloadFileNameOf(entry.name, entry.version)}`, entry.title);
+      theOpenProjectTakesTheModule(added, entry.title);
+      nodeTypesTheProjectGains.takeTheModule(entry.name, entry.version, entry.nodes);
+      return added;
     },
     removeWorkspaceDependency: async (project) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 4);

@@ -4,7 +4,7 @@
 // Each import's views are those the mock's own project-views listing lists under its folder.
 
 import type { DependencySourceKind, ListedStudioView, ProjectDependency, ViewsOfAWorkspaceDependency, WorkspaceDependency, WorkspaceDependencyUpdate } from "../src/shared/tatolab_backend_contract";
-import { moduleFolderNameOf } from "../src/renderer/studio_shell/module_manager_listing";
+import { moduleFolderNameOf } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 
 /** The state the mock workspace's imports start in. */
 export type MockWorkspaceDependenciesScenario = "copied" | "edited_files" | "newer";

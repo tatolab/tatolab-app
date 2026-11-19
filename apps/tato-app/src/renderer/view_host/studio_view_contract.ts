@@ -29,6 +29,8 @@ import type {
   ThePersonEditingReading,
   CheckLinkCandidatesRequest,
   LinkCandidatesChecking,
+  MarketplaceModuleAdding,
+  MarketplaceReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { AreaForAViewType, ModulesAndMarketplaceSection, PortViewerEvent, ProjectAssetPick, ProjectAssetPickEnding, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 import type { ProjectAssetPickAnswering } from "./project_asset_pick_held_in_the_window";
@@ -149,8 +151,12 @@ export interface StudioViewHostServices {
   watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeInTheWindow) => void): StopWatching;
   /** Area `areaId` of the layout showing `viewTypeId` in place of what it shows. */
   showViewTypeInArea(viewTypeId: string, areaId: string): ViewOpening;
-  /** The open project's Modules and Marketplace window opened on `shows`, or brought forward on it. */
-  openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewOpening>;
+  /** The open project's Modules and Marketplace window opened on `shows`, or brought forward on it, on the page of the Marketplace entry `page` names when it is not `null`. */
+  openModulesAndMarketplace(shows: ModulesAndMarketplaceSection, page: string | null): Promise<ViewOpening>;
+  /** The Marketplace's packages and samples, the catalog read afresh. */
+  readTheMarketplace(): Promise<MarketplaceReading>;
+  /** The Marketplace's package `name` downloaded, checked against the catalog and added to the open project as a module. */
+  addFromTheMarketplace(name: string): Promise<MarketplaceModuleAdding>;
   /** The files the person chooses, the dialog offering those of `media` (`null` for any), imported into `projectFolder`, the open project only. */
   importAssetsIntoTheProject(projectFolder: string, media: readonly string[] | null): Promise<ProjectAssetsImporting>;
   /** Put the asset `asset` of the window's project, when `projectFolder` names it, at `toPath` by the person editing, the project's assets listed again at once; refused for any other folder, or in the runtime's own words. */

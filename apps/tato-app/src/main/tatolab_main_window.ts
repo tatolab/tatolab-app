@@ -17,7 +17,6 @@ import {
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
   TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT,
   type ModuleManagerSectionAsked,
-  type ModulesShown,
   type StreamGraphChanged,
   type ProjectLogRecordsWritten,
   type SystemMenuBarEntryChosen,
@@ -179,9 +178,9 @@ export class TatolabMainWindow implements WindowShowingPortViewers, WindowFollow
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_OPEN_PROJECT_CHANGED_EVENT, reading);
   }
 
-  /** Ask the Module manager window to show `shows` as `tatolab-module-manager-section-asked`; nothing, before the window is first shown, which reads the section last asked when it opens. */
-  askTheWindowToShowTheModuleManagerSection(shows: ModulesShown): void {
-    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT, { shows } satisfies ModuleManagerSectionAsked);
+  /** Ask the Module manager window to show the section, and page, `asked` names as `tatolab-module-manager-section-asked`; nothing, before the window is first shown, which reads the section last asked when it opens. */
+  askTheWindowToShowTheModuleManagerSection(asked: ModuleManagerSectionAsked): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT, asked);
   }
 
   /** Send the window `reading` as `tatolab-project-transactions-changed`; nothing, before the window is first shown, which reads the feed when it opens. */

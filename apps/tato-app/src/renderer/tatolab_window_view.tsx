@@ -241,7 +241,7 @@ export function mountTatolabWindow(
     showTheStreamTabBeside: (direction) => studioWindowModel.showTheStreamTabBeside(direction),
     openModuleManager: (shows) => {
       studioWindowModel.projectOpeningRefusal.publish(null);
-      backend.openModuleManagerWindow(shows).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
+      backend.openModuleManagerWindow({ shows, page: null }).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
     },
   };
   let onChosenByEntryIdOfTheMenusSent: ReadonlyMap<string, () => void> = new Map();
@@ -359,7 +359,7 @@ export function mountTatolabWindow(
         onceRead();
       },
     );
-  backend.onModuleManagerSectionAsked((shows) => studioWindowModel.askTheModuleManagerToShow(shows));
+  backend.onModuleManagerSectionAsked((asked) => studioWindowModel.askTheModuleManagerToShow(asked));
   const whatTheWindowShowsIsRead = Promise.all([
     backend.readPoppedOutView().catch(() => null),
     backend.readModuleManagerWorkspace().catch(() => null),

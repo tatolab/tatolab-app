@@ -51,18 +51,21 @@ export function mockOpenProjectReading(scenario: MockOpenProjectScenario, homeDi
               project: MOCK_CAMERA_IMPORT_PROJECT,
               name: "camera",
               folder: "camera",
+              copied_from: "/home/sam/sources/camera",
               source: { kind: "folder", project: mockProject(`${streamsFolder}/camera`, MOCK_CAMERA_IMPORT_PROJECT, "camera") },
             },
             {
               project: MOCK_LOBBY_RECORDER_IMPORT_PROJECT,
               name: "lobby-recorder",
               folder: "lobby-recorder",
+              copied_from: "/home/sam/sources/lobby-recorder",
               source: { kind: "folder", project: mockProject(`${streamsFolder}/lobby-recorder`, MOCK_LOBBY_RECORDER_IMPORT_PROJECT, "lobby-recorder") },
             },
             {
               project: MOCK_STAGE_LIGHTS_IMPORT_PROJECT,
               name: "stage-lights",
               folder: "stage-lights",
+              copied_from: "/home/sam/sources/stage-lights",
               source: {
                 kind: "folder_unreadable",
                 folder: `${projectFolder}/imports/stage-lights`,

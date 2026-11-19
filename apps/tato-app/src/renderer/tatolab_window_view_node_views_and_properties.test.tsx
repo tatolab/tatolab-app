@@ -2,6 +2,7 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NodeTypeDescription, PoppedOutView } from "../shared/tatolab_backend_contract";
+import type { ModuleManagerSectionAsked } from "../shared/tatolab_electron_bridge_contract";
 import { connectToTatoAppOverPort } from "@tatolab/tato-app-view-sdk";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
@@ -494,8 +495,8 @@ describe("the studio", () => {
   it("opens the Marketplace from the store button beside the node search's field, closing the search", async () => {
     const modulesAndMarketplaceSectionsOpened: string[] = [];
     await mountedWindowOverTheMock("state=running", {
-      openModuleManagerWindow: async (shows) => {
-        modulesAndMarketplaceSectionsOpened.push(shows);
+      openModuleManagerWindow: async (asked) => {
+        modulesAndMarketplaceSectionsOpened.push(asked.shows);
       },
     });
     const streamGraph = coreViewPage("stream_graph", "stream-graph");
@@ -505,6 +506,71 @@ describe("the studio", () => {
 
     fireEvent.click(within(nodeSearch).getByRole("button", { name: "Install modules from marketplace" }));
     await waitFor(() => expect(modulesAndMarketplaceSectionsOpened).toEqual(["marketplace"]));
+    expect(within(streamGraph.body).queryByRole("dialog", { name: "Add a node" })).toBeNull();
+  });
+
+  async function theNodeSearchTyped(streamGraph: Document, typed: string): Promise<HTMLElement> {
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the graph's ribbon")));
+    const nodeSearch = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }));
+    fireEvent.change(within(nodeSearch).getByRole("combobox"), { target: { value: typed } });
+    return nodeSearch;
+  }
+  const CAMERA_SOURCE_FROM_THE_MARKETPLACE = '[data-search-popover-item="marketplace_node:tatolab-camera/CameraSource"]';
+
+  it("offers the nodes of a Marketplace package the project has not added while searching, adds the package when one is chosen, and then offers them as the project's own", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    const nodeSearch = await theNodeSearchTyped(streamGraph, "camera");
+
+    const offered = await waitFor(() => nodeSearch.querySelector<HTMLElement>(CAMERA_SOURCE_FROM_THE_MARKETPLACE) ?? expect.unreachable("Camera Source not offered"));
+    expect(offered.textContent).toContain("In the Camera module");
+    expect([...nodeSearch.querySelectorAll("[data-search-popover-section-heading]")].map((heading) => heading.textContent)).toEqual(["Not in patternMarketplace", "Sample projectsMarketplace"]);
+    fireEvent.click(offered);
+
+    await waitFor(() => expect(nodeSearch.querySelector('[data-search-popover-item="tatolab.camera:CameraSource"]')).not.toBeNull());
+    expect(nodeSearch.querySelector(CAMERA_SOURCE_FROM_THE_MARKETPLACE)).toBeNull();
+    expect(within(streamGraph.body).queryByRole("dialog", { name: "Add a node" })).not.toBeNull();
+  });
+
+  it("says an add of a Marketplace package is under way, adds it once however often it is chosen, and says the runtime's refusal of it", async () => {
+    const entriesAdded: string[] = [];
+    let refuseTheAdd: (() => void) | null = null;
+    await mountedWindowOverTheMock("state=running", {
+      importFromTheMarketplace: (name) => {
+        entriesAdded.push(name);
+        return new Promise((_resolve, reject) => {
+          refuseTheAdd = () => reject("add_dependency failed: tatolab-camera-0.68.29.zip holds no tatolab-project.json");
+        });
+      },
+    });
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    const nodeSearch = await theNodeSearchTyped(streamGraph, "camera");
+    const offered = await waitFor(() => nodeSearch.querySelector<HTMLElement>(CAMERA_SOURCE_FROM_THE_MARKETPLACE) ?? expect.unreachable("Camera Source not offered"));
+
+    fireEvent.click(offered);
+    await waitFor(() => expect(nodeSearch.querySelector(`${CAMERA_SOURCE_FROM_THE_MARKETPLACE} [data-search-popover-item-end="under_way"]`)?.textContent).toBe("Adding module…"));
+    fireEvent.click(offered);
+    expect(entriesAdded).toEqual(["tatolab-camera"]);
+    act(() => refuseTheAdd?.());
+
+    await waitFor(() => expect(nodeSearch.querySelector(`${CAMERA_SOURCE_FROM_THE_MARKETPLACE} [data-search-popover-item-end="refused"]`)?.textContent).toBe("Not added"));
+    expect(streamGraph.body.textContent).toContain("Didn't add Camera to pattern:");
+    expect(streamGraph.body.textContent).toContain("tatolab-camera-0.68.29.zip holds no tatolab-project.json");
+  });
+
+  it("opens a sample project the node search offers on its own page in the Marketplace, closing the search", async () => {
+    const modulesAndMarketplaceAsked: ModuleManagerSectionAsked[] = [];
+    await mountedWindowOverTheMock("state=running", {
+      openModuleManagerWindow: async (asked) => {
+        modulesAndMarketplaceAsked.push(asked);
+      },
+    });
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    const nodeSearch = await theNodeSearchTyped(streamGraph, "halftone");
+
+    fireEvent.click(await waitFor(() => nodeSearch.querySelector<HTMLElement>('[data-search-popover-item="marketplace_sample:camera-halftone"]') ?? expect.unreachable("no sample offered")));
+
+    await waitFor(() => expect(modulesAndMarketplaceAsked).toEqual([{ shows: "marketplace", page: "camera-halftone" }]));
     expect(within(streamGraph.body).queryByRole("dialog", { name: "Add a node" })).toBeNull();
   });
 

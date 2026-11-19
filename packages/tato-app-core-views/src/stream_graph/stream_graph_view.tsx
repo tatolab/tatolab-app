@@ -64,6 +64,8 @@ import { nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../share
 import { levelOfTheSubgraphsSteppedThrough, selectionOfTheSubgraphSteppedOutOf, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly } from "./stream_graph_levels";
 import { linkCandidatesRequestOf, portsALooseWireFits, wireFitsOfTheAnswer } from "./stream_graph_wire_fits";
 import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypeSearchPreviewCard, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
+import { doesChoosingThePackageAddIt, marketplaceChoiceOfTheSearchItem, marketplaceSearchItems } from "./stream_graph_marketplace_search";
+import { useMarketplaceOfTheNodeSearch } from "./use_marketplace_of_the_node_search";
 import { NODE_TYPE_CATEGORIES_WORDS, NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS } from "../shared/node_type_category_path";
 import { StreamGraphSubgraphReadOnlyBanner, StreamGraphSubgraphTrail } from "./stream_graph_subgraph_strip";
 import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, type WhereAStreamWasLeft } from "./stream_graph_where_left";
@@ -264,7 +266,10 @@ function StreamGraphOfTheTab({
   const [newNodeAskedAt, setNewNodeAskedAt] = useState<NodeGraphCanvasPoint | null>(null);
   const [modulesAndMarketplaceRefusal, showTheRefusalOfOpeningTheMarketplace] = useRefusalOfTheLatestAsk();
   const [codeOpeningRefusal, showTheRefusalOfOpeningTheCode] = useRefusalOfTheLatestAsk();
+  const [marketplaceAddRefusal, showTheRefusalOfTheMarketplaceAdd] = useRefusalOfTheLatestAsk();
   const openProjectOfTheStream = openProject?.kind === "read" && openProject.open_project.project.folder === projectFolder ? openProject.open_project : null;
+  const nodeTypeSourcesOfTheProject = nodeTypesOfTheProject?.listing.sources ?? null;
+  const { marketplace, addsByEntryName, addThePackage } = useMarketplaceOfTheNodeSearch(connection, nodeTypeSearchAsked !== null, openProjectOfTheStream, nodeTypeSourcesOfTheProject);
   const importsOfTheStreamsProject = openProjectOfTheStream?.imports ?? NO_IMPORTS;
   const codeOfTheCard = useCallback(
     (nodeId: string): NodeGraphCardCode => {
@@ -377,8 +382,10 @@ function StreamGraphOfTheTab({
     () => [
       ...nodeTypeSearchItems(nodeTypesOffered, portsTheWireOfTheSearchFits, openProjectOfTheStream),
       ...(subgraphDepth === 0 ? graphGeneratorSearchItems(nodeTypesOfTheProject?.listing ?? null, looseWireOfTheSearch, openProjectOfTheStream) : []),
+      // A node of a module not yet added declares no port the runtime could judge a wire against, so the search over a loose wire offers none.
+      ...(looseWireOfTheSearch === null && openProjectOfTheStream !== null ? marketplaceSearchItems(marketplace, openProjectOfTheStream, nodeTypeSourcesOfTheProject, addsByEntryName) : []),
     ],
-    [nodeTypesOffered, nodeTypesOfTheProject, looseWireOfTheSearch, portsTheWireOfTheSearchFits, subgraphDepth, openProjectOfTheStream],
+    [nodeTypesOffered, nodeTypesOfTheProject, looseWireOfTheSearch, portsTheWireOfTheSearchFits, subgraphDepth, openProjectOfTheStream, marketplace, nodeTypeSourcesOfTheProject, addsByEntryName],
   );
   const previewOfTheNodeTypeSearched = useCallback(
     (searchItemId: string) => {
@@ -415,8 +422,25 @@ function StreamGraphOfTheTab({
     },
     [newNodeAskedAt, editedGraph, sendTheGestureAtTheLevelShown, showTheRefusalOfOpeningTheCode, connection],
   );
+  const takeTheMarketplaceChoice = useCallback(
+    (searchItemId: string): boolean => {
+      const choice = marketplaceChoiceOfTheSearchItem(searchItemId);
+      if (choice === null) return false;
+      const entry = marketplace?.kind === "read" ? marketplace.entries.find((listed) => listed.name === choice.entry_name) : undefined;
+      if (choice.kind === "open_the_sample") {
+        setNodeTypeSearchAsked(null);
+        showTheRefusalOfOpeningTheMarketplace("Didn't open the Marketplace:", connection.openModulesAndMarketplace("marketplace", choice.entry_name));
+      } else if (doesChoosingThePackageAddIt(addsByEntryName[choice.entry_name]) && openProjectOfTheStream !== null) {
+        // The search stays open: once the module is added, its nodes are listed with the project's own, to place as any other.
+        showTheRefusalOfTheMarketplaceAdd(`Didn't add ${entry?.title ?? choice.entry_name} to ${openProjectOfTheStream.project.name}:`, addThePackage(choice.entry_name));
+      }
+      return true;
+    },
+    [marketplace, addsByEntryName, openProjectOfTheStream, connection, addThePackage, showTheRefusalOfOpeningTheMarketplace, showTheRefusalOfTheMarketplaceAdd],
+  );
   const placeTheChosenNodeType = useCallback(
     (searchItemId: string, staysOpen: boolean) => {
+      if (takeTheMarketplaceChoice(searchItemId)) return;
       if (nodeTypeSearchAsked === null || editedGraph === null || "because" in editedGraph) return;
       const chosenGenerator = graphGeneratorOfTheSearchItem(searchItemId);
       const chosenNodeType = nodeTypesOffered.find((offered) => offered.listed.node_type === searchItemId);
@@ -446,7 +470,7 @@ function StreamGraphOfTheTab({
         portsTheWireFits: null,
       });
     },
-    [nodeTypesOffered, nodeTypeSearchAsked, editedGraph, sendTheGestureAtTheLevelShown],
+    [takeTheMarketplaceChoice, nodeTypesOffered, nodeTypeSearchAsked, editedGraph, sendTheGestureAtTheLevelShown],
   );
   const onNodesSelected = useCallback(
     (nodeNames: readonly string[]) => {
@@ -507,6 +531,7 @@ function StreamGraphOfTheTab({
         )}
         {refusalOfTheLatestEdit !== null && <RefusalLine layout="bar" lead={refusalOfTheLatestEdit.lead} words={refusalOfTheLatestEdit.words} />}
         <RefusalOfTheLatestAskBar refusal={modulesAndMarketplaceRefusal} />
+        <RefusalOfTheLatestAskBar refusal={marketplaceAddRefusal} />
         <RefusalOfTheLatestAskBar refusal={codeOpeningRefusal} />
         {innermostSubgraph !== null && (
           <StreamGraphSubgraphTrail

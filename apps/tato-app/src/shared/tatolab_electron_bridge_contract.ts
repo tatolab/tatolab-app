@@ -333,14 +333,17 @@ export function isModulesShown(value: unknown): value is ModulesShown {
   return MODULES_SHOWN.some((modulesShown) => modulesShown === value);
 }
 
-/** What `open_module_manager_window` takes, and what `tatolab-module-manager-section-asked` carries: the section the Module manager window shows. */
+/** What `open_module_manager_window` takes, and what `tatolab-module-manager-section-asked` carries: the section the Module manager window shows, and the page of one of its entries it opens on. */
 export interface ModuleManagerSectionAsked {
   shows: ModulesShown;
+  /** The catalog's name of the Marketplace entry whose page it opens on; `null` for the section's list. */
+  page: string | null;
 }
 
 /** Whether a command's arguments or an event's payload is a `ModuleManagerSectionAsked`. */
 export function isAModuleManagerSectionAsked(value: unknown): value is ModuleManagerSectionAsked {
-  return typeof value === "object" && value !== null && "shows" in value && isModulesShown(value.shows);
+  if (typeof value !== "object" || value === null || !("shows" in value) || !isModulesShown(value.shows)) return false;
+  return "page" in value && (value.page === null || typeof value.page === "string");
 }
 
 /** What a command answers: its answer (`null` for a command that answers nothing), or a refusal in words, which the window shows as it is. A command never answers with a thrown error. */
@@ -443,7 +446,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   /** The asking Module manager window's workspace project as last read from disk; `null` in any other window. Each later reading arrives on `tatolab-open-project-changed`. */
   read_module_manager_workspace: { commandArguments: undefined; answer: OpenProjectReading | null };
   /** The section the asking Module manager window was last asked to show; `null` in any other window. Each later ask arrives on `tatolab-module-manager-section-asked`. */
-  read_module_manager_section_last_asked: { commandArguments: undefined; answer: ModulesShown | null };
+  read_module_manager_section_last_asked: { commandArguments: undefined; answer: ModuleManagerSectionAsked | null };
   /** The catalog get.tatolab.com serves, fetched afresh, or why it was not read; never refused. */
   read_package_catalog: { commandArguments: undefined; answer: PackageCatalogReading };
   /** From a Module manager window only: the workspace's imports from the runtime's `list_dependencies`, each source read for a newer version with `check_for_newer`; refused in the runtime's own words. */
@@ -535,8 +538,8 @@ export interface TatolabElectronBridge {
   onStreamPageRequested(listener: (stream: string) => void): () => void;
   /** Calls `listener` with each reading of the open project the main process sends; the returned function stops it. */
   onOpenProjectChanged(listener: (reading: OpenProjectReading) => void): () => void;
-  /** Calls `listener` with each section the Module manager window is asked to show once open; the returned function stops it. */
-  onModuleManagerSectionAsked(listener: (shows: ModulesShown) => void): () => void;
+  /** Calls `listener` with each section, and page, the Module manager window is asked to show once open; the returned function stops it. */
+  onModuleManagerSectionAsked(listener: (asked: ModuleManagerSectionAsked) => void): () => void;
   /** Calls `listener` with each reading of the window's project's change feed the main process sends; the returned function stops it. */
   onProjectTransactionsChanged(listener: (reading: ProjectTransactionsReading) => void): () => void;
   /** Calls `listener` each time the main process tells the window a file of its project may have changed; the returned function stops it. */

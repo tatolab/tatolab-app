@@ -5,7 +5,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { marketplaceDownloadFileNameOf } from "../shared/marketplace_module_download_file.js";
+import { marketplaceDownloadFileNameOf } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 import type { PackageCatalogEntry } from "../shared/tatolab_backend_contract.js";
 import type { FetchBytesOverHttps } from "./package_catalog.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";

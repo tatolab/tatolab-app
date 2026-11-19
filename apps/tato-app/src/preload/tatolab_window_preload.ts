@@ -102,7 +102,7 @@ const tatolabElectronBridge: TatolabElectronBridge = {
   },
   onModuleManagerSectionAsked: (listener) => {
     const moduleManagerSectionAskedListener = (_moduleManagerSectionAskedEvent: IpcRendererEvent, sectionAsked: unknown) => {
-      if (isAModuleManagerSectionAsked(sectionAsked)) listener(sectionAsked.shows);
+      if (isAModuleManagerSectionAsked(sectionAsked)) listener(sectionAsked);
     };
     ipcRenderer.on(TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT, moduleManagerSectionAskedListener);
     return () => {

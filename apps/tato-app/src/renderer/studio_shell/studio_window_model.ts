@@ -2,7 +2,7 @@
 // serves its views, the selection, the open stream tabs, and the open project's layout.
 
 import type { FailedProjectStreamAction, ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, ProjectArchiveChosenToImport, TatolabStatus } from "../../shared/tatolab_backend_contract";
-import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
+import type { ModuleManagerSectionAsked, ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { RecentProjectChangeRefusal } from "../presentation/projects_presentation";
 import { projectPlaybackAsListed } from "../../shared/project_playback";
 import { NO_PROJECT_OPEN_REASON } from "./studio_menu_bar_model";
@@ -26,9 +26,11 @@ export interface StudioViewTypeTitles {
   watchChanges(onChanged: () => void): StopWatching;
 }
 
-/** A section the Module manager window is asked to show, and which ask of the window it is. */
+/** A section, and page, the Module manager window is asked to show, and which ask of the window it is. */
 export interface ModuleManagerSectionAskNumbered {
   shows: ModulesShown;
+  /** The catalog's name of the Marketplace entry whose page it opens on; `null` for the section's list. */
+  page: string | null;
   ask_number: number;
 }
 
@@ -200,9 +202,9 @@ export class StudioWindowModel {
     };
   }
 
-  /** Have the Module manager window show `shows`, the window's next ask. */
-  askTheModuleManagerToShow(shows: ModulesShown): void {
-    this.moduleManagerSectionAsked.publish({ shows, ask_number: (this.moduleManagerSectionAsked.readLatest()?.ask_number ?? 0) + 1 });
+  /** Have the Module manager window show the section, and page, `asked` names, the window's next ask. */
+  askTheModuleManagerToShow(asked: ModuleManagerSectionAsked): void {
+    this.moduleManagerSectionAsked.publish({ ...asked, ask_number: (this.moduleManagerSectionAsked.readLatest()?.ask_number ?? 0) + 1 });
   }
 
   /** Show the window as the view `target` names, alone. */

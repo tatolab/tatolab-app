@@ -156,7 +156,7 @@ async function importsOfTheOpenProject(
 ): Promise<ImportedProject[]> {
   return Promise.all(
     listedDependencies.map(async ({ dependency }): Promise<ImportedProject> => {
-      const listedAs = { project: dependency.project, name: dependency.folder, folder: dependency.folder };
+      const listedAs = { project: dependency.project, name: dependency.folder, folder: dependency.folder, copied_from: dependency.source };
       const importFolder = importFolderInsideTheWorkspace(projectFolder, dependency.folder);
       if (importFolder === null) return { ...listedAs, source: { kind: "folder_unreadable", folder: projectFolder, refusal: `imports/${dependency.folder} is no folder name.` } };
       const importedProject = await projectReadingsOfTheRuntime.nameTheProject(importFolder);
