@@ -54,3 +54,13 @@ test("an Update takes the catalog's package only where the catalog lists another
   expect(marketplacePackageToUpdateTo(CATALOG, "/home/sam/shows/lobby-wall")).toBeNull();
   expect(marketplacePackageToUpdateTo({ kind: "not_read", because: "HTTP 503" }, `${DOWNLOADS}/tatolab-camera-0.68.97.zip`)).toBeNull();
 });
+
+test("a download of a pre-release version is told back from its file name, and the longer of two names that could make it is the one downloaded", () => {
+  const catalog: PackageCatalogReading = {
+    kind: "read",
+    entries: [entryNamed("package", "tatolab-camera", "0.70.0-rc.1"), entryNamed("package", "tatolab-camera-2", "0.2")],
+    unreadable_entry_count: 0,
+  };
+  expect(checkedAgainstTheMarketplace(listedFrom(`${DOWNLOADS}/tatolab-camera-0.70.0-rc.1.zip`), catalog)).toMatchObject({ newer_version_exists: false, check_refused_because: null });
+  expect(marketplacePackageToUpdateTo(catalog, `${DOWNLOADS}/tatolab-camera-2-0.1.zip`)).toMatchObject({ name: "tatolab-camera-2", version: "0.2" });
+});

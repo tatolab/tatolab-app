@@ -7,19 +7,25 @@ import { isAMarketplaceDownload, marketplaceDownloadVersionOf } from "@tatolab/t
 import type { PackageCatalogEntry, PackageCatalogReading } from "../shared/tatolab_backend_contract.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 
-/** The catalog package `source` is a Marketplace download of, and whether the catalog lists it at another version than the one downloaded; `null` where `catalog` lists no package it downloads. */
+/**
+ * The catalog package `source` is a Marketplace download of, and whether the catalog lists it at another version than the one downloaded;
+ * `null` where `catalog` lists no package it downloads. Where two names could have made the file name, as `tatolab-camera` at `2-0.1` and
+ * `tatolab-camera-2` at `0.1` both make `tatolab-camera-2-0.1.zip`, the longer name is the one downloaded.
+ */
 function marketplacePackageDownloadedAs(catalog: PackageCatalogReading, source: string): { entry: PackageCatalogEntry; isListedAtAnotherVersion: boolean } | null {
   if (catalog.kind !== "read") return null;
+  let downloaded: { entry: PackageCatalogEntry; isListedAtAnotherVersion: boolean } | null = null;
   for (const entry of catalog.entries) {
     const downloadedVersion = entry.kind === "package" ? marketplaceDownloadVersionOf(entry.name, source) : null;
-    if (downloadedVersion !== null) return { entry, isListedAtAnotherVersion: downloadedVersion !== entry.version };
+    if (downloadedVersion !== null && (downloaded === null || entry.name.length > downloaded.entry.name.length)) downloaded = { entry, isListedAtAnotherVersion: downloadedVersion !== entry.version };
   }
-  return null;
+  return downloaded;
 }
 
 /**
  * `listed` as checked for a newer version: an import downloaded from the Marketplace against the version `catalog` lists for it, or why
- * that could not be told; any other import as the runtime checked it.
+ * that could not be told; any other import as the runtime checked it. The catalog lists one version of a package, its current one, so
+ * any other version downloaded is one the Marketplace has moved on from, even where it reads higher.
  */
 export function checkedAgainstTheMarketplace(listed: ListedProjectDependency, catalog: PackageCatalogReading): ListedProjectDependency {
   if (!isAMarketplaceDownload(listed.dependency.source)) return listed;

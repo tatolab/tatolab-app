@@ -14,8 +14,8 @@ export function marketplaceDownloadFileNameOf(name: string, version: string): st
   return `${name}-${version}.zip`;
 }
 
-/** A catalog version as a download's file name carries it: digits first, then digits, letters, `.` and `+`, never a `-`, so `tatolab-camera-extras-0.1.zip` is no download of `tatolab-camera`. */
-const DOWNLOADED_VERSION_PATTERN = /^[0-9][0-9A-Za-z.+]*$/;
+/** A catalog version as a download's file name carries it: a digit first, so `tatolab-camera-extras-0.1.zip` is no download of `tatolab-camera`, then digits, letters, `.`, `+` and `-`, as in `0.70.0-rc.1`. */
+const DOWNLOADED_VERSION_PATTERN = /^[0-9][0-9A-Za-z.+-]*$/;
 
 /** The file name of `source`, an import's source as the runtime lists it, where it is a `.zip` in the Marketplace's downloads folder; `null` where it is none. */
 function marketplaceDownloadFileNameIn(source: string): string | null {

@@ -45,6 +45,7 @@ describe("the file a Marketplace entry is downloaded as", () => {
     expect(marketplaceDownloadVersionOf("tatolab-camera", "/home/jo/.config/Tato Studio/module-downloads/tatolab-camera-0.69.0+linux.zip")).toBe("0.69.0+linux");
     expect(marketplaceDownloadVersionOf("tatolab-camera", "C:\\Users\\jo\\module-downloads\\tatolab-camera-1.0.zip")).toBe("1.0");
     expect(marketplaceDownloadVersionOf("tatolab-camera", "/home/jo/module-downloads/tatolab-camera-extras-0.1.0.zip")).toBeNull();
+    expect(marketplaceDownloadVersionOf("tatolab-camera", "/home/jo/module-downloads/tatolab-camera-0.70.0-rc.1.zip")).toBe("0.70.0-rc.1");
     expect(marketplaceDownloadVersionOf("tatolab-camera", "/home/jo/Downloads/tatolab-camera-0.68.85.zip")).toBeNull();
   });
 
