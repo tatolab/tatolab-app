@@ -6,7 +6,7 @@ import { nodePinRows } from "../../pin_model/node_pins";
 
 /** A node card's header, over its pin rows. */
 export const NODE_GRAPH_CARD_HEADER_HEIGHT = 26;
-/** One pin's row, the card's full width: an output's socket at the right edge, an input's at the left. */
+/** One pin's row, the card's full width: an output's socket at the right edge, an input's at the left. A control taller than one row grows its row past this; the layout reads every row as this tall. */
 export const NODE_GRAPH_PIN_ROW_HEIGHT = 24;
 /** The space above the first pin row and below the last. */
 export const NODE_GRAPH_CARD_PIN_ROWS_PADDING = 6;

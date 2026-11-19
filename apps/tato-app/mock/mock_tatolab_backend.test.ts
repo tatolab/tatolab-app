@@ -496,6 +496,7 @@ describe("the mock backend's node catalog", () => {
       ["brightness", false],
       ["beat", true],
       ["warmth", true],
+      ["spotlight", true],
       ["glow", true],
       ["tally", true],
     ]);

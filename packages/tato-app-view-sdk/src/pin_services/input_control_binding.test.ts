@@ -2,7 +2,7 @@
 import { afterEach, expect, test } from "vitest";
 import type { ControlledInput } from "../pin_model/controlled_inputs.js";
 import type { InputAddress } from "../pin_model/node_inputs.js";
-import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState, type NodeUiSurface } from "../node_ui/input_control_element.js";
+import { fireInputControlCancel, fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState, type NodeUiSurface } from "../node_ui/input_control_element.js";
 import type { NodeUiElementLoading } from "../node_ui/load_node_ui_element.js";
 import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node_ui_elements_listing.js";
 import { listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
@@ -225,6 +225,38 @@ test("a press the pointer gives up cancels the gesture it opened", async () => {
   await slot.settled();
   expect(slot.sent.map((write) => write.mode)).toEqual(["live", "live"]);
   expect(slot.sent.at(-1)?.value).toBeNull();
+});
+
+test("the control's own cancel ends the gesture it opened with nothing committed, and the stored value is set back on it", async () => {
+  const slot = binderUnderTest();
+  slot.list([FLOAT_DEFAULT]);
+  await slot.settled();
+  const control = slot.control();
+  control.dragTo(0.9);
+  control.dragTo(0.95);
+  fireInputControlCancel(control);
+  await slot.settled();
+  slot.flush();
+  expect(slot.sent.map((write) => write.mode)).not.toContain("commit");
+  expect(slot.sent.at(-1)).toEqual({ value: null, mode: "live" });
+  expect(slot.inputValues.shownValue(GAIN)).toEqual({ value: 0.5, comes_from: "saved" });
+  expect(control.shownValue).toBe(0.5);
+});
+
+test("a native cancel, and a control's cancel with no gesture open, are not acted on", async () => {
+  const slot = binderUnderTest();
+  slot.list([FLOAT_DEFAULT]);
+  await slot.settled();
+  const control = slot.control();
+  fireInputControlCancel(control);
+  control.dragTo(0.9);
+  control.dispatchEvent(new Event("cancel"));
+  control.release();
+  await slot.settled();
+  expect(slot.sent).toEqual([
+    { value: 0.9, mode: "live" },
+    { value: 0.9, mode: "commit" },
+  ]);
 });
 
 test("an update that keeps the declaration keeps the element, and read only it acts on no event; a changed declaration mounts a new element", async () => {

@@ -148,8 +148,8 @@ function NodeGraphCardHeaderAndPinRows({
           {rows.map((row) => (
             <div
               key={`${row.side}:${row.node_pin.name}`}
-              className={cn("relative flex items-center px-3 text-2xs text-fg-2", row.side === "output" && "justify-end")}
-              style={{ height: NODE_GRAPH_PIN_ROW_HEIGHT }}
+              className={cn("relative flex items-center px-3 py-0.5 text-2xs text-fg-2", row.side === "output" && "justify-end")}
+              style={{ minHeight: NODE_GRAPH_PIN_ROW_HEIGHT }}
               data-node-graph-pin-row={row.side}
             >
               <span

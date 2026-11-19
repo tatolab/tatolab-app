@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { HexColorPicker } from "react-colorful";
+import { HexAlphaColorPicker, HexColorPicker } from "react-colorful";
 import { ActionButton } from "./action_button";
 import { FormDialog, FormDialogFooter } from "./form_dialog";
 import { TextField } from "./text_field";
@@ -10,7 +10,16 @@ export function isAHexColour(typed: string): boolean {
   return /^#[0-9a-f]{6}$/i.test(typed);
 }
 
-/** Picking a colour of one's own over the window: a saturation and hue area, its hex value to type, and colours used recently to choose again. */
+/** Whether `typed` is a colour as `#rrggbb` or, with its alpha, `#rrggbbaa` writes it, the shapes the picker reads and answers when it sets alpha. */
+export function isAHexColourWithAlpha(typed: string): boolean {
+  return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(typed);
+}
+
+/**
+ * Picking a colour of one's own over the window: a saturation and hue area, its alpha too when it sets alpha, its hex
+ * value to type, and colours used recently to choose again. Each colour picked before Use is told as it moves, so the
+ * caller can show it live; Use answers the last one.
+ */
 export function ColourPickerDialog({
   isOpen,
   onOpenChange,
@@ -18,16 +27,22 @@ export function ColourPickerDialog({
   startingColour,
   recentColours,
   onColourPicked,
+  onColourMoved,
+  withAlpha = false,
   ...controlDataAttributes
 }: {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   title: string;
-  /** The `#rrggbb` the picker opens on. */
+  /** The `#rrggbb`, or with alpha also `#rrggbbaa`, the picker opens on. */
   startingColour: string;
   /** Each a `#rrggbb`, shown as a swatch that picks it. */
   recentColours: readonly string[];
   onColourPicked: (colour: string) => void;
+  /** Called with each colour picked while the picker is open, by a drag, a recent swatch or a hex value typed, in lower case. */
+  onColourMoved?: (colour: string) => void;
+  /** Whether it sets alpha too: an alpha strip under the area, and a hex value of `#rrggbbaa` where alpha is not full. */
+  withAlpha?: boolean;
 } & ControlDataAttributes) {
   const [pickedColour, setPickedColour] = useState(startingColour);
   const [typedColour, setTypedColour] = useState(startingColour);
@@ -37,10 +52,16 @@ export function ColourPickerDialog({
     setPickedColour(startingColour);
     setTypedColour(startingColour);
   }, [isOpen, startingColour]);
-  const pickTheColour = (colour: string) => {
+  const isAColourItReads = withAlpha ? isAHexColourWithAlpha : isAHexColour;
+  const moveTo = (colour: string) => {
     setPickedColour(colour);
+    onColourMoved?.(colour.toLowerCase());
+  };
+  const pickTheColour = (colour: string) => {
+    moveTo(colour);
     setTypedColour(colour);
   };
+  const ColourArea = withAlpha ? HexAlphaColorPicker : HexColorPicker;
   const useThePickedColour = () => {
     onColourPicked(pickedColour.toLowerCase());
     onOpenChange(false);
@@ -75,10 +96,10 @@ export function ColourPickerDialog({
             label="Hex color"
             text={typedColour}
             isMachineWord
-            isRefused={!isAHexColour(typedColour)}
+            isRefused={!isAColourItReads(typedColour)}
             onTextChanged={(typed) => {
               setTypedColour(typed);
-              if (isAHexColour(typed)) setPickedColour(typed);
+              if (isAColourItReads(typed)) moveTo(typed);
             }}
             data-colour-picker-hex=""
           />
@@ -100,7 +121,7 @@ export function ColourPickerDialog({
             </span>
           )}
         </div>
-        <HexColorPicker color={pickedColour} onChange={pickTheColour} style={{ width: "100%", height: "clamp(96px, calc(100vh - 17rem), 160px)" }} />
+        <ColourArea color={pickedColour} onChange={pickTheColour} style={{ width: "100%", height: "clamp(96px, calc(100vh - 17rem), 160px)" }} />
       </div>
     </FormDialog>
   );
