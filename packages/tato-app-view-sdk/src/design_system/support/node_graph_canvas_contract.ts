@@ -1,5 +1,4 @@
 import type { NodePin } from "../../pin_model/node_pins";
-import type { PortFamily } from "../../port_families";
 import type { NodeGraphPosition } from "./node_graph_layout";
 
 /** How a card shows its node is doing: as every healthy card, restarting (a quiet tag), not ready (amber, why in the runtime's words on the tag's tooltip), or failed (red, with why in the runtime's words when it gave them). */
@@ -90,10 +89,26 @@ export interface NodeGraphCanvasPinEnd {
   pin: string;
 }
 
-/** A pin a person dragged a wire off and let go of over empty canvas: which side of its card, and its family. */
-export interface NodeGraphCanvasLooseWire extends NodeGraphCanvasPinEnd {
+/** A pin a person drags a wire off: which side of its card it is on. */
+export interface NodeGraphCanvasDraggedPin extends NodeGraphCanvasPinEnd {
   side: "input" | "output";
-  family: PortFamily | null;
+}
+
+/** How the runtime answered that a wire dragged off a pin would link to another pin: as it is, converted for free, through a convert node it places, refused, or not checked. */
+export type NodeGraphWireFitOutcome = "connects" | "connects_with_free_conversion" | "connects_through_convert_node" | "refused" | "not_checked";
+
+/** How a wire dragged off a pin fits one pin of a card, and what a pointer resting on that pin's socket reads of it, such as the runtime's refusal in its words; `null` for nothing more. */
+export interface NodeGraphPinWireFit {
+  outcome: NodeGraphWireFitOutcome;
+  words: string | null;
+}
+
+/** How a wire dragged off a pin fits each pin it was asked about, keyed by `nodeGraphPinKey`; a pin not in it is not judged, so its socket stays as it is and the wire can be let go on it. */
+export type NodeGraphWireFits = ReadonlyMap<string, NodeGraphPinWireFit>;
+
+/** The key of the pin `pin` on side `side` of the card `nodeId` in a `NodeGraphWireFits`. */
+export function nodeGraphPinKey(nodeId: string, side: "input" | "output", pin: string): string {
+  return JSON.stringify([nodeId, side, pin]);
 }
 
 /** A point a person pointed at: on the canvas, where a card placed there sits, and in the canvas element's own pixels, where a menu opened there shows. */
@@ -123,10 +138,12 @@ export type NodeGraphCanvasEditAnswer = "applied" | "refused";
 export interface NodeGraphCanvasEditing {
   /** Cards dragged and let go, each at its new top-left corner and in the frame it now belongs to, together with every card that had no saved place, so the layout stays as seen; a lone card with no links let go of over a link is spliced into it in the same gesture. */
   onCardsMoved(moves: readonly NodeGraphCanvasCardMove[], cardLetGoOverALink: { node_id: string; link_id: string } | null): Promise<NodeGraphCanvasEditAnswer>;
-  /** A wire drawn from an output pin to an input pin of a family it can carry. */
+  /** A wire dragged off `from`, asking once how it fits every other pin; the canvas judges nothing until the answer arrives, and drops an answer that arrives after the wire is let go. */
+  fitsOfAWireFrom(from: NodeGraphCanvasDraggedPin): Promise<NodeGraphWireFits>;
+  /** A wire drawn from an output pin to an input pin that the answer to `fitsOfAWireFrom` did not refuse. */
   onPinsWired(source: NodeGraphCanvasPinEnd, target: NodeGraphCanvasPinEnd): void;
   /** A wire dragged off a pin and let go of over empty canvas, to place a node there that it feeds or reads. */
-  onWireLetGoOverTheCanvas(looseWire: NodeGraphCanvasLooseWire, at: NodeGraphCanvasPoint): void;
+  onWireLetGoOverTheCanvas(looseWire: NodeGraphCanvasDraggedPin, at: NodeGraphCanvasPoint): void;
   /** Tab pressed over the canvas, to place a node where the pointer rests, or Add node pressed, to place one in the middle of the view. */
   onNodeAskedFor(at: NodeGraphCanvasPoint): void;
   /** Note pressed, to place a note in the middle of the view. */

@@ -4,6 +4,7 @@
 // A graph action and a graph edit mode are the control contract's own types.
 
 import type {
+  CheckLinkCandidatesRequest,
   GraphEditMode,
   GraphFragmentOnTheWire,
   GraphInterfacePortOnTheWire,
@@ -13,6 +14,9 @@ import type {
   GraphNodePortOnTheWire,
   InputValueComesFromOnTheWire,
   LabelledNodeGroup,
+  LinkCandidateEnd,
+  LinkCandidatesCheckResult,
+  LinkCheckResult,
   ListNodeTypesToolResult,
   NodeTypeDescribedOrWhyNot,
   NodeTypeDescription,
@@ -794,6 +798,12 @@ export type ProjectGraphTransactionTheRuntimeAnswered = { kind: "applied"; trans
 
 /** A graph transaction the runtime answered, or one Studio refused before it reached the runtime, in Studio's words alone. */
 export type ProjectGraphTransactionApplying = ProjectGraphTransactionTheRuntimeAnswered | { kind: "not_sent"; because: string };
+
+/** What a placed pin is asked against, and what the runtime's `check_link_candidates` answers for each candidate: the control contract's own types. */
+export type { CheckLinkCandidatesRequest, LinkCandidateEnd, LinkCandidatesCheckResult, LinkCheckResult };
+
+/** What the runtime's `check_link_candidates` answered, or why it was not asked or refused, in Studio's or the runtime's own words. */
+export type LinkCandidatesChecking = { kind: "checked"; result: LinkCandidatesCheckResult } | { kind: "not_checked"; because: string };
 
 /** The person editing in Studio, as history records their edits, or why Studio did not say. */
 export type ThePersonEditingReading = { kind: "read"; author: ProjectTransactionAuthor } | { kind: "not_read"; because: string };

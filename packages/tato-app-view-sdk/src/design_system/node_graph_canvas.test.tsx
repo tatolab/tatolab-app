@@ -48,6 +48,7 @@ function editingRecorded() {
   const applied = async () => "applied" as const;
   const editing: NodeGraphCanvasEditing = {
     onCardsMoved: applied,
+    fitsOfAWireFrom: async () => new Map(),
     onPinsWired: vi.fn(),
     onWireLetGoOverTheCanvas: vi.fn(),
     onNodeAskedFor: vi.fn(),

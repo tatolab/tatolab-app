@@ -1,12 +1,5 @@
 import { expect, test } from "vitest";
-import { canPinsOfTheseFamiliesBeWired, frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, NODE_GRAPH_CLEAR_PLACE_GAP, NODE_GRAPH_FRAME_PADDING, NODE_GRAPH_FRAME_TITLE_ROOM, placeClearBelowTheCards } from "./node_graph_editing";
-
-test("pins_of_one_family_wire_pins_of_two_families_do_not_and_an_unknown_family_is_left_to_the_runtime", () => {
-  expect(canPinsOfTheseFamiliesBeWired("image", "image")).toBe(true);
-  expect(canPinsOfTheseFamiliesBeWired("image", "array")).toBe(false);
-  expect(canPinsOfTheseFamiliesBeWired(null, "array")).toBe(true);
-  expect(canPinsOfTheseFamiliesBeWired("channels", null)).toBe(true);
-});
+import { frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, NODE_GRAPH_CLEAR_PLACE_GAP, NODE_GRAPH_FRAME_PADDING, NODE_GRAPH_FRAME_TITLE_ROOM, placeClearBelowTheCards } from "./node_graph_editing";
 
 test("a_frame_wraps_its_cards_padded_with_room_above_for_its_title_and_a_frame_of_no_card_is_not_drawn", () => {
   expect(

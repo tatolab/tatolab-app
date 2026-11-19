@@ -12,6 +12,7 @@ import { streamAndRuntimeProjectCommandHandlersOf } from "./tatolab_stream_and_r
 import { projectsWindowCommandHandlersOf } from "./tatolab_projects_window_commands.js";
 import { openProjectCommandHandlersOf } from "./tatolab_open_project_commands.js";
 import { moduleManagerCommandHandlersOf } from "./tatolab_module_manager_commands.js";
+import { checkLinkCandidatesInTheOpenProjectCommand } from "./check_link_candidates_in_the_open_project_command.js";
 import { transactInTheOpenProjectCommand } from "./transact_in_the_open_project_command.js";
 import { listNodeUiElementsCommand } from "./list_node_ui_elements_command.js";
 
@@ -24,6 +25,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     ...openProjectCommandHandlersOf(sharedState, studioRuntime),
     ...moduleManagerCommandHandlersOf(sharedState, studioRuntime),
     transact_in_the_open_project: transactInTheOpenProjectCommand(studioRuntime),
+    check_link_candidates_in_the_open_project: checkLinkCandidatesInTheOpenProjectCommand(studioRuntime),
     list_node_ui_elements: listNodeUiElementsCommand(studioRuntime),
   };
 }

@@ -64,6 +64,8 @@ export type {
   ProjectGraphTransaction,
   ProjectGraphTransactionApplying,
   ProjectGraphTransactionTheRuntimeAnswered,
+  CheckLinkCandidatesRequest,
+  LinkCandidatesCheckResult,
   ThePersonEditingReading,
   PortViewerTarget,
   PortViewerChannelWaveform,
