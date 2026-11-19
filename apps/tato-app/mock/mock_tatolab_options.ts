@@ -6,6 +6,7 @@ import { mockReplayedRefusalNamed, type MockReplayedRefusal } from "./mock_repla
 import { mockOpenProjectScenarioNamed, type MockOpenProjectScenario } from "./mock_open_project";
 import { mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
 import type { MockAssetImportScenario } from "./mock_project_assets";
+import type { MockPackageCatalogScenario } from "./mock_package_catalog";
 import { isModulesShown, type ModuleManagerSectionAsked } from "../src/shared/tatolab_electron_bridge_contract";
 import type {
   PoppedOutView,
@@ -158,8 +159,8 @@ export interface MockTatolabOptions {
   moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
   /** `?module_manager_section=added_to_this_project|marketplace`: the section a Modules and Marketplace window's page opens on, Marketplace when the query names none; with `?module_manager_entry=<catalog name>`, the page of that Marketplace entry, as the node search's See it asks. */
   moduleManagerSectionOpenedOn: ModuleManagerSectionAsked;
-  /** `?catalog=unserved`: get.tatolab.com answers the catalog with a 404; the mock catalog by default. */
-  isTheCatalogUnserved: boolean;
+  /** `?catalog=unserved|newer_runtime`: get.tatolab.com answers the catalog with a 404, or with Microphone needing a newer runtime than the one answering; the mock catalog by default. */
+  catalogScenario: MockPackageCatalogScenario;
   /** `?marketplace_add=refused|never_ends`: adding a Marketplace package, or cloning a sample, is refused with a download whose SHA-256 is not the catalog's, or reads 31% of its download and no more, so its progress stays until an add's Cancel stops it (a clone has none and never ends); it succeeds by default. */
   marketplaceAddScenario: "succeeds" | "refused" | "never_ends";
   /** `?module_remove=refused`: removing a module is refused as the runtime refuses one a stream's node still references; it succeeds by default. */
@@ -303,7 +304,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     poppedOutView: mockPoppedOutViewFrom(pageQuery.get(POPPED_OUT_VIEW_QUERY_PARAMETER)),
     moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),
     moduleManagerSectionOpenedOn: moduleManagerSectionNamed(pageQuery.get(MODULE_MANAGER_SECTION_QUERY_PARAMETER), pageQuery.get(MODULE_MANAGER_ENTRY_QUERY_PARAMETER)),
-    isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
+    catalogScenario: pageQuery.get("catalog") === "unserved" ? "unserved" : pageQuery.get("catalog") === "newer_runtime" ? "newer_runtime" : "served",
     marketplaceAddScenario: pageQuery.get("marketplace_add") === "refused" ? "refused" : pageQuery.get("marketplace_add") === "never_ends" ? "never_ends" : "succeeds",
     isRemovingAModuleRefused: pageQuery.get("module_remove") === "refused",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",

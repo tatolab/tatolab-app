@@ -622,6 +622,26 @@ describe("Module manager", () => {
     expect(shownTab()).toBe("marketplace");
   });
 
+  it("offers no Add of a package needing a newer runtime, on its card or its page, which says the runtime it needs and checks for a newer Tato Studio instead", async () => {
+    let timesChecked = 0;
+    await mountedWindowOverTheMock("state=running&module_manager=open&catalog=newer_runtime", {
+      checkForTatolabAppUpdates: async () => {
+        timesChecked += 1;
+      },
+    });
+    await shown('[data-module-manager-row="catalog:tatolab-microphone"]');
+
+    expect(document.querySelector('[data-module-manager-add-from-card="catalog:tatolab-microphone"]')).toBeNull();
+    expect(document.querySelector('[data-module-manager-add-from-card="catalog:tatolab-camera"]')).not.toBeNull();
+    expect(textOf('[data-module-manager-row="catalog:tatolab-microphone"]')).toContain("Needs a newer Tato Studio");
+    openThePageOf("catalog:tatolab-microphone");
+    await shown('[data-module-manager-needs-a-newer-runtime="tatolab-microphone"]');
+    expect(textOf('[data-module-manager-needs-a-newer-runtime="tatolab-microphone"]')).toBe("Microphone runs on runtime 0.69.44 or later, which a newer Tato Studio carries. Update Tato Studio to add it.");
+    expect(document.querySelector("[data-module-manager-import]")).toBeNull();
+    pressed('[data-module-manager-update-tato-studio="tatolab-microphone"]');
+    await waitFor(() => expect(timesChecked).toBe(1));
+  });
+
   it("says why the catalog didn't load, and still lists the project's modules", async () => {
     await mountedWindowOverTheMock("state=running&module_manager=open&catalog=unserved");
 

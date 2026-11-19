@@ -18,6 +18,8 @@ function entryNamed(kind: PackageCatalogEntry["kind"], name: string, version: st
     homepage_url: null,
     platforms: null,
     runs_on_this_machine: true,
+    lowest_runtime_version: null,
+    newer_runtime_it_needs: null,
   };
 }
 
@@ -63,4 +65,14 @@ test("a download of a pre-release version is told back from its file name, and t
   };
   expect(checkedAgainstTheMarketplace(listedFrom(`${DOWNLOADS}/tatolab-camera-0.70.0-rc.1.zip`), catalog)).toMatchObject({ newer_version_exists: false, check_refused_because: null });
   expect(marketplacePackageToUpdateTo(catalog, `${DOWNLOADS}/tatolab-camera-2-0.1.zip`)).toMatchObject({ name: "tatolab-camera-2", version: "0.2" });
+});
+
+test("a Marketplace download whose catalog version needs a newer runtime offers no Update, and says which runtime it needs", () => {
+  const camera = { ...entryNamed("package", "tatolab-camera", "0.69.44"), title: "Camera", lowest_runtime_version: "0.69.44", newer_runtime_it_needs: "0.69.44" };
+  const catalog: PackageCatalogReading = { kind: "read", entries: [camera], unreadable_entry_count: 0 };
+  expect(checkedAgainstTheMarketplace(listedFrom(`${DOWNLOADS}/tatolab-camera-0.68.97.zip`), catalog)).toMatchObject({
+    newer_version_exists: null,
+    check_refused_because: "Camera runs on runtime 0.69.44 or later, which a newer Tato Studio carries. Update Tato Studio to update it.",
+  });
+  expect(checkedAgainstTheMarketplace(listedFrom(`${DOWNLOADS}/tatolab-camera-0.69.44.zip`), catalog)).toMatchObject({ newer_version_exists: false, check_refused_because: null });
 });

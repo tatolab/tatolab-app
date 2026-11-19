@@ -59,7 +59,7 @@ function endWordsOfThePackage(add: MarketplaceAddFromTheSearch | undefined): Sea
 
 /**
  * What the search offers from `marketplace` for a stream of `openProject`, whose node types come from `nodeTypeSources`: each
- * node of each package it does not have that brings anything on this machine, its add as `addsByEntryName` holds it, then each
+ * node of each package it does not have that brings anything on this machine and the runtime answering can resolve, its add as `addsByEntryName` holds it, then each
  * sample project; nothing while the catalog is not read. No package is offered while the project's imports or node types are
  * not listed (`nodeTypeSources` `null`), since what it has is not known yet.
  */
@@ -72,7 +72,7 @@ export function marketplaceSearchItems(
   if (marketplace?.kind !== "read") return [];
   const isWhatTheProjectHasKnown = nodeTypeSources !== null && openProject.imports_not_listed_because === null;
   const packagesNotAdded = isWhatTheProjectHasKnown
-    ? marketplace.entries.filter((entry) => entry.kind === "package" && entry.runs_on_this_machine && !isInTheProject(entry, openProject, nodeTypeSources))
+    ? marketplace.entries.filter((entry) => entry.kind === "package" && entry.runs_on_this_machine && !entry.needs_a_newer_runtime && !isInTheProject(entry, openProject, nodeTypeSources))
     : [];
   const nodeItems = packagesNotAdded.flatMap((entry) =>
     entry.nodes.map(

@@ -5,6 +5,7 @@
 
 import { isAMarketplaceDownload, marketplaceDownloadVersionOf } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 import type { PackageCatalogEntry, PackageCatalogReading } from "../shared/tatolab_backend_contract.js";
+import { whyTheModuleNeedsANewerRuntime } from "../shared/package_catalog_runtime_words.js";
 import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 
 /**
@@ -25,14 +26,17 @@ function marketplacePackageDownloadedAs(catalog: PackageCatalogReading, source: 
 /**
  * `listed` as checked for a newer version: an import downloaded from the Marketplace against the version `catalog` lists for it, or why
  * that could not be told; any other import as the runtime checked it. The catalog lists one version of a package, its current one, so
- * any other version downloaded is one the Marketplace has moved on from, even where it reads higher.
+ * any other version downloaded is one the Marketplace has moved on from, even where it reads higher. Where that version needs a newer
+ * runtime than the one `catalog` was judged against, no Update is offered, and the words say why.
  */
 export function checkedAgainstTheMarketplace(listed: ListedProjectDependency, catalog: PackageCatalogReading): ListedProjectDependency {
   if (!isAMarketplaceDownload(listed.dependency.source)) return listed;
   if (catalog.kind === "not_read") return { ...listed, newer_version_exists: null, check_refused_because: `The Marketplace could not be read: ${catalog.because}` };
   const downloaded = marketplacePackageDownloadedAs(catalog, listed.dependency.source);
   if (downloaded === null) return { ...listed, newer_version_exists: null, check_refused_because: "The Marketplace no longer lists it." };
-  return { ...listed, newer_version_exists: downloaded.isListedAtAnotherVersion, check_refused_because: null };
+  const { entry, isListedAtAnotherVersion } = downloaded;
+  if (isListedAtAnotherVersion && entry.newer_runtime_it_needs !== null) return { ...listed, newer_version_exists: null, check_refused_because: whyTheModuleNeedsANewerRuntime(entry.title, entry.newer_runtime_it_needs, "update") };
+  return { ...listed, newer_version_exists: isListedAtAnotherVersion, check_refused_because: null };
 }
 
 /** The catalog package an Update of the import downloaded from `source` takes instead, where `catalog` lists another version of it; `null` where the import updates from its own source. */

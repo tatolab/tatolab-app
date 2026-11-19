@@ -239,7 +239,7 @@ function recordingHostServices() {
     },
     readTheMarketplace: async () => ({
       kind: "read",
-      entries: [{ kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames from a camera.", nodes: [{ name: "CameraSource", summary: "Frames from one camera." }], runs_on_this_machine: true }],
+      entries: [{ kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames from a camera.", nodes: [{ name: "CameraSource", summary: "Frames from one camera." }], runs_on_this_machine: true, needs_a_newer_runtime: false }],
     }),
     addFromTheMarketplace: async (name) => (name === "tatolab-camera" ? { kind: "added", folder: "tatolab-camera" } : { kind: "not_added", because: `The catalog lists nothing named ${name}.` }),
     watchProjectTransactions: (projectFolder, listener) => {
@@ -522,7 +522,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(await connection.readTheMarketplace()).toEqual({
       kind: "read",
-      entries: [{ kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames from a camera.", nodes: [{ name: "CameraSource", summary: "Frames from one camera." }], runs_on_this_machine: true }],
+      entries: [{ kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames from a camera.", nodes: [{ name: "CameraSource", summary: "Frames from one camera." }], runs_on_this_machine: true, needs_a_newer_runtime: false }],
     });
     expect(await connection.addFromTheMarketplace("tatolab-camera")).toEqual({ kind: "added", folder: "tatolab-camera" });
     expect(await connection.addFromTheMarketplace("tatolab-lens")).toEqual({ kind: "not_added", because: "The catalog lists nothing named tatolab-lens." });

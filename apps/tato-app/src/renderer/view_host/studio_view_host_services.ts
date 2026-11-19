@@ -46,7 +46,7 @@ export interface StudioViewHostProjectServices {
   watchNodeUiElements(listener: (reading: NodeUiElementsReading) => void): StopWatching;
 }
 
-/** The catalog as a view reads the Marketplace: each entry's kind, name, title, summary, nodes and whether it runs on this machine, or why the catalog was not read. */
+/** The catalog as a view reads the Marketplace: each entry's kind, name, title, summary, nodes, whether it runs on this machine and whether it needs a newer runtime, or why the catalog was not read. */
 function marketplaceReadingOfTheCatalog(catalog: PackageCatalogReading): MarketplaceReading {
   if (catalog.kind === "not_read") return catalog;
   return {
@@ -58,6 +58,7 @@ function marketplaceReadingOfTheCatalog(catalog: PackageCatalogReading): Marketp
       summary: entry.summary,
       nodes: entry.nodes.map((node) => ({ name: node.name, summary: node.summary })),
       runs_on_this_machine: entry.runs_on_this_machine,
+      needs_a_newer_runtime: entry.newer_runtime_it_needs !== null,
     })),
   };
 }

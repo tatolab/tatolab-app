@@ -14,6 +14,7 @@ import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/suppor
 import {
   MODULE_ASK_WORDS_ONCE_DONE,
   whyTheRowBringsNothingOnThisMachine,
+  whyTheRowNeedsANewerTatoStudio,
   type ModuleAsk,
   moduleCopyStateOf,
   moduleCoverNumberOf,
@@ -23,6 +24,9 @@ import {
   type ModuleCardRow,
 } from "./module_manager_listing";
 import { marketplaceAddShownOf, type MarketplaceAddFollowed } from "../presentation/marketplace_add_presentation";
+import { presentTatolabAppUpdate } from "../presentation/app_update_presentation";
+import { useTatolabAppUpdateAction } from "../setup_and_settings/action_through_the_backend";
+import { useTatolabStatus, useTatolabWindowEnvironment } from "../setup_and_settings/tatolab_window_context";
 
 /**
  * Where the last thing asked of one module stands: under way, refused in the words of what refused it, or done in a way its page tells of
@@ -131,6 +135,30 @@ export interface ModuleAsks {
   cancelTheAdd: (row: ModuleCardRow) => void;
 }
 
+/**
+ * Tato Studio's own updates control, offered where a module needs the newer runtime a newer Tato Studio carries: Check for Updates…, then
+ * Download Update or Restart to Update as the updater moves on, disabled while it works, its refusal shown under it; in an app that cannot
+ * update itself, the updater's reason in its place.
+ */
+function TatoStudioUpdateOffer({ moduleName, appearance }: { moduleName: string; appearance: "primary" | "secondary" }) {
+  const { backend } = useTatolabWindowEnvironment();
+  const status = useTatolabStatus();
+  const updates = presentTatolabAppUpdate(status.app_update);
+  const runTheUpdateAction = useTatolabAppUpdateAction(backend, status.app_update);
+  const { action } = runTheUpdateAction;
+  if (action === null) return <p className="text-xs text-fg-3">{updates.description}</p>;
+  const isUnderWay = !action.isEnabled || runTheUpdateAction.isPending;
+  return (
+    <>
+      <PageAction appearance={appearance} icon={RefreshCw} disabledReason={isUnderWay ? updates.description : undefined} onPressed={runTheUpdateAction.run} data-module-manager-update-tato-studio={moduleName}>
+        {action.label}
+      </PageAction>
+      {runTheUpdateAction.refusal !== null && <RefusalLine {...runTheUpdateAction.refusal} />}
+      {runTheUpdateAction.refusal === null && updates.failure !== null && <RefusalLine lead="The last check failed:" words={updates.failure} />}
+    </>
+  );
+}
+
 /** A Marketplace add under way as told so far: its meter, filled by its bytes once their total is known, its stages, and Cancel while it downloads. */
 function MarketplaceAddProgress({ row, followed, projectName, asks }: { row: ModuleCardRow; followed: MarketplaceAddFollowed; projectName: string; asks: ModuleAsks }) {
   const shown = marketplaceAddShownOf(followed, row.title, projectName);
@@ -167,6 +195,7 @@ function ModulePageActions({
 }) {
   const { catalog_entry: entry, module_of_the_project: dependency } = row;
   const whyItBringsNothingHere = whyTheRowBringsNothingOnThisMachine(row);
+  const whyItNeedsANewerTatoStudio = whyTheRowNeedsANewerTatoStudio(row);
   const retry = (ask: ModuleAsk) => ({ add: asks.add, clone: asks.clone, update: asks.update, remove: asks.askBeforeRemoving })[ask](row);
   const action = (() => {
     if (work?.kind === "under_way" && work.ask === "add" && addFollowed !== null) return <MarketplaceAddProgress row={row} followed={addFollowed} projectName={projectName} asks={asks} />;
@@ -223,6 +252,14 @@ function ModulePageActions({
       if (entry === null) return null;
       if (entry.download === null) return <p className="text-xs text-fg-3">The catalog names no download for it yet.</p>;
       if (whyItBringsNothingHere !== null) return <RefusalLine tone="warning" words={whyItBringsNothingHere} data-module-manager-not-on-this-machine={entry.name} />;
+      if (whyItNeedsANewerTatoStudio !== null) {
+        return (
+          <div className="flex flex-col gap-3">
+            <RefusalLine tone="warning" words={whyItNeedsANewerTatoStudio} data-module-manager-needs-a-newer-runtime={entry.name} />
+            <TatoStudioUpdateOffer moduleName={entry.name} appearance="primary" />
+          </div>
+        );
+      }
       return (
         <div className="flex flex-col gap-3">
           <PageAction appearance="primary" icon={Download} onPressed={() => asks.add(row)} data-module-manager-import={entry.name}>
@@ -246,7 +283,14 @@ function ModulePageActions({
             {updateWords.updateAvailable}
           </p>
         )}
-        {copyState.kind === "check_refused" && <RefusalLine tone="warning" lead={updateWords.checkRefusedLead} words={copyState.because} />}
+        {whyItNeedsANewerTatoStudio !== null ? (
+          <>
+            <RefusalLine tone="warning" words={whyItNeedsANewerTatoStudio} data-module-manager-needs-a-newer-runtime={dependency.folder} />
+            <TatoStudioUpdateOffer moduleName={dependency.folder} appearance="secondary" />
+          </>
+        ) : (
+          copyState.kind === "check_refused" && <RefusalLine tone="warning" lead={updateWords.checkRefusedLead} words={copyState.because} />
+        )}
         <PageAction
           appearance={copyState.kind === "update_available" ? "primary" : "secondary"}
           icon={RefreshCw}

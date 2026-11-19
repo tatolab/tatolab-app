@@ -8,13 +8,14 @@ const NIGHT_SHOW: OpenProject = {
   imports_not_listed_because: null,
 };
 
-const aPackage = (name: string, title: string, nodes: [string, string][], runsOnThisMachine = true): MarketplaceEntry => ({
+const aPackage = (name: string, title: string, nodes: [string, string][], runsOnThisMachine = true, needsANewerRuntime = false): MarketplaceEntry => ({
   kind: "package",
   name,
   title,
   summary: `${title} for a show.`,
   nodes: nodes.map(([nodeName, summary]) => ({ name: nodeName, summary })),
   runs_on_this_machine: runsOnThisMachine,
+  needs_a_newer_runtime: needsANewerRuntime,
 });
 
 const MARKETPLACE: MarketplaceReading = {
@@ -27,14 +28,15 @@ const MARKETPLACE: MarketplaceReading = {
       ["LowerThird", "Draws a name over the frame."],
     ]),
     aPackage("tatolab-browser", "Web page", [["BrowserSource", "A web page's frames."]], false),
-    { kind: "sample", name: "camera-halftone", title: "Camera halftone", summary: "A camera through a halftone lens.", nodes: [{ name: "HalftoneLensEffect", summary: "Halftone dots." }], runs_on_this_machine: true },
+    aPackage("tatolab-speaker", "Speaker", [["SpeakerSink", "Plays channels out loud."]], true, true),
+    { kind: "sample", name: "camera-halftone", title: "Camera halftone", summary: "A camera through a halftone lens.", nodes: [{ name: "HalftoneLensEffect", summary: "Halftone dots." }], runs_on_this_machine: true, needs_a_newer_runtime: false },
   ],
 };
 
 /** The compositor's wheel, installed in the project's environment, as `list_node_types` lists it. */
 const COMPOSITOR_INSTALLED: NodeTypeSourceListed = { source: "installed_distribution", distribution: "tatolab-compositor", distribution_version: "0.68.82", node_types: [], graph_generators: [], unreadable_modules: [] };
 
-test("offers each node of a package the project neither imports nor has installed, then each sample, after every category", () => {
+test("offers each node of a package the project neither imports nor has installed and the runtime can resolve, then each sample, after every category", () => {
   const items = marketplaceSearchItems(MARKETPLACE, NIGHT_SHOW, [COMPOSITOR_INSTALLED], {});
   expect(items.map(({ item_id, title, origin_words, listed_after_the_categories, end_words }) => [item_id, title, origin_words, listed_after_the_categories, end_words])).toEqual([
     ["marketplace_node:tatolab-camera/CameraSource", "Camera Source", "In the Camera module", { heading: "Not in night-show", aside: "Marketplace" }, { kind: "what_choosing_does", words: "Add module" }],
