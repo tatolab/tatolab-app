@@ -1,15 +1,9 @@
 import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { expect, test } from "vitest";
 import type { PortViewerEvent, PortViewerImageFrameFacts } from "../shared/tatolab_backend_contract.js";
-import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
-import type { OpenedRuntimeViewer, RuntimeViewerTarget } from "./runtime_viewer_control_connection.js";
+import type { OpenedRuntimeViewer, RuntimeViewerCallFailure, RuntimeViewerConnection, RuntimeViewerTarget } from "./runtime_viewer_control_connection.js";
 import { failedWith, succeeded, type Result } from "./result.js";
-import {
-  PORT_VIEWER_REOPEN_AFTER_MS,
-  RuntimePortViewers,
-  type WindowShowingPortViewers,
-  type RuntimeViewerConnection,
-} from "./runtime_port_viewers.js";
+import { PORT_VIEWER_REOPEN_AFTER_MS, RuntimePortViewers, type WindowShowingPortViewers } from "./runtime_port_viewers.js";
 import type { RuntimeViewerChannelReaderOfTheAddon, RuntimeViewerImageFrame, RuntimeViewerMessageRead, SharedTextureImportOfARuntimeViewerFrame } from "./runtime_viewer_image_frame_import.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 
@@ -95,9 +89,9 @@ class FakeViewerConnection implements RuntimeViewerConnection {
   private open = true;
   private readonly closedListeners: ((whyItClosed: string) => void)[] = [];
 
-  openViewer(target: RuntimeViewerTarget): Promise<Result<OpenedRuntimeViewer, LocalApiRequestFailure>> {
+  openViewer(target: RuntimeViewerTarget): Promise<Result<OpenedRuntimeViewer, RuntimeViewerCallFailure>> {
     this.openedTargets.push(target);
-    if (this.openRefusal !== null) return Promise.resolve(failedWith({ failureDescription: this.openRefusal, isTheRuntimesRefusal: true }));
+    if (this.openRefusal !== null) return Promise.resolve(failedWith({ words: this.openRefusal, theRuntimeRefusedIt: true }));
     return Promise.resolve(
       succeeded({
         viewer: `${target.stream}/${target.node_id}/${target.port}`,
@@ -114,7 +108,7 @@ class FakeViewerConnection implements RuntimeViewerConnection {
     );
   }
 
-  closeViewer(viewer: string): Promise<Result<string, LocalApiRequestFailure>> {
+  closeViewer(viewer: string): Promise<Result<string, RuntimeViewerCallFailure>> {
     this.closedViewers.push(viewer);
     return Promise.resolve(succeeded(viewer));
   }

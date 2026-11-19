@@ -6,8 +6,7 @@
 
 import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { PortViewerEvent, PortViewerImageFrameFacts, PortViewerTarget, TatolabStatus } from "../shared/tatolab_backend_contract.js";
-import type { LocalApiRequestFailure } from "./local_api_request_failure.js";
-import type { OpenedRuntimeViewer, RuntimeViewerTarget } from "./runtime_viewer_control_connection.js";
+import type { OpenedRuntimeViewer, RuntimeViewerCallFailure, RuntimeViewerConnection } from "./runtime_viewer_control_connection.js";
 import { portViewerMessageReadingOf } from "./port_viewer_message_reading.js";
 import { failedWith, succeeded, describeCaughtFailure, type Result } from "./result.js";
 import {
@@ -17,15 +16,6 @@ import {
   type SharedTextureImportOfARuntimeViewerFrame,
 } from "./runtime_viewer_image_frame_import.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-
-/** The connection port viewers are opened over: `RuntimeViewerControlConnection`. */
-export interface RuntimeViewerConnection {
-  openViewer(target: RuntimeViewerTarget): Promise<Result<OpenedRuntimeViewer, LocalApiRequestFailure>>;
-  closeViewer(viewer: string): Promise<Result<string, LocalApiRequestFailure>>;
-  onClosed(whenTheConnectionCloses: (whyItClosed: string) => void): void;
-  isOpen(): boolean;
-  close(): void;
-}
 
 /** A studio window or a view popped out of one: where its port viewers' events and Image frames go. */
 export interface WindowShowingPortViewers {
@@ -40,7 +30,8 @@ export interface WindowShowingPortViewers {
 
 /** What the port viewers reach: the runtime, the viewer addon, and the clock their reads tick on. */
 export interface RuntimePortViewersSources {
-  openTheViewerConnection(): Promise<Result<RuntimeViewerConnection, LocalApiRequestFailure>>;
+  /** A connection to the runtime the port viewers are opened over; refused in the words of why it did not open. */
+  openTheViewerConnection(): Promise<Result<RuntimeViewerConnection, string>>;
   /** The addon's reader of the channel `openedViewer` names, as the iceoryx2 node `viewerNodeName`; refused in the addon's words, or because this build carries no addon. */
   openAChannelReader(openedViewer: OpenedRuntimeViewer, viewerNodeName: string): Result<RuntimeViewerChannelReaderOfTheAddon, string>;
   /** The process that imports the frames, which `open_viewer` admits on macOS: the main process. */
@@ -67,12 +58,6 @@ interface RuntimeViewerHeldOpen {
   channelReader: RuntimeViewerChannelReaderOfTheAddon;
   aReadIsUnderWay: boolean;
   aWriteCameDuringTheRead: boolean;
-}
-
-/** Why a runtime viewer did not open, and whether it was `open_viewer`'s own refusal rather than the connection's or the addon's. */
-interface RuntimeViewerOpenFailure {
-  words: string;
-  theRuntimeRefusedToOpenIt: boolean;
 }
 
 /** The listed states of a stream whose nodes run once its project is started, resumed or done stopping, so `open_viewer`'s refusal on it is waited out. */
@@ -168,19 +153,19 @@ export class RuntimePortViewers {
     this.viewerConnection = null;
   }
 
-  private theRuntimeRefusedAStreamThatIsNotYetRunning(target: PortViewerTarget, openFailure: RuntimeViewerOpenFailure): boolean {
+  private theRuntimeRefusedAStreamThatIsNotYetRunning(target: PortViewerTarget, openFailure: RuntimeViewerCallFailure): boolean {
     const listedState = this.sources.streamStateTheRuntimeListsNow(target.stream);
-    return openFailure.theRuntimeRefusedToOpenIt && listedState !== null && STREAM_STATES_A_PORT_VIEWER_WAITS_OUT.has(listedState);
+    return openFailure.theRuntimeRefusedIt && listedState !== null && STREAM_STATES_A_PORT_VIEWER_WAITS_OUT.has(listedState);
   }
 
   private subscriptionsOf(targetKey: string): [string, PortViewerSubscription][] {
     return [...this.subscriptionsByPortViewer].filter(([, subscription]) => portViewerTargetKey(subscription.target) === targetKey);
   }
 
-  private async theViewerConnection(): Promise<Result<RuntimeViewerConnection, RuntimeViewerOpenFailure>> {
+  private async theViewerConnection(): Promise<Result<RuntimeViewerConnection, RuntimeViewerCallFailure>> {
     if (this.viewerConnection !== null && this.viewerConnection.isOpen()) return succeeded(this.viewerConnection);
     const opened = await this.sources.openTheViewerConnection();
-    if (!opened.ok) return failedWith({ words: opened.failure.failureDescription, theRuntimeRefusedToOpenIt: false });
+    if (!opened.ok) return failedWith({ words: opened.failure, theRuntimeRefusedIt: false });
     if (this.viewerConnection !== null && this.viewerConnection.isOpen()) {
       opened.value.close();
       return succeeded(this.viewerConnection);
@@ -191,11 +176,11 @@ export class RuntimePortViewers {
     return succeeded(viewerConnection);
   }
 
-  private async theRuntimeViewerOf(target: PortViewerTarget): Promise<Result<RuntimeViewerHeldOpen, RuntimeViewerOpenFailure>> {
+  private async theRuntimeViewerOf(target: PortViewerTarget): Promise<Result<RuntimeViewerHeldOpen, RuntimeViewerCallFailure>> {
     const targetKey = portViewerTargetKey(target);
     const heldOpen = this.runtimeViewersByTargetKey.get(targetKey);
     if (heldOpen !== undefined) return succeeded(heldOpen);
-    if (this.targetKeysBeingOpened.has(targetKey)) return failedWith({ words: `${target.node_id} › ${target.port} is already being opened`, theRuntimeRefusedToOpenIt: false });
+    if (this.targetKeysBeingOpened.has(targetKey)) return failedWith({ words: `${target.node_id} › ${target.port} is already being opened`, theRuntimeRefusedIt: false });
     this.targetKeysBeingOpened.add(targetKey);
     const opened = await this.openTheRuntimeViewer(target);
     this.targetKeysBeingOpened.delete(targetKey);
@@ -205,15 +190,15 @@ export class RuntimePortViewers {
     return opened;
   }
 
-  private async openTheRuntimeViewer(target: PortViewerTarget): Promise<Result<RuntimeViewerHeldOpen, RuntimeViewerOpenFailure>> {
+  private async openTheRuntimeViewer(target: PortViewerTarget): Promise<Result<RuntimeViewerHeldOpen, RuntimeViewerCallFailure>> {
     const viewerConnection = await this.theViewerConnection();
     if (!viewerConnection.ok) return viewerConnection;
     const openedViewer = await viewerConnection.value.openViewer({ ...target, viewer_process_id: this.sources.viewerProcessId });
-    if (!openedViewer.ok) return failedWith({ words: openedViewer.failure.failureDescription, theRuntimeRefusedToOpenIt: openedViewer.failure.isTheRuntimesRefusal });
+    if (!openedViewer.ok) return openedViewer;
     const channelReader = this.sources.openAChannelReader(openedViewer.value, `tato-studio-viewer-${this.sources.viewerProcessId}`);
     if (!channelReader.ok) {
       void viewerConnection.value.closeViewer(openedViewer.value.viewer);
-      return failedWith({ words: channelReader.failure, theRuntimeRefusedToOpenIt: false });
+      return failedWith({ words: channelReader.failure, theRuntimeRefusedIt: false });
     }
     const targetKey = portViewerTargetKey(target);
     const heldOpen: RuntimeViewerHeldOpen = {
@@ -227,7 +212,7 @@ export class RuntimePortViewers {
     } catch (followRefusal) {
       heldOpen.channelReader.close();
       void viewerConnection.value.closeViewer(openedViewer.value.viewer);
-      return failedWith({ words: `the viewer could not follow the port's writes: ${describeCaughtFailure(followRefusal)}`, theRuntimeRefusedToOpenIt: false });
+      return failedWith({ words: `the viewer could not follow the port's writes: ${describeCaughtFailure(followRefusal)}`, theRuntimeRefusedIt: false });
     }
     this.sources.tatolabAppLog.info("opened a runtime viewer", { viewer: openedViewer.value.viewer });
     return succeeded(heldOpen);

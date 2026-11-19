@@ -7,7 +7,7 @@ import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import {
   controlContractTypeOf,
   RuntimeControl,
-  type ControlOperationAnswer,
+  type ControlOperationResult,
   type ControlOperationParams,
 } from "./tatolab_runtime_control_operation_call.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
@@ -27,7 +27,7 @@ function settledCall<Method extends keyof ControlOperations>(localApiSocketPath:
 }
 
 test("each call answers its operation's result in the contract's type", () => {
-  expectTypeOf<Extract<ControlOperationAnswer<"list_streams">, { kind: "answered" }>["result"]>().toEqualTypeOf<ListStreamsToolResult>();
+  expectTypeOf<ControlOperationResult<"list_streams">>().toEqualTypeOf<ListStreamsToolResult>();
   const describeTheRuntime = Effect.gen(function* () {
     const runtimeControl = yield* RuntimeControl;
     return yield* runtimeControl.call("describe_runtime", {});
