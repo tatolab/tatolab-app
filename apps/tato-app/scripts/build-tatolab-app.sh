@@ -161,6 +161,9 @@ npm ci
 "$scripts_directory/place-tatolab-runtime-client.sh" --from-runtime-unit "$runtime_unit_directory"
 npm run build -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} \
   ${release_build_arguments[@]+"${release_build_arguments[@]}"}
+echo "==> the core projects' extensions, checked against the kit"
+# streamlib's build has no kit, so this is the only check of a core project's .ts before a release.
+node "$tato_app_root/../../packages/tato-app-view-sdk/scripts/check_extensions_against_the_kit.ts" "$runtime_unit_directory"/lib/tatolab/core-projects/*/
 echo "==> viewer addon (streamlib $streamlib_commit)"
 "$scripts_directory/build-tatolab-runtime-viewer-frame-import.sh" "$fetched_streamlib" --release
 packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_version" "$build_directory/electron-packaging" | tail -1)"

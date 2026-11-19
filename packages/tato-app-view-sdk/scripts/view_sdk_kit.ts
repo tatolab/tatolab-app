@@ -30,7 +30,7 @@ export const VIEW_SDK_KIT_FOLDER = path.join(VIEW_SDK_FOLDER, "dist", "kit");
 const DECLARATIONS_FOLDER = "declarations";
 
 /** The compiler the Studio's own code is checked with. */
-const NATIVE_TYPESCRIPT_COMPILER = path.join(path.dirname(findPackageJSON("@typescript/native", import.meta.url) ?? "@typescript/native"), "bin", "tsc");
+export const NATIVE_TYPESCRIPT_COMPILER = path.join(path.dirname(findPackageJSON("@typescript/native", import.meta.url) ?? "@typescript/native"), "bin", "tsc");
 
 /** The two manifests' JSON Schemas, by the name the kit holds each under. */
 const MANIFEST_JSON_SCHEMAS: Readonly<Record<string, string>> = {

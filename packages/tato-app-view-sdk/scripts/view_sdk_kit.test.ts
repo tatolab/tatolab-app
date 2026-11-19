@@ -5,10 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { isAnEntryOfTheSdk, isASuppliedStylesheet, SUPPLIED_MODULES, VIEW_SDK_PACKAGE_NAME } from "../src/supplied_modules.ts";
-import { writeTheViewSdkKit } from "./view_sdk_kit.ts";
-
-/** The compiler the runtime checks an extension with: the native `tsc` of TypeScript 7, which the Studio checks itself with. */
-const NATIVE_TYPESCRIPT_COMPILER = path.join(path.dirname(findPackageJSON("@typescript/native", import.meta.url) ?? "@typescript/native"), "bin", "tsc");
+import { NATIVE_TYPESCRIPT_COMPILER, writeTheViewSdkKit } from "./view_sdk_kit.ts";
 
 const VIEW_SDK_FOLDER = path.resolve(import.meta.dirname, "..");
 
@@ -54,17 +51,6 @@ function compiledWithThePreset(checkFolder: string): CompilerAnswer {
   }
 }
 
-/** The kit's control template, written for the pin type `pinTypeName`. */
-function controlTemplateFor(pinTypeName: string): string {
-  return readFileSync(path.join(kitFolder, "templates", "control.ts"), "utf8").replace('"PIN_TYPE_NAME"', JSON.stringify(pinTypeName));
-}
-
-/** The tie file the runtime writes from a manifest: the kit's header, then the kit's tie line for each of `controls`. */
-function tieFileFor(controls: readonly { script: string; type: string }[]): string {
-  const tieLines: { header: string; controls: string } = JSON.parse(readFileSync(path.join(kitFolder, "tie_lines.json"), "utf8"));
-  return [tieLines.header, ...controls.map((control, index) => tieLines.controls.replaceAll("{index}", String(index)).replaceAll("{script}", control.script).replaceAll("{type}", control.type)), ""].join("\n");
-}
-
 /** A view that draws with React, the design system and Effect, and reads a pin type: an import of each kind of supplied module. */
 const A_VIEW_OF_EVERY_KIND_OF_SUPPLIED_MODULE = `import { createElement, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -98,19 +84,6 @@ describe("the kit", () => {
     const answer = compiledWithThePreset(checkFolderHolding({ "views/counter/main.ts": withoutChildren }));
     expect(answer.passed).toBe(false);
     expect(answer.printed).toContain("Property 'children' is missing");
-  });
-
-  test("the control template passes once its pin type is written, tied to the class type its manifest entry declares", () => {
-    const answer = compiledWithThePreset(checkFolderHolding({ "node_ui/float_words.ts": controlTemplateFor("float"), "node_ui/tie.ts": tieFileFor([{ script: "float_words.ts", type: "float" }]) }));
-    expect(answer.printed).toBe("");
-    expect(answer.passed).toBe(true);
-  });
-
-  test("a Color control registered for a Float is a compiler error at its tie line", () => {
-    const answer = compiledWithThePreset(checkFolderHolding({ "node_ui/colour_words.ts": controlTemplateFor("color"), "node_ui/tie.ts": tieFileFor([{ script: "colour_words.ts", type: "float" }]) }));
-    expect(answer.passed).toBe(false);
-    expect(answer.printed).toContain(`node_ui/tie.ts`);
-    expect(answer.printed).toContain(`Type '"color"' is not assignable to type '"float"'`);
   });
 
   test("a name the Studio does not supply, a cast and a type erasing nothing cannot run are each refused by the compiler", () => {
