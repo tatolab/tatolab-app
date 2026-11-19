@@ -22,6 +22,7 @@ customElements.define(nodeUiElementTag(FLOAT_NUMBER_LISTED), FloatNumber);
 const GAIN: ControlledInput = {
   address: { graph: { project_folder: "/projects/demo", stream_asset: "STREAM-ASSET", level: [] }, node_id: "MIX-ID", input: "gain" },
   declaration: { input_name: "gain", label: "gain", pin_type: { type: "float" }, annotations: {}, may_be_unset: false },
+  rebuilds_its_node: false,
 };
 
 /** The host's values of the stream, in which the mix node's `gain` reads `value`, saved. */

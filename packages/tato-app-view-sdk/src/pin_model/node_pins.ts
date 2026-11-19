@@ -1,8 +1,8 @@
-// A node's pins as every surface lays them out: one row per pin, outputs first and then inputs, each
-// carrying the pin's exact type and flow where the runtime serves them.
+// A node's pins as every surface lays them out: one row per pin, outputs first, then its settings,
+// then its other inputs, each carrying the pin's exact type and flow where the runtime serves them.
 
 import type { PinAnnotations } from "../pin_type_readings.js";
-import type { NodeTypePortDescribed, StreamGraphPortPin } from "../studio_readings.js";
+import type { NodeTypeInputDescribed, NodeTypePortDescribed, SettingReadTime, StreamGraphPortPin } from "../studio_readings.js";
 import type { PortFamily } from "../port_families.js";
 import type { InputAddress } from "./node_inputs.js";
 
@@ -19,6 +19,23 @@ export interface NodePin {
   readonly stream_facts_words: readonly string[];
   /** Where a person sets an unwired input, the key its row reads the value by: where the value it holds is kept, or where an unlinked Trigger is fired; `null` on an output, on an input that takes no stored value and is no Trigger, on one a link feeds, and outside a stream's graph. */
   readonly value_address: InputAddress | null;
+  /** On a setting, an input that takes a value and no wire, when its node reads it; `null` on every other pin. */
+  readonly setting: NodeSetting | null;
+}
+
+/** When a node reads a setting: once as it is set up, so a change rebuilds the node, or on each run. */
+export interface NodeSetting {
+  readonly read: SettingReadTime;
+}
+
+/** The setting `input` is as its node type describes it, `null` for an input that takes a wire; a setting that states no read point is read at setup, as the runtime reads a config field. */
+export function settingOfTheDescribedInput(input: Pick<NodeTypeInputDescribed, "mode" | "read">): NodeSetting | null {
+  return input.mode === "setting_only" ? { read: input.read ?? "at_setup" } : null;
+}
+
+/** Whether a change of `pin` rebuilds its node: a setting its node reads as it is set up. */
+export function doesAChangeRebuildTheNode(pin: Pick<NodePin, "setting">): boolean {
+  return pin.setting?.read === "at_setup";
 }
 
 /** One row of a node's card: the side of the card its socket sits on, and its pin, or what stands for it, as its name in the layout. */
@@ -27,7 +44,7 @@ export interface NodePinRow<Pin = NodePin> {
   readonly node_pin: Pin;
 }
 
-/** A node's rows in the order a card draws them: its outputs first, then its inputs. */
+/** A node's rows in the order a card draws them: its outputs first, then its inputs, which a node's inputs list with its settings first. */
 export function nodePinRows<Pin>(inputs: readonly Pin[], outputs: readonly Pin[]): readonly NodePinRow<Pin>[] {
   return [...outputs.map((node_pin): NodePinRow<Pin> => ({ side: "output", node_pin })), ...inputs.map((node_pin): NodePinRow<Pin> => ({ side: "input", node_pin }))];
 }

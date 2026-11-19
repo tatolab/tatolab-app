@@ -177,6 +177,7 @@ export type {
   NodeTypeInputDescribed,
   NodeTypePortDescribed,
   NodeTypeInputMode,
+  SettingReadTime,
 } from "@tatolab/runtime-client/contract";
 
 /** The pin type a port of a running graph carries, resolved, and its flow, which the runtime serves together. */

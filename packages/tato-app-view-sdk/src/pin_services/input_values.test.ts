@@ -150,6 +150,19 @@ test("below_a_streams_own_level_a_drag_sends_only_its_commit_with_the_level", as
   ]);
 });
 
+test("a_drag_of_a_setting_that_rebuilds_its_node_shows_each_value_at_once_and_sends_only_its_release_as_one_commit", async () => {
+  const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
+  inputValues.takeTheInputValues(PROJECT, valuesRead(saved(0.5)));
+  const gesture = inputValues.beginGesture(GAIN, "commit_alone");
+  gesture.move(0.6);
+  gesture.move(0.7);
+  expect(inputValues.shownValue(GAIN).value).toBe(0.7);
+  expect(sent).toEqual([]);
+  gesture.release(0.8);
+  await answerTheNext();
+  expect(sent).toEqual([{ project_folder: PROJECT, operations: [{ operation: "set_node_input_value", stream: STREAM_ASSET, node: "MIX-ID", input: "gain", value: 0.8 }], mode: "commit", idempotency_key: "gesture-1" }]);
+});
+
 /** The mode and value of each `set_node_input_value` sent, in order. */
 const valuesSent = (sent: readonly TransactionSent[]) => sent.map(({ operations, mode }) => [mode, operations[0]?.operation === "set_node_input_value" ? operations[0].value : undefined]);
 

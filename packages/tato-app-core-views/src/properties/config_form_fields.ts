@@ -1,11 +1,11 @@
-// A node's config as form fields, from a config JSON Schema (draft 2020-12) of the settings its node
-// type's description lists that its graph node does not take as input ports, and the config the graph renders. Both of the runtime's spellings of a
-// nullable read the same: Rust's `"type": [T, "null"]` and Python's `anyOf` with `{"type": "null"}`;
-// a `$ref` resolves under the document's own `$defs`.
+// A setting that holds a list of records, read from the JSON Schema (draft 2020-12) a value set on it
+// satisfies, and each entry of it as fields. Both of the runtime's spellings of a nullable read the
+// same: Rust's `"type": [T, "null"]` and Python's `anyOf` with `{"type": "null"}`; a `$ref` resolves
+// under the document's own `$defs`.
 
-import { isAJsonValue, type JsonValue, type NodeTypeDescription, type StreamGraphNode } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { isAJsonValue, type JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
 
-/** A JSON object, as a config or a record in a config's list is. */
+/** A JSON object, as a record in a setting's list is. */
 export type JsonObject = { [key: string]: JsonValue };
 
 /** How a field shows its value: text, a number, on or off, one of a fixed set, or JSON for a value no plainer control holds. */
@@ -18,23 +18,20 @@ export type ConfigFormFieldControl =
   | { kind: "list_of_records"; item_schema: JsonObject; new_item: JsonObject }
   | { kind: "json" };
 
-/** One field of a node's config form. */
+/** One field of an entry of a setting's list of records. */
 export interface ConfigFormField {
   key: string;
   /** The schema's `description` of the key; `null` when it gives none. */
   description: string | null;
   control: ConfigFormFieldControl;
-  /** The config's value, else the schema's `default`, else `null`. */
+  /** The entry's value, else the schema's `default`, else `null`. */
   value: JsonValue;
-  /** Where the value comes from: the graph's config, the schema's default, or neither. */
+  /** Where the value comes from: the entry, the schema's default, or neither. */
   value_source: "config" | "default" | "unset";
   is_required: boolean;
   /** Whether `null` is a value the schema takes. */
   is_nullable: boolean;
 }
-
-/** A node's config form: its fields, or that its type takes no config. */
-export type ConfigForm = { kind: "fields"; fields: ConfigFormField[] } | { kind: "takes_no_config" };
 
 function isAJsonObject(value: JsonValue | undefined): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -155,74 +152,58 @@ function fieldOfAKeyWithNoSchema(key: string, value: JsonValue): ConfigFormField
   return { key, description: null, control: controlOfTheValue(value), value, value_source: "config", is_required: false, is_nullable: false };
 }
 
-/** The form for `config` under `configSchema`: a field per key the schema names, in its order, then one per key of `config` it does not. */
-export function configFormOf(configSchema: JsonValue | null, config: { [key: string]: JsonValue }): ConfigForm {
-  if (configSchema === null || typeof configSchema === "boolean") {
-    const fields = Object.entries(config).map(([key, value]) => fieldOfAKeyWithNoSchema(key, value));
-    return fields.length === 0 && configSchema === false ? { kind: "takes_no_config" } : { kind: "fields", fields };
-  }
-  if (!isAJsonObject(configSchema)) return { kind: "fields", fields: Object.entries(config).map(([key, value]) => fieldOfAKeyWithNoSchema(key, value)) };
-  const documentRoot = configSchema;
-  const rootSchema = resolvedSchema(configSchema, documentRoot);
+/** The fields of `record` under `recordSchema`: a field per key the schema names, in its order, then one per key of `record` it does not. */
+function fieldsOfTheRecord(recordSchema: JsonObject, record: JsonObject): ConfigFormField[] {
+  const documentRoot = recordSchema;
+  const rootSchema = resolvedSchema(recordSchema, documentRoot);
   const properties = isAJsonObject(rootSchema["properties"]) ? rootSchema["properties"] : {};
   const requiredKeys = Array.isArray(rootSchema["required"]) ? rootSchema["required"].filter((key): key is string => typeof key === "string") : [];
   const fieldsTheSchemaNames = Object.entries(properties).map(([key, propertySchemaOnTheWire]): ConfigFormField => {
     const unwrapped = withNullUnionUnwrapped(resolvedSchema(propertySchemaOnTheWire, documentRoot), documentRoot);
     const description = unwrapped.schema["description"];
-    const configValue = config[key];
+    const recordValue = record[key];
     const defaultValue = unwrapped.schema["default"];
-    const { control, isNullable } = statesNoValueShape(unwrapped.schema) ? { control: controlOfTheValue(configValue ?? defaultValue ?? null), isNullable: false } : controlOfTheSchema(unwrapped.schema, documentRoot);
-    const valueSource = configValue !== undefined ? "config" : defaultValue !== undefined ? "default" : "unset";
+    const { control, isNullable } = statesNoValueShape(unwrapped.schema) ? { control: controlOfTheValue(recordValue ?? defaultValue ?? null), isNullable: false } : controlOfTheSchema(unwrapped.schema, documentRoot);
+    const valueSource = recordValue !== undefined ? "config" : defaultValue !== undefined ? "default" : "unset";
     return {
       key,
       description: typeof description === "string" ? description : null,
       control,
-      value: configValue ?? defaultValue ?? null,
+      value: recordValue ?? defaultValue ?? null,
       value_source: valueSource,
       is_required: requiredKeys.includes(key),
       is_nullable: unwrapped.isNullable || isNullable,
     };
   });
-  const fieldsOfKeysTheSchemaDoesNotName = Object.entries(config)
+  const fieldsOfKeysTheSchemaDoesNotName = Object.entries(record)
     .filter(([key]) => !(key in properties))
     .map(([key, value]) => fieldOfAKeyWithNoSchema(key, value));
-  const fields = [...fieldsTheSchemaNames, ...fieldsOfKeysTheSchemaDoesNotName];
-  if (fields.length === 0 && rootSchema["additionalProperties"] === false) return { kind: "takes_no_config" };
-  return { kind: "fields", fields };
+  return [...fieldsTheSchemaNames, ...fieldsOfKeysTheSchemaDoesNotName];
 }
 
-/**
- * The config schema of `node`, of the node type `described` describes: an object whose properties are the settings the description
- * lists that the graph does not show among the node's input ports, each with the JSON Schema a value set on it satisfies, the project
- * assets it is picked from where it holds one, its documentation and its default; `null` when the node type has no description, so the form follows the config alone.
- */
-export function configSchemaOfTheSettings(described: Pick<NodeTypeDescription, "inputs"> | undefined, node: Pick<StreamGraphNode, "ports">): JsonObject | null {
-  if (described === undefined) return null;
-  const inputPortNames = new Set(node.ports.inputs.map((port) => port.name));
-  const settings = described.inputs.filter((input) => input.mode === "setting_only" && !inputPortNames.has(input.name));
-  const properties = Object.fromEntries(
-    settings.map((setting): [string, JsonObject] => {
-      const valueSchema: JsonValue | undefined = isAJsonValue(setting.value_json_schema) ? setting.value_json_schema : undefined;
-      const projectAsset = setting.annotations?.project_asset;
-      const mediaOfTheProjectAsset: JsonObject = projectAsset?.media === undefined || projectAsset.media.length === 0 ? {} : { media: [...projectAsset.media] };
-      return [
-        setting.name,
-        {
-          ...(projectAsset === undefined || projectAsset === null ? {} : { [PROJECT_ASSET_SCHEMA_KEYWORD]: mediaOfTheProjectAsset }),
-          ...(isAJsonObject(valueSchema) ? valueSchema : {}),
-          ...(setting.documentation === "" ? {} : { description: setting.documentation }),
-          ...(isAJsonValue(setting.default_value) ? { default: setting.default_value } : {}),
-        },
-      ];
-    }),
-  );
-  return { type: "object", properties, additionalProperties: false };
+/** What a setting holding a list of records is edited by: the schema of one record, and the record an entry added starts as. */
+export interface ListOfRecordsOfTheSetting {
+  item_schema: JsonObject;
+  new_item: JsonObject;
 }
 
-/** The form of one entry of a list of records: its fields, a list nested in it shown as JSON. */
-export function configFormOfAListEntry(itemSchema: JsonObject, record: JsonObject): ConfigForm {
-  const entryForm = configFormOf(itemSchema, record);
-  return entryForm.kind === "fields" ? { kind: "fields", fields: entryForm.fields.map((field) => (field.control.kind === "list_of_records" ? { ...field, control: { kind: "json" } } : field)) } : entryForm;
+/** The list of records a setting holds, read from `valueJsonSchema`, the JSON Schema a value set on it satisfies; `null` where it holds anything else. */
+export function listOfRecordsOfTheSetting(valueJsonSchema: unknown): ListOfRecordsOfTheSetting | null {
+  if (!isAJsonValue(valueJsonSchema) || !isAJsonObject(valueJsonSchema)) return null;
+  const { control } = controlOfTheSchema(withNullUnionUnwrapped(resolvedSchema(valueJsonSchema, valueJsonSchema), valueJsonSchema).schema, valueJsonSchema);
+  return control.kind === "list_of_records" ? { item_schema: control.item_schema, new_item: control.new_item } : null;
+}
+
+/** Whether `null` is a value a setting takes, as `valueJsonSchema`, the JSON Schema a value set on it satisfies, says. */
+export function doesTheSettingTakeNull(valueJsonSchema: unknown): boolean {
+  if (!isAJsonValue(valueJsonSchema) || !isAJsonObject(valueJsonSchema)) return false;
+  const unwrapped = withNullUnionUnwrapped(resolvedSchema(valueJsonSchema, valueJsonSchema), valueJsonSchema);
+  return unwrapped.isNullable || controlOfTheSchema(unwrapped.schema, valueJsonSchema).isNullable;
+}
+
+/** The fields of one entry of a list of records, under the schema of one record: a list nested in it shown as JSON. */
+export function fieldsOfAListEntry(itemSchema: JsonObject, record: JsonObject): ConfigFormField[] {
+  return fieldsOfTheRecord(itemSchema, record).map((field) => (field.control.kind === "list_of_records" ? { ...field, control: { kind: "json" } } : field));
 }
 
 /** The records of a list field's value, an absent or malformed list read as none and a non-object entry as an empty record. */

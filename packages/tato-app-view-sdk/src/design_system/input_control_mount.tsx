@@ -8,7 +8,7 @@ import type { PinType } from "../pin_types";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { createInputControlBinder, type InputControlBinder, type InputControlBinding, type InputControlShown, type InputValueRelease, type OwnFieldBinding } from "../pin_services/input_control_binding";
 import { createInputValues, type InputValueGesture, type InputValues, type ShownValue } from "../pin_services/input_values";
-import { jsonTextOf, type InputValueComesFrom, type JsonValue } from "../studio_readings";
+import { jsonTextOf, type InputValueComesFrom, type JsonValue, type StreamInputValue, type StreamInputValuesReading } from "../studio_readings";
 import { newGestureIdempotencyKey, type TatoAppViewConnection } from "../tato_app_view_connection";
 
 /** The frame's one binder, which every control slot binds through; `null` draws each slot's own field. */
@@ -24,12 +24,35 @@ export function useInputControlsOfTheFrame(connection: TatoAppViewConnection): {
   return { inputValues, inputControls };
 }
 
-/** Feeds `inputValues` the values of `stream`, a stream of the project in `projectFolder`, while drawn and the project is known. */
-export function useInputValuesOfTheStream(connection: TatoAppViewConnection, inputValues: InputValues, stream: string, projectFolder: string | null): void {
+const NO_SETTING_VALUES: readonly StreamInputValue[] = [];
+
+/**
+ * Feeds `inputValues` the values of `stream`, a stream of the project in `projectFolder`, while drawn and the project is known:
+ * each value the host serves, with `settingValues`, what each setting of a node type not yet typed reads, which the host
+ * serves none of, since the graph lists no such setting among its node's ports. A new `settingValues` is taken with the host's
+ * latest values; give one that changes only as the graph or its node types' descriptions do.
+ */
+export function useInputValuesOfTheStream(connection: TatoAppViewConnection, inputValues: InputValues, stream: string, projectFolder: string | null, settingValues: readonly StreamInputValue[] = NO_SETTING_VALUES): void {
+  const hostValues = useRef<{ readonly projectFolder: string; readonly stream: string; readonly reading: Extract<StreamInputValuesReading, { kind: "values" }> } | null>(null);
+  const settingValuesTaken = useRef(settingValues);
+  settingValuesTaken.current = settingValues;
   useLayoutEffect(() => {
+    hostValues.current = null;
     if (projectFolder === null) return undefined;
-    return connection.watchStreamInputValues(stream, (reading) => inputValues.takeTheInputValues(projectFolder, reading));
+    return connection.watchStreamInputValues(stream, (reading) => {
+      if (reading.kind === "changed") {
+        inputValues.takeTheInputValues(projectFolder, reading);
+        return;
+      }
+      hostValues.current = { projectFolder, stream, reading };
+      inputValues.takeTheInputValues(projectFolder, { ...reading, values: [...reading.values, ...settingValuesTaken.current] });
+    });
   }, [connection, inputValues, stream, projectFolder]);
+  useLayoutEffect(() => {
+    const latest = hostValues.current;
+    if (latest === null || latest.projectFolder !== projectFolder || latest.stream !== stream || settingValues.length === 0) return;
+    inputValues.takeTheInputValues(latest.projectFolder, { ...latest.reading, values: [...latest.reading.values, ...settingValues] });
+  }, [inputValues, stream, projectFolder, settingValues]);
 }
 
 interface InputControlMountProps {

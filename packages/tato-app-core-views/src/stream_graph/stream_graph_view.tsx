@@ -14,6 +14,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import type { ImportedProject, StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings } from "@tatolab/tato-app-view-sdk";
 import { graphAddressOfTheStreamsOwnLevel, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
+import { settingValuesOfTheGraph } from "@tatolab/tato-app-view-sdk/pin_model/node_settings";
 import { InputControlBinderContext, useInputControlsOfTheFrame, useInputValuesOfTheStream } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import {
   nodeTypeDescriptionsByType,
@@ -145,7 +146,8 @@ function StreamGraphOfTheTab({
   const nodeTypesReading = useNodeTypesOfTheProject(connection, projectFolder);
   const nodeTypesOfTheProject = nodeTypesReading?.kind === "listed" ? nodeTypesReading.node_types : null;
   const describedByType = useMemo(() => nodeTypeDescriptionsByType(nodeTypesOfTheProject?.described ?? []), [nodeTypesOfTheProject]);
-  useInputValuesOfTheStream(connection, inputValues, streamTab.stream, projectFolder);
+  const settingValues = useMemo(() => (graphReading?.kind === "read" ? settingValuesOfTheGraph(graphReading.graph, describedByType) : []), [graphReading, describedByType]);
+  useInputValuesOfTheStream(connection, inputValues, streamTab.stream, projectFolder, settingValues);
   const streamAsset = graphReading?.kind === "read" ? (graphReading.graph.asset ?? null) : null;
   const valuesOfTheLevelShown = useMemo(
     (): GraphAddress | null => {

@@ -329,6 +329,13 @@ function fireTheTriggerInput(graph: MockGraphLevel, node: MockGraphNode, input: 
   }
 }
 
+/** Whether `input` is a setting of `node` held in its config: one it names among its settings, or one its node type describes as a setting that is none of its ports. */
+function isASettingOfTheNode(node: Pick<MockGraphNode, "type" | "settings" | "input_ports">, input: string, nodeTypesDescribed: readonly NodeTypeDescription[]): boolean {
+  if (node.settings?.includes(input) === true) return true;
+  const described = nodeTypesDescribed.find((nodeType) => nodeType.node_type === node.type);
+  return described?.inputs.some((describedInput) => describedInput.name === input && describedInput.mode === "setting_only") === true && !node.input_ports.some((port) => port.name === input);
+}
+
 /**
  * Apply `operations` to `targetsByStreamAsset`'s graphs as one transaction: each graph is changed only once every
  * operation has applied to a copy of it. Applied by an undo or a redo, an `add_node`'s `as` is the id the node had, which
@@ -417,7 +424,7 @@ export function applyMockGraphTransaction(
       }
       case "set_node_input_value": {
         const node = nodeNamed(operation.node);
-        if (node.settings?.includes(operation.input) === true) {
+        if (isASettingOfTheNode(node, operation.input, nodeTypesDescribed)) {
           const to = jsonTheActionCarries(operation.value ?? null, "value");
           const from = node.config[operation.input] ?? null;
           const { [operation.input]: _taken, ...configWithoutTheSetting } = node.config;

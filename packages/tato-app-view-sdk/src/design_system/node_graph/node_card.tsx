@@ -1,11 +1,11 @@
 import { Handle, Position, useStore, useStoreApi, type NodeProps } from "@xyflow/react";
 import { cn } from "cn";
-import { ChevronDown, ChevronRight, Combine, SquareX, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, Combine, Hammer, SquareX, TriangleAlert } from "lucide-react";
 import { Fragment, memo, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { inputAddressKey, type InputAddress } from "../../pin_model/node_inputs";
 import { takesAControl } from "../../pin_model/controlled_inputs";
-import { nodePinRows, type NodePin } from "../../pin_model/node_pins";
-import { valueWords } from "../../pin_model/value_words";
+import { doesAChangeRebuildTheNode, nodePinRows, type NodePin } from "../../pin_model/node_pins";
+import { valueWords, wordsOfAValueOfNoType } from "../../pin_model/value_words";
 import type { PinFlow, PinType } from "../../pin_type_readings";
 import { pinTypeKey, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
 import { jsonTextOf, type StreamGraphPortPin } from "../../studio_readings";
@@ -75,7 +75,7 @@ function NodeGraphPinSocket({
   );
 }
 
-/** The words of the value an unwired input holds, at its row's end. They are written from the store as each value arrives, so a value that changes draws no card again. */
+/** The words of the value an unwired input holds, at its row's end, written as JSON for an input with no exact type. They are written from the store as each value arrives, so a value that changes draws no card again. */
 const NodeGraphInputValueWords = memo(function NodeGraphInputValueWords({ address, pinType }: { address: InputAddress; pinType: PinType | null }) {
   const inputValues = useContext(NodeGraphInputValuesContext);
   const wordsElement = useRef<HTMLSpanElement>(null);
@@ -83,7 +83,7 @@ const NodeGraphInputValueWords = memo(function NodeGraphInputValueWords({ addres
     const element = wordsElement.current;
     if (inputValues === null || element === null) return;
     return inputValues.watchValue(address, (shown) => {
-      const words = valueWords(pinType, shown.value) ?? "";
+      const words = (pinType === null ? wordsOfAValueOfNoType(shown.value) : valueWords(pinType, shown.value)) ?? "";
       element.textContent = words;
       element.title = words;
     });
@@ -109,10 +109,28 @@ function NodeGraphInputValueOfTheRow({ pin }: { pin: NodePin }) {
   return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={wordsOfTheValue} className="ml-auto w-24 shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
 }
 
+/** What the mark beside a setting its node reads as it is set up says while the pointer rests on it. */
+const REBUILDS_THE_NODE_WORDS = "A change rebuilds the node";
+
+/** The mark beside the name of a setting its node reads as it is set up, saying a change of it rebuilds the node; none on any other pin. */
+export function NodeGraphRebuildsTheNodeMark({ pin }: { pin: NodePin }) {
+  if (!doesAChangeRebuildTheNode(pin)) return null;
+  return (
+    <span className="ml-1 flex shrink-0 text-fg-3" title={REBUILDS_THE_NODE_WORDS} data-node-graph-rebuilds-the-node={pin.name}>
+      <Hammer className="size-2.5" strokeWidth={2} aria-label={REBUILDS_THE_NODE_WORDS} />
+    </span>
+  );
+}
+
+/** Whether a card draws a socket for `pin`: every pin but a setting, which takes a value and no wire. */
+function takesASocket(pin: Pick<NodePin, "setting">): boolean {
+  return pin.setting === null;
+}
+
 /** What a card's header and pin rows draw of a node. */
 type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "description" | "condition" | "inputs" | "outputs" | "is_collapsed" | "subgraph">;
 
-/** A card's header and its rows, one full-width row per pin, outputs first; the canvas and a preview outside it both draw it, and `socketOfThePin` draws each pin's socket. */
+/** A card's header and its rows, one full-width row per pin, outputs first, then settings, then the other inputs; the canvas and a preview outside it both draw it, and `socketOfThePin` draws the socket of each pin but a setting. */
 function NodeGraphCardHeaderAndPinRows({
   graphNode,
   beforeTheTitle = null,
@@ -143,7 +161,7 @@ function NodeGraphCardHeaderAndPinRows({
           </span>
         )}
         <NodeGraphCardConditionTag condition={graphNode.condition} />
-        {graphNode.is_collapsed && rows.map((row) => <Fragment key={`${row.side}:${row.node_pin.name}`}>{socketOfThePin(row.side, row.node_pin, false)}</Fragment>)}
+        {graphNode.is_collapsed && rows.filter((row) => takesASocket(row.node_pin)).map((row) => <Fragment key={`${row.side}:${row.node_pin.name}`}>{socketOfThePin(row.side, row.node_pin, false)}</Fragment>)}
       </div>
       {!graphNode.is_collapsed && rows.length > 0 && (
         <div style={{ paddingBlock: NODE_GRAPH_CARD_PIN_ROWS_PADDING }}>
@@ -153,6 +171,7 @@ function NodeGraphCardHeaderAndPinRows({
               className={cn("relative flex items-center px-3 py-0.5 text-2xs text-fg-2", row.side === "output" && "justify-end")}
               style={{ minHeight: NODE_GRAPH_PIN_ROW_HEIGHT }}
               data-node-graph-pin-row={row.side}
+              data-node-graph-setting={row.node_pin.setting === null ? undefined : row.node_pin.setting.read}
             >
               <span
                 className={cn("truncate", row.side === "output" && "text-right")}
@@ -161,8 +180,9 @@ function NodeGraphCardHeaderAndPinRows({
               >
                 {row.node_pin.name}
               </span>
+              <NodeGraphRebuildsTheNodeMark pin={row.node_pin} />
               {row.side === "input" && <NodeGraphInputValueOfTheRow pin={row.node_pin} />}
-              {socketOfThePin(row.side, row.node_pin, true)}
+              {takesASocket(row.node_pin) && socketOfThePin(row.side, row.node_pin, true)}
             </div>
           ))}
         </div>
@@ -175,7 +195,7 @@ function NodeGraphCardHeaderAndPinRows({
 function useEveryPinSocketOfTheCardMeasured(nodeId: string, graphNode: NodeGraphCardFaceNode): RefObject<HTMLDivElement | null> {
   const reactFlowStore = useStoreApi<NodeGraphFlowNode, NodeGraphLinkFlowEdge>();
   const cardElement = useRef<HTMLDivElement>(null);
-  const inputSocketIds = graphNode.inputs.map((pin) => inputPinHandleId(pin.name));
+  const inputSocketIds = graphNode.inputs.filter(takesASocket).map((pin) => inputPinHandleId(pin.name));
   const outputSocketIds = graphNode.outputs.map((pin) => outputPinHandleId(pin.name));
   const isAPinSocketUnmeasured = useStore((state) => isAPinSocketOfTheCardUnmeasured(state.nodeLookup.get(nodeId)?.internals.handleBounds, inputSocketIds, outputSocketIds));
   useLayoutEffect(() => {

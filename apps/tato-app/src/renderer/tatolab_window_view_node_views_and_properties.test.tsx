@@ -378,7 +378,7 @@ describe("the studio", () => {
     await waitFor(() => expect(rowLabels().length).toBeGreaterThan(2));
   });
 
-  it("shows each entry of a list config as its own fields in Properties, and edits, adds and removes an entry as the node's whole config", { timeout: 20_000 }, async () => {
+  it("shows each entry of a setting holding a list of records as its own fields on its input row in Properties, and edits, adds and removes an entry as the setting's whole list", { timeout: 20_000 }, async () => {
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&compositor=layered")));
     await mountedWindowOverTheMock("state=running&compositor=layered", { ...mockBackend, ...nodeTypesDescribingTheCompositorsLayers(mockBackend) });
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
@@ -386,7 +386,7 @@ describe("the studio", () => {
     const properties = () => coreViewPage("properties");
     const entryLabels = () => [...properties().querySelectorAll("[data-config-list-entry]")].map((entry) => entry.getAttribute("data-config-list-entry"));
     await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1"]));
-    expect(properties().querySelector('[data-config-field="layers"] output')?.textContent).toBe("2 entries");
+    expect(properties().querySelector('[data-properties-port="layers"] [data-properties-list-of-records="layers"] output')?.textContent).toBe("2 entries");
     const secondX = () => properties().querySelector<HTMLInputElement>('[data-config-field="layers:1:x"] input') ?? expect.unreachable("no x field on the second entry");
     expect(secondX().value).toBe("640");
     expect(properties().querySelector('[data-config-field="layers:0:opacity"]')?.getAttribute("data-config-field-value-source")).toBe("default");
@@ -397,7 +397,7 @@ describe("the studio", () => {
     await waitFor(() => expect(secondX().value).toBe("100"), { timeout: 5000 });
     expect(properties().querySelector('[data-config-field="layers:1:y"] input')).toHaveProperty("value", "360");
 
-    fireEvent.click(properties().querySelector<HTMLElement>('[data-config-field="layers"] [data-property-list-entry-add]') ?? expect.unreachable("no add"));
+    fireEvent.click(properties().querySelector<HTMLElement>('[data-properties-port="layers"] [data-property-list-entry-add]') ?? expect.unreachable("no add"));
     await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1", "layers:2"]), { timeout: 5000 });
     expect(properties().querySelector('[data-config-field="layers:2:opacity"]')?.getAttribute("data-config-field-value-source")).toBe("default");
 
@@ -420,11 +420,11 @@ describe("the studio", () => {
         return mockBackend.importAssetsIntoTheOpenProject(media);
       },
       transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
-        const assetSet = operations.find((operation) => operation.operation === "set_node_config" && "asset" in operation.config);
-        if (assetSet !== undefined && assetSet.operation === "set_node_config") {
-          assetsSent.push(assetSet.config["asset"] ?? null);
+        const assetSet = operations.find((operation) => operation.operation === "set_node_input_value" && operation.input === "asset");
+        if (assetSet !== undefined && assetSet.operation === "set_node_input_value") {
+          assetsSent.push(assetSet.value ?? null);
           if (refusesTheNextAssetSet)
-            return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: assetSet.node, refused_link: null, refused_field: "asset", refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "config field `asset`: not an asset of the project" } };
+            return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: assetSet.node, refused_link: null, refused_field: "asset", refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "input `asset`: not an asset of the project" } };
         }
         return mockBackend.transactInTheOpenProject(operations, mode, idempotencyKey);
       },
@@ -433,16 +433,16 @@ describe("the studio", () => {
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="posterimage"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
 
     const properties = () => coreViewPage("properties");
-    const assetWords = () => properties().querySelector<HTMLInputElement>('[data-config-field="asset"] [data-property-asset-field] input') ?? expect.unreachable("no asset field");
+    const assetWords = () => properties().querySelector<HTMLInputElement>('[data-properties-port="asset"] [data-property-asset-field] input') ?? expect.unreachable("no asset field");
     const openThePicker = async () => {
-      fireEvent.click(properties().querySelector<HTMLElement>('[data-config-field="asset"] [data-property-asset-choose]') ?? expect.unreachable("no Choose an asset… button"));
+      fireEvent.click(properties().querySelector<HTMLElement>('[data-properties-port="asset"] [data-property-asset-choose]') ?? expect.unreachable("no Choose an asset… button"));
       await waitFor(() => screen.getByRole("dialog", { name: "Choose an image" }));
       const pickerFrame = await waitFor(() => document.querySelector<HTMLIFrameElement>('[data-project-asset-picker] iframe[data-tatolab-view="library"]') ?? expect.unreachable("no Library in the asset picker"));
       return pickerFrame.contentDocument ?? expect.unreachable("the picker's Library has no page");
     };
     const pickerCardPaths = (picker: Document) => [...picker.querySelectorAll<HTMLElement>("[data-library-asset]")].map((card) => card.dataset.libraryAsset);
     await waitFor(() => expect(assetWords().value).toBe("None"));
-    expect(properties().querySelector('[data-config-field="asset"] [data-property-asset-picture]')).toBeNull();
+    expect(properties().querySelector('[data-properties-port="asset"] [data-property-asset-picture]')).toBeNull();
 
     const picker = await openThePicker();
     await waitFor(() => expect(pickerCardPaths(picker)).toEqual(["media/poster.png"]));
@@ -452,7 +452,7 @@ describe("the studio", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Choose an image" })).toBeNull());
     await waitFor(() => expect(assetWords().value).toBe("media/poster.png"), { timeout: 5000 });
     expect(assetsSent).toEqual(["baaf9e5a-0aff-45f7-a7ea-b83db51e5a3b"]);
-    await waitFor(() => expect(properties().querySelector('[data-config-field="asset"] [data-property-asset-picture]')?.getAttribute("src")).toMatch(/^data:image\//));
+    await waitFor(() => expect(properties().querySelector('[data-properties-port="asset"] [data-property-asset-picture]')?.getAttribute("src")).toMatch(/^data:image\//));
 
     fireEvent.keyDown(document, { key: "z", metaKey: true });
     await waitFor(() => expect(assetWords().value).toBe("None"), { timeout: 5000 });
@@ -478,7 +478,7 @@ describe("the studio", () => {
     refusesTheNextAssetSet = true;
     const pickerToBeRefused = await openThePicker();
     fireEvent.click(await waitFor(() => pickerToBeRefused.querySelector<HTMLElement>('[data-library-asset="media/poster.png"]') ?? expect.unreachable("no poster card in the picker")));
-    await waitFor(() => expect(properties().querySelector('[data-config-field="asset"]')?.textContent).toContain("config field `asset`: not an asset of the project"), { timeout: 5000 });
+    await waitFor(() => expect(properties().querySelector('[data-properties-port="asset"]')?.textContent).toContain("input `asset`: not an asset of the project"), { timeout: 5000 });
     expect(assetWords().value).toBe("media/night-sky.jpg");
   });
 
@@ -495,22 +495,22 @@ describe("the studio", () => {
     const streamGraph = coreViewPage("stream_graph", "stream-graph");
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="posterimage"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
 
-    await waitFor(() => expect(coreViewPage("properties").querySelector('[data-config-field="asset"] [data-property-asset-listing-refusal]')?.textContent).toContain(refusal), { timeout: 5000 });
+    await waitFor(() => expect(coreViewPage("properties").querySelector('[data-properties-port="asset"] [data-property-asset-listing-refusal]')?.textContent).toContain(refusal), { timeout: 5000 });
   });
 
-  it("exposes a number config field as a Graph Input from Properties, the node taking it as an input fed by the new Graph Input", async () => {
+  it("exposes a number setting as a Graph Input from its row in Properties, the node taking it as an input fed by the new Graph Input", async () => {
     await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="tally"]') ?? expect.unreachable("no Frame Tally card")));
     const properties = () => coreViewPage("properties");
 
-    pressAsAPointerDoes(await waitFor(() => properties().querySelector<HTMLElement>("[data-properties-expose-as-a-graph-input]") ?? expect.unreachable("no Expose as a Graph Input")));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Report Every Frames" }));
+    const exposeTheSetting = () => properties().querySelector<HTMLElement>('[data-properties-port="report_every_frames"] [data-properties-input-promote]');
+    fireEvent.click(await waitFor(() => exposeTheSetting() ?? expect.unreachable("no Expose as a Graph Input on report_every_frames")));
 
     const reportInput = await waitFor(() => properties().querySelector<HTMLElement>('[data-properties-section="inputs"] [data-properties-port="report_every_frames"]') ?? expect.unreachable("no report_every_frames input"), { timeout: 5000 });
     await waitFor(() => expect([...reportInput.querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"))).toEqual(["tally_report_every_frames › value"]));
     await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-card="tally_report_every_frames"]')).not.toBeNull());
-    expect(properties().querySelector("[data-properties-expose-as-a-graph-input]")).toBeNull();
+    expect(exposeTheSetting()).toBeNull();
   });
 
   it("opens the Marketplace from the store button beside the node search's field, closing the search", async () => {

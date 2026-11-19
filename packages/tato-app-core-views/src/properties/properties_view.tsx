@@ -2,10 +2,11 @@ import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_re
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
-import { NodeGraphPinMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
+import { NodeGraphPinMark, NodeGraphRebuildsTheNodeMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { pinWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
 import { takesAControl } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
 import type { GraphAddress, InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import { settingValuesOfTheGraph, valueReadOfTheSetting } from "@tatolab/tato-app-view-sdk/pin_model/node_settings";
 import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
 import {
   InputControlBinderContext,
@@ -16,6 +17,7 @@ import {
   useOwnFieldOfTheInput,
   useRefusalOfTheInput,
   useWhereTheInputsValueComesFrom,
+  type OwnFieldOfTheInput,
 } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import type { NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
@@ -39,17 +41,18 @@ import {
   PropertyTextField,
 } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import { newGestureIdempotencyKey, type AreasForAViewTypeReading, type StopWatching, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { AreasForAViewTypeReading, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { FieldMenu, MenuItem, MenuNote } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import {
   inputValueReadOfThePort,
-  jsonObjectMembersOf,
   type InputValueComesFrom,
   type JsonValue,
   nodeTypeDescriptionsByType,
   type NodeTypeDescription,
+  type NodeTypeInputDescribed,
   type ProjectAssetsReading,
   type StreamGraph,
+  type StreamGraphInputValueRead,
   type StreamGraphNode,
   type StreamGraphPort,
   type StreamGraphReading,
@@ -59,7 +62,7 @@ import { CoreViewFrame } from "../shared/core_view_page";
 import { useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
 import { nameInWords, nodeTitle, nodeTypeClassName, wordsForTheSeveralSelectedNodes } from "../shared/node_words";
-import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, configSchemaOfTheSettings, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
+import { configFormFieldValueWords, doesTheSettingTakeNull, fieldsOfAListEntry, listOfRecordsOfTheSetting, recordsOfAListField, type ConfigFormField, type ListOfRecordsOfTheSetting } from "./config_form_fields";
 import { propertiesListedWords, propertiesMatchingTheSearch } from "./properties_matching_the_search";
 import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
 import { chosenProjectAssetOf, chosenProjectAssetWords, projectAssetsForTheAssetFieldsOf } from "./project_asset_choices";
@@ -69,11 +72,7 @@ import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type Gr
 import { streamGraphLevelAtTheSubgraphIds } from "../stream_graph/stream_graph_levels";
 import { nodeInputs, nodeOutputs } from "../shared/node_pins_of_the_graph";
 import { selectionOfTheNodes } from "../shared/nodes_of_the_selection";
-import { inputRowStateOf } from "./input_row_state";
-
-
-/** The stream's own level, which a node selection with no `level` is at. */
-const NO_LEVEL: readonly string[] = [];
+import { inputRowStateOf, type InputRowState } from "./input_row_state";
 import {
   configFieldsToExposeAsGraphInputs,
   configValueFromTheWordsTyped,
@@ -87,12 +86,12 @@ import {
   nodeIdInShort,
   pinValueFromTheWordsTyped,
   promoteToGraphInput,
-  resetTheConfigField,
-  setTheConfigField,
-  type SetNodeConfigAction,
 } from "./properties_graph_edits";
 
-/** The open project a config field naming an asset reads its assets from and opens the asset picker through; `null` while no project is open. */
+/** The stream's own level, which a node selection with no `level` is at. */
+const NO_LEVEL: readonly string[] = [];
+
+/** The open project an asset field reads its assets from and opens the asset picker through; `null` while no project is open. */
 interface OpenProjectOfTheAssetFields {
   connection: TatoAppViewConnection;
   projectFolder: string;
@@ -105,57 +104,33 @@ function pinValueFieldId(nodeId: string, portName: string): string {
   return `${nodeId}:${portName}:pin`;
 }
 
-/** Where a config field's edits go: the place its refusal shows, and the node's whole config with the field at a new value. */
-interface ConfigFieldEditTarget {
-  place: PlaceOfAnEdit;
-  /** The node's whole config with the field at `newValue`; `null` when the entry it sits in changed under the edit. */
-  configActionWithTheFieldAt: (stream: string, newValue: JsonValue) => SetNodeConfigAction | null;
-  /** Adds an entry to a list of records; absent for any other field and while the stream can't be edited. */
-  addAnEntry?: () => void;
-}
-
-/** A config field's control, each change written back as the node's whole config; read only while the stream can't be edited. */
-function ConfigFieldControl({
+/** The control of one field of an entry of a setting's list of records, each value chosen handed to `onChosen`; read only without it. */
+function ListEntryFieldControl({
   fieldId,
   field,
-  node,
-  streamAsset,
-  graphEdits,
-  editTarget,
+  onChosen,
+  onWordsRefused,
 }: {
   fieldId: string;
   field: ConfigFormField;
-  node: StreamGraphNode;
-  streamAsset: string | null;
-  graphEdits: GraphEditsOfTheNode;
-  editTarget: ConfigFieldEditTarget;
+  onChosen: ((newValue: JsonValue) => void) | undefined;
+  /** Says why words typed into the field are no value it takes. */
+  onWordsRefused: (because: string) => void;
 }) {
   const isTheTypesDefault = field.value_source !== "config";
-  const { place } = editTarget;
-  const idempotencyKeyOfTheDragInProgress = useRef<string | null>(null);
   const { control, value } = field;
-  const configFieldSetTo = (stream: string, newValue: JsonValue): SetNodeConfigAction | null => {
-    const configEdit = editTarget.configActionWithTheFieldAt(stream, newValue);
-    if (configEdit === null) {
-      graphEdits.keepTheRefusal(place, LIST_ENTRY_MOVED_ON_REFUSAL);
-      return null;
-    }
-    graphEdits.rememberTheConfigSent(jsonObjectMembersOf(node.config), configEdit.config);
-    return configEdit;
-  };
-  const commitTheConfigFieldValue = (newValue: (typeof field)["value"]) => {
-    const configEdit = streamAsset === null ? null : configFieldSetTo(streamAsset, newValue);
-    if (configEdit !== null) void graphEdits.commit(place, [configEdit]);
-  };
-  const commitTheWords = (words: string) => {
-    const valueTyped = configValueFromTheWordsTyped(field, words);
-    if (valueTyped.kind === "not_a_value") graphEdits.keepTheRefusal(place, valueTyped.because);
-    else commitTheConfigFieldValue(valueTyped.value);
-  };
-  const isEditable = streamAsset !== null;
+  const commitTheWords =
+    onChosen === undefined
+      ? undefined
+      : (words: string) => {
+          const valueTyped = configValueFromTheWordsTyped(field, words);
+          if (valueTyped.kind === "not_a_value") onWordsRefused(valueTyped.because);
+          else onChosen(valueTyped.value);
+        };
   switch (control.kind) {
     case "number":
-      if (isEditable && control.minimum !== null && control.maximum !== null && control.maximum > control.minimum) {
+      if (onChosen !== undefined && commitTheWords !== undefined && control.minimum !== null && control.maximum !== null && control.maximum > control.minimum) {
+        // A list of records is a setting its node reads as it is set up, so a drag sends nothing until it is let go.
         return (
           <PropertySliderField
             fieldId={fieldId}
@@ -164,19 +139,9 @@ function ConfigFieldControl({
             maximum={control.maximum}
             isWholeNumber={control.is_whole_number}
             isTheTypesDefault={isTheTypesDefault}
-            onDragStarted={() => {
-              idempotencyKeyOfTheDragInProgress.current = newGestureIdempotencyKey();
-            }}
-            onLiveEdit={(moved) => {
-              const configEdit = configFieldSetTo(streamAsset, moved);
-              if (idempotencyKeyOfTheDragInProgress.current !== null && configEdit !== null) graphEdits.sendLive(place, [configEdit], idempotencyKeyOfTheDragInProgress.current);
-            }}
-            onCommitted={(released) => {
-              const idempotencyKeyOfTheRelease = idempotencyKeyOfTheDragInProgress.current ?? newGestureIdempotencyKey();
-              idempotencyKeyOfTheDragInProgress.current = null;
-              const configEdit = configFieldSetTo(streamAsset, released);
-              if (configEdit !== null) void graphEdits.commit(place, [configEdit], idempotencyKeyOfTheRelease);
-            }}
+            onDragStarted={() => undefined}
+            onLiveEdit={() => undefined}
+            onCommitted={onChosen}
             valueTypedBesideTheSlider={{ label: `${nameInWords(field.key)} value`, onWordsTyped: commitTheWords }}
           />
         );
@@ -188,85 +153,69 @@ function ConfigFieldControl({
           minimum={control.minimum}
           maximum={control.maximum}
           isTheTypesDefault={isTheTypesDefault}
-          onCommitted={isEditable ? commitTheWords : undefined}
+          onCommitted={commitTheWords}
         />
       );
     case "toggle":
-      return <PropertyCheckbox fieldId={fieldId} isOn={value === true} isTheTypesDefault={isTheTypesDefault} onToggled={isEditable ? commitTheConfigFieldValue : undefined} />;
+      return <PropertyCheckbox fieldId={fieldId} isOn={value === true} isTheTypesDefault={isTheTypesDefault} onToggled={onChosen} />;
     case "choice":
       return (
         <PropertyChoiceField
           fieldId={fieldId}
           words={configFormFieldValueWords(value)}
           isTheTypesDefault={isTheTypesDefault}
-          choices={
-            isEditable
-              ? control.choices.map((choice) => ({
-                  words: configFormFieldValueWords(choice),
-                  onChosen: () => commitTheConfigFieldValue(choice),
-                }))
-              : undefined
-          }
+          choices={onChosen === undefined ? undefined : control.choices.map((choice) => ({ words: configFormFieldValueWords(choice), onChosen: () => onChosen(choice) }))}
         />
       );
     case "project_asset":
       return (
         <ProjectAssetFieldOfTheConfig
           fieldId={fieldId}
-          field={field}
+          name={field.key}
+          value={field.value_source === "unset" ? null : field.value}
           mediaItTakes={control.media_it_takes}
           isTheTypesDefault={isTheTypesDefault}
-          onChosen={isEditable ? commitTheConfigFieldValue : undefined}
-          onPickNotStarted={(because) => graphEdits.keepTheRefusal(place, because)}
+          takesNull={field.is_nullable}
+          onChosen={onChosen}
+          onPickNotStarted={onWordsRefused}
         />
       );
     case "list_of_records":
-      return (
-        <PropertyListEntryCount
-          fieldId={fieldId}
-          entryCount={recordsOfAListField(value).length}
-          isTheTypesDefault={isTheTypesDefault}
-          addition={editTarget.addAnEntry === undefined ? undefined : { label: `Add an entry to ${nameInWords(field.key)}`, onAdded: editTarget.addAnEntry }}
-        />
-      );
     case "text":
     case "json":
-      return (
-        <PropertyTextField
-          fieldId={fieldId}
-          words={field.value_source === "unset" ? "" : configFormFieldValueWords(value)}
-          isTheTypesDefault={isTheTypesDefault}
-          onCommitted={isEditable ? commitTheWords : undefined}
-        />
-      );
+      return <PropertyTextField fieldId={fieldId} words={field.value_source === "unset" ? "" : configFormFieldValueWords(value)} isTheTypesDefault={isTheTypesDefault} onCommitted={commitTheWords} />;
   }
 }
 
-/** What a config field naming a project asset is handed: its value, the media it takes, whether it is the type's default, what choosing an asset does, read only without `onChosen`, and where a picker that did not open says why. */
+/** What an asset field is handed: the name of what it sets, its value, the media it takes, whether it is the type's default and takes no asset, what choosing an asset does, read only without `onChosen`, and where a picker that did not open says why. */
 interface ProjectAssetFieldOfTheConfigProps {
   fieldId: string;
-  field: ConfigFormField;
+  name: string;
+  value: JsonValue | null;
   mediaItTakes: string[] | null;
   isTheTypesDefault: boolean;
+  takesNull: boolean;
   onChosen: ((asset: JsonValue) => void) | undefined;
   onPickNotStarted: (because: string) => void;
 }
 
-/** A config field naming a project asset: the asset it names, by path with its picture, beside a button that opens Studio's asset picker; the value as written while no project is open. */
+/** A field naming a project asset by its UUID: the asset it names, by path with its picture, beside a button that opens Studio's asset picker; the value as written while no project is open. */
 function ProjectAssetFieldOfTheConfig(props: ProjectAssetFieldOfTheConfigProps) {
   const openProject = useContext(OpenProjectOfTheAssetFieldsContext);
   if (openProject === null) {
-    const { fieldId, field, isTheTypesDefault } = props;
-    return <PropertyAssetField fieldId={fieldId} words={chosenProjectAssetWords([], field.value_source === "unset" ? null : field.value)} previewPictureUrl={null} isTheTypesDefault={isTheTypesDefault} />;
+    const { fieldId, value, isTheTypesDefault } = props;
+    return <PropertyAssetField fieldId={fieldId} words={chosenProjectAssetWords([], value)} previewPictureUrl={null} isTheTypesDefault={isTheTypesDefault} />;
   }
   return <ProjectAssetFieldOfTheOpenProject key={openProject.projectFolder} {...props} openProject={openProject} />;
 }
 
 function ProjectAssetFieldOfTheOpenProject({
   fieldId,
-  field,
+  name,
+  value,
   mediaItTakes,
   isTheTypesDefault,
+  takesNull,
   onChosen,
   onPickNotStarted,
   openProject: { connection, projectFolder },
@@ -276,7 +225,6 @@ function ProjectAssetFieldOfTheOpenProject({
   const previewPictures = useAssetPreviewPicturesOfTheProject(connection, projectFolder);
   const [isThePickerOpen, setIsThePickerOpen] = useState(false);
   const assetsListed = projectAssets.kind === "listed" ? projectAssets.assets : [];
-  const value = field.value_source === "unset" ? null : field.value;
   const chosenAsset = chosenProjectAssetOf(assetsListed, value);
   const chooseAnAsset = (whenChosen: (asset: JsonValue) => void) => {
     setIsThePickerOpen(true);
@@ -293,142 +241,116 @@ function ProjectAssetFieldOfTheOpenProject({
         words={chosenProjectAssetWords(assetsListed, value)}
         previewPictureUrl={chosenAsset === null ? null : previewPictureUrlOf(previewPictures?.pictureOf(chosenAsset) ?? null)}
         isTheTypesDefault={isTheTypesDefault}
-        choosing={onChosen === undefined ? undefined : { label: `Choose an asset for ${nameInWords(field.key)}…`, disabledReason: isThePickerOpen ? "The asset picker is open." : null, onChooseAsked: () => chooseAnAsset(onChosen) }}
-        clearing={onChosen === undefined || !field.is_nullable || value === null || value === "" ? undefined : { label: `Choose no asset for ${nameInWords(field.key)}`, onCleared: () => onChosen(null) }}
+        choosing={onChosen === undefined ? undefined : { label: `Choose an asset for ${nameInWords(name)}…`, disabledReason: isThePickerOpen ? "The asset picker is open." : null, onChooseAsked: () => chooseAnAsset(onChosen) }}
+        clearing={onChosen === undefined || !takesNull || value === null || value === "" ? undefined : { label: `Choose no asset for ${nameInWords(name)}`, onCleared: () => onChosen(null) }}
       />
       {projectAssets.kind === "refused" && <RefusalLine lead="The project's assets weren't listed:" words={projectAssets.because} data-property-asset-listing-refusal="" />}
     </div>
   );
 }
 
-/** A top-level config field's row, and for a list of records, each entry's own rows under it. */
-function ConfigFieldRows({
-  field,
-  node,
-  streamAsset,
-  graphEdits,
-  searchWords,
-}: {
-  field: ConfigFormField;
-  node: StreamGraphNode;
-  streamAsset: string | null;
+/** What a field of the panel's own sets through: the store's value of one input or setting, and its own refusals. */
+interface OwnFieldOfTheRow {
+  address: InputAddress;
+  /** The place its words or a picker that did not open say why under. */
+  place: PlaceOfAnEdit;
   graphEdits: GraphEditsOfTheNode;
-  searchWords: string;
-}) {
-  const configEditedFrom = () => graphEdits.configToEditFrom(jsonObjectMembersOf(node.config));
-  const commitTheConfig = (place: PlaceOfAnEdit, configAction: SetNodeConfigAction | null) => {
-    if (configAction === null) {
-      graphEdits.keepTheRefusal(place, LIST_ENTRY_MOVED_ON_REFUSAL);
-      return;
-    }
-    graphEdits.rememberTheConfigSent(jsonObjectMembersOf(node.config), configAction.config);
-    void graphEdits.commit(place, [configAction]);
+}
+
+/** The value an input or setting holds of its own in the store, `null` while it reads its default or none. */
+function ownValueShown(ownField: OwnFieldOfTheInput | null): JsonValue | null {
+  const shown = ownField?.shown;
+  return shown !== undefined && (shown.comes_from === "saved" || shown.comes_from === "live") ? shown.value : null;
+}
+
+/** The value an input or setting shows in the store, its own or its default; `null` where it shows none. */
+function valueShown(ownField: OwnFieldOfTheInput | null): JsonValue | null {
+  return ownField?.shown.value ?? null;
+}
+
+/** The panel's own asset field for a String holding a project asset's UUID: the asset chosen set as the value, as one commit. */
+function AssetFieldOfTheInput({ fieldId, row, mediaItTakes, takesNull }: { fieldId: string; row: OwnFieldOfTheRow; mediaItTakes: string[] | null; takesNull: boolean }) {
+  const ownField = useOwnFieldOfTheInput(row.address, "commit");
+  return (
+    <ProjectAssetFieldOfTheConfig
+      fieldId={fieldId}
+      name={row.address.input}
+      value={valueShown(ownField)}
+      mediaItTakes={mediaItTakes}
+      isTheTypesDefault={ownValueShown(ownField) === null}
+      takesNull={takesNull}
+      onChosen={ownField === null ? undefined : (asset) => ownField.releaseTheValue(asset)}
+      onPickNotStarted={(because) => row.graphEdits.keepTheRefusal(row.place, because)}
+    />
+  );
+}
+
+/**
+ * The panel's own rows for a setting holding a list of records: how many entries it holds, with a way to add one, then each
+ * entry's fields, which set the whole list as one commit, read from the value the store shows.
+ */
+function ListOfRecordsOfTheInput({ fieldId, row, list }: { fieldId: string; row: OwnFieldOfTheRow; list: ListOfRecordsOfTheSetting }) {
+  const ownField = useOwnFieldOfTheInput(row.address, "commit");
+  const { graphEdits } = row;
+  const settingName = row.address.input;
+  const records = recordsOfAListField(valueShown(ownField));
+  const setTheList = (place: PlaceOfAnEdit, listWanted: (listEditedFrom: JsonValue) => JsonValue[] | null) => {
+    if (ownField === null) return;
+    const listSet = listWanted(valueShown(ownField));
+    if (listSet === null) graphEdits.keepTheRefusal(place, LIST_ENTRY_MOVED_ON_REFUSAL);
+    else ownField.releaseTheValue(listSet);
   };
-  const fieldPlace = placeOfTheConfigField(field.key);
-  const listControl = field.control.kind === "list_of_records" ? field.control : null;
-  const listEditedFrom = () => configEditedFrom()[field.key] ?? field.value;
-  const configWithTheList = (stream: string, list: JsonValue[] | null) => (list === null ? null : setTheConfigField(stream, node.id, configEditedFrom(), field.key, list));
   return (
-    <>
-      <ConfigFieldRow
-        field={field}
-        label={nameInWords(field.key)}
-        searchWords={searchWords}
-        node={node}
-        streamAsset={streamAsset}
-        graphEdits={graphEdits}
-        editTarget={{
-          place: fieldPlace,
-          configActionWithTheFieldAt: (stream, newValue) => setTheConfigField(stream, node.id, configEditedFrom(), field.key, newValue),
-          addAnEntry: listControl === null || streamAsset === null ? undefined : () => commitTheConfig(fieldPlace, configWithTheList(streamAsset, listWithARecordAdded(listEditedFrom(), listControl.new_item))),
-        }}
-        onReset={streamAsset === null ? undefined : () => commitTheConfig(fieldPlace, resetTheConfigField(streamAsset, node.id, configEditedFrom(), field.key))}
-        data-config-field={field.key}
+    <div className="flex w-full min-w-0 flex-col gap-1" data-properties-list-of-records={settingName}>
+      <PropertyListEntryCount
+        fieldId={fieldId}
+        entryCount={records.length}
+        isTheTypesDefault={ownValueShown(ownField) === null}
+        addition={ownField === null ? undefined : { label: `Add an entry to ${nameInWords(settingName)}`, onAdded: () => setTheList(row.place, (listEditedFrom) => listWithARecordAdded(listEditedFrom, list.new_item)) }}
       />
-      {listControl !== null &&
-        recordsOfAListField(field.value).map((record, index) => {
-          const entryForm = configFormOfAListEntry(listControl.item_schema, record);
-          const entryLabel = `${nameInWords(field.key)} ${index}`;
-          return (
-            <PropertyListEntry
-              key={index}
-              label={entryLabel}
-              removal={streamAsset === null ? undefined : { label: `Remove ${entryLabel}`, onRemoved: () => commitTheConfig(fieldPlace, configWithTheList(streamAsset, listWithoutTheRecord(listEditedFrom(), index, record))) }}
-              data-config-list-entry={`${field.key}:${index}`}
-            >
-              {entryForm.kind === "fields" &&
-                entryForm.fields.map((entryField) => {
-                  const entryFieldPlace: PlaceOfAnEdit = `config:${field.key}:${index}:${entryField.key}`;
-                  const configWithTheEntryFieldAt = (stream: string, newValue: JsonValue | undefined) => configWithTheList(stream, listWithTheRecordFieldSet(listEditedFrom(), index, record, entryField.key, newValue));
-                  return (
-                    <ConfigFieldRow
-                      key={entryField.key}
+      {records.map((record, index) => {
+        const entryLabel = `${nameInWords(settingName)} ${index}`;
+        return (
+          <PropertyListEntry
+            key={index}
+            label={entryLabel}
+            removal={ownField === null ? undefined : { label: `Remove ${entryLabel}`, onRemoved: () => setTheList(row.place, (listEditedFrom) => listWithoutTheRecord(listEditedFrom, index, record)) }}
+            data-config-list-entry={`${settingName}:${index}`}
+          >
+            {fieldsOfAListEntry(list.item_schema, record).map((entryField) => {
+              const entryFieldPlace: PlaceOfAnEdit = `input:${settingName}:${index}:${entryField.key}`;
+              const setTheEntryField = (newValue: JsonValue | undefined) => setTheList(entryFieldPlace, (listEditedFrom) => listWithTheRecordFieldSet(listEditedFrom, index, record, entryField.key, newValue));
+              return (
+                <PropertyRow
+                  key={entryField.key}
+                  label={nameInWords(entryField.key)}
+                  meaning={entryField.description === null ? entryField.key : `${entryField.key} · ${entryField.description}`}
+                  refusal={graphEdits.refusalsByPlace.get(entryFieldPlace) ?? null}
+                  reset={ownField === null || entryField.value_source !== "config" ? undefined : { label: `Reset ${entryLabel} ${nameInWords(entryField.key)} to its type's default`, onReset: () => setTheEntryField(undefined) }}
+                  data-config-field={`${settingName}:${index}:${entryField.key}`}
+                  data-config-field-value-source={entryField.value_source}
+                >
+                  {(entryFieldId) => (
+                    <ListEntryFieldControl
+                      fieldId={entryFieldId}
                       field={entryField}
-                      label={nameInWords(entryField.key)}
-                      resetLabel={`Reset ${entryLabel} ${nameInWords(entryField.key)} to its type's default`}
-                      node={node}
-                      streamAsset={streamAsset}
-                      graphEdits={graphEdits}
-                      editTarget={{ place: entryFieldPlace, configActionWithTheFieldAt: configWithTheEntryFieldAt }}
-                      onReset={streamAsset === null ? undefined : () => commitTheConfig(entryFieldPlace, configWithTheEntryFieldAt(streamAsset, undefined))}
-                      data-config-field={`${field.key}:${index}:${entryField.key}`}
+                      onChosen={ownField === null ? undefined : setTheEntryField}
+                      onWordsRefused={(because) => graphEdits.keepTheRefusal(entryFieldPlace, because)}
                     />
-                  );
-                })}
-            </PropertyListEntry>
-          );
-        })}
-    </>
+                  )}
+                </PropertyRow>
+              );
+            })}
+          </PropertyListEntry>
+        );
+      })}
+    </div>
   );
-}
-
-/** One config field's row: its name, its control, its reset while its value is the node's own, and the runtime's refusal of its last edit. */
-function ConfigFieldRow({
-  field,
-  label,
-  searchWords = "",
-  resetLabel = `Reset ${label} to its type's default`,
-  node,
-  streamAsset,
-  graphEdits,
-  editTarget,
-  onReset,
-  "data-config-field": configFieldDataAttribute,
-}: {
-  field: ConfigFormField;
-  label: string;
-  searchWords?: string;
-  resetLabel?: string;
-  node: StreamGraphNode;
-  streamAsset: string | null;
-  graphEdits: GraphEditsOfTheNode;
-  editTarget: ConfigFieldEditTarget;
-  onReset: (() => void) | undefined;
-  "data-config-field": string;
-}) {
-  return (
-    <PropertyRow
-      label={label}
-      searchWords={searchWords}
-      meaning={meaningOfAConfigKey(field)}
-      refusal={graphEdits.refusalsByPlace.get(editTarget.place) ?? null}
-      reset={onReset === undefined || field.value_source !== "config" ? undefined : { label: resetLabel, onReset }}
-      data-config-field={configFieldDataAttribute}
-      data-config-field-value-source={field.value_source}
-    >
-      {(fieldId) => <ConfigFieldControl fieldId={fieldId} field={field} node={node} streamAsset={streamAsset} graphEdits={graphEdits} editTarget={editTarget} />}
-    </PropertyRow>
-  );
-}
-
-/** What a config key's name shows while the pointer rests on it: its key as the code writes it, and what the schema says it means. */
-function meaningOfAConfigKey(field: ConfigFormField): string {
-  return field.description === null ? field.key : `${field.key} · ${field.description}`;
 }
 
 /** What a port's name shows while the pointer rests on it: the stream facts it reads, and that a Records port's values are not checked. */
-function meaningOfAPort(pin: Pick<NodePin, "stream_facts_words">, port: Pick<StreamGraphPort, "values_checked">): string | undefined {
-  const meaning = [pin.stream_facts_words.length > 0 ? pin.stream_facts_words.join(" · ") : null, port.values_checked === false ? VALUES_UNCHECKED_MEANING : null]
+function meaningOfAPort(pin: Pick<NodePin, "stream_facts_words">, port: Pick<StreamGraphPort, "values_checked"> | null): string | undefined {
+  const meaning = [pin.stream_facts_words.length > 0 ? pin.stream_facts_words.join(" · ") : null, port?.values_checked === false ? VALUES_UNCHECKED_MEANING : null]
     .filter((words): words is string => words !== null)
     .join("\n");
   return meaning === "" ? undefined : meaning;
@@ -459,47 +381,70 @@ interface InputRowsOfTheNode {
   /** The frame's store, which a promotion reads the value an input shows from. */
   inputValues: InputValues;
   graphEdits: GraphEditsOfTheNode;
+  /** The settings of the node it can take as inputs and does not yet, each offered on its row to be exposed as a Graph Input. */
+  settingsToExpose: ReadonlySet<string>;
   searchWords: string;
 }
 
-/**
- * One input of the node, as its card draws it, wider, in the state `inputRowStateOf` decides: a wired input names each node
- * and pin that drive it, with a way there and a disconnect; an unwired one draws the control its card draws, or the panel's
- * own field where the table has none, says where the store's value comes from, and offers Reset to default and Promote to a
- * Graph Input.
- */
-function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port: StreamGraphPort; bandShade: PropertyPortBandShade; rows: InputRowsOfTheNode }) {
-  const { connection, stream, level, graph, node, streamAsset, inputValues, graphEdits, searchWords } = rows;
+/** The mark beside an input's name: the socket its card draws, or for a setting, which takes no wire, the mark of one a change of which rebuilds its node. */
+function InputMarkOfTheRow({ pin }: { pin: NodePin }) {
+  return pin.setting === null ? <NodeGraphPinMark pin={pin.pin} /> : <NodeGraphRebuildsTheNodeMark pin={pin} />;
+}
+
+/** Where the runtime reads an input's value from: as its port states, or for a setting the graph lists among no port, as the node's graph document holds it. */
+function whereTheInputReadsFrom(node: StreamGraphNode, port: StreamGraphPort | null, describedInput: NodeTypeInputDescribed | undefined): StreamGraphInputValueRead | null {
+  if (port !== null) return inputValueReadOfThePort(port);
+  return describedInput === undefined ? null : valueReadOfTheSetting(node, describedInput);
+}
+
+/** What a row offers to feed its input from a new Graph Input: a promotion of an input, or the exposing of a setting its node can take as an input; nothing where neither can be. */
+function graphInputOfferedOnTheRow(pin: NodePin, port: StreamGraphPort | null, state: InputRowState, rows: InputRowsOfTheNode): { label: string; onPromoted: () => void } | undefined {
+  const { level, graph, node, streamAsset, inputValues, graphEdits, settingsToExpose } = rows;
+  if (streamAsset === null) return undefined;
   const place = placeOfTheInput(pin.name);
-  const state = inputRowStateOf({ input: pin, value_comes_from: inputValueReadOfThePort(port)?.comes_from ?? null, driven_by: linkedEndsOfThePort(graph, node, "input", pin.name), is_editable: streamAsset !== null });
+  if (pin.setting !== null) {
+    if (!settingsToExpose.has(pin.name)) return undefined;
+    return { label: `Expose ${pin.name} as a Graph Input`, onPromoted: () => void graphEdits.commit(place, exposeTheConfigFieldAsAGraphInput(streamAsset, node, pin)) };
+  }
+  const canBePromoted = (state.kind === "holds_a_value" || state.kind === "not_connected") && state.can_be_promoted;
+  if (!canBePromoted || port === null) return undefined;
+  return {
+    label: `Promote ${pin.name} to a Graph Input`,
+    onPromoted: () => {
+      const nodeNamesTaken = new Set(graph.nodes.map((graphNode) => graphNode.name));
+      const valueShownNow = state.kind === "holds_a_value" ? inputValues.shownValue(state.address).value : (inputValueReadOfThePort(port)?.value ?? null);
+      void graphEdits.commit(place, promoteToGraphInput(streamAsset, { node, input: port, valueShown: valueShownNow, isOnTheStreamsOwnLevel: level.length === 0, nodeNamesTaken }));
+    },
+  };
+}
+
+/**
+ * One input of the node, its settings among them, as its card draws it, wider, in the state `inputRowStateOf` decides: a
+ * wired input names each node and pin that drive it, with a way there and a disconnect; an unwired one draws the control its
+ * card draws, or the panel's own field where the table has none, says where the store's value comes from, and offers Reset
+ * to default and Promote to a Graph Input, or for a setting its node can take as an input, Expose as a Graph Input. `port`
+ * is `null` for a setting the graph lists among no port of the node.
+ */
+function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin: NodePin; port: StreamGraphPort | null; describedInput: NodeTypeInputDescribed | undefined; bandShade: PropertyPortBandShade; rows: InputRowsOfTheNode }) {
+  const { connection, stream, level, graph, node, streamAsset, graphEdits, searchWords } = rows;
+  const place = placeOfTheInput(pin.name);
+  const state = inputRowStateOf({ input: pin, value_comes_from: whereTheInputReadsFrom(node, port, describedInput)?.comes_from ?? null, driven_by: linkedEndsOfThePort(graph, node, "input", pin.name), is_editable: streamAsset !== null });
   const valueSource = useWhereTheInputsValueComesFrom(state.kind === "holds_a_value" ? state.address : null, "commit");
   const comesFrom = valueSource?.comes_from ?? null;
-  const canBePromoted = (state.kind === "holds_a_value" || state.kind === "not_connected") && state.can_be_promoted;
   return (
     <PropertyPortRow
       direction="input"
       portName={pin.name}
       searchWords={searchWords}
       typeWords={typeWordsOfThePin(pin)}
-      pinMark={<NodeGraphPinMark pin={pin.pin} />}
+      pinMark={<InputMarkOfTheRow pin={pin} />}
       meaning={meaningOfAPort(pin, port)}
       description={pin.description ?? undefined}
       bandShade={bandShade}
       refusal={graphEdits.refusalsByPlace.get(place) ?? null}
       comesFromWords={comesFrom === null || comesFrom === "wire" ? undefined : COMES_FROM_WORDS[comesFrom]}
       reset={valueSource === null || comesFrom !== "saved" ? undefined : { label: `Reset ${pin.name} to default`, onReset: valueSource.clearTheValue }}
-      promotion={
-        !canBePromoted || streamAsset === null
-          ? undefined
-          : {
-              label: `Promote ${pin.name} to a Graph Input`,
-              onPromoted: () => {
-                const nodeNamesTaken = new Set(graph.nodes.map((graphNode) => graphNode.name));
-                const valueShown = state.kind === "holds_a_value" ? inputValues.shownValue(state.address).value : (inputValueReadOfThePort(port)?.value ?? null);
-                void graphEdits.commit(place, promoteToGraphInput(streamAsset, { node, input: port, valueShown, isOnTheStreamsOwnLevel: level.length === 0, nodeNamesTaken }));
-              },
-            }
-      }
+      promotion={graphInputOfferedOnTheRow(pin, port, state, rows)}
       linkedEnds={
         state.kind !== "wired"
           ? []
@@ -520,7 +465,7 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
       }
       unlinkedValue={
         state.kind === "holds_a_value" ? (
-          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} nodePin={pin} address={state.address} />
+          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} nodePin={pin} describedInput={describedInput} row={{ address: state.address, place, graphEdits }} />
         ) : state.kind === "wired_from_outside_the_level" ? (
           <span className="text-fg-3" data-properties-input-wired-from-outside-the-level>
             Wired
@@ -532,13 +477,29 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
 }
 
 /**
+ * The panel's own field for an input no control draws: the asset field for one holding a project asset's UUID, the entry
+ * rows of a setting holding a list of records, and else its value as JSON.
+ */
+function OwnFieldOfTheRowsInput({ fieldId, nodePin, describedInput, row }: { fieldId: string; nodePin: Pick<NodePin, "annotations">; describedInput: NodeTypeInputDescribed | undefined; row: OwnFieldOfTheRow }) {
+  const projectAsset = nodePin.annotations.project_asset;
+  if (projectAsset !== undefined && projectAsset !== null) {
+    const mediaItTakes = projectAsset.media === undefined || projectAsset.media === null || projectAsset.media.length === 0 ? null : [...projectAsset.media];
+    return <AssetFieldOfTheInput fieldId={fieldId} row={row} mediaItTakes={mediaItTakes} takesNull={doesTheSettingTakeNull(describedInput?.value_json_schema)} />;
+  }
+  const list = listOfRecordsOfTheSetting(describedInput?.value_json_schema);
+  if (list !== null) return <ListOfRecordsOfTheInput fieldId={fieldId} row={row} list={list} />;
+  return <JsonFieldOfTheInput fieldId={fieldId} address={row.address} />;
+}
+
+/**
  * An unwired input's value: the control its card draws, through the frame's binder, where its type is exact, its value in
  * words while that control loads, and the panel's own field where the table has no control for it. Under it, the store's
  * refusal of the last value sent to it.
  */
-function ValueOfTheUnwiredInput({ fieldId, nodePin, address }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations">; address: InputAddress }) {
-  const controlled = takesAControl({ name: address.input, pin: nodePin.pin, annotations: nodePin.annotations, value_address: address });
-  const ownField = <OwnFieldOfTheInput fieldId={fieldId} address={address} />;
+function ValueOfTheUnwiredInput({ fieldId, nodePin, describedInput, row }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations" | "setting">; describedInput: NodeTypeInputDescribed | undefined; row: OwnFieldOfTheRow }) {
+  const { address } = row;
+  const controlled = takesAControl({ name: address.input, pin: nodePin.pin, annotations: nodePin.annotations, value_address: address, setting: nodePin.setting });
+  const ownField = <OwnFieldOfTheRowsInput fieldId={fieldId} nodePin={nodePin} describedInput={describedInput} row={row} />;
   return (
     <div className="flex w-full min-w-0 flex-col gap-1">
       {controlled === null ? (
@@ -552,15 +513,14 @@ function ValueOfTheUnwiredInput({ fieldId, nodePin, address }: { fieldId: string
 }
 
 /** The panel's own field for an input the table has no control for: its value as JSON, each commit set as the input's value, the words left empty taking it off. */
-function OwnFieldOfTheInput({ fieldId, address }: { fieldId: string; address: InputAddress }) {
+function JsonFieldOfTheInput({ fieldId, address }: { fieldId: string; address: InputAddress }) {
   const ownField = useOwnFieldOfTheInput(address, "commit");
-  const shown = ownField?.shown ?? null;
-  const holdsItsOwnValue = shown?.comes_from === "saved" || shown?.comes_from === "live";
+  const ownValue = ownValueShown(ownField);
   return (
     <PropertyTextField
       fieldId={fieldId}
-      words={shown !== null && holdsItsOwnValue ? configFormFieldValueWords(shown.value) : ""}
-      isTheTypesDefault={!holdsItsOwnValue}
+      words={ownValue === null ? "" : configFormFieldValueWords(ownValue)}
+      isTheTypesDefault={ownValue === null}
       label={`Value of ${address.input}`}
       onCommitted={ownField === null ? undefined : (words) => (words.trim() === "" ? ownField.clearTheValue() : ownField.releaseTheValue(pinValueFromTheWordsTyped(words)))}
     />
@@ -596,48 +556,24 @@ function bandShadeAt(bandIndex: number): PropertyPortBandShade {
   return bandIndex % 2 === 0 ? "first" : "second";
 }
 
-/** The place an edit of a config field, or exposing it as a Graph Input, shows its refusal under. */
-function placeOfTheConfigField(fieldKey: string): PlaceOfAnEdit {
-  return `config:${fieldKey}`;
-}
-
-/** Expose as a Graph Input ▾: each number or on-off config field the node does not yet take as an input, chosen to drive it from a new Graph Input of the stream; nothing when every one already is. */
-function ExposeAConfigFieldAsAGraphInputMenu({ node, fields, streamAsset, graphEdits }: { node: StreamGraphNode; fields: ConfigFormField[]; streamAsset: string; graphEdits: GraphEditsOfTheNode }) {
-  const fieldsToExpose = configFieldsToExposeAsGraphInputs(node, fields);
-  if (fieldsToExpose.length === 0) return null;
-  return (
-    <div className="flex justify-end">
-      <FieldMenu label="Expose a config field as a Graph Input" words="Expose as a Graph Input" size="compact" menuWidth="wide" menuAlignment="end" data-properties-expose-as-a-graph-input={node.id}>
-        <MenuNote>Each becomes an input of the node, fed by a new Graph Input that Perform's Controls list.</MenuNote>
-        {fieldsToExpose.map((field) => (
-          <MenuItem
-            key={field.key}
-            onChosen={() => void graphEdits.commit(placeOfTheConfigField(field.key), exposeTheConfigFieldAsAGraphInput(streamAsset, node, field))}
-            data-properties-expose-config-field={field.key}
-          >
-            {nameInWords(field.key)}
-          </MenuItem>
-        ))}
-      </FieldMenu>
-    </div>
-  );
-}
-
-/** A view node's row naming how many areas show its view, with Show in an area to show it in another; nothing for a node that is not a view's. */
+/** A view node's section, with its row naming how many areas show its view, with Show in an area to show it in another; nothing for a node that is not a view's. */
 function ViewNodeShownInAreasRow({ connection, viewTypeId }: { connection: TatoAppViewConnection; viewTypeId: string }) {
   const areasReading = useViewReading(useCallback((listener: (reading: AreasForAViewTypeReading) => void): StopWatching => connection.watchAreasForTheViewType(viewTypeId, listener), [connection, viewTypeId]));
   const [showingRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
   if (areasReading === null || areasReading.kind === "not_a_view_type") return null;
   if (areasReading.kind === "no_areas") {
     return (
-      <PropertyRow label="Shown in" data-properties-view-shown-in={viewTypeId}>
-        {() => <p className="text-xs text-fg-3">{areasReading.because}</p>}
-      </PropertyRow>
+      <PropertySection title="View">
+        <PropertyRow label="Shown in" data-properties-view-shown-in={viewTypeId}>
+          {() => <p className="text-xs text-fg-3">{areasReading.because}</p>}
+        </PropertyRow>
+      </PropertySection>
     );
   }
   const areasOffered = areasToShowTheViewIn(areasReading.areas);
   return (
-    <PropertyRow label="Shown in" refusal={showingRefusal === null ? null : `${showingRefusal.lead} ${showingRefusal.because}`} data-properties-view-shown-in={viewTypeId}>
+    <PropertySection title="View">
+      <PropertyRow label="Shown in" refusal={showingRefusal === null ? null : `${showingRefusal.lead} ${showingRefusal.because}`} data-properties-view-shown-in={viewTypeId}>
       {() => (
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span role="status" aria-label={`Shown in: ${viewShownInAreasWords(areasReading.areas)}`} className="text-xs whitespace-nowrap text-fg-2" data-properties-view-shown-in-words>
@@ -657,11 +593,12 @@ function ViewNodeShownInAreasRow({ connection, viewTypeId }: { connection: TatoA
           </FieldMenu>
         </div>
       )}
-    </PropertyRow>
+      </PropertyRow>
+    </PropertySection>
   );
 }
 
-/** The selected node's name, its config as controls that edit it, and its inputs and outputs with what each joins. */
+/** The selected node's name, and its inputs, its settings first, and outputs, with what each joins and the value each unwired input holds. */
 function PropertiesOfTheSelectedNode({
   connection,
   stream,
@@ -699,8 +636,8 @@ function PropertiesOfTheSelectedNode({
   if (nodeSelectedByName !== undefined) nodeShownWhileItWasSelectedByName.current = { nodeName, nodeId: nodeSelectedByName.id };
   const graphEdits = graphEditsInTheProject.ofTheNode(node?.id ?? "", level);
   const described: NodeTypeDescription | undefined = node === undefined ? undefined : describedByType.get(node.type);
-  const configForm = useMemo(() => (node === undefined ? null : configFormOf(configSchemaOfTheSettings(described, node), jsonObjectMembersOf(node.config))), [node, described]);
-  useInputValuesOfTheStream(connection, inputValues, stream, projectFolder);
+  const settingValues = useMemo(() => (streamGraph === null ? [] : settingValuesOfTheGraph(streamGraph, describedByType)), [streamGraph, describedByType]);
+  useInputValuesOfTheStream(connection, inputValues, stream, projectFolder, settingValues);
   const streamAssetOfTheGraph = streamGraph?.asset ?? null;
   const valuesAt = useMemo(
     (): GraphAddress | null => (projectFolder === null || streamAssetOfTheGraph === null ? null : { project_folder: projectFolder, stream_asset: streamAssetOfTheGraph, level }),
@@ -715,32 +652,29 @@ function PropertiesOfTheSelectedNode({
 
   if (graphReading === null) return null;
   if (graphReading.kind === "not_read") return <WaitingState title={`${nodeName} can't be read`} explanation={graphReading.because} data-properties-state="graph_not_read" />;
-  if (graph === null || node === undefined || configForm === null)
+  if (graph === null || node === undefined)
     return <WaitingState title={`${nodeName} is gone`} explanation="Its stream's graph no longer has it." data-properties-state="node_gone" />;
   const streamAsset = graph.asset ?? null;
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((candidate) => candidate.stream === stream) : undefined;
   const streamName = listedStream?.display_name ?? stream;
   const typeClassName = nodeTypeClassName(node.type);
   const refusalOfTheName = graphEdits.refusalsByPlace.get("name");
-  const configFields = configForm.kind === "fields" ? configForm.fields : [];
-  const matching = propertiesMatchingTheSearch(
-    configFields.map((field) => field.key),
-    node.ports.inputs.map((port) => port.name),
-    node.ports.outputs.map((port) => port.name),
-    searchWords,
-  );
-  const configFieldsListed = configFields.filter((field) => matching.config_keys_listed.has(field.key));
   const inputPins = nodeInputs(graph, node, described, valuesAt);
   const outputPins = nodeOutputs(node, described);
-  const inputPortsListed = node.ports.inputs.flatMap((port, portIndex) => {
-    const pin = inputPins[portIndex];
-    return pin !== undefined && matching.input_ports_listed.has(port.name) ? [{ port, pin }] : [];
+  const matching = propertiesMatchingTheSearch(
+    inputPins.map((pin) => pin.name),
+    outputPins.map((pin) => pin.name),
+    searchWords,
+  );
+  const inputsListed = inputPins.flatMap((pin) =>
+    matching.inputs_listed.has(pin.name) ? [{ pin, port: node.ports.inputs.find((port) => port.name === pin.name) ?? null, describedInput: described?.inputs.find((input) => input.name === pin.name) }] : [],
+  );
+  const outputPortsListed = outputPins.flatMap((pin) => {
+    const port = node.ports.outputs.find((candidate) => candidate.name === pin.name);
+    return port !== undefined && matching.outputs_listed.has(pin.name) ? [{ port, pin }] : [];
   });
-  const outputPortsListed = node.ports.outputs.flatMap((port, portIndex) => {
-    const pin = outputPins[portIndex];
-    return pin !== undefined && matching.output_ports_listed.has(port.name) ? [{ port, pin }] : [];
-  });
-  const inputRows: InputRowsOfTheNode = { connection, stream, level, graph, node, streamAsset, inputValues, graphEdits, searchWords };
+  const settingsToExpose = configFieldsToExposeAsGraphInputs(node, described);
+  const inputRows: InputRowsOfTheNode = { connection, stream, level, graph, node, streamAsset, inputValues, graphEdits, settingsToExpose, searchWords };
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-properties-of-node={node.name}>
       <header className="flex min-w-0 flex-col gap-0.5 border-b px-3 py-2">
@@ -802,41 +736,24 @@ function PropertiesOfTheSelectedNode({
             {propertiesListedWords(matching)}
           </p>
         )}
-        {(!matching.is_searching || configFieldsListed.length > 0) && (
-          <PropertySection title="Config">
-            {matching.is_searching ? (
-              configFieldsListed.map((field) => <ConfigFieldRows key={field.key} field={field} node={node} streamAsset={streamAsset} graphEdits={graphEdits} searchWords={searchWords} />)
-            ) : (
-              <>
-                <ViewNodeShownInAreasRow connection={connection} viewTypeId={node.type} />
-                {configForm.kind === "takes_no_config" ? (
-                  <p className="px-1 text-xs text-fg-3">{nameInWords(typeClassName)} takes no config.</p>
-                ) : configForm.fields.length === 0 ? (
-                  <p className="px-1 text-xs text-fg-3">{nodeTypesReading?.kind === "not_listed" ? nodeTypesReading.because : "No config."}</p>
-                ) : (
-                  configForm.fields.map((field) => <ConfigFieldRows key={field.key} field={field} node={node} streamAsset={streamAsset} graphEdits={graphEdits} searchWords="" />)
-                )}
-                {streamAsset !== null && configForm.kind === "fields" && <ExposeAConfigFieldAsAGraphInputMenu node={node} fields={configForm.fields} streamAsset={streamAsset} graphEdits={graphEdits} />}
-              </>
-            )}
-          </PropertySection>
-        )}
-        {(!matching.is_searching || matching.input_ports_listed.size > 0) && (
+        {!matching.is_searching && <ViewNodeShownInAreasRow connection={connection} viewTypeId={node.type} />}
+        {(!matching.is_searching || matching.inputs_listed.size > 0) && (
           <PropertySection title="Inputs" data-properties-section="inputs">
-            {node.ports.inputs.length === 0 ? (
+            {nodeTypesReading?.kind === "not_listed" && <p className="px-1 text-xs text-fg-3" data-properties-settings-not-listed="">{nodeTypesReading.because}</p>}
+            {inputPins.length === 0 ? (
               <p className="px-1 text-xs text-fg-3">None</p>
             ) : (
-              inputPortsListed.map(({ port, pin }, portIndex) => <InputRowOfTheNode key={port.name} pin={pin} port={port} bandShade={bandShadeAt(portIndex)} rows={inputRows} />)
+              inputsListed.map(({ pin, port, describedInput }, inputIndex) => <InputRowOfTheNode key={pin.name} pin={pin} port={port} describedInput={describedInput} bandShade={bandShadeAt(inputIndex)} rows={inputRows} />)
             )}
           </PropertySection>
         )}
-        {(!matching.is_searching || matching.output_ports_listed.size > 0) && (
+        {(!matching.is_searching || matching.outputs_listed.size > 0) && (
           <PropertySection title="Outputs" data-properties-section="outputs">
-            {node.ports.outputs.length === 0 ? (
+            {outputPins.length === 0 ? (
               <p className="px-1 text-xs text-fg-3">None</p>
             ) : (
               outputPortsListed.map(({ port, pin }, portIndex) => (
-                <OutputRowOfTheNode key={port.name} pin={pin} port={port} bandShade={bandShadeAt(inputPortsListed.length + portIndex)} graph={graph} node={node} searchWords={searchWords} />
+                <OutputRowOfTheNode key={port.name} pin={pin} port={port} bandShade={bandShadeAt(inputsListed.length + portIndex)} graph={graph} node={node} searchWords={searchWords} />
               ))
             )}
             {outputPortsListed
@@ -886,7 +803,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
     return <SummaryOfTheSeveralSelectedNodes connection={connection} stream={selection.stream} level={selection.level ?? NO_LEVEL} nodeNames={selection.nodes} />;
   }
   if (selection?.kind !== "node" || activeStreamTab?.stream !== selection.stream) {
-    return <WaitingState title="Nothing to show" explanation="Select a node in the stream graph to edit its config and see what it's connected to." data-properties-state="no_node" />;
+    return <WaitingState title="Nothing to show" explanation="Select a node in the stream graph to set its inputs and see what it's connected to." data-properties-state="no_node" />;
   }
   return (
     <>

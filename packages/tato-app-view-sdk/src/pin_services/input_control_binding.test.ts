@@ -7,13 +7,13 @@ import type { NodeUiElementLoading } from "../node_ui/load_node_ui_element.js";
 import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node_ui_elements_listing.js";
 import { NO_PROJECT, listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
 import type { GraphEditMode, JsonValue, StreamInputValuesReading } from "../studio_readings.js";
-import { createInputControlBinder, type InputControlShown } from "./input_control_binding.js";
+import { createInputControlBinder, releaseOfAGestureOn, type InputControlShown } from "./input_control_binding.js";
 import { createInputValues } from "./input_values.js";
 
 const PROJECT = "/projects/demo";
 const STREAM_ASSET = "11111111-2222-3333-4444-555555555555";
 const GAIN: InputAddress = { graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "MIX-ID", input: "gain" };
-const FLOAT_GAIN: ControlledInput = { address: GAIN, declaration: { input_name: "gain", label: "gain", pin_type: { type: "float" }, annotations: {}, may_be_unset: false } };
+const FLOAT_GAIN: ControlledInput = { address: GAIN, declaration: { input_name: "gain", label: "gain", pin_type: { type: "float" }, annotations: {}, may_be_unset: false }, rebuilds_its_node: false };
 const FLOAT_DEFAULT = listedElementOf("studio", { kind: "control", type: "float", control: null }, { script: "float_number.ts" });
 const STAND_IN_TAG = "stand-in-float-control";
 
@@ -397,7 +397,7 @@ test("each press of a Trigger's control fires it once, live on every surface and
     loadElement: () => Promise.resolve({ kind: "defined", tag: "stand-in-trigger-control" }),
     requestAFlush: (flush) => flush(),
   });
-  const FLASH: ControlledInput = { address: { ...GAIN, node_id: "FLASH-ID", input: "flash" }, declaration: { input_name: "flash", label: "flash", pin_type: { type: "trigger" }, annotations: {}, may_be_unset: false } };
+  const FLASH: ControlledInput = { address: { ...GAIN, node_id: "FLASH-ID", input: "flash" }, declaration: { input_name: "flash", label: "flash", pin_type: { type: "trigger" }, annotations: {}, may_be_unset: false }, rebuilds_its_node: false };
   const host = document.createElement("div");
   document.body.append(host);
   binder.bindInputControl(host, FLASH, { surface: "properties", read_only: false });
@@ -412,4 +412,11 @@ test("each press of a Trigger's control fires it once, live on every surface and
   ]);
   await control.pinsHanded[0]?.studio.readAssetPreview("an-asset");
   expect(previewsAsked).toEqual([[PROJECT, "an-asset"]]);
+});
+
+test("a_gesture_on_a_setting_that_rebuilds_its_node_ends_as_a_commit_alone_on_every_surface", () => {
+  expect(releaseOfAGestureOn("perform", { rebuilds_its_node: true })).toBe("commit_alone");
+  expect(releaseOfAGestureOn("node", { rebuilds_its_node: true })).toBe("commit_alone");
+  expect(releaseOfAGestureOn("perform", { rebuilds_its_node: false })).toBe("live");
+  expect(releaseOfAGestureOn("properties", { rebuilds_its_node: false })).toBe("commit");
 });

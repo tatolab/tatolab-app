@@ -1,7 +1,8 @@
-// What Properties sends the runtime for each edit, and what it shows of a node's links. `set_node_config` replaces
-// a node's whole config, so every config edit sends the whole config with the one field changed or removed.
+// What Properties sends the runtime for each edit of the graph, and what it shows of a node's links. A
+// value set on an input or a setting goes through the frame's store of input values, never from here.
 
-import { familyOfThePort, type JsonValue, type StreamGraph, type StreamGraphAction, type StreamGraphLink, type StreamGraphNode, type StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { PinAnnotations } from "@tatolab/tato-app-view-sdk/pin_type_readings";
+import { familyOfThePort, type JsonValue, type NodeTypeDescription, type StreamGraph, type StreamGraphAction, type StreamGraphLink, type StreamGraphNode, type StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { GRAPH_INPUT_NODE_TYPE } from "../controls/graph_inputs_of_the_stream";
 import { recordsOfAListField, type ConfigFormField, type JsonObject } from "./config_form_fields";
 
@@ -45,20 +46,6 @@ function jsonValueTyped(words: string): ValueTyped {
 export function pinValueFromTheWordsTyped(words: string): JsonValue {
   const typed = jsonValueTyped(words);
   return typed.kind === "value" ? typed.value : words;
-}
-
-/** A `set_node_config` action, which replaces the node's whole config, as the panel builds it: a config of JSON values. */
-export type SetNodeConfigAction = Extract<StreamGraphAction, { operation: "set_node_config" }> & { config: Record<string, JsonValue> };
-
-/** `configEditedFrom` with `key` set to `value`, as `set_node_config` takes the node's whole config. */
-export function setTheConfigField(stream: string, nodeId: string, configEditedFrom: Record<string, JsonValue>, key: string, value: JsonValue): SetNodeConfigAction {
-  return { operation: "set_node_config", stream, node: nodeId, config: { ...configEditedFrom, [key]: value } };
-}
-
-/** `configEditedFrom` without `key`, so the field reads its type's default again. */
-export function resetTheConfigField(stream: string, nodeId: string, configEditedFrom: Record<string, JsonValue>, key: string): SetNodeConfigAction {
-  const { [key]: _removed, ...configWithoutTheKey } = configEditedFrom;
-  return { operation: "set_node_config", stream, node: nodeId, config: configWithoutTheKey };
 }
 
 /** A node's id cut to its first and last four characters, as the panel's heading shows it. */
@@ -138,24 +125,33 @@ export function listWithoutTheRecord(listEditedFrom: JsonValue, index: number, r
 /** Why an edit of a list entry was not sent: the list changed under it. */
 export const LIST_ENTRY_MOVED_ON_REFUSAL = "This entry changed before the edit was sent, so nothing was changed. Try again on the entry as it shows now.";
 
-/** The config fields of `node` it can take as inputs and does not yet: each number or on-off field of its form. */
-export function configFieldsToExposeAsGraphInputs(node: Pick<StreamGraphNode, "exposed_config_fields">, fields: readonly ConfigFormField[]): ConfigFormField[] {
-  return fields.filter((field) => (field.control.kind === "number" || field.control.kind === "toggle") && !(node.exposed_config_fields ?? []).includes(field.key));
+/** The settings of `node` it can take as inputs and does not yet: each its node type, as `described` describes it, lists as one `set_exposed_config_fields` takes. */
+export function configFieldsToExposeAsGraphInputs(node: Pick<StreamGraphNode, "exposed_config_fields">, described: Pick<NodeTypeDescription, "exposable_config_fields"> | undefined): ReadonlySet<string> {
+  const exposed = new Set(node.exposed_config_fields ?? []);
+  return new Set((described?.exposable_config_fields ?? []).filter((setting) => !exposed.has(setting)));
+}
+
+/** A setting to expose as a Graph Input: its name, and what its node type annotates of its value, the range a Graph Input feeding it moves within among it. */
+export interface ConfigFieldToExpose {
+  name: string;
+  annotations: Pick<PinAnnotations, "range">;
 }
 
 /**
- * One transaction that has `node` take `field` as an input and feeds it from a new Graph Input of the stream, named
- * `<node>_<field>`, which Perform's Controls then list: a Channels input, as the runtime types every exposed config
- * field, moving within the field's minimum and maximum where its schema states both.
+ * One transaction that has `node` take `setting` as an input and feeds it from a new Graph Input of the stream, named
+ * `<node>_<setting>`, which Perform's Controls then list: a Channels input, as the runtime types every exposed config
+ * field, moving within the setting's minimum and maximum where its node type annotates both.
  */
-export function exposeTheConfigFieldAsAGraphInput(stream: string, node: Pick<StreamGraphNode, "id" | "name" | "exposed_config_fields">, field: Pick<ConfigFormField, "key" | "control">): StreamGraphAction[] {
-  const graphInputName = `${node.name}_${field.key}`;
+export function exposeTheConfigFieldAsAGraphInput(stream: string, node: Pick<StreamGraphNode, "id" | "name" | "exposed_config_fields">, setting: ConfigFieldToExpose): StreamGraphAction[] {
+  const graphInputName = `${node.name}_${setting.name}`;
   const graphInputConfig: JsonObject = { port: graphInputName, family: "channels" };
-  if (field.control.kind === "number" && field.control.minimum !== null && field.control.maximum !== null) graphInputConfig["range"] = [field.control.minimum, field.control.maximum];
+  const minimum = setting.annotations.range?.minimum;
+  const maximum = setting.annotations.range?.maximum;
+  if (typeof minimum === "number" && typeof maximum === "number") graphInputConfig["range"] = [minimum, maximum];
   return [
-    { operation: "set_exposed_config_fields", stream, node: node.id, exposed_config_fields: [...(node.exposed_config_fields ?? []), field.key] },
+    { operation: "set_exposed_config_fields", stream, node: node.id, exposed_config_fields: [...(node.exposed_config_fields ?? []), setting.name] },
     { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
-    { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: field.key } },
+    { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: setting.name } },
   ];
 }
 

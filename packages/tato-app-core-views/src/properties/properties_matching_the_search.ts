@@ -4,31 +4,27 @@ import { nameInWords } from "../shared/node_words";
 /** Which of a node's properties a search keeps, and how many of them that is. */
 export interface PropertiesMatchingTheSearch {
   is_searching: boolean;
-  config_keys_listed: ReadonlySet<string>;
-  input_ports_listed: ReadonlySet<string>;
-  output_ports_listed: ReadonlySet<string>;
+  inputs_listed: ReadonlySet<string>;
+  outputs_listed: ReadonlySet<string>;
   listed_count: number;
   property_count: number;
 }
 
 /**
- * The properties a search for `searchWords` keeps of a node with config keys `configKeys` and ports `inputPorts` and
- * `outputPorts`: a config field whose key or name in words matches, and a port whose name matches, ignoring case; every
- * property for a blank search.
+ * The properties a search for `searchWords` keeps of a node with inputs `inputs`, its settings among them, and outputs
+ * `outputs`: one whose name, as written or in words, matches, ignoring case; every property for a blank search.
  */
-export function propertiesMatchingTheSearch(configKeys: readonly string[], inputPorts: readonly string[], outputPorts: readonly string[], searchWords: string): PropertiesMatchingTheSearch {
+export function propertiesMatchingTheSearch(inputs: readonly string[], outputs: readonly string[], searchWords: string): PropertiesMatchingTheSearch {
   const isSearching = searchWords.trim() !== "";
-  const matches = (...words: string[]) => !isSearching || words.some((candidate) => whereTheSearchMatches(candidate, searchWords) !== null);
-  const configKeysListed = new Set(configKeys.filter((key) => matches(key, nameInWords(key))));
-  const inputPortsListed = new Set(inputPorts.filter((port) => matches(port)));
-  const outputPortsListed = new Set(outputPorts.filter((port) => matches(port)));
+  const matches = (name: string) => !isSearching || [name, nameInWords(name)].some((candidate) => whereTheSearchMatches(candidate, searchWords) !== null);
+  const inputsListed = new Set(inputs.filter(matches));
+  const outputsListed = new Set(outputs.filter(matches));
   return {
     is_searching: isSearching,
-    config_keys_listed: configKeysListed,
-    input_ports_listed: inputPortsListed,
-    output_ports_listed: outputPortsListed,
-    listed_count: configKeysListed.size + inputPortsListed.size + outputPortsListed.size,
-    property_count: configKeys.length + inputPorts.length + outputPorts.length,
+    inputs_listed: inputsListed,
+    outputs_listed: outputsListed,
+    listed_count: inputsListed.size + outputsListed.size,
+    property_count: inputs.length + outputs.length,
   };
 }
 

@@ -447,6 +447,7 @@ const IMAGE_FILE_NOT_READY_NODE: MockGraphNode = {
   state: "Running",
   not_ready_because: IMAGE_FILE_NOT_READY_BECAUSE,
   config: { asset: "" },
+  settings: ["asset"],
   input_ports: [],
   output_ports: portsStatingNoStreamFacts("image", "image"),
 };
