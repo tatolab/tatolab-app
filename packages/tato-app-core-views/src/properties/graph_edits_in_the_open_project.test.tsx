@@ -141,10 +141,11 @@ test("a node's edits at a level inside a subgraph carry that level, each sent as
   const graphEdits = drawTheGraphEdits(studio.connection, "/projects/pattern");
   const editsInside = () => graphEdits.editsOfTheNode("node-id", ["subgraph-id"]);
 
-  void editsInside().commit("input:fps", exposing("fps"), "expose");
+  const exposingInside = editsInside().commit("input:fps", exposing("fps"), "expose");
   await letTheQueuedSendsRun();
   expect(studio.asked.map((transaction) => [transaction.mode, transaction.operations, transaction.idempotencyKey])).toEqual([["commit", [{ ...exposing("fps")[0], level: ["subgraph-id"] }], "expose"]]);
   await studio.theTransactionAsked(0).answer(anApplied("commit"));
+  expect(await act(async () => exposingInside)).toBe(true);
 
   const notedInside = await editsInside().commit("name", [{ operation: "add_note", stream: "stream-asset", text: "Note", position: [0, 0], size: [10, 10] }]);
   expect(notedInside).toBe(false);
