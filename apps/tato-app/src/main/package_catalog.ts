@@ -24,8 +24,18 @@ const PACKAGE_CATALOG_VERSION_READ = 1;
 /** Fetches `url` over HTTPS and answers its body, refused in words for a failed request or a status other than 200. */
 export type FetchTextOverHttps = (url: string) => Promise<Result<string, string>>;
 
-/** Fetches `url` over HTTPS and answers its body's bytes, refused in words for a failed request, a status other than 200, or a body over `largestByteCount`. */
-export type FetchBytesOverHttps = (url: string, largestByteCount: number) => Promise<Result<Buffer, string>>;
+/** What a download of bytes tells as it reads them, and watches to stop: the bytes read so far each time more arrive, with the length the server announced (`null` where it announced none). */
+export interface BytesDownloadFollowing {
+  bytesRead: (bytesReadSoFar: number, bytesTotal: number | null) => void;
+  /** Stops the download once aborted, which then answers refused. */
+  stopped: AbortSignal;
+}
+
+/**
+ * Fetches `url` over HTTPS and answers its body's bytes, refused in words for a failed request, a status other than 200, a body over
+ * `largestByteCount`, or a download `following` stopped; `following`, where given, is told the bytes as they are read.
+ */
+export type FetchBytesOverHttps = (url: string, largestByteCount: number, following: BytesDownloadFollowing | null) => Promise<Result<Buffer, string>>;
 
 function packageCatalogMemberFrom(value: unknown): Result<PackageCatalogMember, string> {
   const member = jsonObject(value, "a catalog entry's node or stream");

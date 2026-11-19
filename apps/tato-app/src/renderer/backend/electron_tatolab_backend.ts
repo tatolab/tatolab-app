@@ -133,6 +133,10 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     addDependencyToTheWorkspace: (source) => invokeTatolabCommand("add_dependency_to_the_workspace", { source }),
     updateWorkspaceDependency: (project, overwriteEditedFiles) => invokeTatolabCommand("update_workspace_dependency", { project, overwrite_edited_files: overwriteEditedFiles }),
     importFromTheMarketplace: (name) => invokeTatolabCommand("import_from_the_marketplace", { name }),
+    cancelMarketplaceImport: async (name) => {
+      await invokeTatolabCommand("cancel_marketplace_import", { name });
+    },
+    onMarketplaceImportProgressed: (listener) => tatolabElectronBridge.onMarketplaceImportProgressed(listener),
     removeWorkspaceDependency: (project) => invokeTatolabCommand("remove_workspace_dependency", { project }),
     cloneMarketplaceSample: (name) => invokeTatolabCommand("clone_marketplace_sample", { name }),
     pathOfADroppedFile: (droppedFile) => tatolabElectronBridge.pathOfADroppedFile(droppedFile),

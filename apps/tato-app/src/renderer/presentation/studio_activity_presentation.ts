@@ -53,7 +53,8 @@ const APP_UPDATE_ACTIVITY_PREFIX = "app_update:";
 
 const BYTES_PER_MEGABYTE = 1_000_000;
 
-function megabytesOf(bytes: number): string {
+/** `bytes` in megabytes of a million bytes, to one decimal, as "12.3 MB". */
+export function megabytesOf(bytes: number): string {
   return `${(bytes / BYTES_PER_MEGABYTE).toFixed(1)} MB`;
 }
 

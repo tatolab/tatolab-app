@@ -200,10 +200,12 @@ export class FakeTatolabElectronAppShell {
       this.urlsFetched.push(url);
       return this.packageCatalogTextServed === null ? failedWith("the fake shell reaches no network") : succeeded(this.packageCatalogTextServed);
     },
-    fetchBytesOverHttps: async (url) => {
+    fetchBytesOverHttps: async (url, _largestByteCount, following) => {
       this.urlsFetched.push(url);
       const bytesServed = this.bytesServedByUrl.get(url);
-      return bytesServed === undefined ? failedWith("the fake shell reaches no network") : succeeded(bytesServed);
+      if (bytesServed === undefined) return failedWith("the fake shell reaches no network");
+      following?.bytesRead(bytesServed.length, bytesServed.length);
+      return succeeded(bytesServed);
     },
     startANodeLanguageServer: () => failedWith("the fake shell starts no language server"),
     pyrightLanguageServerModulePath: "/fake/node_modules/pyright/langserver.index.js",

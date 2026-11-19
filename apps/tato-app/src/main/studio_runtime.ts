@@ -17,7 +17,8 @@ import type {
   TatolabStatus,
 } from "../shared/tatolab_backend_contract.js";
 import { projectPlaybackAsListed, streamsOfTheProjectIn, theStreamsListTheProjectOpen, type ProjectPlaybackAsListed } from "../shared/project_playback.js";
-import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
+import { MarketplaceDownloadStopped, MarketplaceImports, marketplaceImportsTelling } from "./marketplace_imports_followed.js";
+import { downloadTheCatalogEntrysZip, type MarketplaceDownloadFollowing } from "./marketplace_module_download.js";
 import type { ProjectFolderDialogPurpose, RecentProjectFolderOpened, StudioWindowOfTheProjectShown } from "./open_project.js";
 import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
@@ -153,8 +154,8 @@ export class PackageCatalog extends Context.Service<
   {
     /** The catalog read afresh: its entries for this machine, or why it did not read. */
     readonly readTheCatalog: Effect.Effect<PackageCatalogReading>;
-    /** The path of `entry`'s `.zip`, downloaded into the app's downloads folder and checked against the catalog. */
-    readonly downloadTheZipOf: (entry: PackageCatalogEntry) => Effect.Effect<string, CommandRefused>;
+    /** The path of `entry`'s `.zip`, downloaded into the app's downloads folder and checked against the catalog, `following` told each stage and able to stop it while it downloads. */
+    readonly downloadTheZipOf: (entry: PackageCatalogEntry, following: MarketplaceDownloadFollowing | null) => Effect.Effect<string, CommandRefused | MarketplaceDownloadStopped>;
   }
 >()("tatolab-app/PackageCatalog") {}
 
@@ -362,6 +363,7 @@ export type StudioServices =
   | RuntimeControl
   | StudioWindows
   | ModuleManagerWindows
+  | MarketplaceImports
   | PackageCatalog
   | ThisMachinesFolders
   | ProjectDialogs
@@ -469,6 +471,10 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
         return openProjectFolder?.ok === true ? openProjectFolder.value : null;
       },
     }),
+    Layer.succeed(
+      MarketplaceImports,
+      marketplaceImportsTelling((windowContentsId, progressed) => sharedState.appWindows.windowWithContents(windowContentsId)?.tellTheWindowTheMarketplaceImportProgressed(progressed), sharedState.readMonotonicClockMs),
+    ),
     Layer.succeed(ModuleManagerWindows, {
       workspaceFolderOfTheWindow: (commandFromWindow) => {
         const studioWindow = sharedState.appWindows.studioWindowOfTheModuleManagerWindowWithContents(commandFromWindow.windowContentsId);
@@ -483,7 +489,13 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
     }),
     Layer.succeed(PackageCatalog, {
       readTheCatalog: Effect.promise(() => readThePackageCatalog(sharedState.fetchTextOverHttps, sharedState.machineModulesInstallOn)),
-      downloadTheZipOf: (entry) => commandAnswerOfPlainCode(() => downloadTheCatalogEntrysZip(entry, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder)),
+      downloadTheZipOf: (entry, following) =>
+        Effect.promise(() => downloadTheCatalogEntrysZip(entry, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder, following)).pipe(
+          Effect.flatMap((downloaded): Effect.Effect<string, CommandRefused | MarketplaceDownloadStopped> => {
+            if (downloaded.ok) return Effect.succeed(downloaded.value);
+            return downloaded.failure.kind === "stopped" ? Effect.fail(new MarketplaceDownloadStopped({ words: `The download of ${entry.title} was cancelled; nothing was imported.` })) : Effect.fail(new CommandRefused({ words: downloaded.failure.because }));
+          }),
+        ),
     }),
     Layer.succeed(ThisMachinesFolders, { homeDirectory: sharedState.homeDirectory, documentsDirectory: sharedState.documentsDirectory }),
     Layer.succeed(ProjectDialogs, {

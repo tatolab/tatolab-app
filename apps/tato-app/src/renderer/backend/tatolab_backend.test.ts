@@ -9,6 +9,7 @@ const UNANSWERING_TATOLAB_ELECTRON_BRIDGE: TatolabElectronBridge = {
   onStreamPageRequested: () => () => undefined,
   onOpenProjectChanged: () => () => undefined,
   onModuleManagerSectionAsked: () => () => undefined,
+  onMarketplaceImportProgressed: () => () => undefined,
   onProjectTransactionsChanged: () => () => undefined,
   onProjectFilesChanged: () => () => undefined,
   onProjectNodeTypesChanged: () => () => undefined,

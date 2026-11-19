@@ -1,7 +1,8 @@
 import { contextBridge, ipcRenderer, sharedTexture, webUtils, type IpcRendererEvent } from "electron";
-import type { OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { MarketplaceImportProgressed, OpenProjectReading, ProjectTransactionsReading, PortViewerEvent, PortViewerImageFrameFacts, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
   TATOLAB_COMMAND_NAMES,
+  TATOLAB_MARKETPLACE_IMPORT_PROGRESSED_EVENT,
   TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT,
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
   TATOLAB_PROJECT_FILES_CHANGED_EVENT,
@@ -107,6 +108,13 @@ const tatolabElectronBridge: TatolabElectronBridge = {
     ipcRenderer.on(TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT, moduleManagerSectionAskedListener);
     return () => {
       ipcRenderer.removeListener(TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT, moduleManagerSectionAskedListener);
+    };
+  },
+  onMarketplaceImportProgressed: (listener) => {
+    const marketplaceImportProgressedListener = (_marketplaceImportProgressedEvent: IpcRendererEvent, progressed: MarketplaceImportProgressed) => listener(progressed);
+    ipcRenderer.on(TATOLAB_MARKETPLACE_IMPORT_PROGRESSED_EVENT, marketplaceImportProgressedListener);
+    return () => {
+      ipcRenderer.removeListener(TATOLAB_MARKETPLACE_IMPORT_PROGRESSED_EVENT, marketplaceImportProgressedListener);
     };
   },
   onProjectTransactionsChanged: (listener) => {

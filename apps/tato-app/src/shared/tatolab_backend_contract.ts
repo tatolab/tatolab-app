@@ -443,6 +443,25 @@ export interface ProjectDependency {
   version: string;
 }
 
+/**
+ * How far adding a Marketplace package has come: its `.zip` downloading, `bytes_read` of `bytes_total` (`null` where the server
+ * announced no length); the download checked against the catalog's `sha256`; or the runtime's `add_dependency` adding it to the
+ * project, which can no longer be cancelled.
+ */
+export type MarketplaceImportStage =
+  | { kind: "downloading"; bytes_read: number; bytes_total: number | null }
+  | { kind: "verifying"; sha256: string }
+  | { kind: "adding" };
+
+/** How far adding the Marketplace package `name`, asked from the window told, has come. */
+export interface MarketplaceImportProgressed {
+  name: string;
+  stage: MarketplaceImportStage;
+}
+
+/** A Marketplace package added to the project, as the runtime's `add_dependency` copied it, or its download cancelled with nothing imported. */
+export type MarketplaceImport = { kind: "imported"; dependency: ProjectDependency } | { kind: "cancelled" };
+
 /** One of the workspace's imports as Module manager lists it: what the runtime says of it, and its name from `imports/<folder>/tatolab-project.json`. */
 export interface WorkspaceDependency extends ProjectDependency {
   /** `imports/<folder>/` inside the workspace, absolute. */

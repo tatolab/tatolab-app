@@ -57,6 +57,7 @@ import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { StreamActionsNoticed } from "./stream_action_changes_followed_for_the_status.js";
 import type { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { CommandRefused } from "./window_command.js";
+import { MarketplaceImports, marketplaceImportsTelling } from "./marketplace_imports_followed.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { TatolabAppUpdateAnnouncements } from "./tatolab_app_update_announcements.js";
@@ -178,6 +179,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       readTheCatalog: Effect.succeed({ kind: "read" as const, entries: [], unreadable_entry_count: 0 }),
       downloadTheZipOf: (entry) => Effect.fail(new CommandRefused({ words: `${entry.title} was not downloaded.` })),
     }),
+    Layer.succeed(MarketplaceImports, marketplaceImportsTelling(() => {}, () => 0)),
     Layer.succeed(ThisMachinesFolders, { homeDirectory: "/home/sam", documentsDirectory: "/home/sam/Documents" }),
     Layer.succeed(ProjectDialogs, {
       chooseAProjectFolder: () => Effect.succeed(null),
@@ -374,6 +376,7 @@ export async function sharedStateOverFakes(
     menusShownInTheSystemMenuBar,
     fetchTextOverHttps: async () => failedWith("these tests reach no network"),
     fetchBytesOverHttps: async () => failedWith("these tests reach no network"),
+    readMonotonicClockMs: () => 0,
     moduleDownloadsFolder: path.join(appConfigDirectory, "module-downloads"),
     dependencySourceDialog: async () => succeeded(null),
     projectAssetFilesDialog: async () => succeeded(assetFilesTheDialogAnswers.files),
