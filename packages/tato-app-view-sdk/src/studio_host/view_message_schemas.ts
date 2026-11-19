@@ -47,9 +47,12 @@ export const viewWatchedSubjectSchema = schemaOfThePublicType<ViewWatchedSubject
   ]),
 );
 
-/** What a view of some type is opened on. */
+/** What a view of some type is opened on: a file, at a line counted from 1 when one is named, or a port. */
 export const viewOpeningTargetSchema = schemaOfThePublicType<ViewOpeningTarget>()(
-  Schema.Union([Schema.Struct({ kind: Schema.Literal("file"), file: Schema.String }), Schema.Struct({ kind: Schema.Literal("port"), target: portViewerTargetSchema })]),
+  Schema.Union([
+    Schema.Struct({ kind: Schema.Literal("file"), file: Schema.String, line: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))) }),
+    Schema.Struct({ kind: Schema.Literal("port"), target: portViewerTargetSchema }),
+  ]),
 );
 
 /** What a view may ask Studio to do; the graph actions of a transaction are the control contract's, at least one. */

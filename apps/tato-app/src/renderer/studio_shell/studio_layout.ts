@@ -38,6 +38,32 @@ export function defaultStudioLayout(): StudioAreaLayoutNode {
   ]);
 }
 
+/** The layout Studio ships for working on a project's code: its files left, Code with the project's log in the middle, and the stream graph over the Node visualizer on the right. */
+export function codeStudioLayout(): StudioAreaLayoutNode {
+  return split("code-columns", "row", [
+    [18, area("code-files", "files")],
+    [52, area("code", "code")],
+    [30, split("code-right", "column", [[45, area("code-stream-graph", "stream_graph")], [55, area("code-viewer", "viewer")]])],
+  ]);
+}
+
+/** A layout that ships with Studio, which Window › Layout offers beside the shapes, and which opening a view it is home to switches to when no area shows that view. */
+export interface StudioLayoutShipped {
+  layout_id: "code";
+  title: string;
+  layout: StudioAreaLayoutNode;
+  /** The view types whose openings switch to this layout; the other views it shows are there to work beside them. */
+  home_of_view_types: readonly string[];
+}
+
+/** The layouts Studio ships, in the layout menu's order. */
+export const STUDIO_LAYOUTS_SHIPPED: readonly StudioLayoutShipped[] = [{ layout_id: "code", title: "Code", layout: codeStudioLayout(), home_of_view_types: ["code"] }];
+
+/** The layout Studio ships as `viewTypeId`'s home, or `null` when none is. */
+export function shippedStudioLayoutHomeOf(viewTypeId: string): StudioLayoutShipped | null {
+  return STUDIO_LAYOUTS_SHIPPED.find(({ home_of_view_types: homeOfViewTypes }) => homeOfViewTypes.includes(viewTypeId)) ?? null;
+}
+
 /** `saved`'s field `fieldName`, or `undefined` when `saved` is not an object or has none. */
 function savedField(saved: unknown, fieldName: string): unknown {
   if (typeof saved !== "object" || saved === null || Array.isArray(saved)) return undefined;

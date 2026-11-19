@@ -202,12 +202,14 @@ describe("the studio", () => {
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(glowFile));
   });
 
-  it("says why a node type's file isn't opened from the Library while no area shows Code", async () => {
+  it("switches to the Code layout Studio ships to open a node type's file from the Library while no area shows Code", async () => {
     await mountedWindowOverTheMock("state=running");
     await showTheLibraryInTheViewerArea();
+    expect(document.querySelector('[data-studio-area="code"]')).toBeNull();
     fireEvent.doubleClick(await waitFor(() => libraryRow("source:project/category:Every pin kind/node_type:nodes.glow:Glow")));
 
-    expect(await inTheCoreView("library").findByText(/No area shows code\. Choose it in an area's view menu, then open it again\./)).toBeTruthy();
+    await waitFor(() => expect(["code-files", "code", "code-stream-graph", "code-viewer"].map((areaId) => document.querySelector(`[data-studio-area="${areaId}"]`) !== null)).toEqual([true, true, true, true]));
+    expect(document.querySelector('[data-studio-area="viewer"]')).toBeNull();
   });
 
   it("pops any area's view out into a window from its view-type menu, pinned to the stream shown and the selection, and says why where it is refused", async () => {

@@ -293,6 +293,30 @@ describe("the node graph canvas while it takes edits", () => {
     expect(onDeleted).toHaveBeenCalledWith({ node_ids: ["pattern"], link_ids: [], note_ids: [] });
   });
 
+  it("offers Edit code on a card whose node type has code, and Edit code dimmed with why on one whose has none, editable or not", async () => {
+    const onOpened = vi.fn();
+    const codeOfTheCard = (nodeId: string) => (nodeId === "pattern" ? { kind: "opens" as const, onOpened } : { kind: "does_not_open" as const, because: "tatolab.stream:Display is built into the runtime, which ships no file of its code." });
+    const { editing } = editingRecorded();
+    const { container, rerender } = render(
+      <NodeGraphCanvas label="Stream graph" nodes={[card("pattern", false), card("display", false)]} links={[]} frames={[]} selectedNodeIds={[]} onNodesSelected={vi.fn()} editing={editing} codeOfTheCard={codeOfTheCard} />,
+    );
+    const rightClickTheCard = async (nodeId: string) => fireEvent.contextMenu(await vi.waitFor(() => container.querySelector<HTMLElement>(`[data-node-graph-card="${nodeId}"]`) ?? expect.unreachable("no card")));
+    const editCode = () => vi.waitFor(() => document.querySelector<HTMLElement>('[data-node-graph-choice="edit_code"]') ?? expect.unreachable("no Edit code"));
+
+    await rightClickTheCard("pattern");
+    expect((await editCode()).getAttribute("aria-disabled")).toBeNull();
+    fireEvent.click(await editCode());
+    expect(onOpened).toHaveBeenCalledOnce();
+
+    rerender(<NodeGraphCanvas label="Stream graph" nodes={[card("pattern", false), card("display", false)]} links={[]} frames={[]} selectedNodeIds={[]} onNodesSelected={vi.fn()} codeOfTheCard={codeOfTheCard} />);
+    await rightClickTheCard("display");
+    const dimmed = await editCode();
+    expect(dimmed.getAttribute("aria-disabled")).toBe("true");
+    expect(document.getElementById(dimmed.getAttribute("aria-describedby") ?? "")?.textContent).toBe("tatolab.stream:Display is built into the runtime, which ships no file of its code.");
+    fireEvent.click(dimmed);
+    expect(onOpened).toHaveBeenCalledOnce();
+  });
+
   it("leaves only Frame the whole graph, the zooms and Find in a read-only graph's ribbon", async () => {
     const { container } = drawnCanvas(null);
     await vi.waitFor(() => container.querySelector('[data-node-graph-tool="frame_all"]') ?? expect.unreachable("no ribbon"));

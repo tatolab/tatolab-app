@@ -8,8 +8,8 @@ import type { StudioMenu, StudioMenuEntry } from "@tatolab/tato-app-view-sdk/des
 import { presentTatolabAppUpdateMenuEntry } from "../presentation/app_update_presentation";
 import type { ProjectPlaybackAskedFor, ProjectPlaybackChoice, ProjectPlaybackControls } from "../presentation/project_playback_presentation";
 import { controlShortcutHint, shiftedShortcutHint, shortcutHint } from "../presentation/platform_presentation";
-import { STUDIO_LAYOUT_PRESETS_ON_A_DIGIT } from "./studio_layout";
-import { STUDIO_LAYOUT_SHAPES, studioLayoutShapePicture, type StudioLayoutShape } from "./studio_layout_shapes";
+import { STUDIO_LAYOUT_PRESETS_ON_A_DIGIT, STUDIO_LAYOUTS_SHIPPED, type StudioLayoutShipped } from "./studio_layout";
+import { STUDIO_LAYOUT_SHAPES, studioLayoutPicture, studioLayoutShapePicture, type StudioLayoutShape } from "./studio_layout_shapes";
 
 /** Why an entry whose work a later issue builds cannot run. */
 export const NOT_IN_THIS_BUILD_REASON = "Not in this build yet";
@@ -30,6 +30,8 @@ export interface StudioMenuBarCommands {
   takeTheNewerAppVersion(): void;
   /** Window › Layout's shapes: reshape the layout, keeping its views where they fit. */
   shapeTheLayout(shape: StudioLayoutShape): void;
+  /** Window › Layout's layouts Studio ships, such as Code: lay the window out as the one `layoutId` names. */
+  applyTheShippedLayout(layoutId: StudioLayoutShipped["layout_id"]): void;
   /** Window › Layout's saved presets: lay the window out as the one saved at `presetIndex`. */
   applyTheSavedLayoutPreset(presetIndex: number): void;
   /** Window › Layout › Save layout as preset…: ask for the preset's name. */
@@ -150,7 +152,7 @@ interface StudioMenuParts {
   documentationEntry: StudioMenuEntry;
 }
 
-/** The layout menu's entries, the same under Window › Layout and behind the title row's layout button: the shapes, the presets saved, the first ones on the digits, and Save layout as preset…. */
+/** The layout menu's entries, the same under Window › Layout and behind the title row's layout button: the shapes, the layouts Studio ships, the presets saved, the first ones on the digits, and Save layout as preset…. */
 export function studioLayoutMenuEntries(platform: TatolabPlatform, layout: StudioLayoutInTheMenus, commands: StudioMenuBarCommands): StudioMenuEntry[] {
   const presetEntries = layout.preset_titles_saved.map((title, presetIndex): StudioMenuEntry => {
     const onChosen = () => commands.applyTheSavedLayoutPreset(presetIndex);
@@ -158,6 +160,8 @@ export function studioLayoutMenuEntries(platform: TatolabPlatform, layout: Studi
   });
   return [
     ...STUDIO_LAYOUT_SHAPES.map(({ shape, title }): StudioMenuEntry => ({ kind: "command", label: title, picture: studioLayoutShapePicture(shape), onChosen: () => commands.shapeTheLayout(shape) })),
+    { kind: "separator" },
+    ...STUDIO_LAYOUTS_SHIPPED.map(({ layout_id: layoutId, title, layout: shippedLayout }): StudioMenuEntry => ({ kind: "command", label: title, picture: studioLayoutPicture(shippedLayout), onChosen: () => commands.applyTheShippedLayout(layoutId) })),
     { kind: "separator" },
     ...presetEntries,
     ...(presetEntries.length > 0 ? [{ kind: "separator" } as const] : []),

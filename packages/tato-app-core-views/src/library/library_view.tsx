@@ -15,12 +15,15 @@ import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_li
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { ProjectAssetPick, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import { familyOfThePort, type NodeTypeDescribedOrWhyNot, type NodeTypePortDescribed, type OpenProjectReading, type ProjectAsset, type ProjectAssetsReading, type ProjectNodeTypesDescribedReading, type StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ImportedProject, ProjectAssetPick, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import { familyOfThePort, type NodeTypeDescribedOrWhyNot, type NodeTypePortDescribed, type OpenProjectReading, type ProjectAsset, type ProjectAssetsReading, type StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { pinTypeWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
 import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
+import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { CoreViewFrame } from "../shared/core_view_page";
+import { codeOfTheNodeType, openTheCodeOfTheNodeType } from "../shared/code_of_the_node_type";
+import { CODE_VIEW_TYPE_ID } from "../shared/files_the_code_view_opens";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import { NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS, nodeTypeCategoryPath } from "../shared/node_type_category_path";
@@ -267,12 +270,18 @@ function ViewsOfTheProject({ connection, searchText }: { connection: TatoAppView
 }
 
 /** The open project's node types or graph generators, by source, as the runtime reads them from source. */
-function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown }: { connection: TatoAppViewConnection; projectFolder: string; declarationsShown: LibraryDeclarationsShown }) {
-  const watchTheProjectsNodeTypes = useCallback(
-    (listener: (reading: ProjectNodeTypesDescribedReading) => void): StopWatching => connection.watchNodeTypes(projectFolder, listener),
-    [connection, projectFolder],
-  );
-  const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+function DeclarationsOfTheProject({
+  connection,
+  projectFolder,
+  imports,
+  declarationsShown,
+}: {
+  connection: TatoAppViewConnection;
+  projectFolder: string;
+  imports: readonly ImportedProject[];
+  declarationsShown: LibraryDeclarationsShown;
+}) {
+  const nodeTypesReading = useNodeTypesOfTheProject(connection, projectFolder);
   const settings = useViewReading(connection.watchSettings);
   const [expansionChoices, toggleTheRow] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
   const [chosenRowId, setChosenRowId] = useState<string | null>(null);
@@ -304,7 +313,8 @@ function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown
           onRowSelected={(rowId) => setChosenRowId(meaningOfRow(rowId).kind === "nothing_to_select" ? null : rowId)}
           onRowActivated={(rowId) => {
             const meaning = meaningOfRow(rowId);
-            if (meaning.kind !== "nothing_to_select" && meaning.file !== null) showTheRefusalOf("Didn't open the file:", connection.openView("code", { kind: "file", file: meaning.file }));
+            if (meaning.kind === "node_type_declaration") showTheRefusalOf("Didn't open the code:", openTheCodeOfTheNodeType(connection, codeOfTheNodeType(nodeTypesReading, imports, meaning.node_type.node_type)));
+            else if (meaning.kind !== "nothing_to_select" && meaning.file !== null) showTheRefusalOf("Didn't open the file:", connection.openView(CODE_VIEW_TYPE_ID, { kind: "file", file: meaning.file }));
           }}
           onExpansionToggled={toggleTheRow}
         />
@@ -545,7 +555,7 @@ function LibraryBody({
   if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
   if (openProject.kind === "unreadable") return <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />;
   const projectFolder = openProject.open_project.project.folder;
-  if (shown !== "assets") return <DeclarationsOfTheProject key={`${projectFolder}/${shown}`} connection={connection} projectFolder={projectFolder} declarationsShown={shown} />;
+  if (shown !== "assets") return <DeclarationsOfTheProject key={`${projectFolder}/${shown}`} connection={connection} projectFolder={projectFolder} imports={openProject.open_project.imports} declarationsShown={shown} />;
   return (
     <>
       {choices.importRefusals.map((importRefusal, refusalIndex) => (

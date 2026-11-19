@@ -4,13 +4,15 @@ import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import { IconButtonMenu, MenuItem, MenuItemThatCannotBeChosen } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { IconButtonMenu, MenuItem, MenuItemThatCannotBeChosen, RightClickMenuItem, RightClickMenuItemThatCannotBeChosen } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
-import { Plus } from "lucide-react";
+import { Code, Plus } from "lucide-react";
 import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
+import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
 import type { TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { codeOfTheNodeType, openTheCodeOfTheNodeType } from "../shared/code_of_the_node_type";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
@@ -58,6 +60,8 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
     [openProject, listedStreams],
   );
   const streamGraphs = useGraphsOfTheStreams(connection, shownStreams);
+  const openProjectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
+  const nodeTypesReading = useNodeTypesOfTheProject(connection, openProjectFolder);
   const settings = useViewReading(connection.watchSettings);
   const [expansionChoices, toggleTheRow]: [OutlinerRowExpansionChoices, (rowId: string, expand: boolean) => void] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
   const [askRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
@@ -96,6 +100,22 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
   if (openProject.kind === "unreadable") return <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />;
   const rowsOfTheSelection = selection === null ? NO_ROWS_SELECTED : outlinerRowIdsOfTheSelection(selection);
   const meaningOfRow = (rowId: string) => outlinerRows.find((outlinerRow) => outlinerRow.row.row_id === rowId)?.meaning ?? { kind: "nothing_to_select" as const };
+  const codeOfTheNodeTypeOf = (nodeType: string) => codeOfTheNodeType(nodeTypesReading, openProject.open_project.imports, nodeType);
+  const openTheCodeOf = (nodeType: string) => showTheRefusalOf("Didn't open the code:", openTheCodeOfTheNodeType(connection, codeOfTheNodeTypeOf(nodeType)));
+  const rightClickChoicesOfRow = (rowId: string) => {
+    const meaning = meaningOfRow(rowId);
+    if (meaning.kind !== "node") return null;
+    const code = codeOfTheNodeTypeOf(meaning.node_type);
+    return code.kind === "opens" ? (
+      <RightClickMenuItem icon={Code} onChosen={() => openTheCodeOf(meaning.node_type)} data-outliner-choice="edit_code">
+        Edit code
+      </RightClickMenuItem>
+    ) : (
+      <RightClickMenuItemThatCannotBeChosen icon={Code} whyItCannotBeChosen={code.because} data-outliner-choice="edit_code">
+        Edit code
+      </RightClickMenuItemThatCannotBeChosen>
+    );
+  };
   return (
     <>
       <StudioViewToolbarTools label="Outliner search">
@@ -141,10 +161,10 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
             }}
             onRowActivated={(rowId) => {
               const meaning = meaningOfRow(rowId);
-              if (meaning.kind === "stream" || meaning.kind === "node") {
-                showTheRefusalOf("Didn't open the stream:", connection.openStreamTab({ stream: meaning.stream, project_name: meaning.project_name, display_name: meaning.display_name }));
-              }
+              if (meaning.kind === "stream") showTheRefusalOf("Didn't open the stream:", connection.openStreamTab({ stream: meaning.stream, project_name: meaning.project_name, display_name: meaning.display_name }));
+              if (meaning.kind === "node") openTheCodeOf(meaning.node_type);
             }}
+            rightClickChoicesOfRow={rightClickChoicesOfRow}
             onExpansionToggled={(rowId, expand) => (isSearching ? setExpansionChoicesWhileSearching((choicesSoFar) => ({ ...choicesSoFar, [rowId]: expand })) : toggleTheRow(rowId, expand))}
           />
         )}

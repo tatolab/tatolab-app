@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { RightClickMenuItem } from "./menus";
 import { TreeView, type TreeViewRow } from "./tree_view";
 
 afterEach(cleanup);
@@ -79,5 +80,33 @@ describe("a tree's guide lines", () => {
       expect(connectorOf(rowId)?.style.left).toBe(guideLinesOf(rowId).at(-1));
     }
     expect(Number.parseFloat(connectorOf("display")?.style.width ?? "0")).toBeGreaterThan(Number.parseFloat(connectorOf("group")?.style.width ?? "0"));
+  });
+});
+
+describe("a tree whose rows offer right-click choices", () => {
+  it("opens a row's choices on a right-click, and nothing on a row that offers none", async () => {
+    const onChosen = vi.fn();
+    render(
+      <TreeView
+        label="Nodes"
+        rows={ROWS}
+        selectedRowId={null}
+        onRowSelected={vi.fn()}
+        onRowActivated={vi.fn()}
+        onExpansionToggled={vi.fn()}
+        rightClickChoicesOfRow={(rowId) =>
+          rowId === "halftone" ? (
+            <RightClickMenuItem onChosen={onChosen} data-tree-test-choice="edit_code">
+              Edit code
+            </RightClickMenuItem>
+          ) : null
+        }
+      />,
+    );
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: "camera" }));
+    expect(document.querySelector("[data-tree-test-choice]")).toBeNull();
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: "halftone" }));
+    fireEvent.click(await vi.waitFor(() => document.querySelector<HTMLElement>('[data-tree-test-choice="edit_code"]') ?? expect.unreachable("no Edit code")));
+    expect(onChosen).toHaveBeenCalledOnce();
   });
 });

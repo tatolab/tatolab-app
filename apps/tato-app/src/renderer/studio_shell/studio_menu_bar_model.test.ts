@@ -39,6 +39,7 @@ function commandsCounted(): StudioMenuBarCommands {
     reopenTheLastClosedStreamTab: vi.fn(),
     showTheStreamTabBeside: vi.fn(),
     shapeTheLayout: vi.fn(),
+    applyTheShippedLayout: vi.fn(),
     applyTheSavedLayoutPreset: vi.fn(),
     askToSaveTheLayoutAsAPreset: vi.fn(),
   };
@@ -107,30 +108,31 @@ describe("the studio's Edit menu", () => {
 });
 
 describe("the layout menu", () => {
-  it("lists the shapes, then the presets saved, the first nine on the digits, then Save layout as preset…", () => {
+  it("lists the shapes, then the layouts Studio ships, then the presets saved, the first nine on the digits, then Save layout as preset…", () => {
     const commands = commandsCounted();
     const presetTitles = ["Show night", "Rehearsal", "3", "4", "5", "6", "7", "8", "9", "Tenth"];
     const entries = studioLayoutMenuEntries("macos", { preset_titles_saved: presetTitles }, commands);
     const labels = entries.map((entry) => (entry.kind === "separator" ? "—" : entry.label));
-    expect(labels).toEqual(["Single", "Two columns", "Two rows", "Three columns", "Grid 2×2", "Main + right", "Left + main + right", "Main + bottom", "—", ...presetTitles, "—", "Save layout as preset…"]);
+    expect(labels).toEqual(["Single", "Two columns", "Two rows", "Three columns", "Grid 2×2", "Main + right", "Left + main + right", "Main + bottom", "—", "Code", "—", ...presetTitles, "—", "Save layout as preset…"]);
     expect(entries.find((entry) => entry.kind === "command" && entry.label === "Rehearsal")).toMatchObject({ shortcutHint: "⌘2" });
     expect(entries.find((entry) => entry.kind === "command" && entry.label === "Tenth")).not.toHaveProperty("shortcutHint");
     for (const entry of entries) if (entry.kind === "command") entry.onChosen();
     expect(commands.shapeTheLayout).toHaveBeenCalledWith("grid");
+    expect(commands.applyTheShippedLayout).toHaveBeenCalledWith("code");
     expect(commands.applyTheSavedLayoutPreset).toHaveBeenCalledWith(0);
     expect(commands.applyTheSavedLayoutPreset).toHaveBeenCalledWith(9);
     expect(commands.askToSaveTheLayoutAsAPreset).toHaveBeenCalledOnce();
   });
 
-  it("goes from the shapes straight to Save layout as preset… while no preset is saved", () => {
+  it("goes from the layouts Studio ships straight to Save layout as preset… while no preset is saved", () => {
     const labels = studioLayoutMenuEntries("linux", LAYOUT_WITH_NO_PRESET, commandsCounted()).map((entry) => (entry.kind === "separator" ? "—" : entry.label));
-    expect(labels.slice(-3)).toEqual(["Main + bottom", "—", "Save layout as preset…"]);
+    expect(labels.slice(-5)).toEqual(["Main + bottom", "—", "Code", "—", "Save layout as preset…"]);
   });
 
-  it("draws each shape's picture, and no preset or Save layout as preset… with one", () => {
+  it("draws each shape's and each shipped layout's picture, and no preset or Save layout as preset… with one", () => {
     const entries = studioLayoutMenuEntries("macos", { preset_titles_saved: ["Show night"] }, commandsCounted());
     const labelsWithAPicture = entries.flatMap((entry) => (entry.kind === "command" && entry.picture !== undefined ? [entry.label] : []));
-    expect(labelsWithAPicture).toEqual(["Single", "Two columns", "Two rows", "Three columns", "Grid 2×2", "Main + right", "Left + main + right", "Main + bottom"]);
+    expect(labelsWithAPicture).toEqual(["Single", "Two columns", "Two rows", "Three columns", "Grid 2×2", "Main + right", "Left + main + right", "Main + bottom", "Code"]);
   });
 
   it("is the Window menu's Layout submenu", () => {

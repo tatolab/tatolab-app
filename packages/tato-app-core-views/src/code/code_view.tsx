@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { CodeFileTabStrip, type OpenableCodeFileGroup } from "@tatolab/tato-app-view-sdk/design_system/code_file_tab_strip";
-import { CodeTextEditor, forgetCodeEditorDocument } from "@tatolab/tato-app-view-sdk/design_system/code_text_editor";
+import { CodeTextEditor, forgetCodeEditorDocument, type CodeTextEditorLineAskedFor } from "@tatolab/tato-app-view-sdk/design_system/code_text_editor";
 import { codeEditorLanguageOfFile } from "@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_types";
 import { LogRecordLines } from "@tatolab/tato-app-view-sdk/design_system/log_record_lines";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
@@ -23,8 +23,16 @@ import {
 } from "./code_view_settings";
 import { hasEditsNotSaved, OpenCodeDocuments, type CodeEditsNotSaved, type CodeEditsNotSavedStore, type OpenCodeDocument } from "./open_code_documents";
 
-/** The issue that names the file a node's class is defined in, which opening a node's code waits on. */
-const OPENING_A_NODES_FILE_WAITS_ON = "tatolab/streamlib#2918";
+/** The line of `file` an opening of the area asked to be brought into view. */
+interface LineOfAFileAskedFor extends CodeTextEditorLineAskedFor {
+  file: string;
+}
+
+/** The line an opening of the area asks for, until the editor has brought it into view and `lineBroughtIntoView` is told its id. */
+interface LineTheAreaIsOpenedAt {
+  lineAskedFor: LineOfAFileAskedFor | null;
+  lineBroughtIntoView(askedId: string): void;
+}
 
 /** Keeps with the area the settings `change` makes of the latest ones, showing why when Studio refuses them. */
 type RememberTheCodeSettings = (change: (settings: CodeViewSettings) => CodeViewSettings) => void;
@@ -178,7 +186,7 @@ function CodeDocumentNoticeRow({ documents, document }: { documents: OpenCodeDoc
   );
 }
 
-function ShownCodeDocument({ documents, file }: { documents: OpenCodeDocuments; file: string }) {
+function ShownCodeDocument({ documents, file, lineOpenedAt }: { documents: OpenCodeDocuments; file: string; lineOpenedAt: LineTheAreaIsOpenedAt }) {
   const document = documents.documentOf(file);
   useEffect(() => {
     documents.open(file);
@@ -202,6 +210,8 @@ function ShownCodeDocument({ documents, file }: { documents: OpenCodeDocuments; 
         languageHelp={document.language_help}
         onTextEdited={onTextEdited}
         onSaveAsked={onSaveAsked}
+        lineBroughtIntoView={lineOpenedAt.lineAskedFor?.file === file ? lineOpenedAt.lineAskedFor : null}
+        onLineBroughtIntoView={lineOpenedAt.lineBroughtIntoView}
         data-code-text-editor={file}
       />
       {document.language_server_ended_because !== null && (
@@ -236,11 +246,13 @@ function CodeAreaBody({
   documents,
   settings,
   rememberTheSettings,
+  lineOpenedAt,
 }: {
   connection: TatoAppViewConnection;
   documents: OpenCodeDocuments;
   settings: CodeViewSettings;
   rememberTheSettings: RememberTheCodeSettings;
+  lineOpenedAt: LineTheAreaIsOpenedAt;
 }) {
   const openProject = useViewReading(connection.watchOpenProject);
   const shownDocument = settings.shown_file === null ? undefined : documents.documentOf(settings.shown_file);
@@ -251,12 +263,11 @@ function CodeAreaBody({
     settings.shown_file === null ? (
       <WaitingState
         title="No file open"
-        explanation="Open a file of the project from + above. A node's own file opens from the graph once the runtime names it."
-        waitsOn={OPENING_A_NODES_FILE_WAITS_ON}
+        explanation="Open a file of the project from + above, or a node's own code with Edit code in the graph or the Outliner."
         data-code-document-state="none_open"
       />
     ) : (
-      <ShownCodeDocument documents={documents} file={settings.shown_file} />
+      <ShownCodeDocument documents={documents} file={settings.shown_file} lineOpenedAt={lineOpenedAt} />
     );
   if (!settings.logs_shown || loggedProjectFolder === null) return <div className="flex min-h-0 flex-1 flex-col">{code}</div>;
   return (
@@ -275,14 +286,24 @@ function CodeAreaBody({
   );
 }
 
-/** Shows the file each opening of the area names, once: an opening the area took before, heard again as its frame loads again, is left as the person left the tabs. */
-function useTheFileTheAreaIsOpenedOn(connection: TatoAppViewConnection, rememberTheSettings: RememberTheCodeSettings): void {
+/**
+ * Shows the file each opening of the area names, once, and asks for the line it names until the editor has brought it
+ * into view: an opening the area took before, heard again as its frame loads again, is left as the person left the tabs
+ * and asks for no line, and an editor shown again after the line was brought into view leaves the cursor where it was.
+ */
+function useTheFileTheAreaIsOpenedOn(connection: TatoAppViewConnection, settings: CodeViewSettings, rememberTheSettings: RememberTheCodeSettings): LineTheAreaIsOpenedAt {
   const openedOn = useViewReading(connection.watchOpenedOn);
+  const [lineAskedFor, setLineAskedFor] = useState<LineOfAFileAskedFor | null>(null);
+  const openingTakenBefore = useRef(settings.opening_taken);
   useEffect(() => {
-    if (openedOn?.kind !== "file") return;
-    const { file, opening_id: openingId } = openedOn;
-    rememberTheSettings((settings) => (settings.opening_taken === openingId ? settings : { ...withTheFileShown(settings, file), opening_taken: openingId }));
+    if (openedOn?.kind !== "file" || openedOn.opening_id === openingTakenBefore.current) return;
+    const { file, line, opening_id: openingId } = openedOn;
+    openingTakenBefore.current = openingId;
+    rememberTheSettings((latest) => (latest.opening_taken === openingId ? latest : { ...withTheFileShown(latest, file), opening_taken: openingId }));
+    setLineAskedFor(line === undefined ? null : { file, line, asked_id: openingId });
   }, [openedOn, rememberTheSettings]);
+  const lineBroughtIntoView = useCallback((askedId: string) => setLineAskedFor((latest) => (latest?.asked_id === askedId ? null : latest)), []);
+  return useMemo(() => ({ lineAskedFor, lineBroughtIntoView }), [lineAskedFor, lineBroughtIntoView]);
 }
 
 function CodeOfTheArea({ connection, settings }: { connection: TatoAppViewConnection; settings: CodeViewSettings }) {
@@ -302,11 +323,11 @@ function CodeOfTheArea({ connection, settings }: { connection: TatoAppViewConnec
     },
     [connection, showTheRefusalOf],
   );
-  useTheFileTheAreaIsOpenedOn(connection, rememberTheSettings);
+  const lineOpenedAt = useTheFileTheAreaIsOpenedOn(connection, settings, rememberTheSettings);
   return (
     <CoreViewFrame connection={connection} toolbarLabel="Code tools" toolbarTools={<CodeAreaToolbarTools connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} />}>
       <RefusalOfTheLatestAskBar refusal={settingsRefusal} />
-      <CodeAreaBody connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} />
+      <CodeAreaBody connection={connection} documents={documents} settings={settings} rememberTheSettings={rememberTheSettings} lineOpenedAt={lineOpenedAt} />
     </CoreViewFrame>
   );
 }
