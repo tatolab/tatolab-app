@@ -113,6 +113,8 @@ const CONTROL_OPERATION_TIME_LIMITS_MS: Partial<Readonly<Record<ControlOperation
   import_asset: 120_000,
   duplicate_project: 120_000,
   import_project: 120_000,
+  // Two programs over a folder, each bounded at 120 s by the runtime, and the declarations at 60 s.
+  check_project_code: 330_000,
 };
 
 /** How long a call to `method` may go without its answer: its own limit when it has one, else `defaultTimeLimitMs`. */

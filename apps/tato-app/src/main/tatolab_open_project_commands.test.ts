@@ -1,4 +1,6 @@
 import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { folderVersionOf } from "./extension_check_gate.js";
+import { answersOfAFolderPassingTheGate } from "./extension_check_gate_test_support.js";
 import { projectViewFolderUrl } from "./extension_files_served_with_types_removed.js";
 import os from "node:os";
 import path from "node:path";
@@ -14,6 +16,9 @@ import { createTatolabAppLog } from "./tatolab_app_log.js";
 import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, cleanUps, THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS, recordedResponseBody, sharedStateOverFakes, listedStreamOfTheProject, statusLastPublishedListing, aLocalApiQueuingEachProjectAction, studioServicesLayerForTest, STUDIO_WINDOW_UNDER_TEST } from "./tatolab_commands_test_support.js";
 
 afterEach(cleanUpTheFakesTheLastTestMade);
+
+/** A view page the gate passes. */
+const NOTES_PAGE = "<!doctype html><title>Notes</title>\n";
 
 test("a saved Python file of a project the runtime lists open queues reload_project, as tatolab dev does, then a status round; another file, or a closed project, is left as it is", async () => {
   const doorways = "/projects/doorways";
@@ -374,7 +379,12 @@ test("listing the open project's views asks the system ahead for the camera and 
   const nightShow = "/private/tmp/tl-rec-cam/projects/night-show";
   const listingDeclaringTheCamera = await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-with-a-view-declaring-the-camera-and-microphone.json");
   const sharedState = await sharedStateOverFakes(
-    [controlOperationResponseOfTheRecordedToolResponse(listingDeclaringTheCamera), controlOperationResponseOfTheRecordedToolResponse(listingDeclaringTheCamera)],
+    [
+      controlOperationResponseOfTheRecordedToolResponse(listingDeclaringTheCamera),
+      ...answersOfAFolderPassingTheGate("views/notes", { "index.html": NOTES_PAGE }),
+      ...answersOfAFolderPassingTheGate("views/stage_camera", { "index.html": NOTES_PAGE }),
+      controlOperationResponseOfTheRecordedToolResponse(listingDeclaringTheCamera),
+    ],
     "macos",
     [],
     null,
@@ -405,10 +415,14 @@ test("listing the open project's views asks the system ahead for the camera and 
 });
 
 /** The window's `ListedStudioView` reads exactly this JSON. */
-test("the open project's views are the runtime's list_project_views of its folder, each folder served under the window page's scheme, and refused in the Projects window", async () => {
+test("the open project's views are the runtime's list_project_views of its folder, each that opens passed through the check and served under the window page's scheme at the version it passed, and refused in the Projects window", async () => {
   const nightShow = "/private/tmp/tl-rec053/projects/night-show";
   const sharedState = await sharedStateOverFakes(
-    [controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall.json"))],
+    [
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall.json")),
+      ...answersOfAFolderPassingTheGate("views/deck", { "index.html": NOTES_PAGE }),
+      ...answersOfAFolderPassingTheGate("imports/lobby-wall/views/meter", { "index.html": NOTES_PAGE, "meter.ts": "export const level = 1;\n" }, "imports/lobby-wall/"),
+    ],
     "macos",
     [],
     null,
@@ -424,6 +438,13 @@ test("the open project's views are the runtime's list_project_views of its folde
   const recordedNightShowFolder = "/private/tmp/tl-rec053/projects/night-show";
 
   const listed = await commandHandlers.list_studio_views_of_the_open_project(undefined, { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 });
+  const deckVersion = folderVersionOf(new Map([["views/deck/index.html", Buffer.from(NOTES_PAGE)]]));
+  const meterVersion = folderVersionOf(
+    new Map([
+      ["imports/lobby-wall/views/meter/index.html", Buffer.from(NOTES_PAGE)],
+      ["imports/lobby-wall/views/meter/meter.ts", Buffer.from("export const level = 1;\n")],
+    ]),
+  );
 
   expect(listed.ok && listed.value.map(({ manifest_json, ...listedView }) => ({ ...listedView, has_its_manifest: manifest_json !== null }))).toEqual([
     {
@@ -432,21 +453,25 @@ test("the open project's views are the runtime's list_project_views of its folde
       import_folder: null,
       opens: false,
       not_opened_because: "`contract`: this runtime reads view contract 1.0.",
-      folder_url: projectViewFolderUrl(recordedNightShowFolder, "views/broken"),
+      folder_url: "",
       has_its_manifest: true,
     },
-    { view_type_id: "night-show:deck", project_name: "night-show", import_folder: null, opens: true, not_opened_because: null, folder_url: projectViewFolderUrl(recordedNightShowFolder, "views/deck"), has_its_manifest: true },
+    { view_type_id: "night-show:deck", project_name: "night-show", import_folder: null, opens: true, not_opened_because: null, folder_url: projectViewFolderUrl(recordedNightShowFolder, deckVersion, "views/deck"), has_its_manifest: true },
     {
       view_type_id: "lobby-wall:meter",
       project_name: "lobby-wall",
       import_folder: "lobby-wall",
       opens: true,
       not_opened_because: null,
-      folder_url: projectViewFolderUrl(recordedNightShowFolder, "imports/lobby-wall/views/meter"),
+      folder_url: projectViewFolderUrl(recordedNightShowFolder, meterVersion, "imports/lobby-wall/views/meter"),
       has_its_manifest: true,
     },
   ]);
-  expect(sharedState.projectViewsListed.isListedAsOpening(recordedNightShowFolder, "views/deck")).toBe(true);
-  expect(sharedState.projectViewsListed.isListedAsOpening(recordedNightShowFolder, "views/broken")).toBe(false);
+  expect(sharedState.projectViewsListed.passedViewFolder(recordedNightShowFolder, deckVersion, "views/deck")?.files).toEqual(new Map([["views/deck/index.html", Buffer.from(NOTES_PAGE)]]));
+  expect(sharedState.projectViewsListed.passedViewFolder(recordedNightShowFolder, deckVersion, "views/broken")).toBeNull();
+  expect(sharedState.localApiControlOperationCallsReceived().filter(([method]) => method === "check_project_code").map(([, params]) => params)).toEqual([
+    { project_directory: recordedNightShowFolder, paths: ["views/deck/index.html"] },
+    { project_directory: `${recordedNightShowFolder}/imports/lobby-wall`, paths: ["views/meter/index.html", "views/meter/meter.ts"] },
+  ]);
   expect(await commandHandlers.list_studio_views_of_the_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });

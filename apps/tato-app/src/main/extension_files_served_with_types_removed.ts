@@ -1,8 +1,10 @@
-// A project's views are served to their frames from the bytes the runtime's `read_project_file`
-// answers, under the window page's own scheme: `tatolab-app://app/project_views/<open project>/
-// <view folder>/<file>`, the open project's folder written as base64url so the URL names which
-// project's history the bytes come from, and only for a view a studio window listed as one that
-// opens. The app reads no project file from disk. Each file is served as `extension_file_serving.ts`
+// A project's views are served to their frames from the bytes the extension check gate read through
+// the runtime and the runtime's check passed, under the window page's own scheme:
+// `tatolab-app://app/project_views/<open project>/<folder version>/<view folder>/<file>`, the open
+// project's folder written as base64url so the URL names which project's history the bytes come
+// from, and the folder version naming the bytes checked, so a passing edit is a new URL. Only a
+// view a studio window's last listing passed is served, and only the bytes that passed: nothing is
+// read at the request. The app reads no project file from disk. Each file is served as `extension_file_serving.ts`
 // says: a `.ts` file as JavaScript with its types removed and a page holding the supplied modules'
 // import map, so a view an author writes in `.ts` opens with no build, and a library the view carries
 // in its `vendor/` as it is written.
@@ -11,13 +13,10 @@ import path from "node:path";
 import { withTheSuppliedModulesImportMap } from "@tatolab/tato-app-view-sdk/supplied_modules";
 import { Cause, Data, Effect, Exit, type ManagedRuntime } from "effect";
 import { howAnExtensionFileIsServed, type ExtensionFileServedAs } from "./extension_file_serving.js";
-import { bytesOfTheBase64ContentOfTheContract } from "./project_files_on_the_wire.js";
+import type { ExtensionFolderPassed } from "./extension_check_gate.js";
 import { describeCaughtFailure } from "./result.js";
-import { fromResult } from "./result_as_effect.js";
-import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { ProjectViewsListed, StudioWindows } from "./studio_runtime.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { typeScriptWithItsTypesRemoved, type TypeScriptTypesNotRemoved } from "./typescript_types_removed.js";
 import { isOnTheLocationUnderThePath, TATOLAB_WINDOW_PAGE_ROOT_URL, windowPagePathUnderThePrefix, windowPageUrlUnderThePath } from "./window_page_locations.js";
 
@@ -27,9 +26,12 @@ export const PROJECT_VIEW_FILES_PATH = "/project_views/";
 /** A view's folder inside a project: its own `views/<folder>`, or an import's `imports/<import>/views/<folder>`. */
 const VIEW_FOLDER_IN_A_PROJECT = /^(?:views\/[^/]+|imports\/[^/]+\/views\/[^/]+)(?=\/)/;
 
-/** The URL the view folder `viewFolderInTheProject` of the project in `openProjectFolder` is served under, which its entry and every file it loads resolve against. */
-export function projectViewFolderUrl(openProjectFolder: string, viewFolderInTheProject: string): string {
-  return `${windowPageUrlUnderThePath(PROJECT_VIEW_FILES_PATH, `${Buffer.from(openProjectFolder, "utf8").toString("base64url")}/${viewFolderInTheProject}`)}/`;
+/** A folder version as the URL carries it. */
+const FOLDER_VERSION = /^[0-9a-f]{16}$/;
+
+/** The URL the view folder `viewFolderInTheProject` of the project in `openProjectFolder`, at the version `folderVersion` the gate passed, is served under, which its entry and every file it loads resolve against. */
+export function projectViewFolderUrl(openProjectFolder: string, folderVersion: string, viewFolderInTheProject: string): string {
+  return `${windowPageUrlUnderThePath(PROJECT_VIEW_FILES_PATH, `${Buffer.from(openProjectFolder, "utf8").toString("base64url")}/${folderVersion}/${viewFolderInTheProject}`)}/`;
 }
 
 /** Whether `url` is served from a project's view folder. */
@@ -37,39 +39,43 @@ export function isAProjectViewFileUrl(url: string): boolean {
   return isOnTheLocationUnderThePath(TATOLAB_WINDOW_PAGE_ROOT_URL, url, PROJECT_VIEW_FILES_PATH);
 }
 
-/** A file of a project view a request names: the open project's folder, the view folder it is in, and the file's `/`-separated path in the project. */
+/** A file of a project view a request names: the open project's folder, the folder version, the view folder it is in, and the file's `/`-separated path in the project. */
 export interface ProjectViewFileAsked {
   open_project_folder: string;
+  folder_version: string;
   view_folder_in_the_project: string;
   path_in_the_project: string;
 }
 
-/** The project view file `requestUrl` asks for, or `null` when it names none: another path, a project folder that is not absolute, or a file outside a view folder. */
+/** The project view file `requestUrl` asks for, or `null` when it names none: another path, a project folder that is not absolute, no folder version, or a file outside a view folder. */
 export function projectViewFileOfTheRequest(requestUrl: string): ProjectViewFileAsked | null {
   const requestedPath = windowPagePathUnderThePrefix(requestUrl, PROJECT_VIEW_FILES_PATH);
   if (requestedPath === null) return null;
   const folderEnd = requestedPath.indexOf("/");
   if (folderEnd <= 0) return null;
   const openProjectFolder = Buffer.from(requestedPath.slice(0, folderEnd), "base64url").toString("utf8");
-  const pathInTheProject = requestedPath.slice(folderEnd + 1);
-  if (!path.isAbsolute(openProjectFolder) || path.normalize(openProjectFolder) !== openProjectFolder) return null;
+  const versionEnd = requestedPath.indexOf("/", folderEnd + 1);
+  if (versionEnd < 0) return null;
+  const folderVersion = requestedPath.slice(folderEnd + 1, versionEnd);
+  const pathInTheProject = requestedPath.slice(versionEnd + 1);
+  if (!path.isAbsolute(openProjectFolder) || path.normalize(openProjectFolder) !== openProjectFolder || !FOLDER_VERSION.test(folderVersion)) return null;
   const viewFolderInTheProject = VIEW_FOLDER_IN_A_PROJECT.exec(pathInTheProject)?.[0];
   if (viewFolderInTheProject === undefined) return null;
-  return { open_project_folder: openProjectFolder, view_folder_in_the_project: viewFolderInTheProject, path_in_the_project: pathInTheProject };
+  return { open_project_folder: openProjectFolder, folder_version: folderVersion, view_folder_in_the_project: viewFolderInTheProject, path_in_the_project: pathInTheProject };
 }
 
 /** How a request for an extension's file, a project view's or the Studio's own node UI module's, is answered: its bytes, or a status with why. */
 export type ExtensionFileAnswer = { kind: "served"; content_type: string; file_bytes: Buffer } | { kind: "not_served"; status: ProjectViewFileNotServedStatus | 500; because: string };
 
-/** The status of a request a known failure left unserved: refused (403), not found (404), not servable as written (422), a runtime answer that breaks its contract (502), or no runtime answer (503). */
-type ProjectViewFileNotServedStatus = 403 | 404 | 422 | 502 | 503;
+/** The status of a request a known failure left unserved: refused (403), not found (404), or not servable as written (422). */
+type ProjectViewFileNotServedStatus = 403 | 404 | 422;
 
 /** How the running app answers a request for a project view's file. */
 export type AnswerAProjectViewFileRequest = (requestUrl: string) => Promise<ExtensionFileAnswer>;
 
-/** The views each studio window's view-type menu last listed as ones that open, by project: the only view folders served. */
+/** The views each studio window's view-type menu last listed as ones that open, by project, each with the files the gate passed: the only bytes served. */
 export class ProjectViewsListedToTheWindows {
-  private readonly viewFoldersByOpenProjectFolder = new Map<string, { listing_started: number; view_folders: ReadonlySet<string> }>();
+  private readonly viewFoldersByOpenProjectFolder = new Map<string, { listing_started: number; view_folders: ReadonlyMap<string, ExtensionFolderPassed> }>();
   private listingsStarted = 0;
 
   /** The mark of a listing of a project about to be asked for, which `rememberTheListing` takes back with its answer. */
@@ -78,28 +84,28 @@ export class ProjectViewsListedToTheWindows {
     return this.listingsStarted;
   }
 
-  /** Keep the views that open in `listedViews`, the listing of the project in `openProjectFolder` started as `listingStarted`, in place of its last listing, unless a listing started later is already kept. */
-  rememberTheListing(openProjectFolder: string, listingStarted: number, listedViews: readonly { view_folder_in_the_project: string; opens: boolean }[]): void {
+  /** Keep `passedViewFolders`, the views that open in the listing of the project in `openProjectFolder` started as `listingStarted`, by view folder, in place of its last listing, unless a listing started later is already kept. */
+  rememberTheListing(openProjectFolder: string, listingStarted: number, passedViewFolders: ReadonlyMap<string, ExtensionFolderPassed>): void {
     const keptListing = this.viewFoldersByOpenProjectFolder.get(openProjectFolder);
     if (keptListing !== undefined && keptListing.listing_started > listingStarted) return;
-    const viewFolders = new Set(listedViews.filter((listedView) => listedView.opens).map((listedView) => listedView.view_folder_in_the_project));
-    this.viewFoldersByOpenProjectFolder.set(openProjectFolder, { listing_started: listingStarted, view_folders: viewFolders });
+    this.viewFoldersByOpenProjectFolder.set(openProjectFolder, { listing_started: listingStarted, view_folders: passedViewFolders });
   }
 
-  /** Whether the last listing of the project in `openProjectFolder` holds `viewFolderInTheProject` as a view that opens. */
-  isListedAsOpening(openProjectFolder: string, viewFolderInTheProject: string): boolean {
-    return this.viewFoldersByOpenProjectFolder.get(openProjectFolder)?.view_folders.has(viewFolderInTheProject) ?? false;
+  /** The view folder `viewFolderInTheProject` at `folderVersion` as the last listing of the project in `openProjectFolder` passed it; `null` when that listing holds no such view at that version. */
+  passedViewFolder(openProjectFolder: string, folderVersion: string, viewFolderInTheProject: string): ExtensionFolderPassed | null {
+    const passed = this.viewFoldersByOpenProjectFolder.get(openProjectFolder)?.view_folders.get(viewFolderInTheProject);
+    return passed !== undefined && passed.folder_version === folderVersion ? passed : null;
   }
 }
 
 /** The request names no file inside a view's folder of a project. */
 class NotAProjectViewFile extends Data.TaggedError("NotAProjectViewFile")<{ readonly words: string }> {}
 
-/** The request names a project no studio window holds open, or a view folder its window did not list as one that opens. */
+/** The request names a project no studio window holds open, or a view folder, or a version of one, its window's last listing did not pass. */
 class ProjectViewNotOpenInAStudioWindow extends Data.TaggedError("ProjectViewNotOpenInAStudioWindow")<{ readonly words: string }> {}
 
-/** The runtime's `read_project_file` answered bytes that do not read as its contract says. */
-class ProjectFileBytesUnreadable extends Data.TaggedError("ProjectFileBytesUnreadable")<{ readonly words: string }> {}
+/** The request names a file the view folder the gate passed does not hold. */
+class ProjectViewFileNotPassed extends Data.TaggedError("ProjectViewFileNotPassed")<{ readonly words: string }> {}
 
 /** A view's page is not UTF-8 text, so the supplied modules' import map cannot be written into it. */
 class ProjectViewPageNotUtf8Text extends Data.TaggedError("ProjectViewPageNotUtf8Text")<{ readonly words: string }> {}
@@ -108,7 +114,7 @@ class ProjectViewPageNotUtf8Text extends Data.TaggedError("ProjectViewPageNotUtf
 export type ExtensionFileNotServableAsWritten = TypeScriptTypesNotRemoved | ProjectViewPageNotUtf8Text;
 
 /** Every way a request for a project view's file goes unserved. */
-type ProjectViewFileNotServed = NotAProjectViewFile | ProjectViewNotOpenInAStudioWindow | ProjectFileBytesUnreadable | TypeScriptTypesNotRemoved | ProjectViewPageNotUtf8Text | RuntimeControlFailure;
+type ProjectViewFileNotServed = NotAProjectViewFile | ProjectViewNotOpenInAStudioWindow | ProjectViewFileNotPassed | TypeScriptTypesNotRemoved | ProjectViewPageNotUtf8Text;
 
 /** The status a request answers with when `notServed` stopped it. */
 function statusOfAFileNotServed(notServed: ProjectViewFileNotServed): ProjectViewFileNotServedStatus {
@@ -116,18 +122,11 @@ function statusOfAFileNotServed(notServed: ProjectViewFileNotServed): ProjectVie
     case "ProjectViewNotOpenInAStudioWindow":
       return 403;
     case "NotAProjectViewFile":
-    case "RuntimeRefused":
+    case "ProjectViewFileNotPassed":
       return 404;
     case "TypeScriptTypesNotRemoved":
     case "ProjectViewPageNotUtf8Text":
       return 422;
-    case "ProjectFileBytesUnreadable":
-    case "ContractMismatch":
-    case "RuntimeOfAnotherContract":
-      return 502;
-    case "RuntimeUnreachable":
-    case "RuntimeTimedOut":
-      return 503;
   }
 }
 
@@ -157,7 +156,7 @@ export function projectViewFileAsServed(
   }
 }
 
-/** The file `requestUrl` asks for: one of a view a studio window listed as one that opens, read through the runtime, only for a project a studio window holds open. */
+/** The file `requestUrl` asks for: its bytes as the gate passed them, in a view a studio window's last listing passed at the version the URL names, only for a project a studio window holds open. */
 const projectViewFileServed = Effect.fn("project_view_file_served")(function* (requestUrl: string) {
   const fileAsked = projectViewFileOfTheRequest(requestUrl);
   if (fileAsked === null) return yield* new NotAProjectViewFile({ words: `${requestUrl} names no file of a project's view.` });
@@ -165,20 +164,21 @@ const projectViewFileServed = Effect.fn("project_view_file_served")(function* (r
   if (!studioWindows.aStudioWindowHoldsTheProjectIn(fileAsked.open_project_folder)) {
     return yield* new ProjectViewNotOpenInAStudioWindow({ words: `${fileAsked.open_project_folder} is not a project open in a studio window.` });
   }
-  const projectViewsListed = yield* ProjectViewsListed;
-  if (!projectViewsListed.isListedAsOpening(fileAsked.open_project_folder, fileAsked.view_folder_in_the_project)) {
-    return yield* new ProjectViewNotOpenInAStudioWindow({ words: `${fileAsked.view_folder_in_the_project} is not a view the studio window of ${fileAsked.open_project_folder} listed.` });
+  const passedViewFolder = (yield* ProjectViewsListed).passedViewFolder(fileAsked.open_project_folder, fileAsked.folder_version, fileAsked.view_folder_in_the_project);
+  if (passedViewFolder === null) {
+    return yield* new ProjectViewNotOpenInAStudioWindow({
+      words: `${fileAsked.view_folder_in_the_project} at ${fileAsked.folder_version} is not a view the studio window of ${fileAsked.open_project_folder} last listed as passing its check.`,
+    });
   }
-  const runtimeControl = yield* RuntimeControl;
-  const fileRead = yield* runtimeControl.call("read_project_file", { project_directory: fileAsked.open_project_folder, path: fileAsked.path_in_the_project });
-  const fileBytes = yield* fromResult(bytesOfTheBase64ContentOfTheContract(fileRead), (failure) => new ProjectFileBytesUnreadable({ words: `the runtime's read_project_file result could not be read: ${failure}` }));
+  const fileBytes = passedViewFolder.files.get(fileAsked.path_in_the_project);
+  if (fileBytes === undefined) return yield* new ProjectViewFileNotPassed({ words: `${fileAsked.path_in_the_project} is not a file of the view folder the runtime checked.` });
   const serving = howAnExtensionFileIsServed(fileAsked.path_in_the_project.slice(fileAsked.view_folder_in_the_project.length + 1));
   const servedBytes = yield* projectViewFileAsServed(fileAsked.path_in_the_project, fileBytes, serving.served_as);
   return { kind: "served", content_type: serving.content_type, file_bytes: servedBytes } satisfies ExtensionFileAnswer;
 });
 
 /** The answer to `requestUrl`: the file served, or the status and words of what stopped it; a file not servable as its author wrote it is logged with its words. */
-function answerAProjectViewFileRequest(requestUrl: string): Effect.Effect<ExtensionFileAnswer, never, StudioWindows | ProjectViewsListed | RuntimeControl> {
+function answerAProjectViewFileRequest(requestUrl: string): Effect.Effect<ExtensionFileAnswer, never, StudioWindows | ProjectViewsListed> {
   return projectViewFileServed(requestUrl).pipe(
     Effect.tapError((notServed) => (statusOfAFileNotServed(notServed) === 422 ? Effect.logWarning("a project view's file was not served as its author wrote it", notServed.words) : Effect.void)),
     Effect.catch((notServed) => Effect.succeed<ExtensionFileAnswer>({ kind: "not_served", status: statusOfAFileNotServed(notServed), because: notServed.words })),
@@ -195,7 +195,7 @@ function answerOfARequestThatEndedWithoutAnAnswer(requestUrl: string, cause: Cau
  * serving it ended without an answer, and so does a request the runtime was disposed under, logged to `tatolabAppLog`.
  */
 export function projectViewFileRequestsAnsweredOn(
-  studioRuntime: ManagedRuntime.ManagedRuntime<StudioWindows | ProjectViewsListed | RuntimeControl, never>,
+  studioRuntime: ManagedRuntime.ManagedRuntime<StudioWindows | ProjectViewsListed, never>,
   tatolabAppLog: TatolabAppLog,
 ): AnswerAProjectViewFileRequest {
   return (requestUrl) =>

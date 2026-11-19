@@ -24,6 +24,8 @@ export interface ProjectTransactionsFeedOfAStudioWindowSources {
   /** Run `following` over the runtime until the answer is called, which interrupts it; `null` while nothing reaches the runtime yet. */
   followOverTheRuntime: (following: Effect.Effect<never, never, RuntimeControl>) => (() => void) | null;
   sendTheWindowTheProjectTransactions: (reading: ProjectTransactionsReading) => void;
+  /** Notice that the runtime named `changedFiles` of the project as changed, or that any file may have changed untold when `null`, ahead of telling the window. */
+  noticeTheProjectFilesChanged: (changedFiles: readonly string[] | null) => void;
   /** Tell the window a file of the project changed, so it lists the project again. */
   tellTheWindowTheProjectFilesChanged: () => void;
   /** Tell the window the node types the project offers changed, so it lists them again. */
@@ -108,7 +110,10 @@ export class ProjectTransactionsFeedOfAStudioWindow {
           Stream.runForEach((change) =>
             Effect.suspend(() => {
               const namesNodeTypes = PROJECT_CHANGES_NAMING_NODE_TYPES.has(change.change);
-              if (change.change === "files_changed" || change.change === "missed") sources.tellTheWindowTheProjectFilesChanged();
+              if (change.change === "files_changed" || change.change === "missed") {
+                sources.noticeTheProjectFilesChanged(change.change === "files_changed" ? (change.files ?? null) : null);
+                sources.tellTheWindowTheProjectFilesChanged();
+              }
               if (namesNodeTypes || change.change === "missed") sources.tellTheWindowTheProjectNodeTypesChanged();
               return change.change !== "files_changed" && !namesNodeTypes ? readTheFeedAgain : Effect.void;
             }),
@@ -117,6 +122,7 @@ export class ProjectTransactionsFeedOfAStudioWindow {
         );
         yield* connection.call("subscribe_project_changes", { projects: [project] });
         hasFollowedAgainAtOnce = false;
+        sources.noticeTheProjectFilesChanged(null);
         sources.tellTheWindowTheProjectFilesChanged();
         sources.tellTheWindowTheProjectNodeTypesChanged();
         feed.publish({ kind: "read", project_transactions: firstRead });

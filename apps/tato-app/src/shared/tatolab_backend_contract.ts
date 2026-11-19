@@ -567,7 +567,7 @@ export interface ListedStudioViewFacts {
   import_folder: string | null;
   /** Its `tatolab_view.json` as written, `null` when it is not JSON. */
   manifest_json: JsonValue | null;
-  /** The URL its folder is served under. */
+  /** The URL its folder is served under; empty for a project view that does not open, of which nothing is served. */
   folder_url: string;
 }
 

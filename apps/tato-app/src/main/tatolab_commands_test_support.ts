@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { ExtensionFolderChecksKept } from "./extension_check_gate.js";
 import { ProjectViewsListedToTheWindows } from "./extension_files_served_with_types_removed.js";
 import { PortViewerConnectionNotOpened, RuntimePortViewers } from "./runtime_port_viewers.js";
 import os from "node:os";
@@ -189,7 +190,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       chooseAStreamProjectFolder: () => Effect.succeed(null),
     }),
     Layer.succeed(RecentProjects, { readRecentFolders: Effect.succeed([]), rememberOpened: () => Effect.void, forget: () => Effect.void }),
-    Layer.succeed(ProjectViewsListed, { isListedAsOpening: () => false, startAListing: Effect.succeed(1), rememberTheListing: () => Effect.void }),
+    Layer.succeed(ProjectViewsListed, { passedViewFolder: () => null, startAListing: Effect.succeed(1), rememberTheListing: () => Effect.void, extensionFolderChecks: { kitFolderOfThisCheckout: null, checksKept: new ExtensionFolderChecksKept() } }),
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: overrides.streamAssetsOfTheProject ?? (() => new Set()),
       aStreamIsListedFrom: overrides.aStreamIsListedFrom ?? ((projectFolder) => (overrides.streamAssetsOfTheProject?.(projectFolder).size ?? 0) > 0),
@@ -319,6 +320,7 @@ export async function sharedStateOverFakes(
     watchFolderEntries: () => null,
     projectReadingsOfTheRuntime,
     followOverTheRuntime: () => null,
+    extensionFolderChecksKept: new ExtensionFolderChecksKept(),
     runAfter: () => () => {},
     closeTheProjectAsItsWindowCloses: async () => succeeded(undefined),
     whenAWindowStartingLanguageServersClosed: () => {},
@@ -383,6 +385,7 @@ export async function sharedStateOverFakes(
     assetFilesTheDialogAnswers,
     thePersonEditingInStudio: { kind: "person", name: "sam" },
     projectViewsListed: new ProjectViewsListedToTheWindows(),
+    extensionFolderChecks: { kitFolderOfThisCheckout: null, checksKept: new ExtensionFolderChecksKept() },
     systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(systemMediaAccess, systemNotifications),
     systemMediaAccess,
     tatolabAppLog: quietTatolabAppLog,
