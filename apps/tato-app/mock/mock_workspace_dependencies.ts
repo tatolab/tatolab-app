@@ -130,9 +130,9 @@ export class MockWorkspaceDependencies {
     dependency.edited_files = [];
     if (dependency.newer_version_exists === true) dependency.version = MOCK_VERSION_ON_THE_SOURCE;
     // A Marketplace download updates to the catalog's current download, which becomes its source.
-    const cameraInTheCatalog = MOCK_PACKAGE_CATALOG_ENTRIES.find((entry) => entry.name === "tatolab-camera");
-    if (dependency.newer_version_exists === true && cameraInTheCatalog !== undefined && isAMarketplaceDownloadOf(cameraInTheCatalog.name, dependency.source)) {
-      dependency.source = `${this.marketplaceDownloadsFolder}/${marketplaceDownloadFileNameOf(cameraInTheCatalog.name, cameraInTheCatalog.version)}`;
+    const downloadedEntry = MOCK_PACKAGE_CATALOG_ENTRIES.find((entry) => isAMarketplaceDownloadOf(entry.name, dependency.source));
+    if (dependency.newer_version_exists === true && downloadedEntry !== undefined) {
+      dependency.source = `${this.marketplaceDownloadsFolder}/${marketplaceDownloadFileNameOf(downloadedEntry.name, downloadedEntry.version)}`;
     }
     dependency.newer_version_exists = false;
     return { kind: "updated", dependency: { project: dependency.project, folder: dependency.folder, source: dependency.source, version: dependency.version } };

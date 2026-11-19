@@ -44,6 +44,7 @@ import {
   moduleContentsWordsOf,
   moduleCopyStateOf,
   moduleCoverNumberOf,
+  moduleUpdateWordsOf,
   whyTheModuleHasNoUpdateToTake,
   moduleRowAndItsNeighboursOf,
   workByIdWithoutTheAddsNowListed,
@@ -156,7 +157,7 @@ function ProjectModuleListRow({ row, dependency, work, asks, onOpened }: { row: 
         work?.kind === "refused" || dependency.check_refused_because !== null ? (
           <span className="flex flex-col gap-1">
             {dependency.check_refused_because !== null && (
-              <RefusalLine tone="warning" lead="Where it was copied from could not be checked:" words={dependency.check_refused_because} data-module-manager-check-refusal={row.row_id} />
+              <RefusalLine tone="warning" lead={moduleUpdateWordsOf(row).checkRefusedLead} words={dependency.check_refused_because} data-module-manager-check-refusal={row.row_id} />
             )}
             {work?.kind === "refused" && <RefusalLine lead={`${row.title} was not ${MODULE_ASK_WORDS_ONCE_DONE[work.ask]}:`} words={work.because} data-module-manager-refusal={row.row_id} />}
           </span>

@@ -98,20 +98,21 @@ const dependencyAdded = Effect.fn("dependencyAdded")(function* (workspaceFolder:
 
 /**
  * The source an Update of the import `project` of `workspaceFolder` copies from: the catalog's current download, fetched and checked, for an
- * import downloaded from the Marketplace at another version; `null`, its own source, for any other.
+ * import downloaded from the Marketplace at another version; `null`, its own source, for any other, and for one whose edited files the
+ * runtime will ask about first without `overwriteEditedFiles`, so nothing is downloaded for an Update that copies nothing.
  */
-const sourceToUpdateFrom = Effect.fn("sourceToUpdateFrom")(function* (workspaceFolder: string, project: string) {
-  const listed = yield* listDependencies(workspaceFolder, false);
-  const source = listed.find((dependency) => dependency.dependency.project === project)?.dependency.source ?? null;
-  if (source === null || !isAMarketplaceDownload(source)) return null;
+const sourceToUpdateFrom = Effect.fn("sourceToUpdateFrom")(function* (workspaceFolder: string, project: string, overwriteEditedFiles: boolean) {
+  const listed = (yield* listDependencies(workspaceFolder, false)).find((dependency) => dependency.dependency.project === project);
+  if (listed === undefined || !isAMarketplaceDownload(listed.dependency.source)) return null;
+  if (!overwriteEditedFiles && listed.edited_files.length > 0) return null;
   const catalog = yield* PackageCatalog.use((packageCatalog) => packageCatalog.readTheCatalog);
-  const entry = marketplacePackageToUpdateTo(catalog, source);
+  const entry = marketplacePackageToUpdateTo(catalog, listed.dependency.source);
   return entry === null ? null : yield* PackageCatalog.use((packageCatalog) => packageCatalog.downloadTheZipOf(entry, null));
 });
 
 /** The import `project` of `workspaceFolder` copied again by the runtime's `update_dependency`, from the Marketplace's current download where it came from there, overwriting files edited since its copy only with `overwriteEditedFiles`. */
 const dependencyUpdated = Effect.fn("dependencyUpdated")(function* (workspaceFolder: string, project: string, overwriteEditedFiles: boolean) {
-  const source = yield* sourceToUpdateFrom(workspaceFolder, project);
+  const source = yield* sourceToUpdateFrom(workspaceFolder, project, overwriteEditedFiles);
   const update = yield* updateDependency(workspaceFolder, project, overwriteEditedFiles, source);
   if (update.kind === "updated") yield* Effect.logInfo("updated an import of the workspace").pipe(Effect.annotateLogs({ project, project_folder: workspaceFolder, source: update.dependency.source }));
   return update;

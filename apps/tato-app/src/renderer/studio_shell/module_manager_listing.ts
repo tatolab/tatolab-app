@@ -1,7 +1,7 @@
 // What the Marketplace window lists: the catalog's packages and samples in its order, each package saying
 // whether the project has it, then the project's modules the catalog does not list.
 
-import { isAMarketplaceDownloadOf, isTheModuleNamedLikeTheMarketplaceEntry } from "@tatolab/tato-app-view-sdk/marketplace_modules";
+import { isAMarketplaceDownload, isAMarketplaceDownloadOf, isTheModuleNamedLikeTheMarketplaceEntry } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 import type { ModuleCardMark } from "@tatolab/tato-app-view-sdk/design_system/module_card";
 import type { ProjectCoverNumber } from "@tatolab/tato-app-view-sdk/design_system/project_card";
 import { catalogOperatingSystemsOnlyWords, whyTheModuleBringsNothingOnThisMachine } from "../../shared/package_catalog_machine_words";
@@ -244,11 +244,17 @@ export function moduleSourceWordsOf(row: ModuleCardRow): string {
   return dependency.source.toLowerCase().endsWith(".zip") ? "From a .zip" : "From a folder";
 }
 
-/** What a module's page says of the row's module having an update, and leads a refused check with: by the Marketplace's version for a Marketplace download, by where it was copied from for any other. */
-export function moduleUpdateWordsOf(row: ModuleCardRow): { updateAvailable: string; checkRefusedLead: string } {
+/** What a module's update says: the line that offers it, and the lead of a refused check. */
+export interface ModuleUpdateWords {
+  readonly updateAvailable: string;
+  readonly checkRefusedLead: string;
+}
+
+/** What the row's module says of an update: by the Marketplace's version for a Marketplace download, as the main process checks one, by where it was copied from for any other. */
+export function moduleUpdateWordsOf(row: ModuleCardRow): ModuleUpdateWords {
   const { catalog_entry: entry, module_of_the_project: dependency } = row;
-  if (entry !== null && dependency !== null && isAMarketplaceDownloadOf(entry.name, dependency.source)) {
-    return { updateAvailable: `Version ${entry.version} is in the Marketplace.`, checkRefusedLead: "It could not be checked for an update:" };
+  if (dependency !== null && isAMarketplaceDownload(dependency.source)) {
+    return { updateAvailable: entry === null ? "A newer version is in the Marketplace." : `Version ${entry.version} is in the Marketplace.`, checkRefusedLead: "It could not be checked for an update:" };
   }
   return { updateAvailable: "An update is available from where it was copied.", checkRefusedLead: "Where it was copied from could not be checked:" };
 }
@@ -268,7 +274,8 @@ export function whyTheModuleHasNoUpdateToTake(dependency: WorkspaceDependency): 
   const copyState = moduleCopyStateOf(dependency);
   if (copyState.kind === "update_available") return null;
   if (copyState.kind === "up_to_date") return "It is up to date.";
-  return copyState.kind === "not_checked" ? "Check for updates first." : "Where it was copied from could not be checked.";
+  if (copyState.kind === "not_checked") return "Check for updates first.";
+  return isAMarketplaceDownload(dependency.source) ? "It could not be checked for an update." : "Where it was copied from could not be checked.";
 }
 
 /** One row of a module's "Adds these views": its title, and its declared ports in words, or why it does not open in the runtime's or the schema's words. */

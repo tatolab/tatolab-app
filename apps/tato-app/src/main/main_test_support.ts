@@ -36,6 +36,8 @@ export interface FakeProjectFile {
   project: string;
   name: string;
   dependencies: Array<{ project: string; folder: string; source: string; version: string }>;
+  /** The imports `list_dependencies` lists `views/meter/index.html` of as edited since its copy; none when left out. */
+  imports_edited?: string[];
 }
 
 export const FAKE_IMPORT_VERSION = "907fd8c1c2e70a58c1a4c6113cc043dc6522f67406da53a3ea6cc3af72976e82";
@@ -73,7 +75,9 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
         });
       case "list_dependencies":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
-        return controlOperationResultResponse({ dependencies: projectFile.dependencies.map((dependency) => ({ dependency })) });
+        return controlOperationResultResponse({
+          dependencies: projectFile.dependencies.map((dependency) => ({ dependency, edited_files: projectFile.imports_edited?.includes(dependency.project) === true ? ["views/meter/index.html"] : [] })),
+        });
       case "add_dependency": {
         const source = String(toolArguments["source"]);
         const sourceProjectFile = await readAFakeProjectFile(source);
