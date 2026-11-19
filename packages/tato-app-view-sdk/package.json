@@ -23,12 +23,13 @@
     "./supplied_modules": "./src/supplied_modules.ts",
     "./supplied_modules.json": "./supplied_modules.json",
     "./tatolab_view.schema.json": "./tatolab_view.schema.json",
+    "./tsconfig.strict_options.json": "./kit/tsconfig.strict_options.json",
     "./design_system/*": "./src/design_system/*.tsx",
     "./design_system/support/*": "./src/design_system/support/*.ts",
     "./design_system/styles/*": "./src/design_system/styles/*"
   },
   "scripts": {
-    "build": "vite build --config vite.studio_sdk.config.ts",
+    "build": "vite build --config vite.studio_sdk.config.ts && node scripts/write_view_sdk_kit.ts",
     "typecheck": "node ../../node_modules/@typescript/native/bin/tsc --noEmit && node ../../node_modules/@typescript/native/bin/tsc --noEmit -p tsconfig.design_system.json",
     "test": "vitest run",
     "lint": "eslint . && oxlint src scripts && stylelint \"src/design_system/styles/**/*.css\" \"src/node_ui/**/*.css\""

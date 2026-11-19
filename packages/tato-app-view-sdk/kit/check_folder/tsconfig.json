@@ -1,0 +1,5 @@
+{
+  "extends": "@tatolab/tato-app-view-sdk/tsconfig.preset.json",
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
+}
