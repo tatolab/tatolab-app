@@ -9,7 +9,6 @@ import type {
   GraphEditMode,
   JsonValue,
   ListedStreamsReading,
-  NodeCatalogReading,
   OpenProjectReading,
   PortViewerMessageReading,
   PortViewerRecovery,
@@ -21,6 +20,7 @@ import type {
   ProjectFiles,
   ProjectGraphTransaction,
   ProjectLogReading,
+  ProjectNodeTypesDescribedReading,
   ProjectNodeTypesReading,
   ProjectStreamsRecovery,
   ProjectTransaction,
@@ -90,11 +90,12 @@ export type ViewWatchedSubject =
   | { kind: "active_stream_tab" }
   | { kind: "selection" }
   | { kind: "stream_graph"; stream: string }
-  | { kind: "node_catalog"; stream: string }
   /** Every input's value in the stream's graph, then each change of one. */
   | { kind: "input_values"; stream: string }
   | { kind: "project_log"; project_folder: string }
   | { kind: "project_node_types"; project_folder: string }
+  /** The node types the project offers, each described, listed and described again each time the project's node types change or one of its streams loads. */
+  | { kind: "node_types"; project_folder: string }
   /** The project's assets, listed again while watched. */
   | { kind: "project_assets"; project_folder: string }
   /** The project's change feed, read again each time the runtime applies a transaction to it. */
@@ -185,10 +186,10 @@ export type ViewWatchedReading =
   | { subject: "active_stream_tab"; reading: StreamTabAddress | null }
   | { subject: "selection"; reading: StudioSelection }
   | { subject: "stream_graph"; reading: StreamGraphReading }
-  | { subject: "node_catalog"; reading: NodeCatalogReading }
   | { subject: "input_values"; reading: StreamInputValuesReading }
   | { subject: "project_log"; reading: ProjectLogReading }
   | { subject: "project_node_types"; reading: ProjectNodeTypesReading }
+  | { subject: "node_types"; reading: ProjectNodeTypesDescribedReading }
   | { subject: "project_assets"; reading: ProjectAssetsReading }
   | { subject: "project_transactions"; reading: ProjectTransactionsReading }
   | { subject: "studio_views"; reading: StudioViewsReading }

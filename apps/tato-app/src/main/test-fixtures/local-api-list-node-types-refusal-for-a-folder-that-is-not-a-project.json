@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"error":{"code":2,"message":"list_node_types failed: /etc holds no project: it has no tatolab-project.json","data":{"refusal_code":"refused","action":"list_node_types","runtime_words":"list_node_types failed: /etc holds no project: it has no tatolab-project.json"}}}

@@ -2,7 +2,7 @@
 // carrying the pin's exact type and flow where the runtime serves them.
 
 import type { PinAnnotations } from "../pin_type_readings.js";
-import type { NodeCatalogPortPin, StreamGraphPortPin } from "../studio_readings.js";
+import type { NodeTypePortDescribed, StreamGraphPortPin } from "../studio_readings.js";
 import type { PortFamily } from "../port_families.js";
 import type { InputAddress } from "./node_inputs.js";
 
@@ -33,6 +33,6 @@ export function nodePinRows<Pin>(inputs: readonly Pin[], outputs: readonly Pin[]
 }
 
 /** The exact type and flow a node type declares for a port, as a card placed now would show them: a type it states exactly, or none while another pin or a setting decides it. */
-export function exactPinOfTheDeclaredPort(declared: NodeCatalogPortPin | null): StreamGraphPortPin | null {
-  return declared !== null && declared.pin_type.kind === "is" ? { pin_type: declared.pin_type.pin_type, flow: declared.flow } : null;
+export function exactPinOfTheDeclaredPort(declared: Pick<NodeTypePortDescribed, "pin_type" | "flow">): StreamGraphPortPin | null {
+  return declared.pin_type?.kind === "is" && declared.flow !== undefined ? { pin_type: declared.pin_type.pin_type, flow: declared.flow } : null;
 }

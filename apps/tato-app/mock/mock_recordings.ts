@@ -1,18 +1,20 @@
 // What a real runtime answered with streamlib's sample project that declares each kind of pin
 // (`examples/every-pin-kind`) open and playing, each answer kept as the runtime sent it under
-// `recordings/` and read here through the readers the app uses on a real answer: the node catalog of
-// its stream `main`, that stream's graph, and the refusals of `transact` a scenario replays. The mock
-// holds no node type, graph or refusal of its own for this work; a recording that no longer reads
-// fails the mock's load, as the app would fail to read the runtime's answer. They were recorded from the
-// `tatolabd` 0.68.82 that `cargo xtask build-runtime` built, the sample played until its `glow` node had
-// written frames: the node catalog at streamlib 415f6e3, the graph and the refusals at 6c0be0f, which
-// answered the refusals word for word as 415f6e3 did.
+// `recordings/` and read here through the readers the app uses on a real answer: the node types the
+// project lists and each one described, its stream `main`'s graph, and the refusals of `transact` a
+// scenario replays. The mock holds no node type, graph or refusal of its own for this work; a recording
+// that no longer reads fails the mock's load, as the app would fail to read the runtime's answer. They
+// were recorded from the `tatolabd` 0.68.82 built from streamlib, the sample played until its `glow` node
+// had written frames: the graph and the refusals at 6c0be0f, the node types listed and described at
+// 4b7a935, with streamlib's `tatolab-compositor` installed beside the sample and a `Spotlight` and an
+// `AlphaOverCompositor` node added to the playing stream, so a loaded stream describes every node type
+// the project lists.
 
-import registryAnswerOfMain from "./recordings/every-pin-kind-registry-answer-of-main.json?raw";
+import listNodeTypesResult from "./recordings/every-pin-kind-list-node-types-result.json?raw";
+import describeNodeTypesResult from "./recordings/every-pin-kind-describe-node-types-result.json?raw";
 import graphResultOfMain from "./recordings/every-pin-kind-graph-result-of-main.json?raw";
 import transactRefusalForALinkOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-a-records-output-into-a-float-input.json?raw";
 import transactRefusalForAValueOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-words-as-a-float-value.json?raw";
-import { nodeCatalogFromTheRegistryAnswer } from "../src/main/node_catalog";
 import { projectActionRefusalOfTheContract } from "../src/main/project_transactions_on_the_wire";
 import { controlContractRefusalOf, describeTheContractIssues, readControlContractValue } from "../src/main/tatolab_runtime_control_operation_call";
 import type { Result } from "../src/main/result";
@@ -25,7 +27,8 @@ import {
   streamFactsOfThePort,
   studioFieldsOfTheNode,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { NodeCatalogEntry, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphNode, StreamGraphPort } from "../src/shared/tatolab_backend_contract";
+import type { ControlContractComponentName, ControlContractComponents } from "@tatolab/runtime-client/contract";
+import type { DescribeNodeTypesToolResult, ListNodeTypesToolResult, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphNode, StreamGraphPort } from "../src/shared/tatolab_backend_contract";
 import type { MockGraphLink, MockGraphNode, MockGraphPort, MockStreamGraph } from "./mock_stream_fixtures";
 
 /** A recording the readers cannot read: the recording, or the reader, has drifted from the runtime. */
@@ -47,20 +50,21 @@ function partOfTheRecordedResponse(recording: string, responseText: string, part
   throw new MockRecordingUnreadable(`the recording ${recording} answers no ${part}`);
 }
 
-/** The stream the sample's recordings were made from, as the runtime named it. */
+/** The `result` a recorded response holds, read by the runtime client's checker as the contract type `typeName`. */
+function recordedResultOfTheContractType<TypeName extends ControlContractComponentName>(recording: string, responseText: string, typeName: TypeName): ControlContractComponents[TypeName] {
+  const recorded = readControlContractValue(typeName, partOfTheRecordedResponse(recording, responseText, "result"));
+  if (!recorded.read) throw new MockRecordingUnreadable(`the recording ${recording} does not read: ${describeTheContractIssues(recorded.issues, typeName)}`);
+  return recorded.value;
+}
 
-/** The stream the sample's recordings were made from, as the runtime named it. */
-const RECORDED_STREAM = "main";
+/** The node types the runtime's `list_node_types` listed for the sample project. */
+export const MOCK_RECORDED_NODE_TYPES_LISTED: ListNodeTypesToolResult = recordedResultOfTheContractType("every-pin-kind-list-node-types-result", listNodeTypesResult, "ListNodeTypesToolResult");
 
-/** Every node type the runtime's registry listed for the sample's stream `main`, read as the app reads `GET /api/registry?stream=`. */
-export const MOCK_RECORDED_NODE_CATALOG: readonly NodeCatalogEntry[] = readOrFail("every-pin-kind-registry-answer-of-main", nodeCatalogFromTheRegistryAnswer(RECORDED_STREAM, registryAnswerOfMain)).node_types;
+/** Every node type the sample project lists, as the runtime's `describe_node_types` described it while the sample's stream `main` played. */
+export const MOCK_RECORDED_NODE_TYPES_DESCRIBED: DescribeNodeTypesToolResult = recordedResultOfTheContractType("every-pin-kind-describe-node-types-result", describeNodeTypesResult, "DescribeNodeTypesToolResult");
 
-/** The sample's stream `main` as the runtime's `graph` answered it while it played, read by the runtime client's checker as the contract types it. */
-const RECORDED_GRAPH_OF_MAIN: StreamGraph = (() => {
-  const recordedGraph = readControlContractValue("StreamGraphOnTheWire", partOfTheRecordedResponse("every-pin-kind-graph-result-of-main", graphResultOfMain, "result"));
-  if (!recordedGraph.read) throw new MockRecordingUnreadable(`the recording every-pin-kind-graph-result-of-main does not read: ${describeTheContractIssues(recordedGraph.issues, "the graph")}`);
-  return recordedGraph.value;
-})();
+/** The sample's stream `main` as the runtime's `graph` answered it while it played. */
+const RECORDED_GRAPH_OF_MAIN: StreamGraph = recordedResultOfTheContractType("every-pin-kind-graph-result-of-main", graphResultOfMain, "StreamGraphOnTheWire");
 
 /** `port`, as the runtime's graph serves it, held as the mock holds a port. */
 function mockGraphPortOfTheRecordedPort(port: StreamGraphPort, direction: "input" | "output"): MockGraphPort {

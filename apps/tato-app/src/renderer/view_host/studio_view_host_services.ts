@@ -7,7 +7,8 @@ import type { PythonLanguageServerConnections } from "./python_language_server_c
 import type { PortViewerConnections } from "./port_viewer_connections";
 import type { ProjectStreamsRecovery } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { AreasForAViewTypeInTheWindow, ListedStreamsReading, OpenProjectReading, StopWatching, ProjectAssetChanging, ProjectStreamsRecovering, ProjectAssetsImporting, StreamTabAddress, StudioSelection, StudioViewHostServices, StudioViewsReading, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
-import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
+import type { StreamGraphReadings } from "./stream_graph_readings";
+import type { ProjectNodeTypesDescribedReadings } from "./project_node_types_described_readings";
 import type { WatchedStudioValue } from "./watched_studio_value";
 import type { ProjectAssetPick, ProjectAssetPickEnding } from "@tatolab/tato-app-view-sdk";
 import type { ProjectAssetPickAnswering } from "./project_asset_pick_held_in_the_window";
@@ -35,6 +36,7 @@ export interface StudioViewHostProjectServices {
   backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "openModuleManagerWindow" | "stopOpenProject" | "runOpenProject" | "reloadProject">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypeReadings: ProjectListingReadingsWhileWatched<ProjectNodeTypeListing>;
+  projectNodeTypesDescribedReadings: ProjectNodeTypesDescribedReadings;
   projectAssetReadings: ProjectListingReadingsWhileWatched<ProjectAssetListing>;
   projectTransactionsReadings: ProjectTransactionsReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
@@ -141,10 +143,10 @@ export function readAnAssetPreviewOfTheOpenProjectForAView(projectFolder: string
   );
 }
 
-/** What every view's bridge answers its frame from, read from `sources`, for a stream's graph and catalog from `streamReadings`, and for the open project and its imports from `projectServices`. */
+/** What every view's bridge answers its frame from, read from `sources`, for a stream's graph and input values from `streamReadings`, and for the open project and its imports from `projectServices`. */
 export function studioViewHostServicesOf(
   sources: StudioWindowValuesServedToViews,
-  streamReadings: StreamGraphAndCatalogReadings,
+  streamReadings: StreamGraphReadings,
   projectServices: StudioViewHostProjectServices,
 ): StudioViewHostServices {
   const { backend } = projectServices;
@@ -167,7 +169,6 @@ export function studioViewHostServicesOf(
     watchActiveStreamTab: sources.activeStreamTab.watch,
     openStreamTab: (streamTab) => sources.openStreamTab(streamTab),
     watchStreamGraph: streamReadings.watchStreamGraph,
-    watchNodeCatalog: streamReadings.watchNodeCatalog,
     watchStreamInputValues: streamReadings.watchStreamInputValues,
     openView: (viewTypeId, on) => sources.openView(viewTypeId, on),
     watchAreasForTheViewType: (viewTypeId, listener) => sources.watchAreasForTheViewType(viewTypeId, listener),
@@ -204,6 +205,7 @@ export function studioViewHostServicesOf(
       ),
     watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
     watchProjectNodeTypes: projectServices.projectNodeTypeReadings.watchTheProject,
+    watchNodeTypes: projectServices.projectNodeTypesDescribedReadings.watchTheProject,
     watchProjectAssets: projectServices.projectAssetReadings.watchTheProject,
     importAssetsIntoTheProject: (projectFolder, media) =>
       importAssetsIntoTheOpenProjectForAView(projectFolder, media, {

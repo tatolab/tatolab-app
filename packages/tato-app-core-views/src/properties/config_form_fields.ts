@@ -1,9 +1,9 @@
-// A node's config as form fields, from its type's config JSON Schema (draft 2020-12, as the runtime's
-// node catalog serves it) and the config the graph renders. Both of the runtime's spellings of a
+// A node's config as form fields, from a config JSON Schema (draft 2020-12) of the settings its node
+// type's description lists that its graph node does not take as input ports, and the config the graph renders. Both of the runtime's spellings of a
 // nullable read the same: Rust's `"type": [T, "null"]` and Python's `anyOf` with `{"type": "null"}`;
 // a `$ref` resolves under the document's own `$defs`.
 
-import type { JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { isAJsonValue, type JsonValue, type NodeTypeDescription, type StreamGraphNode } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** A JSON object, as a config or a record in a config's list is. */
 export type JsonObject = { [key: string]: JsonValue };
@@ -138,6 +138,11 @@ function controlOfTheSchema(schema: JsonObject, documentRoot: JsonObject): { con
   }
 }
 
+/** Whether `schema` states nothing of a value's shape: no type, choices or constant, as a setting whose type no pin type holds is described. */
+function statesNoValueShape(schema: JsonObject): boolean {
+  return !("type" in schema) && !("enum" in schema) && !("const" in schema) && !("anyOf" in schema) && !("oneOf" in schema) && !("$ref" in schema);
+}
+
 /** The control a value with no schema shows in, from the value itself. */
 function controlOfTheValue(value: JsonValue): ConfigFormFieldControl {
   if (typeof value === "string") return { kind: "text" };
@@ -163,10 +168,10 @@ export function configFormOf(configSchema: JsonValue | null, config: { [key: str
   const requiredKeys = Array.isArray(rootSchema["required"]) ? rootSchema["required"].filter((key): key is string => typeof key === "string") : [];
   const fieldsTheSchemaNames = Object.entries(properties).map(([key, propertySchemaOnTheWire]): ConfigFormField => {
     const unwrapped = withNullUnionUnwrapped(resolvedSchema(propertySchemaOnTheWire, documentRoot), documentRoot);
-    const { control, isNullable } = controlOfTheSchema(unwrapped.schema, documentRoot);
     const description = unwrapped.schema["description"];
     const configValue = config[key];
     const defaultValue = unwrapped.schema["default"];
+    const { control, isNullable } = statesNoValueShape(unwrapped.schema) ? { control: controlOfTheValue(configValue ?? defaultValue ?? null), isNullable: false } : controlOfTheSchema(unwrapped.schema, documentRoot);
     const valueSource = configValue !== undefined ? "config" : defaultValue !== undefined ? "default" : "unset";
     return {
       key,
@@ -184,6 +189,34 @@ export function configFormOf(configSchema: JsonValue | null, config: { [key: str
   const fields = [...fieldsTheSchemaNames, ...fieldsOfKeysTheSchemaDoesNotName];
   if (fields.length === 0 && rootSchema["additionalProperties"] === false) return { kind: "takes_no_config" };
   return { kind: "fields", fields };
+}
+
+/**
+ * The config schema of `node`, of the node type `described` describes: an object whose properties are the settings the description
+ * lists that the graph does not show among the node's input ports, each with the JSON Schema a value set on it satisfies, the project
+ * assets it is picked from where it holds one, its documentation and its default; `null` when the node type has no description, so the form follows the config alone.
+ */
+export function configSchemaOfTheSettings(described: Pick<NodeTypeDescription, "inputs"> | undefined, node: Pick<StreamGraphNode, "ports">): JsonObject | null {
+  if (described === undefined) return null;
+  const inputPortNames = new Set(node.ports.inputs.map((port) => port.name));
+  const settings = described.inputs.filter((input) => input.mode === "setting_only" && !inputPortNames.has(input.name));
+  const properties = Object.fromEntries(
+    settings.map((setting): [string, JsonObject] => {
+      const valueSchema: JsonValue | undefined = isAJsonValue(setting.value_json_schema) ? setting.value_json_schema : undefined;
+      const projectAsset = setting.annotations?.project_asset;
+      const mediaOfTheProjectAsset: JsonObject = projectAsset?.media === undefined || projectAsset.media.length === 0 ? {} : { media: [...projectAsset.media] };
+      return [
+        setting.name,
+        {
+          ...(projectAsset === undefined || projectAsset === null ? {} : { [PROJECT_ASSET_SCHEMA_KEYWORD]: mediaOfTheProjectAsset }),
+          ...(isAJsonObject(valueSchema) ? valueSchema : {}),
+          ...(setting.documentation === "" ? {} : { description: setting.documentation }),
+          ...(isAJsonValue(setting.default_value) ? { default: setting.default_value } : {}),
+        },
+      ];
+    }),
+  );
+  return { type: "object", properties, additionalProperties: false };
 }
 
 /** The form of one entry of a list of records: its fields, a list nested in it shown as JSON. */

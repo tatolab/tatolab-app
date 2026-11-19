@@ -150,7 +150,7 @@ function recordingHostServices() {
     watchActiveStreamTab: () => () => undefined,
     openStreamTab: () => undefined,
     watchStreamGraph: () => () => undefined,
-    watchNodeCatalog: () => () => undefined,
+    watchNodeTypes: () => () => undefined,
     watchStreamInputValues: () => () => undefined,
     openView: (viewTypeId, on) => {
       viewsOpened.push({ viewTypeId, on });

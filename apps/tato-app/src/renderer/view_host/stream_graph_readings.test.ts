@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from "vitest";
-import type { ListedStream, NodeCatalog, StreamGraphInputValueChange, StreamGraph } from "../../shared/tatolab_backend_contract";
-import { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
-import type { NodeCatalogReading, ProjectTransactionsReading, StreamGraphReading, StreamInputValuesReading } from "./studio_view_contract";
+import type { ListedStream, StreamGraphInputValueChange, StreamGraph } from "../../shared/tatolab_backend_contract";
+import { StreamGraphReadings } from "./stream_graph_readings";
+import type { ProjectTransactionsReading, StreamGraphReading, StreamInputValuesReading } from "./studio_view_contract";
 import { aGraphNode, aGraphPort, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 
 afterEach(() => {
@@ -18,10 +18,10 @@ function graphOfTheTypes(stream: string, nodeTypes: string[], gain: number): Str
   );
 }
 
-/** A backend whose graph names `served.graphTypes`, each node's gain reading `served.gain`, and whose catalog lists `served.catalogTypes`, or refuses in `served.catalogRefusal`, counting each read, recording the streams followed, and pushing a graph change with `pushTheStreamGraphChanged`. */
+/** A backend whose graph names `served.graphTypes`, each node's gain reading `served.gain`, counting each read, recording the streams followed, and pushing a graph change with `pushTheStreamGraphChanged`. */
 function countingBackend() {
-  const served: { graphTypes: string[]; gain: number; catalogTypes: string[]; catalogRefusal: string | null } = { graphTypes: ["A"], gain: 0.5, catalogTypes: ["A"], catalogRefusal: null };
-  const reads = { graph: 0, catalog: 0 };
+  const served: { graphTypes: string[]; gain: number } = { graphTypes: ["A"], gain: 0.5 };
+  const reads = { graph: 0 };
   const streamsFollowed = new Set<string>();
   const streamGraphChangedListeners = new Set<(stream: string, inputValueChange: StreamGraphInputValueChange | null) => void>();
   const pushTheStreamGraphChanged = (stream: string, inputValueChange: StreamGraphInputValueChange | null = null) => {
@@ -52,11 +52,6 @@ function countingBackend() {
       reads.graph += 1;
       return Promise.resolve(graphOfTheTypes(stream, served.graphTypes, served.gain));
     },
-    describeNodeCatalog: (stream: string): Promise<NodeCatalog> => {
-      reads.catalog += 1;
-      if (served.catalogRefusal !== null) return Promise.reject(new Error(served.catalogRefusal));
-      return Promise.resolve({ stream, node_types: served.catalogTypes.map((type) => ({ type, description: "", category: null, config_schema: null, inputs: [], outputs: [] })) });
-    },
   };
   return { backend, served, reads, streamsFollowed, pushTheStreamGraphChanged, announceAProjectTransaction };
 }
@@ -64,7 +59,7 @@ function countingBackend() {
 test("two_views_watching_one_stream_share_one_read_and_nothing_is_read_again_until_a_change_is_pushed", async () => {
   vi.useFakeTimers();
   const { backend, reads, pushTheStreamGraphChanged } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend);
+  const readings = new StreamGraphReadings(backend);
   const firstView: StreamGraphReading[] = [];
   const secondView: StreamGraphReading[] = [];
   const stopFirst = readings.watchStreamGraph("main", (reading) => firstView.push(reading));
@@ -101,7 +96,7 @@ function listedStreamLoaded(stream: string, load: "loaded" | "not_loaded"): List
 test("each_transaction_the_projects_feed_announces_reads_again_the_graph_of_each_watched_stream_the_runtime_does_not_list_loaded_and_a_load_or_unload_reads_it_again", async () => {
   vi.useFakeTimers();
   const { backend, served, reads, announceAProjectTransaction } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend);
+  const readings = new StreamGraphReadings(backend);
   const closedView: StreamGraphReading[] = [];
   readings.watchStreamGraph("closed", (reading) => closedView.push(reading));
   readings.watchStreamGraph("playing", () => undefined);
@@ -121,7 +116,7 @@ test("each_transaction_the_projects_feed_announces_reads_again_the_graph_of_each
 
 test("changes_pushed_while_a_read_is_in_flight_read_the_graph_once_more_after_it", async () => {
   const { backend, reads, pushTheStreamGraphChanged } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend);
+  const readings = new StreamGraphReadings(backend);
   readings.watchStreamGraph("main", () => undefined);
   pushTheStreamGraphChanged("main");
   pushTheStreamGraphChanged("main");
@@ -134,7 +129,7 @@ test("changes_pushed_while_a_read_is_in_flight_read_the_graph_once_more_after_it
 test("a_hidden_window_reads_nothing_and_reads_again_once_shown", async () => {
   vi.useFakeTimers();
   const { backend, reads } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend);
+  const readings = new StreamGraphReadings(backend);
   readings.setReadingAllowed(false);
   readings.watchStreamGraph("main", () => undefined);
   await vi.advanceTimersByTimeAsync(10);
@@ -144,44 +139,10 @@ test("a_hidden_window_reads_nothing_and_reads_again_once_shown", async () => {
   expect(reads.graph).toBe(1);
 });
 
-test("the_catalog_is_read_once_and_again_only_when_the_graph_names_a_type_it_lacks", async () => {
-  vi.useFakeTimers();
-  const { backend, served, reads, pushTheStreamGraphChanged } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend);
-  const catalogReadings: NodeCatalogReading[] = [];
-  readings.watchNodeCatalog("main", (reading) => catalogReadings.push(reading));
-  await vi.advanceTimersByTimeAsync(10);
-  pushTheStreamGraphChanged("main");
-  await vi.advanceTimersByTimeAsync(10);
-  expect(reads.catalog).toBe(1);
-  served.graphTypes = ["A", "B"];
-  served.catalogTypes = ["A", "B"];
-  pushTheStreamGraphChanged("main");
-  await vi.advanceTimersByTimeAsync(10);
-  expect(reads.catalog).toBe(2);
-  expect(catalogReadings.map((reading) => (reading.kind === "listed" ? reading.catalog.node_types.map((entry) => entry.type) : reading.because))).toEqual([["A"], ["A", "B"]]);
-});
-
-test("a_refused_catalog_is_shown_in_the_runtimes_words_and_read_again_on_the_next_change", async () => {
-  vi.useFakeTimers();
-  const { backend, served, reads, pushTheStreamGraphChanged } = countingBackend();
-  served.catalogRefusal = "no stream with the id `main` is loaded in this runtime";
-  const readings = new StreamGraphAndCatalogReadings(backend);
-  const catalogReadings: NodeCatalogReading[] = [];
-  readings.watchNodeCatalog("main", (reading) => catalogReadings.push(reading));
-  await vi.advanceTimersByTimeAsync(10);
-  expect(catalogReadings).toEqual([{ kind: "not_listed", because: "no stream with the id `main` is loaded in this runtime" }]);
-  served.catalogRefusal = null;
-  pushTheStreamGraphChanged("main");
-  await vi.advanceTimersByTimeAsync(10);
-  expect(reads.catalog).toBeGreaterThanOrEqual(2);
-  expect(catalogReadings.at(-1)?.kind).toBe("listed");
-});
-
 test("a_pushed_change_reads_the_graph_at_once", async () => {
   vi.useFakeTimers();
   const { backend, served, reads, pushTheStreamGraphChanged } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend);
+  const readings = new StreamGraphReadings(backend);
   const graphReadings: StreamGraphReading[] = [];
   readings.watchStreamGraph("main", (reading) => graphReadings.push(reading));
   await vi.advanceTimersByTimeAsync(10);
@@ -197,7 +158,7 @@ test("a_pushed_change_reads_the_graph_at_once", async () => {
 test("a_stream_is_followed_while_a_view_watches_it_and_the_window_is_shown", async () => {
   vi.useFakeTimers();
   const { backend, reads, streamsFollowed, pushTheStreamGraphChanged } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend);
+  const readings = new StreamGraphReadings(backend);
   const stopWatching = readings.watchStreamGraph("main", () => undefined);
   expect([...streamsFollowed]).toEqual(["main"]);
   readings.setReadingAllowed(false);
@@ -216,7 +177,7 @@ test("a_stream_is_followed_while_a_view_watches_it_and_the_window_is_shown", asy
 test("a_value_change_the_runtime_pushes_reaches_every_view_watching_the_streams_values_and_reads_no_graph", async () => {
   vi.useFakeTimers();
   const { backend, reads, streamsFollowed, pushTheStreamGraphChanged } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend);
+  const readings = new StreamGraphReadings(backend);
   const canvasValues: StreamInputValuesReading[] = [];
   const propertiesValues: StreamInputValuesReading[] = [];
   const stopTheCanvas = readings.watchStreamInputValues("main", (reading) => canvasValues.push(reading));
@@ -238,7 +199,7 @@ test("a_value_change_the_runtime_pushes_reaches_every_view_watching_the_streams_
 test("a_value_change_pushed_while_the_graph_is_read_again_is_kept_over_what_that_read_answers", async () => {
   vi.useFakeTimers();
   const { backend, served, pushTheStreamGraphChanged } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend);
+  const readings = new StreamGraphReadings(backend);
   const told: StreamInputValuesReading[] = [];
   readings.watchStreamInputValues("main", (reading) => told.push(reading));
   await vi.advanceTimersByTimeAsync(10);
@@ -253,7 +214,7 @@ test("a_value_change_pushed_while_the_graph_is_read_again_is_kept_over_what_that
 test("a_node_a_commit_adds_has_its_values_told_before_the_graph_that_draws_it", async () => {
   vi.useFakeTimers();
   const { backend, served, pushTheStreamGraphChanged } = countingBackend();
-  const readings = new StreamGraphAndCatalogReadings(backend);
+  const readings = new StreamGraphReadings(backend);
   const told: string[] = [];
   readings.watchStreamGraph("main", (reading) => told.push(reading.kind === "read" ? `graph ${reading.graph.nodes.length}` : reading.kind));
   readings.watchStreamInputValues("main", (reading) => told.push(reading.kind === "values" ? `values ${reading.values.length}` : reading.kind));

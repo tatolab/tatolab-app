@@ -46,8 +46,9 @@ import {
   jsonObjectMembersOf,
   type InputValueComesFrom,
   type JsonValue,
-  type NodeCatalogEntry,
-  type NodeCatalogReading,
+  nodeTypeDescriptionsByType,
+  type NodeTypeDescription,
+  type ProjectNodeTypesDescribedReading,
   type ProjectAssetsReading,
   type StreamGraph,
   type StreamGraphNode,
@@ -58,7 +59,7 @@ import { CoreViewFrame } from "../shared/core_view_page";
 import { useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
 import { nameInWords, nodeTitle, nodeTypeClassName, wordsForTheSeveralSelectedNodes } from "../shared/node_words";
-import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
+import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, configSchemaOfTheSettings, recordsOfAListField, type ConfigFormField } from "./config_form_fields";
 import { propertiesListedWords, propertiesMatchingTheSearch } from "./properties_matching_the_search";
 import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
 import { chosenProjectAssetOf, chosenProjectAssetWords, projectAssetsForTheAssetFieldsOf } from "./project_asset_choices";
@@ -69,6 +70,9 @@ import { streamGraphLevelAtTheSubgraphIds } from "../stream_graph/stream_graph_l
 import { nodeInputs, nodeOutputs } from "../shared/node_pins_of_the_graph";
 import { selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 import { inputRowStateOf } from "./input_row_state";
+
+/** Stops nothing: while no project is open there are no node types to watch. */
+const NO_NODE_TYPES_TO_WATCH: StopWatching = () => undefined;
 
 /** The stream's own level, which a node selection with no `level` is at. */
 const NO_LEVEL: readonly string[] = [];
@@ -681,9 +685,13 @@ function PropertiesOfTheSelectedNode({
   searchWords: string;
 }) {
   const watchTheStreamsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
-  const watchTheStreamsCatalog = useCallback((listener: (reading: NodeCatalogReading) => void): StopWatching => connection.watchNodeCatalog(stream, listener), [connection, stream]);
+  const watchTheProjectsNodeTypes = useCallback(
+    (listener: (reading: ProjectNodeTypesDescribedReading) => void): StopWatching => (projectFolder === null ? NO_NODE_TYPES_TO_WATCH : connection.watchNodeTypes(projectFolder, listener)),
+    [connection, projectFolder],
+  );
   const graphReading = useViewReading(watchTheStreamsGraph);
-  const catalogReading = useViewReading(watchTheStreamsCatalog);
+  const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+  const describedByType = useMemo(() => nodeTypeDescriptionsByType(nodeTypesReading?.kind === "listed" ? nodeTypesReading.node_types.described : []), [nodeTypesReading]);
   const listedStreams = useViewReading(connection.watchListedStreams);
   const nodeShownWhileItWasSelectedByName = useRef<{ nodeName: string; nodeId: string } | null>(null);
   const streamGraph = graphReading?.kind === "read" ? graphReading.graph : null;
@@ -696,8 +704,8 @@ function PropertiesOfTheSelectedNode({
   const node = nodeSelectedByName ?? nodeRenamedSinceItWasSelected;
   if (nodeSelectedByName !== undefined) nodeShownWhileItWasSelectedByName.current = { nodeName, nodeId: nodeSelectedByName.id };
   const graphEdits = graphEditsInTheProject.ofTheNode(node?.id ?? "", level);
-  const catalogEntry: NodeCatalogEntry | undefined = catalogReading?.kind === "listed" && node !== undefined ? catalogReading.catalog.node_types.find((entry) => entry.type === node.type) : undefined;
-  const configForm = useMemo(() => (node === undefined ? null : configFormOf(catalogEntry?.config_schema ?? null, jsonObjectMembersOf(node.config))), [node, catalogEntry]);
+  const described: NodeTypeDescription | undefined = node === undefined ? undefined : describedByType.get(node.type);
+  const configForm = useMemo(() => (node === undefined ? null : configFormOf(configSchemaOfTheSettings(described, node), jsonObjectMembersOf(node.config))), [node, described]);
   useInputValuesOfTheStream(connection, inputValues, stream, projectFolder);
   const streamAssetOfTheGraph = streamGraph?.asset ?? null;
   const valuesAt = useMemo(
@@ -728,8 +736,8 @@ function PropertiesOfTheSelectedNode({
     searchWords,
   );
   const configFieldsListed = configFields.filter((field) => matching.config_keys_listed.has(field.key));
-  const inputPins = nodeInputs(graph, node, catalogEntry, valuesAt);
-  const outputPins = nodeOutputs(node, catalogEntry);
+  const inputPins = nodeInputs(graph, node, described, valuesAt);
+  const outputPins = nodeOutputs(node, described);
   const inputPortsListed = node.ports.inputs.flatMap((port, portIndex) => {
     const pin = inputPins[portIndex];
     return pin !== undefined && matching.input_ports_listed.has(port.name) ? [{ port, pin }] : [];
@@ -756,7 +764,7 @@ function PropertiesOfTheSelectedNode({
         <div className="flex min-w-0 items-center gap-2 px-1">
           <span
             className="min-w-0 truncate text-xs text-fg-3"
-            title={catalogEntry?.description === undefined || catalogEntry.description === "" ? node.type : `${node.type} · ${catalogEntry.description}`}
+            title={described === undefined || described.documentation === "" ? node.type : `${node.type} · ${described.documentation}`}
           >
             {typeClassName}
           </span>
@@ -810,7 +818,7 @@ function PropertiesOfTheSelectedNode({
                 {configForm.kind === "takes_no_config" ? (
                   <p className="px-1 text-xs text-fg-3">{nameInWords(typeClassName)} takes no config.</p>
                 ) : configForm.fields.length === 0 ? (
-                  <p className="px-1 text-xs text-fg-3">{catalogReading?.kind === "not_listed" ? catalogReading.because : "No config."}</p>
+                  <p className="px-1 text-xs text-fg-3">{nodeTypesReading?.kind === "not_listed" ? nodeTypesReading.because : "No config."}</p>
                 ) : (
                   configForm.fields.map((field) => <ConfigFieldRows key={field.key} field={field} node={node} streamAsset={streamAsset} graphEdits={graphEdits} searchWords="" />)
                 )}
