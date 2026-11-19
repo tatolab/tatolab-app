@@ -537,6 +537,29 @@ describe("the mock backend's node types", () => {
     await vi.advanceTimersByTimeAsync(200);
     expect((await described).node_types.map((nodeType) => nodeType.node_type)).toEqual(typesListed);
   });
+
+  it("lists, describes and places the node type a node file made from the runtime's template declares, and tells the window the node types changed", async () => {
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind");
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(200);
+      return answering;
+    };
+    let nodeTypesChanged = 0;
+    backend.onProjectNodeTypesChanged(() => {
+      nodeTypesChanged += 1;
+    });
+    expect(await settled(backend.createNodeFile(`${PATTERN_FOLDER}/nodes/sparkle.py`))).toEqual({ file: `${PATTERN_FOLDER}/nodes/sparkle.py`, node_type: "nodes.sparkle:Sparkle" });
+    expect(nodeTypesChanged).toBe(1);
+
+    const listing = await settled(backend.listNodeTypes(PATTERN_FOLDER));
+    expect(listing.sources.find((source) => source.source === "project")?.node_types.map((listed) => listed.node_type)).toContain("nodes.sparkle:Sparkle");
+    const described = await settled(backend.describeNodeTypes(PATTERN_FOLDER, ["nodes.sparkle:Sparkle"]));
+    expect(described.node_types).toMatchObject([{ node_type: "nodes.sparkle:Sparkle", declared_at: { path: "nodes/sparkle.py" }, inputs: [{ name: "video_in" }], outputs: [{ name: "video_out" }] }]);
+
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    expect(await settled(backend.transactInTheOpenProject([{ operation: "add_node", stream: streamAsset, type: "nodes.sparkle:Sparkle" }], "commit", "place-sparkle"))).toMatchObject({ kind: "applied" });
+    expect((await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.type === "nodes.sparkle:Sparkle")).toMatchObject({ name: "sparkle" });
+  });
 });
 
 describe("the mock backend's port families", () => {
