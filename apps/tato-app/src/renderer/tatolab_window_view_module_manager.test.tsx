@@ -3,7 +3,8 @@ import { act, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
 import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
-import type { ModulesShown } from "../shared/tatolab_electron_bridge_contract";
+import type { MarketplaceImport, MarketplaceImportProgressed, MarketplaceImportStage } from "../shared/tatolab_backend_contract";
+import type { ModuleManagerSectionAsked } from "../shared/tatolab_electron_bridge_contract";
 import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
@@ -66,7 +67,7 @@ describe("Module manager", () => {
   });
 
   it("opens on the tab File › Modules… asked for, and shows each tab asked of it once open", async () => {
-    let askTheOpenWindowToShow: ((shows: ModulesShown) => void) | null = null;
+    let askTheOpenWindowToShow: ((asked: ModuleManagerSectionAsked) => void) | null = null;
     await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project", {
       onModuleManagerSectionAsked: (listener) => {
         askTheOpenWindowToShow = listener;
@@ -77,16 +78,30 @@ describe("Module manager", () => {
     await waitFor(() => expect(shownTab()).toBe("added_to_this_project"));
     pressed('[data-module-manager-show="marketplace"]');
     expect(shownTab()).toBe("marketplace");
-    act(() => askTheOpenWindowToShow?.("added_to_this_project"));
+    act(() => askTheOpenWindowToShow?.({ shows: "added_to_this_project", page: null }));
     expect(shownTab()).toBe("added_to_this_project");
     pressed('[data-module-manager-show="marketplace"]');
-    act(() => askTheOpenWindowToShow?.("added_to_this_project"));
+    act(() => askTheOpenWindowToShow?.({ shows: "added_to_this_project", page: null }));
     expect(shownTab()).toBe("added_to_this_project");
   });
 
+  it("opens on the page of the Marketplace entry the node search's See it asked for, and on each page asked of it once open", async () => {
+    let askTheOpenWindowToShow: ((asked: ModuleManagerSectionAsked) => void) | null = null;
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=marketplace&module_manager_entry=camera-halftone", {
+      onModuleManagerSectionAsked: (listener) => {
+        askTheOpenWindowToShow = listener;
+        return () => undefined;
+      },
+    });
+
+    await shown('[data-module-manager-detail="catalog:camera-halftone"]');
+    act(() => askTheOpenWindowToShow?.({ shows: "marketplace", page: "tatolab-camera" }));
+    await shown('[data-module-manager-detail="catalog:tatolab-camera"]');
+  });
+
   it("keeps a tab asked of it while it was still reading the one it opened on", async () => {
-    let askTheOpenWindowToShow: ((shows: ModulesShown) => void) | null = null;
-    let answerTheSectionLastAsked: ((shows: ModulesShown) => void) | null = null;
+    let askTheOpenWindowToShow: ((asked: ModuleManagerSectionAsked) => void) | null = null;
+    let answerTheSectionLastAsked: ((asked: ModuleManagerSectionAsked) => void) | null = null;
     await mountedWindowOverTheMock("state=running&module_manager=open", {
       onModuleManagerSectionAsked: (listener) => {
         askTheOpenWindowToShow = listener;
@@ -98,8 +113,8 @@ describe("Module manager", () => {
         }),
     });
 
-    act(() => askTheOpenWindowToShow?.("marketplace"));
-    await act(async () => answerTheSectionLastAsked?.("added_to_this_project"));
+    act(() => askTheOpenWindowToShow?.({ shows: "marketplace", page: null }));
+    await act(async () => answerTheSectionLastAsked?.({ shows: "added_to_this_project", page: null }));
 
     await waitFor(() => expect(shownTab()).toBe("marketplace"));
   });
@@ -216,6 +231,21 @@ describe("Module manager", () => {
     expect(textOf('[data-module-manager-status="lobby-wall"]')).not.toContain("Update available");
   });
 
+  it("says a module added from the Marketplace has the catalog's newer version on its page once checked, and Update takes it", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=marketplace_newer&module_manager_section=added_to_this_project");
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    pressed("[data-module-manager-check-for-updates]");
+    await waitFor(() => expect(textOf('[data-module-manager-status="camera"] [data-module-card-mark="news"]')).toBe("Update available"));
+    expect(textOf("[data-module-manager-updates-count]")).toBe("1 update");
+
+    openThePageOf("catalog:tatolab-camera");
+    await shown("[data-module-manager-update-available]");
+    expect(textOf("[data-module-manager-update-available]")).toBe("Version 0.68.29 is in the Marketplace.");
+    pressed('[data-module-manager-detail] [data-module-manager-update="camera"]');
+    await waitFor(() => expect(document.querySelector("[data-module-manager-updates-count]")).toBeNull());
+    expect(document.querySelector("[data-module-manager-update-available]")).toBeNull();
+  });
+
   it("uninstalls a module only once Uninstall… is confirmed, and says the runtime's refusal in its own words under its row", async () => {
     let refuseTheRemoval = true;
     const backendOverTheMock = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&module_manager=open&module_manager_section=added_to_this_project")));
@@ -317,6 +347,62 @@ describe("Module manager", () => {
     expect(textOf('[data-module-manager-refusal="catalog:tatolab-camera"]')).toContain("Nothing in pattern changed.");
     pressed("[data-module-manager-retry]");
     await waitFor(() => expect(timesAsked).toBe(2));
+  });
+
+  it("shows a Marketplace add's download with its bytes, then its check and its adding, on its page, offering Cancel only while it downloads", async () => {
+    const progressListeners = new Set<(progressed: MarketplaceImportProgressed) => void>();
+    let answerTheImport: (imported: MarketplaceImport) => void = () => expect.unreachable("no import asked");
+    const namesCancelled: string[] = [];
+    await mountedWindowOverTheMock("state=running&module_manager=open", {
+      importFromTheMarketplace: () => new Promise((answer) => (answerTheImport = answer)),
+      cancelMarketplaceImport: async (name) => {
+        namesCancelled.push(name);
+      },
+      onMarketplaceImportProgressed: (listener) => {
+        progressListeners.add(listener);
+        return () => progressListeners.delete(listener);
+      },
+    });
+    const told = (stage: MarketplaceImportStage) => act(() => progressListeners.forEach((listener) => listener({ name: "tatolab-camera", stage })));
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    openThePageOf("catalog:tatolab-camera");
+    pressed(await waitFor(() => (document.querySelector("[data-module-manager-import]") === null ? expect.unreachable("no Add") : "[data-module-manager-import]")));
+    await shown('[data-module-manager-work="catalog:tatolab-camera"]');
+
+    told({ kind: "downloading", bytes_read: 12_300_000, bytes_total: 41_000_000 });
+    await shown('[data-module-manager-add-stage="downloading"]');
+    expect(textOf('[data-module-manager-work="catalog:tatolab-camera"]')).toContain("Downloading Camera…");
+    expect(textOf('[data-module-manager-work="catalog:tatolab-camera"]')).toContain("12.3 MB of 41.0 MB");
+    expect(textOf('[data-module-manager-work="catalog:tatolab-camera"]')).toContain("30%");
+    pressed('[data-module-manager-cancel-add="catalog:tatolab-camera"]');
+    await waitFor(() => expect(namesCancelled).toEqual(["tatolab-camera"]));
+    expect(textOf('[data-module-manager-cancel-add="catalog:tatolab-camera"]')).toBe("Cancelling…");
+
+    told({ kind: "verifying", sha256: "4f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f70" });
+    await shown('[data-module-manager-add-stage="verifying"]');
+    expect(textOf('[data-module-manager-work="catalog:tatolab-camera"]')).toContain("The catalog's SHA-256: 4f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f70");
+    expect(document.querySelector("[data-module-manager-cancel-add]")).toBeNull();
+
+    told({ kind: "adding" });
+    await shown('[data-module-manager-add-stage="adding"]');
+    expect(textOf('[data-module-manager-work="catalog:tatolab-camera"]')).toContain("Adding Camera to pattern…");
+    act(() => answerTheImport({ kind: "imported", dependency: { project: "tatolab-camera", folder: "tatolab-camera", source: "/downloads/tatolab-camera-0.68.29.zip", version: "0.68.29" } }));
+    await shown('[data-module-manager-added="catalog:tatolab-camera"]');
+  });
+
+  it("stops a download on Cancel and offers Add again, nothing in the project changed", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open&marketplace_add=never_ends");
+    await shown('[data-module-manager-row="catalog:tatolab-camera"]');
+    openThePageOf("catalog:tatolab-camera");
+    pressed(await waitFor(() => (document.querySelector("[data-module-manager-import]") === null ? expect.unreachable("no Add") : "[data-module-manager-import]")));
+
+    await shown('[data-module-manager-cancel-add="catalog:tatolab-camera"]');
+    pressed('[data-module-manager-cancel-add="catalog:tatolab-camera"]');
+
+    await shown('[data-module-manager-import="tatolab-camera"]');
+    expect(document.querySelector('[data-module-manager-work="catalog:tatolab-camera"]')).toBeNull();
+    expect(document.querySelector("[data-module-manager-refusal]")).toBeNull();
+    expect(document.querySelector('[data-module-manager-added="catalog:tatolab-camera"]')).toBeNull();
   });
 
   it("offers a sample only Clone sample, which makes a project of its own and leaves the open project's modules as they were", async () => {
@@ -534,6 +620,26 @@ describe("Module manager", () => {
 
     await waitFor(() => expect(document.querySelector("[data-module-manager-detail]")).toBeNull());
     expect(shownTab()).toBe("marketplace");
+  });
+
+  it("offers no Add of a package needing a newer runtime, on its card or its page, which says the runtime it needs and checks for a newer Tato Studio instead", async () => {
+    let timesChecked = 0;
+    await mountedWindowOverTheMock("state=running&module_manager=open&catalog=newer_runtime", {
+      checkForTatolabAppUpdates: async () => {
+        timesChecked += 1;
+      },
+    });
+    await shown('[data-module-manager-row="catalog:tatolab-microphone"]');
+
+    expect(document.querySelector('[data-module-manager-add-from-card="catalog:tatolab-microphone"]')).toBeNull();
+    expect(document.querySelector('[data-module-manager-add-from-card="catalog:tatolab-camera"]')).not.toBeNull();
+    expect(textOf('[data-module-manager-row="catalog:tatolab-microphone"]')).toContain("Needs a newer Tato Studio");
+    openThePageOf("catalog:tatolab-microphone");
+    await shown('[data-module-manager-needs-a-newer-runtime="tatolab-microphone"]');
+    expect(textOf('[data-module-manager-needs-a-newer-runtime="tatolab-microphone"]')).toBe("Microphone runs on runtime 0.69.44 or later, which a newer Tato Studio carries. Update Tato Studio to add it.");
+    expect(document.querySelector("[data-module-manager-import]")).toBeNull();
+    pressed('[data-module-manager-update-tato-studio="tatolab-microphone"]');
+    await waitFor(() => expect(timesChecked).toBe(1));
   });
 
   it("says why the catalog didn't load, and still lists the project's modules", async () => {

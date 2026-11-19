@@ -3,6 +3,8 @@ import { ChevronDown, ChevronRight, Search, type LucideIcon } from "lucide-react
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
+import { KeyboardKey } from "./keyboard_key";
+import { PendingActionWords } from "./pending_action_words";
 import {
   SEARCH_POPOVER_EDGE_GAP_PX,
   searchPopoverEntries,
@@ -15,6 +17,7 @@ import {
   searchPopoverSectionsShown,
   type SearchPopoverEntry,
   type SearchPopoverItem,
+  type SearchPopoverItemEndWords,
   type SearchPopoverSection,
 } from "./support/search_popover_rows";
 
@@ -104,8 +107,10 @@ export function SearchPopover({
   const entryItOpensOn = useMemo(() => searchPopoverEntryItOpensOn(searchPopoverEntries(items, items, uncategorisedWords)), [items, uncategorisedWords]);
   const chosenEntryId = entryChoice.kind === "chosen" ? entryChoice.entry_id : entryChoice.kind === "every_entry" ? null : entryItOpensOn;
   const sectionsShown = useMemo(
-    (): SearchPopoverSection[] => (narrowedTo !== null ? [{ section_id: "narrowed", heading: null, items: matchingItems }] : searchPopoverSectionsShown(matchingItems, chosenEntryId, uncategorisedWords)),
-    [matchingItems, chosenEntryId, narrowedTo, uncategorisedWords],
+    (): SearchPopoverSection[] => (narrowedTo !== null
+        ? [{ section_id: "narrowed", heading: null, aside: null, items: searchText.trim() === "" ? matchingItems.filter((item) => item.listed_after_the_categories === undefined) : matchingItems }]
+        : searchPopoverSectionsShown(matchingItems, chosenEntryId, uncategorisedWords)),
+    [matchingItems, chosenEntryId, narrowedTo, uncategorisedWords, searchText],
   );
   const shownItems = useMemo(() => sectionsShown.flatMap((section) => section.items), [sectionsShown]);
   const highlighted = shownItems.find((item) => item.item_id === highlightedItemId) ?? shownItems[0] ?? null;
@@ -403,11 +408,12 @@ function SearchPopoverList({
 }) {
   return (
     <ul ref={listElement} id={listId} role="listbox" aria-label={label} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-1.5 pb-1">
-      {sections.map(({ section_id: sectionId, heading, items: sectionItems }) => (
+      {sections.map(({ section_id: sectionId, heading, aside, items: sectionItems }) => (
         <li key={sectionId} role="presentation">
           {heading !== null && (
-            <div className={SECTION_HEADING_CLASS_NAMES} aria-hidden data-search-popover-section-heading="">
-              {heading}
+            <div className={cn(SECTION_HEADING_CLASS_NAMES, "flex items-baseline justify-between gap-2")} aria-hidden data-search-popover-section-heading="">
+              <span className="min-w-0 truncate">{heading}</span>
+              {aside !== null && <span className="shrink-0 font-normal tracking-normal normal-case">{aside}</span>}
             </div>
           )}
           <ul role="group" aria-label={heading ?? label}>
@@ -420,19 +426,47 @@ function SearchPopoverList({
                 data-search-popover-item={item.item_id}
                 onPointerMove={() => onItemHighlighted(item.item_id)}
                 onClick={(clickEvent) => onItemChosen(item.item_id, clickEvent.shiftKey)}
-                className={cn("flex h-10 min-w-0 cursor-default flex-col justify-center rounded-md px-2 text-fg-2", item.item_id === highlightedItemId && "bg-selected text-fg")}
+                className={cn("flex h-10 min-w-0 cursor-default items-center gap-2 rounded-md px-2 text-fg-2", item.item_id === highlightedItemId && "bg-selected text-fg")}
               >
-                <span className="min-w-0 truncate text-sm leading-4">{item.title}</span>
-                {item.origin_words !== null && (
-                  <span className="min-w-0 truncate text-2xs leading-3.5 text-fg-3" data-search-popover-item-origin="">
-                    {item.origin_words}
-                  </span>
-                )}
+                <span className="flex min-w-0 flex-1 flex-col justify-center">
+                  <span className="min-w-0 truncate text-sm leading-4">{item.title}</span>
+                  {item.origin_words !== null && (
+                    <span className={cn("min-w-0 truncate text-2xs leading-3.5", item.item_id === highlightedItemId ? "text-fg-2" : "text-fg-3")} data-search-popover-item-origin="">
+                      {item.origin_words}
+                    </span>
+                  )}
+                </span>
+                {item.end_words !== undefined && <SearchPopoverItemEnd endWords={item.end_words} isHighlighted={item.item_id === highlightedItemId} />}
               </li>
             ))}
           </ul>
         </li>
       ))}
     </ul>
+  );
+}
+
+/** The words at the end of an item's row: what choosing it does with ↵, only while it is highlighted; a choice of it under way, with a spinner; or a choice of it refused; each lighter on the highlighted row, to keep its contrast there. */
+function SearchPopoverItemEnd({ endWords, isHighlighted }: { endWords: SearchPopoverItemEndWords; isHighlighted: boolean }) {
+  if (endWords.kind === "what_choosing_does") {
+    if (!isHighlighted) return null;
+    return (
+      <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-brand-text" data-search-popover-item-end="what_choosing_does">
+        {endWords.words}
+        <KeyboardKey isAlreadyAnnounced>↵</KeyboardKey>
+      </span>
+    );
+  }
+  if (endWords.kind === "under_way") {
+    return (
+      <span className={cn("shrink-0 text-xs", isHighlighted ? "text-fg-2" : "text-fg-3")} data-search-popover-item-end="under_way">
+        <PendingActionWords words={endWords.words} place="at_the_end_of_a_row" />
+      </span>
+    );
+  }
+  return (
+    <span className={cn("shrink-0 text-xs font-medium", isHighlighted ? "text-status-danger-text" : "text-danger-text")} data-search-popover-item-end="refused">
+      {endWords.words}
+    </span>
   );
 }

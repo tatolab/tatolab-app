@@ -47,9 +47,12 @@ export const viewWatchedSubjectSchema = schemaOfThePublicType<ViewWatchedSubject
   ]),
 );
 
-/** What a view of some type is opened on. */
+/** What a view of some type is opened on: a file, at a line counted from 1 when one is named, or a port. */
 export const viewOpeningTargetSchema = schemaOfThePublicType<ViewOpeningTarget>()(
-  Schema.Union([Schema.Struct({ kind: Schema.Literal("file"), file: Schema.String }), Schema.Struct({ kind: Schema.Literal("port"), target: portViewerTargetSchema })]),
+  Schema.Union([
+    Schema.Struct({ kind: Schema.Literal("file"), file: Schema.String, line: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))) }),
+    Schema.Struct({ kind: Schema.Literal("port"), target: portViewerTargetSchema }),
+  ]),
 );
 
 /** What a view may ask Studio to do; the graph actions of a transaction are the control contract's, at least one. */
@@ -74,6 +77,7 @@ export const viewAskSchema = schemaOfThePublicType<ViewAsk>()(
       mode: contractValue("GraphEditMode"),
       idempotency_key: Schema.NullOr(Schema.String),
     }),
+    Schema.Struct({ kind: Schema.Literal("check_link_candidates"), project_folder: Schema.String, request: contractValue("CheckLinkCandidatesRequest") }),
     Schema.Struct({ kind: Schema.Literal("read_the_person_editing") }),
     Schema.Struct({
       kind: Schema.Literal("import_assets_into_the_project"),
@@ -83,9 +87,12 @@ export const viewAskSchema = schemaOfThePublicType<ViewAsk>()(
     Schema.Struct({ kind: Schema.Literal("relocate_asset_in_the_project"), project_folder: Schema.String, asset: Schema.String, to_path: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("read_asset_preview_in_the_project"), project_folder: Schema.String, asset: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("delete_asset_from_the_project"), project_folder: Schema.String, asset: Schema.String }),
+    Schema.Struct({ kind: Schema.Literal("set_node_type_group_in_the_project"), project_folder: Schema.String, node_type: Schema.String, group: Schema.NullOr(Schema.String) }),
     Schema.Struct({ kind: Schema.Literal("recover_the_projects_streams"), project_folder: Schema.String, recovery: projectStreamsRecoverySchema }),
     Schema.Struct({ kind: Schema.Literal("show_view_type_in_area"), view_type_id: Schema.String, area_id: Schema.String }),
-    Schema.Struct({ kind: Schema.Literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema }),
+    Schema.Struct({ kind: Schema.Literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema, page: Schema.optional(Schema.String) }),
+    Schema.Struct({ kind: Schema.Literal("read_the_marketplace") }),
+    Schema.Struct({ kind: Schema.Literal("add_from_the_marketplace"), name: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("pick_a_project_asset"), pick: projectAssetPickSchema }),
     Schema.Struct({ kind: Schema.Literal("answer_the_project_asset_pick"), asset: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("expand_the_area"), is_expanded: Schema.Boolean }),

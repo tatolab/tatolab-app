@@ -23,6 +23,7 @@ import { MockProjectTransactions } from "./mock_project_transactions";
 import { mockProjectAssetsUnchanged } from "./mock_project_assets";
 import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamAssetCreated, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { streamDocumentNameNumberedPast, streamDocumentNameOfTheDisplayName } from "../src/shared/stream_document_name";
+import { MockNodeTypesTheProjectGains } from "./mock_node_types";
 import { applyMockGraphTransaction, isAJsonObject, isAHistoryOperationTheMockMakesAgainFromTheEditInside, graphActionApplyingTheHistoryOperation, thePlacementsOfTheStream, type MockGraphEditGrounds, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   type ListedStream,
@@ -187,6 +188,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     );
   /** Commit `operations`: applied to the saved graphs, which answer, then to the running ones. */
   const graphEditGrounds: MockGraphEditGrounds = { nodeTypesDescribed: MOCK_RECORDED_NODE_TYPES_DESCRIBED.node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [nodeType])), portsOfTheNodesRemoved: new Map() };
+  const nodeTypesTheProjectGains = new MockNodeTypesTheProjectGains(graphEditGrounds);
   const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo", historyOperationsReplayed: readonly JsonValue[] = []) => {
     const applied = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), graphEditGrounds, operations, applying, historyOperationsReplayed);
     applyMockGraphTransaction(graphTargetsOfTheOpenProject(), graphEditGrounds, operations, applying, applied.history_operations);
@@ -213,7 +215,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
   };
   /** `undoOrRedo`, its graph operations applied to the mock graphs as the runtime applies them; a transaction naming no graph changes none. */
   const applyingItsGraphOperations = (undoOrRedo: ProjectTransaction): ProjectTransaction => {
-    const graphActions = undoOrRedo.operations.filter((operation) => !isAHistoryOperationTheMockMakesAgainFromTheEditInside(operation)).map(graphActionApplyingTheHistoryOperation);
+    const graphActions = nodeTypesTheProjectGains.fileTheGroupsOf(undoOrRedo.operations).filter((operation) => !isAHistoryOperationTheMockMakesAgainFromTheEditInside(operation)).map(graphActionApplyingTheHistoryOperation);
     const everyOneNamesAGraph = graphActions.every((graphAction): graphAction is StreamGraphAction => graphAction !== null);
     if (everyOneNamesAGraph && graphActions.length > 0) commitGraphActions(graphActions, "undo_or_redo", undoOrRedo.operations);
     pushEveryFollowedStreamGraphChanged();
@@ -908,6 +910,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     savedGraphTargetsOfTheOpenProject,
     commitGraphActions,
     graphEditGrounds,
+    nodeTypesTheProjectGains,
     whyTheUndoIsRefused,
     applyingItsGraphOperations,
     streamsWhoseGraphsAreFollowed,

@@ -27,15 +27,16 @@ export function FormDialog({
   /** Drawn large above the body, the task's picture. */
   icon?: LucideIcon;
   footer?: ReactNode;
-  /** What holds focus as it opens: the body, so Tab moves on to the task's first control; or, for a task that is one field, that field with its text selected. */
-  focusOnOpen?: "body" | "first_field_selected";
+  /** What holds focus as it opens: the body, so Tab moves on to the task's first control; or, for a task that is one field, that field with its text selected, or with the cursor after its text, for a field holding the start of what is typed. */
+  focusOnOpen?: "body" | "first_field_selected" | "first_field_at_its_end";
   children: ReactNode;
 } & ControlDataAttributes) {
   const bodyElement = useRef<HTMLDivElement>(null);
   const elementFocusedOnOpen = () => {
     if (focusOnOpen === "body") return bodyElement.current;
     const firstField = bodyElement.current?.querySelector<HTMLInputElement>("input") ?? null;
-    firstField?.select();
+    if (focusOnOpen === "first_field_selected") firstField?.select();
+    else firstField?.setSelectionRange(firstField.value.length, firstField.value.length);
     return firstField ?? bodyElement.current;
   };
   return (

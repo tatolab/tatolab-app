@@ -1,10 +1,11 @@
 // What the Marketplace window lists: the catalog's packages and samples in its order, each package saying
 // whether the project has it, then the project's modules the catalog does not list.
 
+import { isAMarketplaceDownload, isAMarketplaceDownloadOf, isTheModuleNamedLikeTheMarketplaceEntry, marketplaceDownloadVersionOf } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 import type { ModuleCardMark } from "@tatolab/tato-app-view-sdk/design_system/module_card";
 import type { ProjectCoverNumber } from "@tatolab/tato-app-view-sdk/design_system/project_card";
-import { isAMarketplaceDownloadOf } from "../../shared/marketplace_module_download_file";
 import { catalogOperatingSystemsOnlyWords, whyTheModuleBringsNothingOnThisMachine } from "../../shared/package_catalog_machine_words";
+import { NEEDS_A_NEWER_TATO_STUDIO_WORDS, whyTheModuleNeedsANewerRuntime } from "../../shared/package_catalog_runtime_words";
 import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, ViewsOfAWorkspaceDependency, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
 import { projectCoverNumberOfTheName } from "../presentation/projects_presentation";
 import { manifestOfAListedView, titleTheManifestNames } from "../view_host/studio_view_type_registry";
@@ -19,17 +20,6 @@ export interface ModuleCardRow {
   catalog_entry: PackageCatalogEntry | null;
   /** The project's module of it, or `null` where the project has not added it. */
   module_of_the_project: WorkspaceDependency | null;
-}
-
-/** The folder the runtime's `add_dependency` copies a project named `name` into under `imports/`: lowercased, each run of characters other than ASCII letters, digits, `-` and `_` made one `-`, trimmed of `-`, or `module` when nothing is left. */
-export function moduleFolderNameOf(name: string): string {
-  let folder = "";
-  for (const character of name.trim()) {
-    if (/^[A-Za-z0-9_-]$/.test(character)) folder += character.toLowerCase();
-    else if (!folder.endsWith("-")) folder += "-";
-  }
-  const trimmed = folder.replace(/^-+|-+$/g, "");
-  return trimmed === "" ? "module" : trimmed;
 }
 
 /** The row id of the catalog's entry `name`. */
@@ -51,15 +41,10 @@ function namesOf(members: readonly PackageCatalogMember[]): string[] {
   return members.map((member) => member.name);
 }
 
-function isNamedLikeTheEntry(entry: PackageCatalogEntry, dependency: WorkspaceDependency): boolean {
-  const entryFolderName = moduleFolderNameOf(entry.name);
-  return dependency.folder === entryFolderName || (dependency.name !== null && moduleFolderNameOf(dependency.name) === entryFolderName);
-}
-
 function moduleOfTheProjectFor(entry: PackageCatalogEntry, dependencies: readonly WorkspaceDependency[], foldersAnotherEntryClaimed: ReadonlySet<string>): WorkspaceDependency | null {
   if (entry.kind === "sample") return null;
   const unclaimed = dependencies.filter((dependency) => !foldersAnotherEntryClaimed.has(dependency.folder));
-  return unclaimed.find((dependency) => isAMarketplaceDownloadOf(entry.name, dependency.source)) ?? unclaimed.find((dependency) => isNamedLikeTheEntry(entry, dependency)) ?? null;
+  return unclaimed.find((dependency) => isAMarketplaceDownloadOf(entry.name, dependency.source)) ?? unclaimed.find((dependency) => isTheModuleNamedLikeTheMarketplaceEntry(entry.name, dependency)) ?? null;
 }
 
 /**
@@ -200,19 +185,34 @@ export function moduleNotOnThisMachineMarkOf(row: ModuleCardRow): ModuleCardMark
   return entry === null || entry.runs_on_this_machine || entry.platforms === null ? null : { words: catalogOperatingSystemsOnlyWords(entry.platforms), tone: "refused" };
 }
 
-/** What a card says in its corner: the ask last refused of it, else that it brings nothing on this machine, else an update at the source the project's module was copied from, else that the project has it, as it does once an add of it ended; `null` for none of these. */
+/**
+ * Why the row's module is not added to the project, or the project's Marketplace download of it not updated to the catalog's version: that
+ * version needs a newer runtime than the one answering, which a newer Tato Studio carries; `null` where the runtime can resolve it, or the
+ * project's copy is that version already or came from elsewhere.
+ */
+export function whyTheRowNeedsANewerTatoStudio(row: ModuleCardRow): string | null {
+  const { catalog_entry: entry, module_of_the_project: dependency } = row;
+  if (entry === null || entry.newer_runtime_it_needs === null) return null;
+  if (dependency === null) return whyTheModuleNeedsANewerRuntime(row.title, entry.newer_runtime_it_needs, "add");
+  const versionDownloaded = marketplaceDownloadVersionOf(entry.name, dependency.source);
+  return versionDownloaded === null || versionDownloaded === entry.version ? null : whyTheModuleNeedsANewerRuntime(row.title, entry.newer_runtime_it_needs, "update");
+}
+
+/** What a card says in its corner: the ask last refused of it, else that it brings nothing on this machine, else that adding or updating it needs a newer Tato Studio, else an update at the source the project's module was copied from, else that the project has it, as it does once an add of it ended; `null` for none of these. */
 export function moduleCardMarkOf(row: ModuleCardRow, askLastRefused: ModuleAsk | null, wasJustAdded: boolean): ModuleCardMark | null {
   if (askLastRefused !== null) return { words: `Not ${MODULE_ASK_WORDS_ONCE_DONE[askLastRefused]}`, tone: "refused" };
   const notOnThisMachineMark = moduleNotOnThisMachineMarkOf(row);
   if (notOnThisMachineMark !== null) return notOnThisMachineMark;
+  if (whyTheRowNeedsANewerTatoStudio(row) !== null && !wasJustAdded) return { words: NEEDS_A_NEWER_TATO_STUDIO_WORDS, tone: "refused" };
   const dependency = row.module_of_the_project;
   if (dependency?.newer_version_exists === true) return { words: "Update available", tone: "news" };
   return dependency !== null || wasJustAdded ? { words: "In project", tone: "quiet" } : null;
 }
 
-/** Whether a card offers Add: a package the catalog gives a download for, which brings nodes on this machine, the project does not have and an add has not just brought. */
+/** Whether a card offers Add: a package the catalog gives a download for, which brings nodes on this machine, the runtime answering can resolve, the project does not have and an add has not just brought. */
 export function cardOffersAdd(row: ModuleCardRow, wasJustAdded: boolean): boolean {
-  return row.catalog_entry?.kind === "package" && row.catalog_entry.download !== null && row.catalog_entry.runs_on_this_machine && row.module_of_the_project === null && !wasJustAdded;
+  const entry = row.catalog_entry;
+  return entry?.kind === "package" && entry.download !== null && entry.runs_on_this_machine && entry.newer_runtime_it_needs === null && row.module_of_the_project === null && !wasJustAdded;
 }
 
 function countedWords(count: number, one: string): string {
@@ -260,6 +260,21 @@ export function moduleSourceWordsOf(row: ModuleCardRow): string {
   return dependency.source.toLowerCase().endsWith(".zip") ? "From a .zip" : "From a folder";
 }
 
+/** What a module's update says: the line that offers it, and the lead of a refused check. */
+export interface ModuleUpdateWords {
+  readonly updateAvailable: string;
+  readonly checkRefusedLead: string;
+}
+
+/** What the row's module says of an update: by the Marketplace's version for a Marketplace download, as the main process checks one, by where it was copied from for any other. */
+export function moduleUpdateWordsOf(row: ModuleCardRow): ModuleUpdateWords {
+  const { catalog_entry: entry, module_of_the_project: dependency } = row;
+  if (dependency !== null && isAMarketplaceDownload(dependency.source)) {
+    return { updateAvailable: entry === null ? "A newer version is in the Marketplace." : `Version ${entry.version} is in the Marketplace.`, checkRefusedLead: "It could not be checked for an update:" };
+  }
+  return { updateAvailable: "An update is available from where it was copied.", checkRefusedLead: "Where it was copied from could not be checked:" };
+}
+
 /** How a module's copy stands against where it was copied from: an update there, none, not asked yet, or the check refused in the runtime's words. */
 export type ModuleCopyState = { kind: "update_available" } | { kind: "up_to_date" } | { kind: "not_checked" } | { kind: "check_refused"; because: string };
 
@@ -275,7 +290,8 @@ export function whyTheModuleHasNoUpdateToTake(dependency: WorkspaceDependency): 
   const copyState = moduleCopyStateOf(dependency);
   if (copyState.kind === "update_available") return null;
   if (copyState.kind === "up_to_date") return "It is up to date.";
-  return copyState.kind === "not_checked" ? "Check for updates first." : "Where it was copied from could not be checked.";
+  if (copyState.kind === "not_checked") return "Check for updates first.";
+  return isAMarketplaceDownload(dependency.source) ? "It could not be checked for an update." : "Where it was copied from could not be checked.";
 }
 
 /** One row of a module's "Adds these views": its title, and its declared ports in words, or why it does not open in the runtime's or the schema's words. */

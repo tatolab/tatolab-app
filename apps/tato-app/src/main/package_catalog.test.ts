@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { packageCatalogReadingFromTheCatalogText, PACKAGE_CATALOG_URL, readThePackageCatalog } from "./package_catalog.js";
+import { isAnOlderRelease, packageCatalogForTheRuntime, packageCatalogReadingFromTheCatalogText, PACKAGE_CATALOG_URL, readThePackageCatalog } from "./package_catalog.js";
 import { failedWith, succeeded } from "./result.js";
 
 const CAMERA_ENTRY_ON_THE_WIRE = {
@@ -16,7 +16,7 @@ const CAMERA_ENTRY_ON_THE_WIRE = {
 };
 
 const { download_url: CAMERA_DOWNLOAD_URL, download_sha256: CAMERA_DOWNLOAD_SHA256, ...CAMERA_ENTRY_WITHOUT_ITS_DOWNLOAD } = CAMERA_ENTRY_ON_THE_WIRE;
-const CAMERA_ENTRY = { ...CAMERA_ENTRY_WITHOUT_ITS_DOWNLOAD, download: { url: CAMERA_DOWNLOAD_URL, sha256: CAMERA_DOWNLOAD_SHA256 }, platforms: null, runs_on_this_machine: true };
+const CAMERA_ENTRY = { ...CAMERA_ENTRY_WITHOUT_ITS_DOWNLOAD, download: { url: CAMERA_DOWNLOAD_URL, sha256: CAMERA_DOWNLOAD_SHA256 }, platforms: null, runs_on_this_machine: true, lowest_runtime_version: null, newer_runtime_it_needs: null };
 
 const A_MAC_ON_APPLE_SILICON = { sys_platform: "darwin", platform_machine: "arm64" };
 
@@ -34,7 +34,7 @@ describe("the package catalog", () => {
     });
     expect(packageCatalogReadingFromTheCatalogText(catalogText, A_MAC_ON_APPLE_SILICON)).toEqual({
       kind: "read",
-      entries: [CAMERA_ENTRY, { ...CAMERA_ENTRY_WITHOUT_ITS_DOWNLOAD, download: null, name: "camera-halftone", kind: "sample", nodes: [], homepage_url: "https://tatolab.com", platforms: null, runs_on_this_machine: true }],
+      entries: [CAMERA_ENTRY, { ...CAMERA_ENTRY_WITHOUT_ITS_DOWNLOAD, download: null, name: "camera-halftone", kind: "sample", nodes: [], homepage_url: "https://tatolab.com", platforms: null, runs_on_this_machine: true, lowest_runtime_version: null, newer_runtime_it_needs: null }],
       unreadable_entry_count: 3,
     });
   });
@@ -82,5 +82,44 @@ describe("the package catalog", () => {
       kind: "not_read",
       because: `The catalog at ${PACKAGE_CATALOG_URL} could not be fetched: HTTP 404 Not Found`,
     });
+  });
+
+  test("reads the lowest runtime an entry runs on, and judges it against the release of the runtime answering", () => {
+    const catalogText = JSON.stringify({
+      catalog_version: 1,
+      entries: [
+        { ...CAMERA_ENTRY_ON_THE_WIRE, lowest_runtime_version: "0.69.44" },
+        { ...CAMERA_ENTRY_ON_THE_WIRE, name: "tatolab-opus", lowest_runtime_version: "0.69.37" },
+        { ...CAMERA_ENTRY_ON_THE_WIRE, name: "tatolab-rive" },
+        { ...CAMERA_ENTRY_ON_THE_WIRE, name: "tatolab-moq", lowest_runtime_version: 69 },
+      ],
+    });
+    const read = packageCatalogReadingFromTheCatalogText(catalogText, A_MAC_ON_APPLE_SILICON);
+    const runtimeVersionsNamed = (catalog: typeof read) => (catalog.kind === "read" ? catalog.entries.map(({ name, lowest_runtime_version, newer_runtime_it_needs }) => [name, lowest_runtime_version, newer_runtime_it_needs]) : []);
+
+    expect(read.kind === "read" && read.unreadable_entry_count).toBe(1);
+    expect(runtimeVersionsNamed(read)).toEqual([
+      ["tatolab-camera", "0.69.44", null],
+      ["tatolab-opus", "0.69.37", null],
+      ["tatolab-rive", null, null],
+    ]);
+    expect(runtimeVersionsNamed(packageCatalogForTheRuntime(read, "0.69.37"))).toEqual([
+      ["tatolab-camera", "0.69.44", "0.69.44"],
+      ["tatolab-opus", "0.69.37", null],
+      ["tatolab-rive", null, null],
+    ]);
+    expect(packageCatalogForTheRuntime(read, null)).toBe(read);
+  });
+
+  test("tells an older release by each of its numbers in turn, and none older where either is not a plain release", () => {
+    expect([
+      isAnOlderRelease("0.69.37", "0.69.44"),
+      isAnOlderRelease("0.69.44", "0.69.44"),
+      isAnOlderRelease("0.70.0", "0.69.44"),
+      isAnOlderRelease("0.9.99", "0.10.0"),
+      isAnOlderRelease("1.2", "1.2.1"),
+      isAnOlderRelease("1.2.0", "1.2"),
+      isAnOlderRelease("0.69.37-dev", "0.69.44"),
+    ]).toEqual([true, false, false, true, true, false, false]);
   });
 });

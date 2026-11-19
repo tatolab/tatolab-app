@@ -61,8 +61,8 @@ function areasWithTheirShares(layout: StudioAreaLayoutNode, shareOfTheWhole = 1)
   return layout.parts.flatMap(({ size_percent, part }) => areasWithTheirShares(part, (shareOfTheWhole * size_percent) / sizeOfTheParts));
 }
 
-/** `shape`'s picture for its menu entry: each slot as a rectangle of the whole, the main slot emphasised. */
-export function studioLayoutShapePicture(shape: StudioLayoutShape): StudioMenuEntryPictureArea[] {
+/** `outline`'s picture for a menu entry: each slot as a rectangle of the whole, the main slot emphasised. */
+function pictureOfTheOutline(outline: StudioLayoutShapeOutline): StudioMenuEntryPictureArea[] {
   const rectanglesOf = (outline: StudioLayoutShapeOutline, left: number, top: number, width: number, height: number): StudioMenuEntryPictureArea[] => {
     if (outline.kind === "slot") return [{ left_percent: left, top_percent: top, width_percent: width, height_percent: height, is_emphasised: outline.is_main }];
     const sizeOfTheParts = outline.parts.reduce((sum, [sizePercent]) => sum + sizePercent, 0);
@@ -77,7 +77,23 @@ export function studioLayoutShapePicture(shape: StudioLayoutShape): StudioMenuEn
       return partRectangles;
     });
   };
-  return rectanglesOf(studioLayoutShapeOutline(shape), 0, 0, 100, 100);
+  return rectanglesOf(outline, 0, 0, 100, 100);
+}
+
+/** `shape`'s picture for its menu entry: each slot as a rectangle of the whole, the main slot emphasised. */
+export function studioLayoutShapePicture(shape: StudioLayoutShape): StudioMenuEntryPictureArea[] {
+  return pictureOfTheOutline(studioLayoutShapeOutline(shape));
+}
+
+/** `layout`'s picture for its menu entry: each area as a rectangle of the whole, the one it gives the most room emphasised. */
+export function studioLayoutPicture(layout: StudioAreaLayoutNode): StudioMenuEntryPictureArea[] {
+  const largestShare = Math.max(...areasWithTheirShares(layout).map(({ share }) => share));
+  const outlineOf = (node: StudioAreaLayoutNode, share: number): StudioLayoutShapeOutline => {
+    if (node.kind === "area") return { kind: "slot", is_main: share === largestShare };
+    const sizeOfTheParts = node.parts.reduce((sum, { size_percent }) => sum + size_percent, 0);
+    return shapeSplit(node.direction, node.parts.map(({ size_percent, part }) => [size_percent, outlineOf(part, (share * size_percent) / sizeOfTheParts)]));
+  };
+  return pictureOfTheOutline(outlineOf(layout, 1));
 }
 
 /** How many slots `outline` holds. */

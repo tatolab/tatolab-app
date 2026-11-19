@@ -13,7 +13,7 @@ import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/re
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import { projectsWithFilesOf } from "../shared/projects_with_files";
 import { filesTreeOfTheProject, type ProjectFilesListedForTheTree } from "./files_tree_of_the_project";
-import { NewNodeFileForm } from "./new_node_file_form";
+import { NewNodeFileForm } from "../shared/new_node_file_form";
 
 /** The change feed of the project in `projectFolder`, read again each time the runtime applies a transaction to it. */
 function useTransactionsAppliedTo(connection: TatoAppViewConnection, projectFolder: string): ProjectTransactionsReading | null {
@@ -69,7 +69,7 @@ function FilesOfTheProject({
     closeTheNewNodeFileForm();
     document.querySelector<HTMLElement>("[data-files-new-node-file]")?.focus();
   };
-  const openTheNewNodeFileInCode = (file: string) => {
+  const openTheNewNodeFileInCode = ({ file }: { file: string }) => {
     closeTheNewNodeFileForm();
     showTheRefusalOf("Didn't open the new file:", connection.openView(CODE_VIEW_TYPE_ID, { kind: "file", file }));
   };

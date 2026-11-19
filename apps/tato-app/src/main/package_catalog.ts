@@ -24,8 +24,18 @@ const PACKAGE_CATALOG_VERSION_READ = 1;
 /** Fetches `url` over HTTPS and answers its body, refused in words for a failed request or a status other than 200. */
 export type FetchTextOverHttps = (url: string) => Promise<Result<string, string>>;
 
-/** Fetches `url` over HTTPS and answers its body's bytes, refused in words for a failed request, a status other than 200, or a body over `largestByteCount`. */
-export type FetchBytesOverHttps = (url: string, largestByteCount: number) => Promise<Result<Buffer, string>>;
+/** What a download of bytes tells as it reads them, and watches to stop: the bytes read so far each time more arrive, with the length the server announced (`null` where it announced none). */
+export interface BytesDownloadFollowing {
+  readonly bytesRead: (bytesReadSoFar: number, bytesTotal: number | null) => void;
+  /** Stops the download once aborted, which then answers refused. */
+  readonly stopped: AbortSignal;
+}
+
+/**
+ * Fetches `url` over HTTPS and answers its body's bytes, refused in words for a failed request, a status other than 200, a body over
+ * `largestByteCount`, or a download `following` stopped; `following`, where given, is told the bytes as they are read.
+ */
+export type FetchBytesOverHttps = (url: string, largestByteCount: number, following: BytesDownloadFollowing | null) => Promise<Result<Buffer, string>>;
 
 function packageCatalogMemberFrom(value: unknown): Result<PackageCatalogMember, string> {
   const member = jsonObject(value, "a catalog entry's node or stream");
@@ -102,6 +112,8 @@ export function packageCatalogEntryFrom(value: unknown, thisMachine: PackageCata
   if (!download.ok) return download;
   const platforms = packageCatalogPlatformsFrom(entry.value);
   if (!platforms.ok) return platforms;
+  const lowestRuntimeVersion = optionalText(entry.value, "lowest_runtime_version");
+  if (!lowestRuntimeVersion.ok) return lowestRuntimeVersion;
   return succeeded({
     kind: kind.value,
     ...texts,
@@ -111,7 +123,38 @@ export function packageCatalogEntryFrom(value: unknown, thisMachine: PackageCata
     homepage_url: homepageUrl.value,
     platforms: platforms.value,
     runs_on_this_machine: catalogPlatformsNameTheMachine(platforms.value, thisMachine),
+    lowest_runtime_version: lowestRuntimeVersion.value,
+    newer_runtime_it_needs: null,
   });
+}
+
+/** The release numbers of `version`, as `0.69.44` reads [0, 69, 44]; `null` for a version that is not dot-separated whole numbers. */
+function releaseNumbersOf(version: string): number[] | null {
+  return /^\d+(\.\d+)*$/.test(version) ? version.split(".").map(Number) : null;
+}
+
+/** Whether release `version` comes before release `other`; `false` where either is not a plain release number, since then neither can be told older. */
+export function isAnOlderRelease(version: string, other: string): boolean {
+  const numbers = releaseNumbersOf(version);
+  const otherNumbers = releaseNumbersOf(other);
+  if (numbers === null || otherNumbers === null) return false;
+  for (let index = 0; index < Math.max(numbers.length, otherNumbers.length); index += 1) {
+    const difference = (numbers[index] ?? 0) - (otherNumbers[index] ?? 0);
+    if (difference !== 0) return difference < 0;
+  }
+  return false;
+}
+
+/** `catalog` with each entry's `newer_runtime_it_needs` named for the runtime of release `runtimeVersion`; as read where no runtime answered (`null`). */
+export function packageCatalogForTheRuntime(catalog: PackageCatalogReading, runtimeVersion: string | null): PackageCatalogReading {
+  if (catalog.kind === "not_read" || runtimeVersion === null) return catalog;
+  return {
+    ...catalog,
+    entries: catalog.entries.map((entry) => ({
+      ...entry,
+      newer_runtime_it_needs: entry.lowest_runtime_version !== null && isAnOlderRelease(runtimeVersion, entry.lowest_runtime_version) ? entry.lowest_runtime_version : null,
+    })),
+  };
 }
 
 /** The catalog `catalogText` holds, read on `thisMachine`, each entry that does not read left out and counted, or why the catalog as a whole does not read. */

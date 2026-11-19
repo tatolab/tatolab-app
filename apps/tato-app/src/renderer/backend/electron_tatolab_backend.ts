@@ -51,6 +51,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     deleteAssetFromTheOpenProject: async (asset) => {
       await invokeTatolabCommand("delete_asset_from_the_open_project", { asset });
     },
+    setNodeTypeGroupInTheOpenProject: async (nodeType, group) => {
+      await invokeTatolabCommand("set_node_type_group_in_the_open_project", { node_type: nodeType, group });
+    },
     checkForTatolabAppUpdates: async () => {
       await invokeTatolabCommand("check_for_tatolab_app_updates", undefined);
     },
@@ -121,8 +124,8 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("pop_out_view", { ...target });
     },
     readPoppedOutView: () => invokeTatolabCommand("read_popped_out_view", undefined),
-    openModuleManagerWindow: async (shows) => {
-      await invokeTatolabCommand("open_module_manager_window", { shows });
+    openModuleManagerWindow: async (asked) => {
+      await invokeTatolabCommand("open_module_manager_window", asked);
     },
     readModuleManagerWorkspace: () => invokeTatolabCommand("read_module_manager_workspace", undefined),
     readModuleManagerSectionLastAsked: () => invokeTatolabCommand("read_module_manager_section_last_asked", undefined),
@@ -133,6 +136,10 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     addDependencyToTheWorkspace: (source) => invokeTatolabCommand("add_dependency_to_the_workspace", { source }),
     updateWorkspaceDependency: (project, overwriteEditedFiles) => invokeTatolabCommand("update_workspace_dependency", { project, overwrite_edited_files: overwriteEditedFiles }),
     importFromTheMarketplace: (name) => invokeTatolabCommand("import_from_the_marketplace", { name }),
+    cancelMarketplaceImport: async (name) => {
+      await invokeTatolabCommand("cancel_marketplace_import", { name });
+    },
+    onMarketplaceImportProgressed: (listener) => tatolabElectronBridge.onMarketplaceImportProgressed(listener),
     removeWorkspaceDependency: (project) => invokeTatolabCommand("remove_workspace_dependency", { project }),
     cloneMarketplaceSample: (name) => invokeTatolabCommand("clone_marketplace_sample", { name }),
     pathOfADroppedFile: (droppedFile) => tatolabElectronBridge.pathOfADroppedFile(droppedFile),
@@ -164,6 +171,7 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     onProjectNodeTypesChanged: (listener) => tatolabElectronBridge.onProjectNodeTypesChanged(listener),
     undoInTheOpenProject: (author) => invokeTatolabCommand("undo_in_the_open_project", { author }),
     transactInTheOpenProject: (operations, mode, idempotencyKey) => invokeTatolabCommand("transact_in_the_open_project", { operations, mode, idempotency_key: idempotencyKey }),
+    checkLinkCandidatesInTheOpenProject: (request) => invokeTatolabCommand("check_link_candidates_in_the_open_project", request),
     readThePersonEditingInStudio: () => invokeTatolabCommand("read_the_person_editing_in_studio", undefined),
     redoInTheOpenProject: (author) => invokeTatolabCommand("redo_in_the_open_project", { author }),
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),

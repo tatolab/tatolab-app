@@ -4,6 +4,7 @@
 // A graph action and a graph edit mode are the control contract's own types.
 
 import type {
+  CheckLinkCandidatesRequest,
   GraphEditMode,
   GraphFragmentOnTheWire,
   GraphInterfacePortOnTheWire,
@@ -13,6 +14,9 @@ import type {
   GraphNodePortOnTheWire,
   InputValueComesFromOnTheWire,
   LabelledNodeGroup,
+  LinkCandidateEnd,
+  LinkCandidatesCheckResult,
+  LinkCheckResult,
   ListNodeTypesToolResult,
   NodeTypeDescribedOrWhyNot,
   NodeTypeDescription,
@@ -22,6 +26,8 @@ import type {
 } from "@tatolab/runtime-client/contract";
 import type { PinFlow, PinType } from "./pin_type_readings.js";
 import { PORT_FAMILIES, type PortFamily } from "./port_families.js";
+
+export { jsonTextOf } from "./json_text.js";
 
 /** A value as JSON carries it. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -516,6 +522,8 @@ export type ImportedProject = {
   name: string;
   /** Its folder under `imports/`. */
   folder: string;
+  /** The folder or `.zip` the runtime copied it from, as `list_dependencies` lists it; a Marketplace download's names its catalog entry. */
+  copied_from: string;
   source: ImportedProjectSource;
 };
 
@@ -795,6 +803,12 @@ export type ProjectGraphTransactionTheRuntimeAnswered = { kind: "applied"; trans
 /** A graph transaction the runtime answered, or one Studio refused before it reached the runtime, in Studio's words alone. */
 export type ProjectGraphTransactionApplying = ProjectGraphTransactionTheRuntimeAnswered | { kind: "not_sent"; because: string };
 
+/** What a placed pin is asked against, and what the runtime's `check_link_candidates` answers for each candidate: the control contract's own types. */
+export type { CheckLinkCandidatesRequest, LinkCandidateEnd, LinkCandidatesCheckResult, LinkCheckResult };
+
+/** What the runtime's `check_link_candidates` answered, or why it was not asked or refused, in Studio's or the runtime's own words. */
+export type LinkCandidatesChecking = { kind: "checked"; result: LinkCandidatesCheckResult } | { kind: "not_checked"; because: string };
+
 /** The person editing in Studio, as history records their edits, or why Studio did not say. */
 export type ThePersonEditingReading = { kind: "read"; author: ProjectTransactionAuthor } | { kind: "not_read"; because: string };
 
@@ -810,14 +824,26 @@ export type ProjectFileSaving = { kind: "saved"; version: string } | { kind: "no
 /** A new node file from the runtime's node template, with the node type it declares as `<module>:<class>`, or why it was not created, in the runtime's own words. */
 export type NodeFileCreating = { kind: "created"; file: string; node_type: string } | { kind: "not_created"; because: string };
 
+/** A `@node` a Marketplace entry brings, as its catalog names it: its class name, as `CameraSource`, and one line on what it does. */
+export type MarketplaceNode = { name: string; summary: string };
+
+/** One package or sample project the Marketplace lists: the catalog's name for it, its title, one line on what it is, the nodes it brings, whether it brings anything on this machine, and whether it needs a newer runtime than the one answering, which a newer Tato Studio carries. */
+export type MarketplaceEntry = { kind: "package" | "sample"; name: string; title: string; summary: string; nodes: MarketplaceNode[]; runs_on_this_machine: boolean; needs_a_newer_runtime: boolean };
+
+/** The Marketplace's entries in its catalog's order, as the catalog lists them now, or why the catalog was not read, in the words of what refused. */
+export type MarketplaceReading = { kind: "read"; entries: MarketplaceEntry[] } | { kind: "not_read"; because: string };
+
+/** A Marketplace module added to the open project, by its folder under `imports/`, or why it was not, in the words of what refused. */
+export type MarketplaceModuleAdding = { kind: "added"; folder: string } | { kind: "not_added"; because: string };
+
 /** A project's files, or why they were not listed. */
 export type ProjectFilesListing = { kind: "listed"; project_files: ProjectFiles } | { kind: "not_listed"; because: string };
 
 /** What a Python language server connection delivers: one JSON-RPC message the server sent, or the server's end with why. */
 export type PythonLanguageServerConnectionEvent = { kind: "message"; message: JsonValue } | { kind: "ended"; because: string };
 
-/** What a view's area was opened on: a file of the open project or its imports, or a running node's output port, with the opening's id, so a view that keeps what it opened tells a new opening from one it took before; `null` for an area opened on nothing. */
-export type ViewOpenedOn = { kind: "file"; file: string; opening_id: string } | { kind: "port"; target: PortViewerTarget; opening_id: string } | null;
+/** What a view's area was opened on: a file of the open project or its imports, at its line `line` when the opening named one, or a running node's output port, with the opening's id, so a view that keeps what it opened tells a new opening from one it took before; `null` for an area opened on nothing. */
+export type ViewOpenedOn = { kind: "file"; file: string; line?: number; opening_id: string } | { kind: "port"; target: PortViewerTarget; opening_id: string } | null;
 
 /** Where the view's own header row lies inside its frame: Studio's view-type menu covers the row's start up to `leading_inset_px`, and the row is `height_px` tall, `0` where the frame has no header row, as in the asset picker; neither is below `0`. */
 export type ViewHeaderRow = { leading_inset_px: number; height_px: number };

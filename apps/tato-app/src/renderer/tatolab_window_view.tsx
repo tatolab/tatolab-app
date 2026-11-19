@@ -201,6 +201,7 @@ export function mountTatolabWindow(
       );
     },
     shapeTheLayout: (shape) => studioWindowModel.shapeTheLayout(shape),
+    applyTheShippedLayout: (layoutId) => studioWindowModel.applyTheShippedLayout(layoutId),
     applyTheSavedLayoutPreset: (presetIndex) => studioWindowModel.applyTheSavedLayoutPreset(presetIndex),
     askToSaveTheLayoutAsAPreset: () => studioWindowModel.layoutPresetNameAsked.publish(true),
     openSettings: () => studioWindowModel.settingsSection.publish("project"),
@@ -240,7 +241,7 @@ export function mountTatolabWindow(
     showTheStreamTabBeside: (direction) => studioWindowModel.showTheStreamTabBeside(direction),
     openModuleManager: (shows) => {
       studioWindowModel.projectOpeningRefusal.publish(null);
-      backend.openModuleManagerWindow(shows).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
+      backend.openModuleManagerWindow({ shows, page: null }).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
     },
   };
   let onChosenByEntryIdOfTheMenusSent: ReadonlyMap<string, () => void> = new Map();
@@ -341,6 +342,8 @@ export function mountTatolabWindow(
     addDependencyToTheWorkspace: (source) => backend.addDependencyToTheWorkspace(source),
     updateWorkspaceDependency: (project, overwriteEditedFiles) => backend.updateWorkspaceDependency(project, overwriteEditedFiles),
     importFromTheMarketplace: (name) => backend.importFromTheMarketplace(name),
+    cancelMarketplaceImport: (name) => backend.cancelMarketplaceImport(name),
+    onMarketplaceImportProgressed: (listener) => backend.onMarketplaceImportProgressed(listener),
     removeWorkspaceDependency: (project) => backend.removeWorkspaceDependency(project),
     cloneMarketplaceSample: (name) => backend.cloneMarketplaceSample(name),
     showTheClonedProject: (folder) => backend.openRecentProject(folder),
@@ -358,7 +361,7 @@ export function mountTatolabWindow(
         onceRead();
       },
     );
-  backend.onModuleManagerSectionAsked((shows) => studioWindowModel.askTheModuleManagerToShow(shows));
+  backend.onModuleManagerSectionAsked((asked) => studioWindowModel.askTheModuleManagerToShow(asked));
   const whatTheWindowShowsIsRead = Promise.all([
     backend.readPoppedOutView().catch(() => null),
     backend.readModuleManagerWorkspace().catch(() => null),

@@ -27,6 +27,10 @@ import type {
   ProjectGraphTransactionApplying,
   StreamGraphAction,
   ThePersonEditingReading,
+  CheckLinkCandidatesRequest,
+  LinkCandidatesChecking,
+  MarketplaceModuleAdding,
+  MarketplaceReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { AreaForAViewType, ModulesAndMarketplaceSection, PortViewerEvent, ProjectAssetPick, ProjectAssetPickEnding, ViewOpeningTarget } from "@tatolab/tato-app-view-sdk";
 import type { ProjectAssetPickAnswering } from "./project_asset_pick_held_in_the_window";
@@ -65,6 +69,8 @@ export type {
   StreamGraphAction,
   ThePersonEditingReading,
   ViewOpenedOn,
+  CheckLinkCandidatesRequest,
+  LinkCandidatesChecking,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export type {
   PortViewerEvent as PortViewerConnectionEvent,
@@ -84,8 +90,8 @@ export interface ViewOpenedOnAsked {
 /** A view opened on a file or port in an area of the layout, or why no area could show it. */
 export type ViewOpening = { kind: "opened" } | { kind: "not_opened"; because: string };
 
-/** An asset of the window's project renamed, moved or deleted, or why not, in Studio's or the runtime's words. */
-export type ProjectAssetChanging = { kind: "changed" } | { kind: "not_changed"; because: string };
+/** A change to the window's project made, as an asset's move or a node type's group, or why not, in Studio's or the runtime's words. */
+export type ProjectChanging = { kind: "changed" } | { kind: "not_changed"; because: string };
 
 /** Whether a recovery of a project's streams was asked of the runtime, or why not, in Studio's or the runtime's own words. */
 export type ProjectStreamsRecovering = { kind: "asked" } | { kind: "not_asked"; because: string };
@@ -145,16 +151,22 @@ export interface StudioViewHostServices {
   watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeInTheWindow) => void): StopWatching;
   /** Area `areaId` of the layout showing `viewTypeId` in place of what it shows. */
   showViewTypeInArea(viewTypeId: string, areaId: string): ViewOpening;
-  /** The open project's Modules and Marketplace window opened on `shows`, or brought forward on it. */
-  openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewOpening>;
+  /** The open project's Modules and Marketplace window opened on `shows`, or brought forward on it, on the page of the Marketplace entry `page` names when it is not `null`. */
+  openModulesAndMarketplace(shows: ModulesAndMarketplaceSection, page: string | null): Promise<ViewOpening>;
+  /** The Marketplace's packages and samples, the catalog read afresh. */
+  readTheMarketplace(): Promise<MarketplaceReading>;
+  /** The Marketplace's package `name` downloaded, checked against the catalog and added to the open project as a module. */
+  addFromTheMarketplace(name: string): Promise<MarketplaceModuleAdding>;
   /** The files the person chooses, the dialog offering those of `media` (`null` for any), imported into `projectFolder`, the open project only. */
   importAssetsIntoTheProject(projectFolder: string, media: readonly string[] | null): Promise<ProjectAssetsImporting>;
   /** Put the asset `asset` of the window's project, when `projectFolder` names it, at `toPath` by the person editing, the project's assets listed again at once; refused for any other folder, or in the runtime's own words. */
-  relocateAssetInTheProject(projectFolder: string, asset: string, toPath: string): Promise<ProjectAssetChanging>;
+  relocateAssetInTheProject(projectFolder: string, asset: string, toPath: string): Promise<ProjectChanging>;
   /** The preview picture of the asset `asset` of the window's project, when `projectFolder` names it; refused for any other folder, or in the runtime's own words. */
   readAssetPreviewInTheProject(projectFolder: string, asset: string): Promise<AssetPreviewReading>;
   /** Stop tracking the asset `asset` of the window's project, when `projectFolder` names it, by the person editing, the project's assets listed again at once; refused for any other folder, or in the runtime's own words. */
-  deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ProjectAssetChanging>;
+  deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ProjectChanging>;
+  /** File the node type `nodeType` of the window's project, when `projectFolder` names it, under `group`, a `/`-separated path, or with `null` put it back where an import or its author files it, by the person editing, the project's node types listed again at once; refused for any other folder, or in the runtime's own words. */
+  setNodeTypeGroupInTheProject(projectFolder: string, nodeType: string, group: string | null): Promise<ProjectChanging>;
   /** Recover the streams of the window's project, when `projectFolder` names it, with `recovery`: its playback stopped and started again, or the project reloaded; refused for any other folder, or in the runtime's own words. */
   recoverTheProjectsStreams(projectFolder: string, recovery: ProjectStreamsRecovery): Promise<ProjectStreamsRecovering>;
   /** The views an area can show, at once and again each time the open project's are listed. */
@@ -170,6 +182,8 @@ export interface StudioViewHostServices {
   /** The runtime's `transact` of `operations` on the open project's streams as one transaction, answering what it applied, its structured refusal, or why it was never sent. */
   transactInTheProject(projectFolder: string, operations: readonly StreamGraphAction[], mode: GraphEditMode, idempotencyKey: string | null): Promise<ProjectGraphTransactionApplying>;
   /** The person editing in Studio, the author their graph edits are recorded under, or why it was not read. */
+  /** The runtime's `check_link_candidates` of `request` on a stream of the open project, answering how a link from its placed pin to each candidate would connect, or why it was not checked. */
+  checkLinkCandidates(projectFolder: string, request: CheckLinkCandidatesRequest): Promise<LinkCandidatesChecking>;
   readThePersonEditing(): Promise<ThePersonEditingReading>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;

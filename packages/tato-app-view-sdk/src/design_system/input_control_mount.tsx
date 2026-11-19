@@ -8,7 +8,7 @@ import type { PinType } from "../pin_types";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { createInputControlBinder, type InputControlBinder, type InputControlBinding, type InputControlShown, type InputValueRelease, type OwnFieldBinding } from "../pin_services/input_control_binding";
 import { createInputValues, type InputValueGesture, type InputValues, type ShownValue } from "../pin_services/input_values";
-import type { InputValueComesFrom, JsonValue } from "../studio_readings";
+import { jsonTextOf, type InputValueComesFrom, type JsonValue } from "../studio_readings";
 import { newGestureIdempotencyKey, type TatoAppViewConnection } from "../tato_app_view_connection";
 
 /** The frame's one binder, which every control slot binds through; `null` draws each slot's own field. */
@@ -178,7 +178,7 @@ export function InputValueWords({ address, pinType, className, ...controlDataAtt
   const { value } = useShownValueOfTheInput(address);
   return (
     <span className={cn("truncate text-fg-3 tabular-nums", className)} {...controlDataAttributes}>
-      {value === null ? "" : (valueWords(pinType, value) ?? JSON.stringify(value))}
+      {value === null ? "" : (valueWords(pinType, value) ?? jsonTextOf(value))}
     </span>
   );
 }

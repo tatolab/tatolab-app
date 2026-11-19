@@ -10,11 +10,14 @@ import {
   type ViewAsk,
   type ViewAskAnswer,
   type ViewDeclaredPort,
+  type ViewSettings,
+  defaultViewSettingsOf,
   type ViewWatchedReading,
   type ViewWatchedSubject,
 } from "@tatolab/tato-app-view-sdk";
 import { setNodeInputValueAction } from "@tatolab/tato-app-view-sdk/pin_model/input_value_actions";
 import { jsonValueSchema, messageFromTheViewSchema, readViewSettings, viewSettingsForAnArea } from "@tatolab/tato-app-view-sdk/studio_host";
+import { jsonObjectMembersOf, type StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { Result, Schema } from "effect";
 import type {
   JsonValue,
@@ -28,7 +31,7 @@ import type {
   ViewHeaderRow,
 } from "./studio_view_contract";
 import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import type { StudioViewInputWiring } from "./studio_view_node_wiring";
+import { settingsSetOnTheViewNode, type StudioViewInputWiring } from "./studio_view_node_wiring";
 
 /** The parts of a `MessagePort` the bridge uses, so a test can stand in for one. */
 export interface TatolabViewMessagePort {
@@ -39,12 +42,18 @@ export interface TatolabViewMessagePort {
   close(): void;
 }
 
-/** What the area showing a view hands it: the settings it saved, a way to keep the next ones, and where the view's own header row lies. */
+/**
+ * What the area showing a view hands it: the settings it holds, a way to keep the next ones, and where the view's own header row lies.
+ * A `node` view's settings are its node's: the area holds what the node's graph document holds, and keeps nothing itself.
+ */
 export interface TatolabViewAreaServices {
   /** The id of the area in the layout showing the view; `null` where the view shows outside one, as a popped-out view does. */
   areaId: string | null;
   /** The settings the area holds, `undefined` for an area that saved none, at once and on each change. */
   watchSavedSettings(listener: (savedSettings: JsonValue | undefined) => void): StopWatching;
+  /** The settings the area holds now, as `watchSavedSettings` last told them. */
+  readSavedSettings(): JsonValue | undefined;
+  /** Keep `settings` with an `area` view's area; a `node` view's are set on its node instead. */
   rememberSettings(settings: JsonValue): void;
   watchHeaderRow(listener: (headerRow: ViewHeaderRow) => void): StopWatching;
   expansion: StudioAreaExpansion;
@@ -70,6 +79,8 @@ export class TatolabViewBridge {
   private readonly inputWatchesByWatchId = new Map<number, InputWatch>();
   private readonly pythonLanguageServersByWatchId = new Map<number, PythonLanguageServerConnection>();
   private isClosed = false;
+  /** Each setting a `node` view last set on its node, kept until its node is read holding that value, so a set made before then is judged against it. */
+  private settingsSetAhead: { [settingName: string]: JsonValue } = {};
   private assetPicksOfTheViewHeld = 0;
 
   private readonly onMessageFromTheView = (event: MessageEvent<unknown>): void => {
@@ -158,7 +169,34 @@ export class TatolabViewBridge {
     if (Result.isFailure(value)) return { kind: "refused", because: `${output.name} takes JSON, and what the view sent is not.` };
     if (this.viewNode.kind === "not_addressed") return { kind: "refused", because: this.viewNode.because };
     const input: InputAddress = { graph: this.viewNode.graph, node_id: this.viewNode.node_id, input: output.name };
-    const applying = await this.hostServices.transactInTheProject(input.graph.project_folder, [setNodeInputValueAction(input, value.success)], "live", null);
+    return this.applyOnTheViewNode(input.graph.project_folder, [setNodeInputValueAction(input, value.success)], "live");
+  }
+
+  /**
+   * Sets each of `settings` that changed on the view's node, as one edit of its stream's history, which Undo takes back: changed from what
+   * the node holds for each setting, its default where it holds none, or from what the view set ahead of the node's next reading.
+   */
+  private async setTheSettingsOnTheViewNode(settings: ViewSettings): Promise<ViewAskAnswer> {
+    const viewNode = this.viewNode;
+    if (viewNode === null) return { kind: "refused", because: `${this.manifest.title} shows its node's settings, and has no node, so its settings reach no stream.` };
+    if (viewNode.kind === "not_addressed") return { kind: "refused", because: viewNode.because };
+    const settingsSet = settingsSetOnTheViewNode(viewNode, this.settingsTheViewNodeHoldsOrWasSet(), settings ?? {});
+    if (settingsSet.length === 0) return { kind: "done" };
+    const answer = await this.applyOnTheViewNode(viewNode.graph.project_folder, settingsSet, "commit");
+    if (answer.kind === "done") this.settingsSetAhead = { ...this.settingsSetAhead, ...settings };
+    return answer;
+  }
+
+  /** Each declared setting as the view's node holds it, its default where it holds none, or as the view set it ahead of the node's next reading. */
+  private settingsTheViewNodeHoldsOrWasSet(): { [settingName: string]: JsonValue } {
+    const settingsHeld = { ...defaultViewSettingsOf(this.manifest), ...jsonObjectMembersOf(this.areaServices.readSavedSettings()) };
+    this.settingsSetAhead = Object.fromEntries(Object.entries(this.settingsSetAhead).filter(([settingName, value]) => JSON.stringify(settingsHeld[settingName] ?? null) !== JSON.stringify(value)));
+    return { ...settingsHeld, ...this.settingsSetAhead };
+  }
+
+  /** `actions` applied in the project at `projectFolder`, in `mode`, as the view's ask answers it: done, or refused in the runtime's words. */
+  private async applyOnTheViewNode(projectFolder: string, actions: StreamGraphAction[], mode: "commit" | "live"): Promise<ViewAskAnswer> {
+    const applying = await this.hostServices.transactInTheProject(projectFolder, actions, mode, null);
     switch (applying.kind) {
       case "applied":
         return { kind: "done" };
@@ -330,6 +368,7 @@ export class TatolabViewBridge {
       case "remember_settings": {
         const settingsReading = readViewSettings(this.manifest, ask.settings);
         if (settingsReading.kind === "do_not_fit") return { kind: "refused", because: settingsReading.because };
+        if (this.manifest.placement === "node") return this.setTheSettingsOnTheViewNode(settingsReading.settings);
         this.areaServices.rememberSettings(settingsReading.settings);
         return { kind: "done" };
       }
@@ -378,6 +417,10 @@ export class TatolabViewBridge {
         const changing = await this.hostServices.deleteAssetFromTheProject(ask.project_folder, ask.asset);
         return changing.kind === "changed" ? { kind: "done" } : { kind: "refused", because: changing.because };
       }
+      case "set_node_type_group_in_the_project": {
+        const changing = await this.hostServices.setNodeTypeGroupInTheProject(ask.project_folder, ask.node_type, ask.group);
+        return changing.kind === "changed" ? { kind: "done" } : { kind: "refused", because: changing.because };
+      }
       case "show_view_type_in_area": {
         const showing = this.hostServices.showViewTypeInArea(ask.view_type_id, ask.area_id);
         return showing.kind === "opened" ? { kind: "done" } : { kind: "refused", because: showing.because };
@@ -398,8 +441,16 @@ export class TatolabViewBridge {
         return expanding.kind === "done" ? { kind: "done" } : { kind: "refused", because: expanding.because };
       }
       case "open_modules_and_marketplace": {
-        const opening = await this.hostServices.openModulesAndMarketplace(ask.shows);
+        const opening = await this.hostServices.openModulesAndMarketplace(ask.shows, ask.page ?? null);
         return opening.kind === "opened" ? { kind: "done" } : { kind: "refused", because: opening.because };
+      }
+      case "read_the_marketplace": {
+        const marketplaceReading = await this.hostServices.readTheMarketplace();
+        return marketplaceReading.kind === "read" ? { kind: "marketplace_read", entries: marketplaceReading.entries } : { kind: "refused", because: marketplaceReading.because };
+      }
+      case "add_from_the_marketplace": {
+        const adding = await this.hostServices.addFromTheMarketplace(ask.name);
+        return adding.kind === "added" ? { kind: "marketplace_module_added", folder: adding.folder } : { kind: "refused", because: adding.because };
       }
       case "undo_in_the_project":
       case "redo_in_the_project": {
@@ -412,6 +463,10 @@ export class TatolabViewBridge {
         if (applying.kind === "applied") return { kind: "project_graph_transaction_applied", transaction: applying.transaction };
         if (applying.kind === "refused") return { kind: "project_action_refused", refusal: applying.refusal };
         return { kind: "refused", because: applying.because };
+      }
+      case "check_link_candidates": {
+        const checking = await this.hostServices.checkLinkCandidates(ask.project_folder, ask.request);
+        return checking.kind === "checked" ? { kind: "link_candidates_checked", result: checking.result } : { kind: "refused", because: checking.because };
       }
       case "read_the_person_editing": {
         const reading = await this.hostServices.readThePersonEditing();

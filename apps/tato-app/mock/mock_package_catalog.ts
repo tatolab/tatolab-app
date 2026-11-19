@@ -1,10 +1,17 @@
 // The mock's package catalog, as streamlib's release serves it at get.tatolab.com: the
 // packages a show reaches for and two sample projects. `?catalog=unserved` answers the refusal a
-// Tato Studio gets when the catalog's URL answers 404.
+// Tato Studio gets when the catalog's URL answers 404; `?catalog=newer_runtime` lists Microphone at
+// a version needing a newer runtime than the one answering.
 
 import type { PackageCatalogDownload, PackageCatalogEntry, PackageCatalogMachine, PackageCatalogReading, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 
 const MOCK_CATALOG_VERSION = "0.68.29";
+
+/** The lowest runtime the Microphone of `?catalog=newer_runtime` runs on, a release past the one answering. */
+const MOCK_NEWER_RUNTIME_VERSION = "0.69.44";
+
+/** What get.tatolab.com answers the catalog with: the mock catalog, a 404, or the catalog with Microphone needing a newer runtime. */
+export type MockPackageCatalogScenario = "served" | "unserved" | "newer_runtime";
 
 function mockDownloadOf(name: string): PackageCatalogDownload {
   return { url: `https://get.tatolab.com/modules/${name}-${MOCK_CATALOG_VERSION}.zip`, sha256: "4f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f70" };
@@ -31,6 +38,8 @@ function mockPackage(name: string, title: string, summary: string, nodes: [strin
     homepage_url: null,
     platforms,
     runs_on_this_machine: true,
+    lowest_runtime_version: null,
+    newer_runtime_it_needs: null,
   };
 }
 
@@ -48,6 +57,8 @@ function mockSample(name: string, title: string, summary: string, nodes: [string
     homepage_url: `https://github.com/tatolab/streamlib/tree/main/examples/${name}`,
     platforms: null,
     runs_on_this_machine: true,
+    lowest_runtime_version: null,
+    newer_runtime_it_needs: null,
   };
 }
 
@@ -75,20 +86,25 @@ export const MOCK_PACKAGE_CATALOG_ENTRIES: readonly PackageCatalogEntry[] = [
   mockSample("lower-third", "Lower third", "A test pattern with a name and title over it.", []),
 ];
 
-/** The mock catalog's entry `name` as read on `platform`'s machine; `undefined` for one it does not list. */
-export function mockPackageCatalogEntryNamed(name: string, platform: TatolabPlatform): PackageCatalogEntry | undefined {
+/** The mock catalog's entry `name` as read on `platform`'s machine under `scenario`; `undefined` for one it does not list. */
+export function mockPackageCatalogEntryNamed(name: string, platform: TatolabPlatform, scenario: MockPackageCatalogScenario): PackageCatalogEntry | undefined {
   const entry = MOCK_PACKAGE_CATALOG_ENTRIES.find((listed) => listed.name === name);
-  return entry === undefined ? undefined : mockEntryReadOn(entry, platform);
+  return entry === undefined ? undefined : mockEntryReadOn(entry, platform, scenario);
 }
 
-function mockEntryReadOn(entry: PackageCatalogEntry, platform: TatolabPlatform): PackageCatalogEntry {
+function mockEntryReadOn(entry: PackageCatalogEntry, platform: TatolabPlatform, scenario: MockPackageCatalogScenario): PackageCatalogEntry {
   const thisMachine = mockMachineModulesInstallOn(platform);
   const runsOnThisMachine = entry.platforms === null || entry.platforms.some((machine) => machine.sys_platform === thisMachine.sys_platform && machine.platform_machine === thisMachine.platform_machine);
-  return { ...structuredClone(entry), runs_on_this_machine: runsOnThisMachine };
+  const needsANewerRuntime = scenario === "newer_runtime" && entry.name === "tatolab-microphone";
+  return {
+    ...structuredClone(entry),
+    runs_on_this_machine: runsOnThisMachine,
+    ...(needsANewerRuntime ? { lowest_runtime_version: MOCK_NEWER_RUNTIME_VERSION, newer_runtime_it_needs: MOCK_NEWER_RUNTIME_VERSION } : {}),
+  };
 }
 
-/** What the mock answers `read_package_catalog` with on `platform`'s machine. */
-export function mockPackageCatalogReading(isTheCatalogUnserved: boolean, platform: TatolabPlatform): PackageCatalogReading {
-  if (isTheCatalogUnserved) return { kind: "not_read", because: "The catalog at https://get.tatolab.com/catalog/v1.json could not be fetched: HTTP 404 Not Found" };
-  return { kind: "read", entries: MOCK_PACKAGE_CATALOG_ENTRIES.map((entry) => mockEntryReadOn(entry, platform)), unreadable_entry_count: 0 };
+/** What the mock answers `read_package_catalog` with on `platform`'s machine under `scenario`. */
+export function mockPackageCatalogReading(scenario: MockPackageCatalogScenario, platform: TatolabPlatform): PackageCatalogReading {
+  if (scenario === "unserved") return { kind: "not_read", because: "The catalog at https://get.tatolab.com/catalog/v1.json could not be fetched: HTTP 404 Not Found" };
+  return { kind: "read", entries: MOCK_PACKAGE_CATALOG_ENTRIES.map((entry) => mockEntryReadOn(entry, platform, scenario)), unreadable_entry_count: 0 };
 }

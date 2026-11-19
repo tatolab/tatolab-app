@@ -9,7 +9,7 @@
 import path from "node:path";
 import { Duration, Effect, ManagedRuntime } from "effect";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
-import { MODULE_DOWNLOADS_FOLDER_NAME } from "../shared/marketplace_module_download_file.js";
+import { MODULE_DOWNLOADS_FOLDER_NAME } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { ProjectTransactionAuthor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
@@ -376,6 +376,7 @@ export async function startTatolabApp(
     systemMenuBar,
     fetchTextOverHttps: tatolabElectronAppShell.fetchTextOverHttps,
     fetchBytesOverHttps: tatolabElectronAppShell.fetchBytesOverHttps,
+    readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     machineModulesInstallOn: platformItems.machineModulesInstallOn,
     moduleDownloadsFolder: path.join(tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME),
     dependencySourceDialog: tatolabElectronAppShell.askThePersonForADependencySource,

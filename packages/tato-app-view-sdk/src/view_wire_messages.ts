@@ -5,10 +5,13 @@
 // an Image frame crosses as the transferred `VideoFrame`, with no copy.
 
 import type {
+  CheckLinkCandidatesRequest,
+  LinkCandidatesCheckResult,
   AssetPreviewPicture,
   GraphEditMode,
   JsonValue,
   ListedStreamsReading,
+  MarketplaceEntry,
   OpenProjectReading,
   PortViewerMessageReading,
   PortViewerRecovery,
@@ -118,8 +121,8 @@ export type ViewWatchedSubject =
   /** The asset pick the view is shown in Studio's asset picker to answer; `null` for a view shown anywhere else. */
   | { kind: "project_asset_pick" };
 
-/** A file of the open project or its imports, or a running node's output port, that a view of some type is opened on. */
-export type ViewOpeningTarget = { kind: "file"; file: string } | { kind: "port"; target: PortViewerTarget };
+/** A file of the open project or its imports, at its line `line` when one is named, or a running node's output port, that a view of some type is opened on. */
+export type ViewOpeningTarget = { kind: "file"; file: string; line?: number } | { kind: "port"; target: PortViewerTarget };
 
 /** What a view may ask Studio to do; an output's payload travels beside the ask in the same message. */
 export type ViewAsk =
@@ -144,6 +147,8 @@ export type ViewAsk =
   | { kind: "redo_in_the_project"; project_folder: string; author: ProjectTransactionAuthor }
   /** Apply `operations`, at least one, on the graphs of the project's streams as one transaction through the runtime's `transact`; `idempotency_key` is minted once per gesture, so a retry answers the first transaction. */
   | { kind: "transact_in_the_project"; project_folder: string; operations: StreamGraphAction[]; mode: GraphEditMode; idempotency_key: string | null }
+  /** What the runtime's `check_link_candidates` answers for `request`, on a stream of the project: how a link from its placed pin to each candidate would connect, or why it would not. */
+  | { kind: "check_link_candidates"; project_folder: string; request: CheckLinkCandidatesRequest }
   /** The person editing in Studio, the author history records their edits under and their own undo takes. */
   | { kind: "read_the_person_editing" }
   /** Ask the person for files in the desktop's open dialog, offering the files of `media` (`null` for any, and when left out), and import each into the project through the runtime's `import_asset`, which places it in its kind's folder. */
@@ -154,12 +159,18 @@ export type ViewAsk =
   | { kind: "read_asset_preview_in_the_project"; project_folder: string; asset: string }
   /** Stop tracking the asset `asset` of the project, its file leaving it, through the runtime's `delete_asset`, by the person editing. */
   | { kind: "delete_asset_from_the_project"; project_folder: string; asset: string }
+  /** File the node type `node_type` under `group`, a `/`-separated path, in the project through the runtime's `set_node_type_group`, by the person editing; `null` puts it back where an import or its author files it. */
+  | { kind: "set_node_type_group_in_the_project"; project_folder: string; node_type: string; group: string | null }
   /** Recover the project's streams with `recovery`: their playback stopped and started again, or the project read again from disk. */
   | { kind: "recover_the_projects_streams"; project_folder: string; recovery: ProjectStreamsRecovery }
   /** Show the view type `view_type_id` in area `area_id` of the layout, in place of what it shows. */
   | { kind: "show_view_type_in_area"; view_type_id: string; area_id: string }
-  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
-  | { kind: "open_modules_and_marketplace"; shows: ModulesAndMarketplaceSection }
+  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it, on the page of the Marketplace entry `page` names by the catalog's name for it when given. */
+  | { kind: "open_modules_and_marketplace"; shows: ModulesAndMarketplaceSection; page?: string }
+  /** The Marketplace's packages and samples, as its catalog lists them now. */
+  | { kind: "read_the_marketplace" }
+  /** Download the Marketplace's package `name`, by the catalog's name for it, and add it to the open project as a module. */
+  | { kind: "add_from_the_marketplace"; name: string }
   /** Have the person choose a project asset in Studio's asset picker over the window, ending any asset pick held; answered once the picker closes. */
   | { kind: "pick_a_project_asset"; pick: ProjectAssetPick }
   /** End the asset pick held with the asset `asset` chosen, by its UUID. */
@@ -208,11 +219,15 @@ export type ViewAskAnswer =
   | { kind: "project_file_read"; file_read: ProjectFileRead }
   | { kind: "project_file_saved"; version: string }
   | { kind: "node_file_created"; file: string; node_type: string }
+  | { kind: "marketplace_read"; entries: MarketplaceEntry[] }
+  | { kind: "marketplace_module_added"; folder: string }
   | { kind: "project_files_listed"; project_files: ProjectFiles }
   | { kind: "project_transaction_applied"; transaction: ProjectTransaction }
   | { kind: "project_graph_transaction_applied"; transaction: ProjectGraphTransaction }
   /** The runtime refused the action, structured; a refusal before it reached the runtime is `refused`. */
   | { kind: "project_action_refused"; refusal: ProjectActionRefusal }
+  /** What the runtime's `check_link_candidates` answered, the contract's own answer. */
+  | { kind: "link_candidates_checked"; result: LinkCandidatesCheckResult }
   | { kind: "the_person_editing"; author: ProjectTransactionAuthor }
   | { kind: "project_assets_imported"; assets_imported: ProjectAssetsImported }
   | { kind: "asset_preview_read"; picture: AssetPreviewPicture }

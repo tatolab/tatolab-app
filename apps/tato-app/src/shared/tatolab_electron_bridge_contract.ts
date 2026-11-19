@@ -12,6 +12,8 @@ import type {
   AssetPreviewPicture,
   JsonValue,
   DependencySourceKind,
+  MarketplaceImport,
+  MarketplaceImportProgressed,
   ProjectDependency,
   WorkspaceDependency,
   WorkspaceDependencyUpdate,
@@ -31,6 +33,7 @@ import type {
   ProjectStreamActionQueued,
   ProjectTransaction,
   ProjectGraphTransactionTheRuntimeAnswered,
+  LinkCandidatesCheckResult,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
   RuntimeDescription,
@@ -55,6 +58,7 @@ import type {
   SystemMenuBarMenu,
 } from "./tatolab_backend_contract.js";
 import type { ProjectGraphTransactionSentByTheWindow } from "./transact_in_the_open_project_arguments.js";
+import type { LinkCandidatesAskedByTheWindow } from "./check_link_candidates_in_the_open_project_arguments.js";
 import type { ListedNodeUiElement } from "@tatolab/tato-app-view-sdk/node_ui_host";
 
 /** The scheme the Electron app serves its window's page under: a page on it with no bridge is the app's window whose preload did not load. */
@@ -77,6 +81,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "relocate_asset_in_the_open_project",
   "read_asset_preview_of_the_open_project",
   "delete_asset_from_the_open_project",
+  "set_node_type_group_in_the_open_project",
   "check_for_tatolab_app_updates",
   "take_the_newer_tatolab_app_version",
   "answer_the_app_update_announcement",
@@ -128,6 +133,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "add_dependency_to_the_workspace",
   "update_workspace_dependency",
   "import_from_the_marketplace",
+  "cancel_marketplace_import",
   "remove_workspace_dependency",
   "clone_marketplace_sample",
   "read_project_file",
@@ -141,6 +147,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "read_open_project_transactions",
   "undo_in_the_open_project",
   "transact_in_the_open_project",
+  "check_link_candidates_in_the_open_project",
   "read_the_person_editing_in_studio",
   "redo_in_the_open_project",
   "stop_open_project",
@@ -160,7 +167,7 @@ export const TATOLAB_COMMAND_NAMES = [
  * One command the window invokes. Arguments: `set_stream_failure_notifications`, `set_developer_mode` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after, until }`, `follow_project_log_records` and `stop_following_project_log_records` `{ project_directory }`,
  * `remove_project`, `reload_project` and `list_node_types` `{ project_directory }`, `describe_node_types` `{ project_directory, node_types }`, `describe_stream_graph`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`, `delete_stream` `{ stream }`, `create_stream_in_the_open_project` `{ display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `open_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
- * `choose_project_folder` `{ chosen_for }`, `open_recent_project`, `duplicate_recent_project` and `delete_recent_project` `{ folder }`, `rename_recent_project` `{ folder, name }`, `read_recent_project_cover` `{ folder }`, `set_recent_project_description` `{ folder, description }`, `set_recent_project_cover` `{ folder, image }`, `import_project_archive` `{ archive, name, location }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_view` a `PoppedOutView`, `open_module_manager_window` `{ shows }`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace` and `clone_marketplace_sample` `{ name }`, `remove_workspace_dependency` `{ project }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `choose_project_folder` `{ chosen_for }`, `open_recent_project`, `duplicate_recent_project` and `delete_recent_project` `{ folder }`, `rename_recent_project` `{ folder, name }`, `read_recent_project_cover` `{ folder }`, `set_recent_project_description` `{ folder, description }`, `set_recent_project_cover` `{ folder, image }`, `import_project_archive` `{ archive, name, location }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_view` a `PoppedOutView`, `open_module_manager_window` `{ shows, page }`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace`, `cancel_marketplace_import` and `clone_marketplace_sample` `{ name }`, `remove_workspace_dependency` `{ project }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` and the recent-project commands only on one of the recent projects, `import_project_archive` on any absolute `.zip`, which the runtime reads, and `read_project_log_records`, `follow_project_log_records`, `list_node_types`, `describe_node_types`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab
  * that installs in place, downloads it; `take_the_newer_tatolab_app_version` restarts into a downloaded one, downloads one a check found, or opens a `.deb`'s download, the person choosing it being the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -178,6 +185,9 @@ export const TATOLAB_OPEN_PROJECT_CHANGED_EVENT = "tatolab-open-project-changed"
 
 /** The event a Module manager window already open is asked on to show a section, as File › Marketplace… or Modules… brings it forward; it carries a `ModuleManagerSectionAsked`. */
 export const TATOLAB_MODULE_MANAGER_SECTION_ASKED_EVENT = "tatolab-module-manager-section-asked";
+
+/** The event each stage of a Marketplace package's add, and its download's bytes, arrive on in the window that asked for it; it carries a `MarketplaceImportProgressed`. */
+export const TATOLAB_MARKETPLACE_IMPORT_PROGRESSED_EVENT = "tatolab-marketplace-import-progressed";
 
 /** The event each new reading of a studio window's project's change feed arrives on: a transaction applied, or the feed lost or followed again; it carries a `ProjectTransactionsReading`. */
 export const TATOLAB_PROJECT_TRANSACTIONS_CHANGED_EVENT = "tatolab-project-transactions-changed";
@@ -330,14 +340,17 @@ export function isModulesShown(value: unknown): value is ModulesShown {
   return MODULES_SHOWN.some((modulesShown) => modulesShown === value);
 }
 
-/** What `open_module_manager_window` takes, and what `tatolab-module-manager-section-asked` carries: the section the Module manager window shows. */
+/** What `open_module_manager_window` takes, and what `tatolab-module-manager-section-asked` carries: the section the Module manager window shows, and the page of one of its entries it opens on. */
 export interface ModuleManagerSectionAsked {
   shows: ModulesShown;
+  /** The catalog's name of the Marketplace entry whose page it opens on; `null` for the section's list. */
+  page: string | null;
 }
 
 /** Whether a command's arguments or an event's payload is a `ModuleManagerSectionAsked`. */
 export function isAModuleManagerSectionAsked(value: unknown): value is ModuleManagerSectionAsked {
-  return typeof value === "object" && value !== null && "shows" in value && isModulesShown(value.shows);
+  if (typeof value !== "object" || value === null || !("shows" in value) || !isModulesShown(value.shows)) return false;
+  return "page" in value && (value.page === null || typeof value.page === "string");
 }
 
 /** What a command answers: its answer (`null` for a command that answers nothing), or a refusal in words, which the window shows as it is. A command never answers with a thrown error. */
@@ -440,7 +453,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   /** The asking Module manager window's workspace project as last read from disk; `null` in any other window. Each later reading arrives on `tatolab-open-project-changed`. */
   read_module_manager_workspace: { commandArguments: undefined; answer: OpenProjectReading | null };
   /** The section the asking Module manager window was last asked to show; `null` in any other window. Each later ask arrives on `tatolab-module-manager-section-asked`. */
-  read_module_manager_section_last_asked: { commandArguments: undefined; answer: ModulesShown | null };
+  read_module_manager_section_last_asked: { commandArguments: undefined; answer: ModuleManagerSectionAsked | null };
   /** The catalog get.tatolab.com serves, fetched afresh, or why it was not read; never refused. */
   read_package_catalog: { commandArguments: undefined; answer: PackageCatalogReading };
   /** From a Module manager window only: the workspace's imports from the runtime's `list_dependencies`, each source read for a newer version with `check_for_newer`; refused in the runtime's own words. */
@@ -451,8 +464,15 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   add_dependency_to_the_workspace: { commandArguments: { source: string }; answer: ProjectDependency };
   /** From a Module manager window only: the runtime's `update_dependency` copies the import `project` again from its source; files edited since its copy are overwritten only with `overwrite_edited_files`. */
   update_workspace_dependency: { commandArguments: { project: string; overwrite_edited_files: boolean }; answer: WorkspaceDependencyUpdate };
-  /** From a Module manager window only: the catalog entry `name` downloaded as its `.zip`, checked against the catalog's SHA-256, then imported as `add_dependency_to_the_workspace` imports one; refused in words. */
-  import_from_the_marketplace: { commandArguments: { name: string }; answer: ProjectDependency };
+  /**
+   * From a project's studio window, a view popped out of it, or its Module manager window: the catalog entry `name` downloaded as its
+   * `.zip`, checked against the catalog's SHA-256, then imported as `add_dependency_to_the_workspace` imports one, each stage told to
+   * the asking window on `tatolab-marketplace-import-progressed`; answers `cancelled` where `cancel_marketplace_import` stopped the
+   * download, refused in words.
+   */
+  import_from_the_marketplace: { commandArguments: { name: string }; answer: MarketplaceImport };
+  /** The asking window's add of the catalog entry `name` stopped while it downloads, nothing imported; refused once the download is checked or the runtime is adding it, or where none is under way. */
+  cancel_marketplace_import: { commandArguments: { name: string }; answer: null };
   /** From a Module manager window only: the import `project`, by the UUID the listing gives it, taken out of the workspace; answers the import removed, refused in the runtime's own words. */
   remove_workspace_dependency: { commandArguments: { project: string }; answer: ProjectDependency };
   /** From a Module manager window only: the catalog's sample `name` downloaded and checked as an import is, then made into a project of its own under `<Documents>/Tato Studio` and opened in its studio window; the workspace is not changed. Refused in words. */
@@ -479,6 +499,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   undo_in_the_open_project: { commandArguments: { author: ProjectTransactionAuthor }; answer: ProjectTransaction };
   /** The runtime's `transact` of `operations` on the graphs of the asking studio window's project's streams, as one transaction by the person editing; a stream outside the project is refused in Studio's words, a refusal the runtime structures is answered as `refused`, any other refusal in its own words. */
   transact_in_the_open_project: { commandArguments: ProjectGraphTransactionSentByTheWindow; answer: ProjectGraphTransactionTheRuntimeAnswered };
+  check_link_candidates_in_the_open_project: { commandArguments: LinkCandidatesAskedByTheWindow; answer: LinkCandidatesCheckResult };
   /** From a studio window only: the desktop's open dialog for files, offering first the files of `media` (`media_facts` members, `null` for any) and every file after, each one chosen copied by the runtime's `import_asset` into the window's project, which places it in its kind's folder under its own name, numbered past a name already taken, by the person editing; `null` when they choose nothing. A file refused leaves the rest to import. */
   import_assets_into_the_open_project: { commandArguments: { media: readonly string[] | null }; answer: ProjectAssetsImported | null };
   /** From a studio window only: the runtime's `relocate_asset` of `asset`, a UUID the window's project holds, to `to_path`, `/`-separated in the project, renaming it, moving it or both, by the person editing; refused in the runtime's own words. */
@@ -487,6 +508,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   read_asset_preview_of_the_open_project: { commandArguments: { asset: string }; answer: AssetPreviewPicture };
   /** From a studio window only: the runtime's `delete_asset` of `asset`, a UUID the window's project holds, its file and sidecar leaving the project, by the person editing; refused in the runtime's own words, as while a stream's graph document references it. */
   delete_asset_from_the_open_project: { commandArguments: { asset: string }; answer: null };
+  /** From a studio window only: the runtime's `set_node_type_group` of `node_type`, as the window's project lists it, filing it under `group`, a `/`-separated path, or with `null` putting it back where an import or its author files it, by the person editing; refused in the runtime's own words, as for a group with a blank name in it. */
+  set_node_type_group_in_the_open_project: { commandArguments: { node_type: string; group: string | null }; answer: null };
   /** The person editing in Studio, whose graph edits the runtime records under them. */
   read_the_person_editing_in_studio: { commandArguments: undefined; answer: ProjectTransactionAuthor };
   /** The runtime's `redo` by `author` on the asking studio window's project, answering the redo it applied; refused in the runtime's own words. */
@@ -531,8 +554,10 @@ export interface TatolabElectronBridge {
   onStreamPageRequested(listener: (stream: string) => void): () => void;
   /** Calls `listener` with each reading of the open project the main process sends; the returned function stops it. */
   onOpenProjectChanged(listener: (reading: OpenProjectReading) => void): () => void;
-  /** Calls `listener` with each section the Module manager window is asked to show once open; the returned function stops it. */
-  onModuleManagerSectionAsked(listener: (shows: ModulesShown) => void): () => void;
+  /** Calls `listener` with each section, and page, the Module manager window is asked to show once open; the returned function stops it. */
+  onModuleManagerSectionAsked(listener: (asked: ModuleManagerSectionAsked) => void): () => void;
+  /** Calls `listener` with each stage of a Marketplace package's add this window asked for, and its download's bytes; the returned function stops it. */
+  onMarketplaceImportProgressed(listener: (progressed: MarketplaceImportProgressed) => void): () => void;
   /** Calls `listener` with each reading of the window's project's change feed the main process sends; the returned function stops it. */
   onProjectTransactionsChanged(listener: (reading: ProjectTransactionsReading) => void): () => void;
   /** Calls `listener` each time the main process tells the window a file of its project may have changed; the returned function stops it. */

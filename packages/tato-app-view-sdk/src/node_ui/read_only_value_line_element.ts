@@ -4,13 +4,14 @@
 
 import type { BuiltInPinTypeName } from "../pin_types.js";
 import type { ControlledPin, InputControlElement, InputControlState, StoredPinValue } from "./input_control_element.js";
+import { jsonTextOf } from "../json_text.js";
 
 /** A stored value in words: text as it is, a number or a truth value as written, any other form as JSON. */
 function wordsForTheStoredValue(value: StoredPinValue<BuiltInPinTypeName>): string {
   if (value === null) return "No value";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);
-  return JSON.stringify(value, (_key, member: unknown) => (typeof member === "bigint" ? member.toString() : member));
+  return jsonTextOf(value);
 }
 
 /** Shows an input's stored value, which a person cannot change here, and the reason no control draws it. */

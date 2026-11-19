@@ -3,21 +3,21 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX, NodeGraphCardPreview } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
-import type { NodeGraphCanvasEditing, NodeGraphCanvasPoint, NodeGraphCanvasViewport } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
+import type { NodeGraphCanvasEditing, NodeGraphCanvasPoint, NodeGraphCanvasViewport, NodeGraphCardCode } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
-import { SearchPopover } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
-import { Store } from "lucide-react";
+import { FormDialog } from "@tatolab/tato-app-view-sdk/design_system/form_dialog";
+import { SearchPopover, type SearchPopoverAction } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
+import { Plus, Store } from "lucide-react";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings } from "@tatolab/tato-app-view-sdk";
+import type { ImportedProject, StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings } from "@tatolab/tato-app-view-sdk";
 import { graphAddressOfTheStreamsOwnLevel, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
 import { InputControlBinderContext, useInputControlsOfTheFrame, useInputValuesOfTheStream } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import {
   nodeTypeDescriptionsByType,
   type ListedStreamsReading,
-  type ProjectNodeTypesDescribedReading,
   type OpenProjectReading,
   type StreamGraphAction,
   type StreamGraphNode,
@@ -25,8 +25,12 @@ import {
   type StreamGraphReading,
   type StreamTabAddress,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
+import { codeOfTheNodeType, openTheCodeOfTheNodeType } from "../shared/code_of_the_node_type";
+import { CODE_VIEW_TYPE_ID } from "../shared/files_the_code_view_opens";
+import { NewNodeFileForm } from "../shared/new_node_file_form";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
 import { StreamConditionChip, StreamDiagnosticBars } from "../shared/stream_condition_bar";
 import type { StreamDiagnosticLine, StreamDiagnosticLink } from "../shared/stream_condition_words";
@@ -58,7 +62,10 @@ import {
 } from "../shared/stream_graph_edits";
 import { nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 import { levelOfTheSubgraphsSteppedThrough, selectionOfTheSubgraphSteppedOutOf, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly } from "./stream_graph_levels";
+import { linkCandidatesRequestOf, portsALooseWireFits, wireFitsOfTheAnswer } from "./stream_graph_wire_fits";
 import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypeSearchPreviewCard, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
+import { doesChoosingThePackageAddIt, marketplaceChoiceOfTheSearchItem, marketplaceSearchItems } from "./stream_graph_marketplace_search";
+import { useMarketplaceOfTheNodeSearch } from "./use_marketplace_of_the_node_search";
 import { NODE_TYPE_CATEGORIES_WORDS, NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS } from "../shared/node_type_category_path";
 import { StreamGraphSubgraphReadOnlyBanner, StreamGraphSubgraphTrail } from "./stream_graph_subgraph_strip";
 import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, type WhereAStreamWasLeft } from "./stream_graph_where_left";
@@ -68,10 +75,18 @@ const NEXT_PLACED_NODE_OFFSET = 36;
 
 /** The search over a loose wire offers no way on beside its field. */
 
-/** Where the Add node search was asked for, and the wire it was dragged off when it was. */
+
+/** Where the Add node search was asked for, the wire it was dragged off when it was, and the port of each node type the runtime answered that wire fits; `null` until it answers, or when it did not, so the search judges nothing. */
 interface NodeTypeSearchAsked {
   at: NodeGraphCanvasPoint;
   looseWire: LooseWire | null;
+  portsTheWireFits: ReadonlyMap<string, string> | null;
+}
+
+/** The loose wire a node of `nodeType` placed from `asked` is linked to and the port of the placed node that links it, as the runtime answered; `null` for none. */
+function wiredToTheLooseWire(asked: NodeTypeSearchAsked, nodeType: string): { looseWire: LooseWire; port: string } | null {
+  const port = asked.portsTheWireFits?.get(nodeType);
+  return asked.looseWire === null || port === undefined ? null : { looseWire: asked.looseWire, port };
 }
 
 /** The issue that opens an import as a project of its own, where it can be edited. */
@@ -95,8 +110,7 @@ function importedProjectNameOfTheStream(stream: string, openProject: OpenProject
   return importedProject === undefined ? null : importedProject.name;
 }
 
-/** Stops nothing: a stream the runtime lists in no project has no project node types to watch. */
-const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
+const NO_IMPORTS: readonly ImportedProject[] = [];
 
 /** The graph of the stream tab shown, read while the view is drawn. */
 function StreamGraphOfTheTab({
@@ -128,11 +142,7 @@ function StreamGraphOfTheTab({
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
   const projectFolder = listedStream?.location?.project_directory ?? null;
   const streamCondition = listedStream?.condition ?? null;
-  const watchTheProjectsNodeTypes = useCallback(
-    (listener: (reading: ProjectNodeTypesDescribedReading) => void): StopWatching => (projectFolder === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchNodeTypes(projectFolder, listener)),
-    [connection, projectFolder],
-  );
-  const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+  const nodeTypesReading = useNodeTypesOfTheProject(connection, projectFolder);
   const nodeTypesOfTheProject = nodeTypesReading?.kind === "listed" ? nodeTypesReading.node_types : null;
   const describedByType = useMemo(() => nodeTypeDescriptionsByType(nodeTypesOfTheProject?.described ?? []), [nodeTypesOfTheProject]);
   useInputValuesOfTheStream(connection, inputValues, streamTab.stream, projectFolder);
@@ -253,9 +263,29 @@ function StreamGraphOfTheTab({
     [sendTheGestureAtTheLevelShown],
   );
   const [nodeTypeSearchAsked, setNodeTypeSearchAsked] = useState<NodeTypeSearchAsked | null>(null);
+  const [newNodeAskedAt, setNewNodeAskedAt] = useState<NodeGraphCanvasPoint | null>(null);
   const [modulesAndMarketplaceRefusal, showTheRefusalOfOpeningTheMarketplace] = useRefusalOfTheLatestAsk();
+  const [codeOpeningRefusal, showTheRefusalOfOpeningTheCode] = useRefusalOfTheLatestAsk();
+  const [marketplaceAddRefusal, showTheRefusalOfTheMarketplaceAdd] = useRefusalOfTheLatestAsk();
+  const openProjectOfTheStream = openProject?.kind === "read" && openProject.open_project.project.folder === projectFolder ? openProject.open_project : null;
+  const nodeTypeSourcesOfTheProject = nodeTypesOfTheProject?.listing.sources ?? null;
+  const { marketplace, addsByEntryName, addThePackage } = useMarketplaceOfTheNodeSearch(connection, nodeTypeSearchAsked !== null, openProjectOfTheStream, nodeTypeSourcesOfTheProject);
+  const importsOfTheStreamsProject = openProjectOfTheStream?.imports ?? NO_IMPORTS;
+  const codeOfTheCard = useCallback(
+    (nodeId: string): NodeGraphCardCode => {
+      const nodeType = levelShown?.graph.nodes.find((node) => node.name === nodeId)?.type ?? null;
+      if (nodeType === null) return { kind: "does_not_open", because: "The graph no longer holds this node." };
+      const code = codeOfTheNodeType(nodeTypesReading, importsOfTheStreamsProject, nodeType);
+      if (code.kind === "does_not_open") return code;
+      return { kind: "opens", onOpened: () => showTheRefusalOfOpeningTheCode("Didn't open the code:", openTheCodeOfTheNodeType(connection, code)) };
+    },
+    [levelShown, nodeTypesReading, importsOfTheStreamsProject, connection, showTheRefusalOfOpeningTheCode],
+  );
   const closeTheNodeTypeSearch = useCallback(() => setNodeTypeSearchAsked(null), []);
-  useEffect(() => setNodeTypeSearchAsked(null), [subgraphNamesReached]);
+  useEffect(() => {
+    setNodeTypeSearchAsked(null);
+    setNewNodeAskedAt(null);
+  }, [subgraphNamesReached]);
   const editing = useMemo((): NodeGraphCanvasEditing | null => {
     if (importedProjectName !== null || editedGraph === null || "because" in editedGraph) return null;
     return {
@@ -264,9 +294,22 @@ function StreamGraphOfTheTab({
           ...(cardLetGoOverALink === null ? [] : cardLetGoOverALinkEdits(editedGraph, cardLetGoOverALink.node_id, cardLetGoOverALink.link_id)),
           ...cardsMovedEdits(editedGraph, moves),
         ]),
+      fitsOfAWireFrom: async (draggedOff) => {
+        const request = linkCandidatesRequestOf(editedGraph, draggedOff, levelOfTheEdits, "placed_ports");
+        if (request === null || projectFolder === null) return new Map();
+        return wireFitsOfTheAnswer(editedGraph, draggedOff, await connection.checkLinkCandidates(projectFolder, request));
+      },
       onPinsWired: (source, target) => void sendTheGestureAtTheLevelShown(pinsWiredEdits(editedGraph, source, target)),
-      onWireLetGoOverTheCanvas: (looseWire, at) => setNodeTypeSearchAsked({ at, looseWire }),
-      onNodeAskedFor: (at) => setNodeTypeSearchAsked({ at, looseWire: null }),
+      onWireLetGoOverTheCanvas: (looseWire, at) => {
+        const asked: NodeTypeSearchAsked = { at, looseWire, portsTheWireFits: null };
+        setNodeTypeSearchAsked(asked);
+        const request = linkCandidatesRequestOf(editedGraph, looseWire, levelOfTheEdits, "node_type_ports");
+        if (request === null || projectFolder === null) return;
+        void connection.checkLinkCandidates(projectFolder, request).then((checking) =>
+          setNodeTypeSearchAsked((current) => (current === asked ? { ...asked, portsTheWireFits: portsALooseWireFits(checking) } : current)),
+        );
+      },
+      onNodeAskedFor: (at) => setNodeTypeSearchAsked({ at, looseWire: null, portsTheWireFits: null }),
       onNoteAskedFor: (at) => void sendTheGestureAtTheLevelShown(notePlacedEdits(editedGraph, at.on_the_canvas)),
       onDeleted: (deleted) => void sendTheGestureAtTheLevelShown(deletedEdits(editedGraph, deleted)),
       onFrameAskedFor: (nodeIds) => sendTheGestureAtTheLevelShown(selectionFramedEdits(editedGraph, nodeIds)),
@@ -284,7 +327,7 @@ function StreamGraphOfTheTab({
       onFrameRemoved: (frameId) => void sendTheGestureAtTheLevelShown(frameRemovedEdits(editedGraph, frameId)),
       onCardCollapsed: (nodeId, collapsed) => void sendTheStudioGesture(cardCollapsedEdits(editedGraph, nodeId, collapsed)),
     };
-  }, [importedProjectName, editedGraph, sendTheGestureAtTheLevelShown, sendTheStudioGesture, select, streamTab.stream, keepWhereTheStreamWasLeft, levelOfTheEdits]);
+  }, [importedProjectName, editedGraph, sendTheGestureAtTheLevelShown, sendTheStudioGesture, select, streamTab.stream, keepWhereTheStreamWasLeft, levelOfTheEdits, connection, projectFolder]);
   const editingOfTheLevelShown = subgraphKeepingTheLevelReadOnly === null ? editing : null;
   const sendTheSubgraphGesture = useCallback(
     (depth: number, actionsOf: (edited: EditedStreamGraph, subgraphName: string) => StreamGraphAction[], returnsToItsLevel: boolean) => {
@@ -334,13 +377,15 @@ function StreamGraphOfTheTab({
   );
   const nodeTypesOffered = useMemo(() => nodeTypesTheSearchOffers(nodeTypesOfTheProject), [nodeTypesOfTheProject]);
   const looseWireOfTheSearch = nodeTypeSearchAsked?.looseWire ?? null;
-  const openProjectOfTheStream = openProject?.kind === "read" && openProject.open_project.project.folder === projectFolder ? openProject.open_project : null;
+  const portsTheWireOfTheSearchFits = nodeTypeSearchAsked?.portsTheWireFits ?? null;
   const nodeTypeSearchItemsOffered = useMemo(
     () => [
-      ...nodeTypeSearchItems(nodeTypesOffered, looseWireOfTheSearch, openProjectOfTheStream),
+      ...nodeTypeSearchItems(nodeTypesOffered, portsTheWireOfTheSearchFits, openProjectOfTheStream),
       ...(subgraphDepth === 0 ? graphGeneratorSearchItems(nodeTypesOfTheProject?.listing ?? null, looseWireOfTheSearch, openProjectOfTheStream) : []),
+      // A node of a module not yet added declares no port the runtime could judge a wire against, so the search over a loose wire offers none.
+      ...(looseWireOfTheSearch === null && openProjectOfTheStream !== null ? marketplaceSearchItems(marketplace, openProjectOfTheStream, nodeTypeSourcesOfTheProject, addsByEntryName) : []),
     ],
-    [nodeTypesOffered, nodeTypesOfTheProject, looseWireOfTheSearch, subgraphDepth, openProjectOfTheStream],
+    [nodeTypesOffered, nodeTypesOfTheProject, looseWireOfTheSearch, portsTheWireOfTheSearchFits, subgraphDepth, openProjectOfTheStream, marketplace, nodeTypeSourcesOfTheProject, addsByEntryName],
   );
   const previewOfTheNodeTypeSearched = useCallback(
     (searchItemId: string) => {
@@ -349,18 +394,53 @@ function StreamGraphOfTheTab({
     },
     [nodeTypesOffered],
   );
-  const nodeTypeSearchActions = useMemo(
-    () => [
-      {
-        label: "Install modules from marketplace",
-        icon: Store,
-        onPressed: () => showTheRefusalOfOpeningTheMarketplace("Didn't open the Marketplace:", connection.openModulesAndMarketplace("marketplace")),
-      },
-    ],
-    [connection, showTheRefusalOfOpeningTheMarketplace],
+  const canANewNodeBeCreated = editing !== null && openProjectOfTheStream !== null;
+  const atOfTheNodeTypeSearch = nodeTypeSearchAsked?.at ?? null;
+  const nodeTypeSearchActions = useMemo((): readonly SearchPopoverAction[] => {
+    const toTheMarketplace: SearchPopoverAction = {
+      label: "Install modules from marketplace",
+      icon: Store,
+      onPressed: () => showTheRefusalOfOpeningTheMarketplace("Didn't open the Marketplace:", connection.openModulesAndMarketplace("marketplace")),
+    };
+    // A node made new declares no port the wire could be linked to, so the search over a loose wire offers no Create new node.
+    if (looseWireOfTheSearch !== null || !canANewNodeBeCreated || atOfTheNodeTypeSearch === null) return [toTheMarketplace];
+    return [toTheMarketplace, { label: "Create new node", icon: Plus, onPressed: () => setNewNodeAskedAt(atOfTheNodeTypeSearch) }];
+  }, [connection, showTheRefusalOfOpeningTheMarketplace, looseWireOfTheSearch, canANewNodeBeCreated, atOfTheNodeTypeSearch]);
+  const placeTheNewNode = useCallback(
+    ({ file, node_type: nodeType }: { file: string; node_type: string }) => {
+      const at = newNodeAskedAt;
+      setNewNodeAskedAt(null);
+      if (at === null) return;
+      if (editedGraph === null || "because" in editedGraph) {
+        showTheRefusalOfOpeningTheCode("Didn't place the new node:", Promise.resolve({ kind: "refused", because: editedGraph === null ? `${file} was created, but the stream's graph isn't read.` : `${file} was created, but ${editedGraph.because}` }));
+        return;
+      }
+      // The file stays when placing its node is refused: the runtime made it, and the refusal says why the node was not placed.
+      void sendTheGestureAtTheLevelShown(nodePlacedEdits(editedGraph, nodeType, at.on_the_canvas, null)).then((answer) => {
+        if (answer === "applied") showTheRefusalOfOpeningTheCode("Didn't open the new node's code:", connection.openView(CODE_VIEW_TYPE_ID, { kind: "file", file }));
+      });
+    },
+    [newNodeAskedAt, editedGraph, sendTheGestureAtTheLevelShown, showTheRefusalOfOpeningTheCode, connection],
+  );
+  const takeTheMarketplaceChoice = useCallback(
+    (searchItemId: string): boolean => {
+      const choice = marketplaceChoiceOfTheSearchItem(searchItemId);
+      if (choice === null) return false;
+      const entry = marketplace?.kind === "read" ? marketplace.entries.find((listed) => listed.name === choice.entry_name) : undefined;
+      if (choice.kind === "open_the_sample") {
+        setNodeTypeSearchAsked(null);
+        showTheRefusalOfOpeningTheMarketplace("Didn't open the Marketplace:", connection.openModulesAndMarketplace("marketplace", choice.entry_name));
+      } else if (doesChoosingThePackageAddIt(addsByEntryName[choice.entry_name]) && openProjectOfTheStream !== null) {
+        // The search stays open: once the module is added, its nodes are listed with the project's own, to place as any other.
+        showTheRefusalOfTheMarketplaceAdd(`Didn't add ${entry?.title ?? choice.entry_name} to ${openProjectOfTheStream.project.name}:`, addThePackage(choice.entry_name));
+      }
+      return true;
+    },
+    [marketplace, addsByEntryName, openProjectOfTheStream, connection, addThePackage, showTheRefusalOfOpeningTheMarketplace, showTheRefusalOfTheMarketplaceAdd],
   );
   const placeTheChosenNodeType = useCallback(
     (searchItemId: string, staysOpen: boolean) => {
+      if (takeTheMarketplaceChoice(searchItemId)) return;
       if (nodeTypeSearchAsked === null || editedGraph === null || "because" in editedGraph) return;
       const chosenGenerator = graphGeneratorOfTheSearchItem(searchItemId);
       const chosenNodeType = nodeTypesOffered.find((offered) => offered.listed.node_type === searchItemId);
@@ -369,7 +449,7 @@ function StreamGraphOfTheTab({
           ? generatorSubgraphPlacedEdits(editedGraph, chosenGenerator, nodeTypeSearchAsked.at.on_the_canvas)
           : chosenNodeType === undefined
             ? null
-            : nodePlacedEdits(editedGraph, chosenNodeType.listed.node_type, chosenNodeType.described, nodeTypeSearchAsked.at.on_the_canvas, nodeTypeSearchAsked.looseWire);
+            : nodePlacedEdits(editedGraph, chosenNodeType.listed.node_type, nodeTypeSearchAsked.at.on_the_canvas, wiredToTheLooseWire(nodeTypeSearchAsked, chosenNodeType.listed.node_type));
       if (placedEdits === null) return;
       void sendTheGestureAtTheLevelShown(placedEdits);
       // A second generator placed before the graph shows the first would take the first's name, which refreshes it.
@@ -387,9 +467,10 @@ function StreamGraphOfTheTab({
           in_the_element: inTheElement,
         },
         looseWire: null,
+        portsTheWireFits: null,
       });
     },
-    [nodeTypesOffered, nodeTypeSearchAsked, editedGraph, sendTheGestureAtTheLevelShown],
+    [takeTheMarketplaceChoice, nodeTypesOffered, nodeTypeSearchAsked, editedGraph, sendTheGestureAtTheLevelShown],
   );
   const onNodesSelected = useCallback(
     (nodeNames: readonly string[]) => {
@@ -450,6 +531,8 @@ function StreamGraphOfTheTab({
         )}
         {refusalOfTheLatestEdit !== null && <RefusalLine layout="bar" lead={refusalOfTheLatestEdit.lead} words={refusalOfTheLatestEdit.words} />}
         <RefusalOfTheLatestAskBar refusal={modulesAndMarketplaceRefusal} />
+        <RefusalOfTheLatestAskBar refusal={marketplaceAddRefusal} />
+        <RefusalOfTheLatestAskBar refusal={codeOpeningRefusal} />
         {innermostSubgraph !== null && (
           <StreamGraphSubgraphTrail
             streamDisplayName={streamTab.display_name}
@@ -475,6 +558,7 @@ function StreamGraphOfTheTab({
           viewportWhereItWasLeft={innermostSubgraph === null ? viewportWhereTheStreamWasLeft : null}
           onViewportLeft={innermostSubgraph === null ? onViewportLeft : null}
           onSubgraphOpened={stepInsideTheSubgraph}
+          codeOfTheCard={codeOfTheCard}
           inputValues={inputValues}
           overlay={
             <>
@@ -500,6 +584,20 @@ function StreamGraphOfTheTab({
                   previewNarrowestWidthPx={NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX}
                   data-stream-graph-node-type-search={streamTab.stream}
                 />
+              )}
+              {openProjectOfTheStream !== null && (
+                <FormDialog
+                  isOpen={newNodeAskedAt !== null}
+                  onOpenChange={(isOpen) => {
+                    if (!isOpen) setNewNodeAskedAt(null);
+                  }}
+                  title="Create new node"
+                  description="A node file made from the runtime's node template, its node placed where the search opened, and its code opened in the Code layout."
+                  focusOnOpen="first_field_at_its_end"
+                  data-stream-graph-new-node={streamTab.stream}
+                >
+                  <NewNodeFileForm connection={connection} projectFolder={openProjectOfTheStream.project.folder} layout="in_a_dialog" onCreated={placeTheNewNode} onClosed={() => setNewNodeAskedAt(null)} />
+                </FormDialog>
               )}
               {subgraphKeepingTheLevelReadOnly !== null && (
                 <div className="absolute top-2 right-2 z-10 max-w-[calc(100%-4rem)]">

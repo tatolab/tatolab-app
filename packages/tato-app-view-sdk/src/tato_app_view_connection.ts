@@ -3,9 +3,13 @@
 // framework, and takes what Studio sends as the contract's types, since Studio's own build wrote it.
 
 import type {
+  CheckLinkCandidatesRequest,
   GraphEditMode,
   JsonValue,
+  LinkCandidatesChecking,
   ListedStreamsReading,
+  MarketplaceModuleAdding,
+  MarketplaceReading,
   ProjectNodeTypesDescribedReading,
   OpenProjectReading,
   PortViewerTarget,
@@ -114,7 +118,10 @@ export interface TatoAppViewConnection {
   watchPortViewer(target: PortViewerTarget, onEvent: (event: PortViewerEvent) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** What the output wired into the `node` view's input `input` carries; an Image frame arrives as a `VideoFrame` the view closes once drawn. */
   watchInput(input: string, onEvent: (inputEvent: ViewInputEvent) => void, whenRefused?: WhenStudioRefuses): StopWatching;
-  /** The settings the view's area holds, checked against the view's declared settings: at once, then after each `rememberSettings`. */
+  /**
+   * The view's settings, checked against the view's declared settings: an `area` view's as its area holds them, a `node` view's as its
+   * node does, at once, then on each change, however it was made: `rememberSettings`, Properties, Undo or an agent.
+   */
   watchSettings(listener: (settings: ViewSettings) => void): StopWatching;
   /** The file or port the view's area was opened on, at once and again whenever the area is opened on another. */
   watchOpenedOn(listener: (openedOn: ViewOpenedOn) => void): StopWatching;
@@ -130,7 +137,11 @@ export interface TatoAppViewConnection {
   openStreamTab(streamTab: StreamTabAddress): Promise<ViewAskDone>;
   /** Open a view of `viewTypeId` on `on`, a file or a running node's output port. */
   openView(viewTypeId: string, on: ViewOpeningTarget): Promise<ViewAskDone>;
-  /** Keep `settings` with the view's area; refused when they do not fit what the view declares. */
+  /**
+   * Keep `settings`: an `area` view's with its area, a `node` view's on its node, each setting that changed set as its input's value in
+   * one edit of the stream's history; refused when they do not fit what the view declares, or in the runtime's words. Each call on a
+   * `node` view is one Undo step, so a slider calls it as it is let go, not on each move.
+   */
   rememberSettings(settings: ViewSettings): Promise<ViewAskDone>;
   /** `file`'s text and the version it is at, or why it was not read. */
   readProjectFile(file: string): Promise<ProjectFileReading>;
@@ -150,8 +161,12 @@ export interface TatoAppViewConnection {
   watchAreasForTheViewType(viewTypeId: string, listener: (reading: AreasForAViewTypeReading) => void, whenRefused?: WhenStudioRefuses): StopWatching;
   /** Show the view type `viewTypeId` in area `areaId` of the layout, in place of what it shows. */
   showViewTypeInArea(viewTypeId: string, areaId: string): Promise<ViewAskDone>;
-  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
-  openModulesAndMarketplace(shows: ModulesAndMarketplaceSection): Promise<ViewAskDone>;
+  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it; on the page of the Marketplace entry `page` names, by the catalog's name for it, when given. */
+  openModulesAndMarketplace(shows: ModulesAndMarketplaceSection, page?: string): Promise<ViewAskDone>;
+  /** The Marketplace's packages and samples in its catalog's order, as the catalog lists them now, or why it was not read. */
+  readTheMarketplace(): Promise<MarketplaceReading>;
+  /** Download the Marketplace's package `name`, by the catalog's name for it, and add it to the open project as a module under `imports/`, or why it was not, in the words of what refused. */
+  addFromTheMarketplace(name: string): Promise<MarketplaceModuleAdding>;
   /** Ask the person for files in the desktop's open dialog, offering the files of `media` (`null` for any), and import each into the project, where the runtime places it in its kind's folder under its own name, numbered past a name already taken. */
   importAssetsIntoTheProject(projectFolder: string, media: readonly string[] | null): Promise<ProjectAssetsImporting>;
   /** Put the asset `asset` of the project at `toPath`, `/`-separated in the project, renaming it, moving it or both, by the person editing; refused in the runtime's own words, as for a path another asset takes. */
@@ -160,10 +175,14 @@ export interface TatoAppViewConnection {
   readAssetPreviewInTheProject(projectFolder: string, asset: string): Promise<AssetPreviewReading>;
   /** Stop tracking the asset `asset` of the project, its file leaving it, by the person editing; refused in the runtime's own words, as while a stream's graph document references it. */
   deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ViewAskDone>;
+  /** File the node type `nodeType`, as the project lists it, under `group`, a `/`-separated path such as `Effects/Stylize`, a group no node type is filed under made by filing it there, by the person editing, one edit Undo takes back; `null` puts it back where an import or its author files it. Refused in the runtime's own words, as for a group with a blank name in it. */
+  setNodeTypeGroupInTheProject(projectFolder: string, nodeType: string, group: string | null): Promise<ViewAskDone>;
   /** Recover the project's streams with `recovery`: their playback stopped and started again, or every stream of the project read again from disk; answered once asked, refused in Studio's or the runtime's own words. */
   recoverTheProjectsStreams(projectFolder: string, recovery: ProjectStreamsRecovery): Promise<ViewAskDone>;
   /** The person editing in Studio: the author their graph edits are recorded under, and so whose edits their own Undo reverts. */
   readThePersonEditing(): Promise<ThePersonEditingReading>;
+  /** How a link from `request`'s placed pin to each of its candidates would connect, or why not, as the runtime's `check_link_candidates` judges it on a stream of the project in `projectFolder`; nothing is changed. */
+  checkLinkCandidates(projectFolder: string, request: CheckLinkCandidatesRequest): Promise<LinkCandidatesChecking>;
   /** Apply `operations` on the graphs of the project's streams as one transaction, whole or not at all, answering what it applied or the runtime's structured refusal. */
   transactInTheProject(projectFolder: string, operations: readonly StreamGraphAction[], sending: GraphTransactionSending): Promise<ProjectGraphTransactionApplying>;
   /** Have the person choose a project asset of `pick`'s media in Studio's asset picker over the window, ending any asset pick held; answered once the picker closes. */
@@ -326,6 +345,11 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
       redoInTheProject: (projectFolder, author) => ask({ kind: "redo_in_the_project", project_folder: projectFolder, author }).then(transactionApplyingOf),
       transactInTheProject: (projectFolder, operations, sending) =>
         ask({ kind: "transact_in_the_project", project_folder: projectFolder, operations: [...operations], mode: sending.mode, idempotency_key: sending.idempotencyKey }).then(graphTransactionApplyingOf),
+      checkLinkCandidates: (projectFolder, request) =>
+        ask({ kind: "check_link_candidates", project_folder: projectFolder, request }).then((answer): LinkCandidatesChecking => {
+          if (answer.kind === "link_candidates_checked") return { kind: "checked", result: answer.result };
+          return { kind: "not_checked", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
       importAssetsIntoTheProject: (projectFolder, media) =>
         ask({ kind: "import_assets_into_the_project", project_folder: projectFolder, media: media === null ? null : [...media] }).then((answer): ProjectAssetsImporting => {
           if (answer.kind === "project_assets_imported") return { kind: "imported", assets_imported: answer.assets_imported };
@@ -341,9 +365,21 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
           return { kind: "not_read", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
       deleteAssetFromTheProject: (projectFolder, asset) => ask({ kind: "delete_asset_from_the_project", project_folder: projectFolder, asset }).then(doneOf),
+      setNodeTypeGroupInTheProject: (projectFolder, nodeType, group) =>
+        ask({ kind: "set_node_type_group_in_the_project", project_folder: projectFolder, node_type: nodeType, group }).then(doneOf),
       recoverTheProjectsStreams: (projectFolder, recovery) => ask({ kind: "recover_the_projects_streams", project_folder: projectFolder, recovery }).then(doneOf),
       showViewTypeInArea: (viewTypeId, areaId) => ask({ kind: "show_view_type_in_area", view_type_id: viewTypeId, area_id: areaId }).then(doneOf),
-      openModulesAndMarketplace: (shows) => ask({ kind: "open_modules_and_marketplace", shows }).then(doneOf),
+      openModulesAndMarketplace: (shows, page) => ask({ kind: "open_modules_and_marketplace", shows, ...(page === undefined ? {} : { page }) }).then(doneOf),
+      readTheMarketplace: () =>
+        ask({ kind: "read_the_marketplace" }).then((answer): MarketplaceReading => {
+          if (answer.kind === "marketplace_read") return { kind: "read", entries: answer.entries };
+          return { kind: "not_read", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
+      addFromTheMarketplace: (name) =>
+        ask({ kind: "add_from_the_marketplace", name }).then((answer): MarketplaceModuleAdding => {
+          if (answer.kind === "marketplace_module_added") return { kind: "added", folder: answer.folder };
+          return { kind: "not_added", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
       pickAProjectAsset: (pick) =>
         ask({ kind: "pick_a_project_asset", pick }).then((answer): ProjectAssetPickEnding => {
           if (answer.kind === "project_asset_chosen") return { kind: "chosen", asset: answer.asset };

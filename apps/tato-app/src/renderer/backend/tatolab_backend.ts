@@ -1,8 +1,12 @@
 import type {
+  CheckLinkCandidatesRequest,
+  LinkCandidatesCheckResult,
   ChosenProjectFolder,
   StudioWarningKind,
   JsonValue,
   ListedStudioView,
+  MarketplaceImport,
+  MarketplaceImportProgressed,
   PythonLanguageServerEvent,
   PortViewerEvent,
   PortViewerImageFrameFacts,
@@ -51,7 +55,8 @@ import type {
   SystemMenuBarMenu,
 } from "../../shared/tatolab_backend_contract";
 import type { ListedNodeUiElement } from "@tatolab/tato-app-view-sdk/node_ui_host";
-import { TATOLAB_WINDOW_PAGE_SCHEME, type ModulesShown, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
+import { TATOLAB_WINDOW_PAGE_SCHEME, type ModuleManagerSectionAsked, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
+import { jsonTextOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 declare global {
   interface Window {
@@ -94,6 +99,8 @@ export interface TatolabBackend {
   readAssetPreviewOfTheOpenProject(asset: string): Promise<AssetPreviewPicture>;
   /** Stop tracking the asset `asset` of the window's project, its file leaving the project, by the person editing; rejects in Studio's or the runtime's words. */
   deleteAssetFromTheOpenProject(asset: string): Promise<void>;
+  /** File the node type `nodeType`, as the window's project lists it, under `group`, a `/`-separated path, or with `null` put it back where an import or its author files it, by the person editing; rejects in Studio's or the runtime's words. */
+  setNodeTypeGroupInTheOpenProject(nodeType: string, group: string | null): Promise<void>;
   /** Check for a newer Tato Studio, downloading one that installs in place; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */
@@ -161,14 +168,14 @@ export interface TatolabBackend {
   popOutView(target: PoppedOutView): Promise<void>;
   /** The view this window shows when it is a popped-out view; `null` in the Projects and studio windows. */
   readPoppedOutView(): Promise<PoppedOutView | null>;
-  /** Open this studio window's Module manager window on the section `shows`, or bring it forward showing `shows`; rejects in words from any other window. */
-  openModuleManagerWindow(shows: ModulesShown): Promise<void>;
+  /** Open this studio window's Module manager window on the section, and page, `asked` names, or bring it forward showing them; rejects in words from any other window. */
+  openModuleManagerWindow(asked: ModuleManagerSectionAsked): Promise<void>;
   /** This window's workspace when it is a Module manager window, as last read from disk; `null` in any other window. Later readings arrive through `onOpenProjectChanged`. */
   readModuleManagerWorkspace(): Promise<OpenProjectReading | null>;
   /** The section this window was last asked to show when it is a Module manager window; `null` in any other window. Later asks arrive through `onModuleManagerSectionAsked`. */
-  readModuleManagerSectionLastAsked(): Promise<ModulesShown | null>;
-  /** Calls `listener` with each section this Module manager window is asked to show once open; the returned function stops it. */
-  onModuleManagerSectionAsked(listener: (shows: ModulesShown) => void): () => void;
+  readModuleManagerSectionLastAsked(): Promise<ModuleManagerSectionAsked | null>;
+  /** Calls `listener` with each section, and page, this Module manager window is asked to show once open; the returned function stops it. */
+  onModuleManagerSectionAsked(listener: (asked: ModuleManagerSectionAsked) => void): () => void;
   /** The catalog get.tatolab.com serves, or why it was not read. */
   readPackageCatalog(): Promise<PackageCatalogReading>;
   /** The workspace's imports as the runtime lists them, each source read for a newer version with `checkForNewer`; rejects in the runtime's own words. */
@@ -179,8 +186,12 @@ export interface TatolabBackend {
   addDependencyToTheWorkspace(source: string): Promise<ProjectDependency>;
   /** Copy the import `project` again from its source, overwriting files edited since its copy only with `overwriteEditedFiles`; rejects in the runtime's own words. */
   updateWorkspaceDependency(project: string, overwriteEditedFiles: boolean): Promise<WorkspaceDependencyUpdate>;
-  /** Download the catalog entry `name`'s `.zip`, check it, and import it into the workspace; rejects in words. */
-  importFromTheMarketplace(name: string): Promise<ProjectDependency>;
+  /** Download the catalog entry `name`'s `.zip`, check it, and import it into the workspace, each stage told through `onMarketplaceImportProgressed`; `cancelled` once its Cancel stopped the download. Rejects in words. */
+  importFromTheMarketplace(name: string): Promise<MarketplaceImport>;
+  /** Stop this window's download of the catalog entry `name`; rejects in words once it is checked or being added, or where none is under way. */
+  cancelMarketplaceImport(name: string): Promise<void>;
+  /** Calls `listener` with each stage, and each run of bytes, of a Marketplace add this window asked for; the returned function stops it. */
+  onMarketplaceImportProgressed(listener: (progressed: MarketplaceImportProgressed) => void): () => void;
   /** Take the import `project` out of the workspace; rejects in the runtime's own words. */
   removeWorkspaceDependency(project: string): Promise<ProjectDependency>;
   /** Download the catalog's sample `name`, check it, and make a project of its own from it, opened in its studio window; the workspace is not changed. Rejects in words. */
@@ -225,6 +236,8 @@ export interface TatolabBackend {
   undoInTheOpenProject(author: ProjectTransactionAuthor): Promise<ProjectTransaction>;
   /** The runtime's `transact` of `operations` on the graphs of the open project's streams as one transaction recorded as Studio's own, resolving with what it applied or the runtime's structured refusal, and rejecting in words for any other refusal. */
   transactInTheOpenProject(operations: readonly StreamGraphAction[], mode: GraphEditMode, idempotencyKey: string | null): Promise<ProjectGraphTransactionTheRuntimeAnswered>;
+  /** The runtime's `check_link_candidates` of `request` on a stream of the open project, which changes nothing, resolving with its answer unchanged and rejecting in the runtime's or Studio's words. */
+  checkLinkCandidatesInTheOpenProject(request: CheckLinkCandidatesRequest): Promise<LinkCandidatesCheckResult>;
   /** The person editing in Studio, whose graph edits the runtime records under them. */
   readThePersonEditingInStudio(): Promise<ProjectTransactionAuthor>;
   /** The runtime's `redo` by `author` on the open project, resolving with the redo it applied and rejecting in the runtime's own words. */
@@ -280,5 +293,5 @@ export function tatolabWindowHost(): TatolabWindowHost {
 export function describeBackendRejection(rejection: unknown): string {
   if (typeof rejection === "string") return rejection;
   if (rejection instanceof Error) return rejection.message;
-  return JSON.stringify(rejection);
+  return jsonTextOf(rejection);
 }

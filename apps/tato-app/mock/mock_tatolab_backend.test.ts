@@ -190,6 +190,36 @@ describe("the mock backend's stream actions", () => {
     expect((await settled(backend.describeStreamGraph(MAIN))).groups?.[0]).toMatchObject({ colour: "#3fcf8e", description: "The source" });
   });
 
+  it("answers a wire drag's question about the sample's pins with the runtime's recorded answer, unchanged, and refuses one it holds no recording of, judging none", async () => {
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind");
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(100);
+      return answering;
+    };
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    const graph = await settled(backend.describeStreamGraph(MAIN));
+    const idOf = (name: string) => graph.nodes.find((node) => node.name === name)?.id ?? expect.unreachable(`no ${name} in the sample`);
+
+    const answered = await settled(backend.checkLinkCandidatesInTheOpenProject({ stream: streamAsset, from: { output: { node: idOf("beat"), port: "count" } }, among: "placed_ports", include_refused: true }));
+    expect(answered.candidates.map(({ end, check }) => [end.kind === "placed_port" ? `${graph.nodes.find((node) => node.id === end.node)?.name}.${end.port}` : end.node_type, check.outcome])).toEqual([
+      ["brightness.value", "refused"],
+      ["warmth.count", "refused"],
+      ["warmth.accented", "refused"],
+      ["warmth.beats_per_bar", "connects"],
+      ["warmth.base", "connects_with_free_conversion"],
+      ["glow.image", "refused"],
+      ["glow.glow", "refused"],
+      ["glow.warmth", "refused"],
+      ["tally.picture", "refused"],
+    ]);
+    expect(answered.not_checked?.map(({ end }) => end.port)).toEqual(["level", "beats_per_minute", "accent_every", "accent"]);
+
+    const unrecorded = backend.checkLinkCandidatesInTheOpenProject({ stream: streamAsset, from: { output: { node: idOf("glow"), port: "result" } }, among: "placed_ports", include_refused: true });
+    const rejection = expect(unrecorded).rejects.toBe("The mock holds no recorded answer of check_link_candidates for this pin.");
+    await vi.advanceTimersByTimeAsync(100);
+    await rejection;
+  });
+
   it("replays the runtime's recorded refusal of a link of another type on the sample's first connect, then makes the link it is next asked for, judging none", async () => {
     const { backend } = await runningMockBackend("main_graph=every_pin_kind&refusal=link_of_another_type");
     const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
@@ -508,6 +538,29 @@ describe("the mock backend's node types", () => {
     const described = backend.describeNodeTypes(PATTERN_FOLDER, typesListed);
     await vi.advanceTimersByTimeAsync(200);
     expect((await described).node_types.map((nodeType) => nodeType.node_type)).toEqual(typesListed);
+  });
+
+  it("lists, describes and places the node type a node file made from the runtime's template declares, and tells the window the node types changed", async () => {
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind");
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(200);
+      return answering;
+    };
+    let nodeTypesChanged = 0;
+    backend.onProjectNodeTypesChanged(() => {
+      nodeTypesChanged += 1;
+    });
+    expect(await settled(backend.createNodeFile(`${PATTERN_FOLDER}/nodes/sparkle.py`))).toEqual({ file: `${PATTERN_FOLDER}/nodes/sparkle.py`, node_type: "nodes.sparkle:Sparkle" });
+    expect(nodeTypesChanged).toBe(1);
+
+    const listing = await settled(backend.listNodeTypes(PATTERN_FOLDER));
+    expect(listing.sources.find((source) => source.source === "project")?.node_types.map((listed) => listed.node_type)).toContain("nodes.sparkle:Sparkle");
+    const described = await settled(backend.describeNodeTypes(PATTERN_FOLDER, ["nodes.sparkle:Sparkle"]));
+    expect(described.node_types).toMatchObject([{ node_type: "nodes.sparkle:Sparkle", declared_at: { path: "nodes/sparkle.py" }, inputs: [{ name: "video_in" }], outputs: [{ name: "video_out" }] }]);
+
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    expect(await settled(backend.transactInTheOpenProject([{ operation: "add_node", stream: streamAsset, type: "nodes.sparkle:Sparkle" }], "commit", "place-sparkle"))).toMatchObject({ kind: "applied" });
+    expect((await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.type === "nodes.sparkle:Sparkle")).toMatchObject({ name: "sparkle" });
   });
 });
 

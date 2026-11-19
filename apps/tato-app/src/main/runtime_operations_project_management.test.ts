@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "vitest";
-import { controlOperationResponseOfTheRecordedToolResponse } from "./fake_local_api_server.js";
-import { answerOf, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./runtime_operations_test_support.js";
-import { deleteAsset, deleteProject, describeStreamAction, duplicateProject, importAsset, importProject, relocateAsset, renameProject, setProjectCover, setProjectDescription, summarizeTheProject } from "./runtime_operations.js";
+import { controlOperationFailedResponse, controlOperationResponseOfTheRecordedToolResponse } from "./fake_local_api_server.js";
+import { answerOf, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./runtime_operations_test_support.js";
+import { deleteAsset, deleteProject, describeStreamAction, duplicateProject, importAsset, importProject, relocateAsset, renameProject, setNodeTypeGroup, setProjectCover, setProjectDescription, summarizeTheProject } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -211,5 +211,25 @@ test("an_asset_the_person_deletes_is_answered_as_it_was_recorded_under_them_and_
   expect(controlOperationCallsReceivedBy(server)).toEqual([
     ["delete_asset", { project_directory: harbourLights, asset: "4ce7c229-734b-4210-9bb5-e321bf4183de", author: sam }],
     ["delete_asset", { project_directory: harbourLights, asset: "00000000-0000-4000-8000-000000000000", author: sam }],
+  ]);
+});
+
+test("a_node_type_the_person_moves_into_a_group_or_puts_back_is_filed_by_the_project_recorded_under_them_and_a_group_with_a_blank_name_is_refused_in_the_runtimes_words", async () => {
+  const harbourLights = "/tmp/tatolab-proof-projects/harbour-lights";
+  const filedAnswer = (group: string | null) =>
+    controlOperationResponseOfTheResultText(
+      JSON.stringify({ project: harbourLights, node_type: "nodes.mix:Mixer", group, transaction: "0b9e4f61-3c2a-4d7e-9a51-6f0c2b8d1e73", commit: "5d2f0e1c9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d" }),
+    );
+  const blankName = "set_node_type_group failed: \"Show//Levels\" cannot file `nodes.mix:Mixer`: a group is one or more names split by `/`, none of them blank, as `Effects/Stylize`";
+  const server = await fakeLocalApiServerAnswering([filedAnswer("Show/Levels"), filedAnswer(null), controlOperationFailedResponse(blankName)]);
+  const sam = { kind: "person", name: "sam" } as const;
+
+  answerOf(await server.run(setNodeTypeGroup(harbourLights, "nodes.mix:Mixer", "Show/Levels", sam)));
+  answerOf(await server.run(setNodeTypeGroup(harbourLights, "nodes.mix:Mixer", null, sam)));
+  expect(failureOf(await server.run(setNodeTypeGroup(harbourLights, "nodes.mix:Mixer", "Show//Levels", sam)))).toMatchObject({ _tag: "RuntimeRefused", words: blankName });
+  expect(controlOperationCallsReceivedBy(server)).toEqual([
+    ["set_node_type_group", { project_directory: harbourLights, node_type: "nodes.mix:Mixer", group: "Show/Levels", author: sam }],
+    ["set_node_type_group", { project_directory: harbourLights, node_type: "nodes.mix:Mixer", group: null, author: sam }],
+    ["set_node_type_group", { project_directory: harbourLights, node_type: "nodes.mix:Mixer", group: "Show//Levels", author: sam }],
   ]);
 });

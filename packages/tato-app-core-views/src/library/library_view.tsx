@@ -1,7 +1,7 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useMemo, useRef, useState } from "react";
-import { Boxes, FilePlus2, Folder, FolderInput, PencilLine, Trash2 } from "lucide-react";
-import { MenuItem, MenuSeparator, MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { Boxes, FilePlus2, Folder, FolderInput, FolderTree, PencilLine, Trash2, Undo2 } from "lucide-react";
+import { MenuItem, MenuSeparator, MenuSingleChoiceGroup, RightClickMenuItem, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { ProjectAssetCard } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
 import { CardGrid } from "@tatolab/tato-app-view-sdk/design_system/card_grid";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
@@ -15,18 +15,22 @@ import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_li
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { ProjectAssetPick, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import { familyOfThePort, type NodeTypeDescribedOrWhyNot, type NodeTypePortDescribed, type OpenProjectReading, type ProjectAsset, type ProjectAssetsReading, type ProjectNodeTypesDescribedReading, type StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ImportedProject, ProjectAssetPick, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import { familyOfThePort, type NodeTypeDescribedOrWhyNot, type NodeTypePortDescribed, type OpenProjectReading, type ProjectAsset, type ProjectAssetsReading, type StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { pinTypeWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
 import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
+import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { CoreViewFrame } from "../shared/core_view_page";
+import { codeOfTheNodeType, openTheCodeOfTheNodeType } from "../shared/code_of_the_node_type";
+import { CODE_VIEW_TYPE_ID } from "../shared/files_the_code_view_opens";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import { NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS, nodeTypeCategoryPath } from "../shared/node_type_category_path";
 import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../shared/node_type_listing_tree";
 import { inputsAWireReaches } from "../shared/stream_graph_edits";
 import { LibraryAssetChangeForm, type LibraryAssetChange } from "./library_asset_change_form";
+import { LibraryNodeTypeGroupForm, type NodeTypeTheLibraryLists } from "./library_node_type_group_form";
 import { previewPictureNotReadBecauseOf, previewPictureUrlOf } from "./library_asset_preview_pictures";
 import { useAssetPreviewPicturesOfTheProject } from "./use_asset_preview_pictures_of_the_project";
 import { projectAssetMediaWords, projectAssetsTheFieldOffers } from "../shared/project_asset_media";
@@ -99,13 +103,16 @@ function PortsOfTheNodeType({ described }: { described: NodeTypeDescribedOrWhyNo
   );
 }
 
+/** Who files a node type under its group, in words: the project, an import, or the author who declared it. */
+const NODE_TYPE_FILED_BY_WORDS: Record<NonNullable<NodeTypeTheLibraryLists["category_from"]>, string> = { project: "This project", import: "An import", declaration: "Its author" };
+
 function placeInWords(path: string | null, line: number | null): string {
   if (path === null) return "Not stated";
   return line === null ? path : `${path}:${line}`;
 }
 
 /** The chosen row's declaration: what it is, where it is declared, and its ports or promoted config; for a module that does not parse, why, in the parser's words. */
-function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowMeaning }) {
+function DetailsOfTheDeclaration({ declaration, nodeTypeActions }: { declaration: DeclarationRowMeaning; nodeTypeActions: ReactNode }) {
   switch (declaration.kind) {
     case "node_type_declaration": {
       const { node_type: nodeType, described } = declaration;
@@ -114,6 +121,7 @@ function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowM
         ["Type", <span className="font-mono">{nodeType.node_type}</span>],
         ["Kind", nodeType.kind ?? "Not stated"],
         ["Group", nodeTypeCategoryPath(nodeType.category ?? null).join(" / ") || NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS],
+        ...(nodeType.category_from === undefined || nodeType.category_from === null ? [] : [["Filed by", NODE_TYPE_FILED_BY_WORDS[nodeType.category_from]] satisfies KeyValueRow]),
         ["From", declaration.source_title],
         ["Declared", <span className="font-mono">{placeInWords(declaredAt?.path ?? null, declaredAt?.line ?? null)}</span>],
       ];
@@ -124,6 +132,7 @@ function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowM
             <div className="px-1 pb-2">
               <KeyValueRows rows={facts} />
             </div>
+            <div className="flex flex-wrap gap-2 px-1 pb-2">{nodeTypeActions}</div>
           </PropertySection>
           <PropertySection title="Ports">
             <PortsOfTheNodeType described={described} />
@@ -267,16 +276,23 @@ function ViewsOfTheProject({ connection, searchText }: { connection: TatoAppView
 }
 
 /** The open project's node types or graph generators, by source, as the runtime reads them from source. */
-function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown }: { connection: TatoAppViewConnection; projectFolder: string; declarationsShown: LibraryDeclarationsShown }) {
-  const watchTheProjectsNodeTypes = useCallback(
-    (listener: (reading: ProjectNodeTypesDescribedReading) => void): StopWatching => connection.watchNodeTypes(projectFolder, listener),
-    [connection, projectFolder],
-  );
-  const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+function DeclarationsOfTheProject({
+  connection,
+  projectFolder,
+  imports,
+  declarationsShown,
+}: {
+  connection: TatoAppViewConnection;
+  projectFolder: string;
+  imports: readonly ImportedProject[];
+  declarationsShown: LibraryDeclarationsShown;
+}) {
+  const nodeTypesReading = useNodeTypesOfTheProject(connection, projectFolder);
   const settings = useViewReading(connection.watchSettings);
   const [expansionChoices, toggleTheRow] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
-  const [chosenRowId, setChosenRowId] = useState<string | null>(null);
+  const [chosenRow, setChosenRow] = useState<{ rowId: string; nodeType: string | null } | null>(null);
   const [openingRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
+  const [nodeTypeMoveAsked, setNodeTypeMoveAsked] = useState<NodeTypeTheLibraryLists | null>(null);
   const libraryRows = useMemo(
     () => (nodeTypesReading?.kind === "listed" ? libraryTreeOfTheListing(nodeTypesReading.node_types, expansionChoices, declarationsShown) : []),
     [nodeTypesReading, expansionChoices, declarationsShown],
@@ -292,26 +308,77 @@ function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown
   if (libraryRows.length === 0 && declarationsShown === "graph_generators")
     return <WaitingState title="No graph generators" explanation="Neither the project nor anything it imports declares one." data-library-state="no_graph_generators" />;
   const meaningOfRow = (rowId: string): LibraryRowMeaning => libraryRows.find((libraryRow) => libraryRow.row.row_id === rowId)?.meaning ?? { kind: "nothing_to_select" };
+  const chooseTheRow = (rowId: string) => {
+    const meaning = meaningOfRow(rowId);
+    setChosenRow(meaning.kind === "nothing_to_select" ? null : { rowId, nodeType: meaning.kind === "node_type_declaration" ? meaning.node_type.node_type : null });
+  };
+  // A node type moved into another group is listed under another row; the choice follows the node type there.
+  const chosenRowId =
+    chosenRow === null
+      ? null
+      : meaningOfRow(chosenRow.rowId).kind !== "nothing_to_select"
+        ? chosenRow.rowId
+        : (libraryRows.find(({ meaning }) => meaning.kind === "node_type_declaration" && meaning.node_type.node_type === chosenRow.nodeType)?.row.row_id ?? null);
   const chosenMeaning = chosenRowId === null ? null : meaningOfRow(chosenRowId);
+  const putTheNodeTypeBack = (nodeType: NodeTypeTheLibraryLists) =>
+    showTheRefusalOf("The node type wasn't put back:", connection.setNodeTypeGroupInTheProject(projectFolder, nodeType.node_type, null));
+  const rightClickChoicesOfRow = (rowId: string) => {
+    const meaning = meaningOfRow(rowId);
+    if (meaning.kind !== "node_type_declaration") return null;
+    const nodeType = meaning.node_type;
+    return (
+      <>
+        <RightClickMenuItem icon={FolderTree} onChosen={() => setNodeTypeMoveAsked(nodeType)} data-library-node-type-choice="move_to_group">
+          Move to group…
+        </RightClickMenuItem>
+        {nodeType.category_from === "project" && (
+          <RightClickMenuItem icon={Undo2} onChosen={() => putTheNodeTypeBack(nodeType)} data-library-node-type-choice="put_back">
+            Put back in its own group
+          </RightClickMenuItem>
+        )}
+      </>
+    );
+  };
+  const nodeTypeActionsOf = (declaration: DeclarationRowMeaning): ReactNode => {
+    if (declaration.kind !== "node_type_declaration") return null;
+    const nodeType = declaration.node_type;
+    return (
+      <>
+        <ActionButton appearance="quiet" size="small" onPressed={() => setNodeTypeMoveAsked(nodeType)} data-library-node-type-action="move_to_group">
+          Move to group…
+        </ActionButton>
+        {nodeType.category_from === "project" && (
+          <ActionButton appearance="quiet" size="small" onPressed={() => putTheNodeTypeBack(nodeType)} data-library-node-type-action="put_back">
+            Put back in its own group
+          </ActionButton>
+        )}
+      </>
+    );
+  };
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-library-declarations={declarationsShown}>
       <RefusalOfTheLatestAskBar refusal={openingRefusal} />
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
+        {nodeTypeMoveAsked !== null && (
+          <LibraryNodeTypeGroupForm key={nodeTypeMoveAsked.node_type} nodeType={nodeTypeMoveAsked} projectFolder={projectFolder} connection={connection} onClosed={() => setNodeTypeMoveAsked((asked) => (asked?.node_type === nodeTypeMoveAsked.node_type ? null : asked))} />
+        )}
         <TreeView
           label={LIBRARY_SHOWN_WORDS[declarationsShown]}
           rows={libraryRows.map((libraryRow) => libraryRow.row)}
           selectedRowId={chosenMeaning === null || chosenMeaning.kind === "nothing_to_select" ? null : chosenRowId}
-          onRowSelected={(rowId) => setChosenRowId(meaningOfRow(rowId).kind === "nothing_to_select" ? null : rowId)}
+          onRowSelected={chooseTheRow}
           onRowActivated={(rowId) => {
             const meaning = meaningOfRow(rowId);
-            if (meaning.kind !== "nothing_to_select" && meaning.file !== null) showTheRefusalOf("Didn't open the file:", connection.openView("code", { kind: "file", file: meaning.file }));
+            if (meaning.kind === "node_type_declaration") showTheRefusalOf("Didn't open the code:", openTheCodeOfTheNodeType(connection, codeOfTheNodeType(nodeTypesReading, imports, meaning.node_type.node_type)));
+            else if (meaning.kind !== "nothing_to_select" && meaning.file !== null) showTheRefusalOf("Didn't open the file:", connection.openView(CODE_VIEW_TYPE_ID, { kind: "file", file: meaning.file }));
           }}
           onExpansionToggled={toggleTheRow}
+          rightClickChoicesOfRow={rightClickChoicesOfRow}
         />
       </div>
       {chosenMeaning !== null && chosenMeaning.kind !== "nothing_to_select" && (
         <div className="scrollbar-thin max-h-[55%] shrink-0 overflow-y-auto border-t">
-          <DetailsOfTheDeclaration declaration={chosenMeaning} />
+          <DetailsOfTheDeclaration declaration={chosenMeaning} nodeTypeActions={nodeTypeActionsOf(chosenMeaning)} />
         </div>
       )}
     </div>
@@ -545,7 +612,7 @@ function LibraryBody({
   if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
   if (openProject.kind === "unreadable") return <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />;
   const projectFolder = openProject.open_project.project.folder;
-  if (shown !== "assets") return <DeclarationsOfTheProject key={`${projectFolder}/${shown}`} connection={connection} projectFolder={projectFolder} declarationsShown={shown} />;
+  if (shown !== "assets") return <DeclarationsOfTheProject key={`${projectFolder}/${shown}`} connection={connection} projectFolder={projectFolder} imports={openProject.open_project.imports} declarationsShown={shown} />;
   return (
     <>
       {choices.importRefusals.map((importRefusal, refusalIndex) => (

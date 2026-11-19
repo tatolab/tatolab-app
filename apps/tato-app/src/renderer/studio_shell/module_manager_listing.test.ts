@@ -9,12 +9,12 @@ import {
   moduleCardMarkOf,
   moduleNotOnThisMachineMarkOf,
   whyTheRowBringsNothingOnThisMachine,
+  whyTheRowNeedsANewerTatoStudio,
   moduleCountsWordsOf,
   moduleContentsWordsOf,
   type ModuleCardRow,
   moduleCopyStateOf,
   moduleCoverNumberOf,
-  moduleFolderNameOf,
   moduleRowAndItsNeighboursOf,
   workByIdWithoutTheAddsNowListed,
   workByIdWithTheRowsMade,
@@ -22,6 +22,7 @@ import {
   workKeptForTheRow,
   moduleRowCountsOf,
   moduleSourceWordsOf,
+  moduleUpdateWordsOf,
   moduleViewsShownOf,
   projectModuleRowsShownOf,
   updatesCountWordsOf,
@@ -34,9 +35,9 @@ const CATALOG: PackageCatalogReading = {
   kind: "read",
   unreadable_entry_count: 0,
   entries: [
-    { kind: "sample", name: "camera-halftone", title: "Camera halftone", summary: "A halftone camera.", version: "0.68.29", download: DOWNLOAD, nodes: [], streams: [{ name: "main", import_path: "camera_halftone.stream:main", summary: "" }], homepage_url: "https://x", platforms: null, runs_on_this_machine: true },
-    { kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames.", version: "0.68.29", download: DOWNLOAD, nodes: [{ name: "CameraSource", import_path: "tatolab.camera:CameraSource", summary: "" }], streams: [], homepage_url: null, platforms: null, runs_on_this_machine: true },
-    { kind: "package", name: "tatolab-opus", title: "Opus", summary: "Encodes audio.", version: "0.68.29", download: null, nodes: [{ name: "OpusEncoder", import_path: "tatolab.opus:OpusEncoder", summary: "" }], streams: [], homepage_url: null, platforms: null, runs_on_this_machine: true },
+    { kind: "sample", name: "camera-halftone", title: "Camera halftone", summary: "A halftone camera.", version: "0.68.29", download: DOWNLOAD, nodes: [], streams: [{ name: "main", import_path: "camera_halftone.stream:main", summary: "" }], homepage_url: "https://x", platforms: null, runs_on_this_machine: true, lowest_runtime_version: null, newer_runtime_it_needs: null },
+    { kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames.", version: "0.68.29", download: DOWNLOAD, nodes: [{ name: "CameraSource", import_path: "tatolab.camera:CameraSource", summary: "" }], streams: [], homepage_url: null, platforms: null, runs_on_this_machine: true, lowest_runtime_version: null, newer_runtime_it_needs: null },
+    { kind: "package", name: "tatolab-opus", title: "Opus", summary: "Encodes audio.", version: "0.68.29", download: null, nodes: [{ name: "OpusEncoder", import_path: "tatolab.opus:OpusEncoder", summary: "" }], streams: [], homepage_url: null, platforms: null, runs_on_this_machine: true, lowest_runtime_version: null, newer_runtime_it_needs: null },
   ],
 };
 
@@ -198,6 +199,25 @@ describe("what the Marketplace window lists", () => {
     expect([moduleNotOnThisMachineMarkOf(cameraCard), whyTheRowBringsNothingOnThisMachine(cameraCard)]).toEqual([null, null]);
   });
 
+  it("offers no Add for a package needing a newer runtime than the one answering, nor an Update of the project's download of an older version, and marks either as needing a newer Tato Studio", () => {
+    const microphone = { ...CATALOG.entries[1], name: "tatolab-microphone", title: "Microphone", lowest_runtime_version: "0.69.44", newer_runtime_it_needs: "0.69.44" };
+    const catalogWithTheMicrophone: PackageCatalogReading = { ...CATALOG, entries: [microphone] };
+    const [microphoneCard] = everyModuleCardRowOf(catalogWithTheMicrophone, []);
+    expect(cardOffersAdd(microphoneCard, false)).toBe(false);
+    expect(moduleCardMarkOf(microphoneCard, null, false)).toEqual({ words: "Needs a newer Tato Studio", tone: "refused" });
+    expect(moduleCardMarkOf(microphoneCard, "add", false)).toEqual({ words: "Not added", tone: "refused" });
+    expect(whyTheRowNeedsANewerTatoStudio(microphoneCard)).toBe("Microphone runs on runtime 0.69.44 or later, which a newer Tato Studio carries. Update Tato Studio to add it.");
+    const [microphoneInTheProject] = everyModuleCardRowOf(catalogWithTheMicrophone, [{ ...aModule("microphone", "Microphone"), source: "/config/module-downloads/tatolab-microphone-0.69.1.zip" }]);
+    expect([whyTheRowNeedsANewerTatoStudio(microphoneInTheProject), moduleCardMarkOf(microphoneInTheProject, null, false)]).toEqual([
+      "Microphone runs on runtime 0.69.44 or later, which a newer Tato Studio carries. Update Tato Studio to update it.",
+      { words: "Needs a newer Tato Studio", tone: "refused" },
+    ]);
+    const [microphoneAtTheCatalogsVersion] = everyModuleCardRowOf(catalogWithTheMicrophone, [{ ...aModule("microphone", "Microphone"), source: `/config/module-downloads/tatolab-microphone-${microphone.version}.zip` }]);
+    expect([whyTheRowNeedsANewerTatoStudio(microphoneAtTheCatalogsVersion), moduleCardMarkOf(microphoneAtTheCatalogsVersion, null, false)]).toEqual([null, { words: "In project", tone: "quiet" }]);
+    const [cameraCard] = everyModuleCardRowOf({ ...CATALOG, entries: [{ ...CATALOG.entries[1], lowest_runtime_version: "0.69.37" }] }, []);
+    expect([cardOffersAdd(cameraCard, false), whyTheRowNeedsANewerTatoStudio(cameraCard)]).toEqual([true, null]);
+  });
+
   it("says what a Marketplace card holds, a sample's behind the words Sample project", () => {
     expect(everyModuleCardRowOf(CATALOG, []).map(moduleCardContentsWordsOf)).toEqual(["Sample project · 1 stream", "1 node", "1 node"]);
     const sampleHoldingNothing: PackageCatalogReading = { ...CATALOG, entries: [{ ...CATALOG.entries[0], streams: [] }] };
@@ -226,6 +246,9 @@ describe("what the Marketplace window lists", () => {
     const fromAZip = { ...aModule("doorways", null), source: "/shows/Doorways.ZIP" };
     const rows = everyModuleCardRowOf(CATALOG, [fromTheMarketplace, fromAZip, aModule("lobby-wall", null)]);
     expect(rows.map(moduleSourceWordsOf)).toEqual(["", "From the Marketplace", "", "From a .zip", "From a folder"]);
+    const cameraRow = rows[1] ?? expect.unreachable("no Camera row");
+    expect(moduleUpdateWordsOf(cameraRow)).toEqual({ updateAvailable: `Version ${cameraRow.catalog_entry?.version} is in the Marketplace.`, checkRefusedLead: "It could not be checked for an update:" });
+    expect(moduleUpdateWordsOf(rows[3] ?? expect.unreachable("no Doorways row"))).toEqual({ updateAvailable: "An update is available from where it was copied.", checkRefusedLead: "Where it was copied from could not be checked:" });
     const camera = aModule("tatolab-camera", null);
     expect(moduleCopyStateOf(camera)).toEqual({ kind: "not_checked" });
     expect(moduleCopyStateOf({ ...camera, newer_version_exists: false })).toEqual({ kind: "up_to_date" });
@@ -237,13 +260,9 @@ describe("what the Marketplace window lists", () => {
       whyTheModuleHasNoUpdateToTake({ ...camera, newer_version_exists: true }),
       whyTheModuleHasNoUpdateToTake({ ...camera, check_refused_because: "No such file or directory (os error 2)" }),
     ]).toEqual(["Check for updates first.", "It is up to date.", null, "Where it was copied from could not be checked."]);
-  });
-
-  it("names a module's folder as the runtime does", () => {
-    expect(moduleFolderNameOf("Camera Tools!")).toBe("camera-tools");
-    expect(moduleFolderNameOf("Tatolab_Camera")).toBe("tatolab_camera");
-    expect(moduleFolderNameOf("a - b")).toBe("a--b");
-    expect(moduleFolderNameOf(" !! ")).toBe("module");
+    const goneFromTheCatalog = everyModuleCardRowOf(CATALOG, [{ ...aModule("lantern", null), source: "/home/jo/.config/Tato Studio/module-downloads/tatolab-lantern-1.0.zip" }]).find((row) => row.row_id === "import:lantern");
+    expect(moduleUpdateWordsOf(goneFromTheCatalog ?? expect.unreachable("no Lantern row"))).toEqual({ updateAvailable: "A newer version is in the Marketplace.", checkRefusedLead: "It could not be checked for an update:" });
+    expect(whyTheModuleHasNoUpdateToTake({ ...fromTheMarketplace, check_refused_because: "The Marketplace no longer lists it." })).toBe("It could not be checked for an update.");
   });
 
   it("gives a Marketplace download to its catalog entry, though its project names itself by its title", () => {

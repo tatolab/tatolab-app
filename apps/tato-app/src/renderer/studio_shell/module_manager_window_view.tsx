@@ -5,6 +5,8 @@ import type {
   DependencySourceKind,
   OpenProjectReading,
   PackageCatalogReading,
+  MarketplaceImport,
+  MarketplaceImportProgressed,
   ProjectDependency,
   TatolabPlatform,
   WorkspaceDependency,
@@ -42,6 +44,7 @@ import {
   moduleContentsWordsOf,
   moduleCopyStateOf,
   moduleCoverNumberOf,
+  moduleUpdateWordsOf,
   whyTheModuleHasNoUpdateToTake,
   moduleRowAndItsNeighboursOf,
   workByIdWithoutTheAddsNowListed,
@@ -49,6 +52,7 @@ import {
   workKeptForTheRow,
   moduleRowCountsOf,
   moduleSourceWordsOf,
+  rowIdOfTheCatalogEntryNamed,
   projectModuleRowsShownOf,
   type MarketplaceKindShown,
   type ModuleCardRow,
@@ -56,6 +60,7 @@ import {
 import type { ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { ModuleManagerSectionAskNumbered } from "./studio_window_model";
 import { type ModuleAsks, ModulePage, type ModuleWork } from "./module_manager_module_page_view";
+import { marketplaceAddFollowedOnceTold, type MarketplaceAddCancel, type MarketplaceAddFollowed } from "../presentation/marketplace_add_presentation";
 
 /** What the Marketplace window reads and asks through. */
 export interface ModuleManagerSources {
@@ -65,7 +70,10 @@ export interface ModuleManagerSources {
   addDependencyToTheWorkspace(source: string): Promise<ProjectDependency>;
   updateWorkspaceDependency(project: string, overwriteEditedFiles: boolean): Promise<WorkspaceDependencyUpdate>;
   removeWorkspaceDependency(project: string): Promise<ProjectDependency>;
-  importFromTheMarketplace(name: string): Promise<ProjectDependency>;
+  importFromTheMarketplace(name: string): Promise<MarketplaceImport>;
+  cancelMarketplaceImport(name: string): Promise<void>;
+  /** Calls `listener` with each stage of a Marketplace add this window asked for; the returned function stops it. */
+  onMarketplaceImportProgressed(listener: (progressed: MarketplaceImportProgressed) => void): () => void;
   cloneMarketplaceSample(name: string): Promise<ChosenProjectFolder>;
   /** Bring forward the studio window of the project in `folder`, one a clone just made. */
   showTheClonedProject(folder: string): Promise<void>;
@@ -149,7 +157,7 @@ function ProjectModuleListRow({ row, dependency, work, asks, onOpened }: { row: 
         work?.kind === "refused" || dependency.check_refused_because !== null ? (
           <span className="flex flex-col gap-1">
             {dependency.check_refused_because !== null && (
-              <RefusalLine tone="warning" lead="Where it was copied from could not be checked:" words={dependency.check_refused_because} data-module-manager-check-refusal={row.row_id} />
+              <RefusalLine tone="warning" lead={moduleUpdateWordsOf(row).checkRefusedLead} words={dependency.check_refused_because} data-module-manager-check-refusal={row.row_id} />
             )}
             {work?.kind === "refused" && <RefusalLine lead={`${row.title} was not ${MODULE_ASK_WORDS_ONCE_DONE[work.ask]}:`} words={work.because} data-module-manager-refusal={row.row_id} />}
           </span>
@@ -198,11 +206,18 @@ export function ModuleManagerWindowView({
     setRowIdOfThePageOpen(null);
   }, []);
   useEffect(() => {
-    if (sectionAsked !== null) showTheTab(sectionAsked.shows);
+    if (sectionAsked === null) return;
+    showTheTab(sectionAsked.shows);
+    if (sectionAsked.page === null) return;
+    // A page asked for opens over the whole list, so no filter left from before hides the entry it names.
+    setSearchText("");
+    setMarketplaceKindShown("all");
+    setRowIdOfThePageOpen(rowIdOfTheCatalogEntryNamed(sectionAsked.page));
   }, [sectionAsked, showTheTab]);
   const [catalog, setCatalog] = useState<PackageCatalogReading | null>(null);
   const [modulesOfTheProject, setModulesOfTheProject] = useState<ModulesOfTheProjectListing>({ kind: "listing" });
   const [moduleWorkByRowId, setModuleWorkByRowId] = useState<ModuleWorkByRowId>({});
+  const [marketplaceAddsFollowedByName, setMarketplaceAddsFollowedByName] = useState<Readonly<Record<string, MarketplaceAddFollowed>>>({});
   const [sourceBeingAdded, setSourceBeingAdded] = useState<string | null>(null);
   const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
   const [projectTabRefusal, setProjectTabRefusal] = useState<string | null>(null);
@@ -235,6 +250,29 @@ export function ModuleManagerWindowView({
       if (isTheWindowStillShown.current) setCatalog(reading);
     });
   }, [sources, listTheModulesOfTheProject]);
+
+  // Only an add this window has under way is followed, so a stage told as it ends never brings back one already answered.
+  const namesBeingAdded = useRef(new Set<string>());
+  useEffect(
+    () =>
+      sources.onMarketplaceImportProgressed(({ name, stage }) => {
+        if (!namesBeingAdded.current.has(name)) return;
+        const toldAtMs = performance.now();
+        setMarketplaceAddsFollowedByName((followedByName) => ({ ...followedByName, [name]: marketplaceAddFollowedOnceTold(followedByName[name] ?? null, stage, toldAtMs) }));
+      }),
+    [sources],
+  );
+  const stopFollowingTheAddOf = (name: string) => {
+    namesBeingAdded.current.delete(name);
+    if (isTheWindowStillShown.current) setMarketplaceAddsFollowedByName((followedByName) => Object.fromEntries(Object.entries(followedByName).filter(([nameFollowed]) => nameFollowed !== name)));
+  };
+  const setTheCancelOfTheAddOf = (name: string, cancel: MarketplaceAddCancel) => {
+    if (!isTheWindowStillShown.current) return;
+    setMarketplaceAddsFollowedByName((followedByName) => {
+      const followed = followedByName[name];
+      return followed === undefined ? followedByName : { ...followedByName, [name]: { ...followed, cancel } };
+    });
+  };
 
   const dependencies = useMemo(() => (modulesOfTheProject.kind === "listed" ? modulesOfTheProject.dependencies : []), [modulesOfTheProject]);
   const everyRow = useMemo(() => everyModuleCardRowOf(catalog, dependencies), [catalog, dependencies]);
@@ -275,7 +313,23 @@ export function ModuleManagerWindowView({
   const asks: ModuleAsks = {
     add: (row) => {
       const entry = row.catalog_entry;
-      if (entry !== null) askOfTheModule(row, "add", `Adding ${row.title} to ${projectName}…`, () => sources.importFromTheMarketplace(entry.name), () => ({ kind: "just_added" }));
+      if (entry === null) return;
+      askOfTheModule(
+        row,
+        "add",
+        `Adding ${row.title} to ${projectName}…`,
+        () => {
+          namesBeingAdded.current.add(entry.name);
+          return sources.importFromTheMarketplace(entry.name).finally(() => stopFollowingTheAddOf(entry.name));
+        },
+        (imported) => (imported.kind === "imported" ? { kind: "just_added" } : null),
+      );
+    },
+    cancelTheAdd: (row) => {
+      const entry = row.catalog_entry;
+      if (entry === null) return;
+      setTheCancelOfTheAddOf(entry.name, { kind: "asked" });
+      sources.cancelMarketplaceImport(entry.name).catch((rejection: unknown) => setTheCancelOfTheAddOf(entry.name, { kind: "refused", because: sources.describeRejection(rejection) }));
     },
     clone: (row) => {
       const entry = row.catalog_entry;
@@ -359,9 +413,11 @@ export function ModuleManagerWindowView({
   };
 
   const rowIdOfThePageShown = pageOpen?.row.row_id ?? null;
+  // A page asked for before its tab's list is read waits for that list; once read, a page it does not hold closes.
+  const isTheListOfTheTabShownRead = modulesShown === "marketplace" ? catalog !== null : modulesOfTheProject.kind !== "listing";
   useEffect(() => {
-    if (rowIdOfThePageShown === null && rowIdOfThePageOpen !== null) setRowIdOfThePageOpen(null);
-  }, [rowIdOfThePageShown, rowIdOfThePageOpen]);
+    if (isTheListOfTheTabShownRead && rowIdOfThePageShown === null && rowIdOfThePageOpen !== null) setRowIdOfThePageOpen(null);
+  }, [isTheListOfTheTabShownRead, rowIdOfThePageShown, rowIdOfThePageOpen]);
   const windowElement = useRef<HTMLDivElement>(null);
   const rowIdOfThePageShownLast = useRef<string | null>(null);
   useEffect(() => {
@@ -537,6 +593,7 @@ export function ModuleManagerWindowView({
           nextRowId={pageOpen.nextRowId}
           cameFromWords={modulesShown === "marketplace" ? "Marketplace" : projectName}
           work={workOf(pageOpen.row)}
+          addFollowed={pageOpen.row.catalog_entry === null ? null : (marketplaceAddsFollowedByName[pageOpen.row.catalog_entry.name] ?? null)}
           projectName={projectName}
           asks={asks}
           onBack={() => showThePageOf(null)}

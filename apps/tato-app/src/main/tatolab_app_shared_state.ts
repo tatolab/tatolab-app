@@ -76,6 +76,8 @@ export interface TatolabAppSharedState {
   fetchTextOverHttps: FetchTextOverHttps;
   /** How the Marketplace downloads a module's `.zip`. */
   fetchBytesOverHttps: FetchBytesOverHttps;
+  /** The monotonic clock a Marketplace download's bytes are told by: `performance.now()` in the app. */
+  readMonotonicClockMs: () => number;
   /** This machine as the Marketplace catalog names one, which each entry is read against. */
   machineModulesInstallOn: PackageCatalogMachine;
   /** Where each Marketplace download is kept, inside the app's config directory. */

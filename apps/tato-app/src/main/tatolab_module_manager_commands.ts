@@ -2,11 +2,17 @@ import path from "node:path";
 import { Effect, Schema, type ManagedRuntime } from "effect";
 import { isAModuleManagerSectionAsked, MODULES_SHOWN, type TatolabCommandSignatures } from "../shared/tatolab_electron_bridge_contract.js";
 import { whyTheModuleBringsNothingOnThisMachine } from "../shared/package_catalog_machine_words.js";
-import { addDependency, listDependencies, listProjectViews, nameTheProject, removeDependency, updateDependency } from "./runtime_operations.js";
+import { whyTheModuleNeedsANewerRuntime, type AskNeedingANewerRuntime } from "../shared/package_catalog_runtime_words.js";
+import { isAMarketplaceDownload } from "@tatolab/tato-app-view-sdk/marketplace_modules";
+import { addDependency, describeRuntime, listDependencies, listProjectViews, nameTheProject, removeDependency, updateDependency } from "./runtime_operations.js";
+import { packageCatalogForTheRuntime } from "./package_catalog.js";
 import { makeAProjectOfItsOwnFromTheArchive } from "./open_project.js";
+import type { MarketplaceImport, PackageCatalogEntry } from "../shared/tatolab_backend_contract.js";
+import { MarketplaceImports } from "./marketplace_imports_followed.js";
+import { checkedAgainstTheMarketplace, marketplacePackageToUpdateTo } from "./marketplace_module_updates.js";
 import { ModuleManagerWindows, PackageCatalog, StatusRounds, type StudioServices } from "./studio_runtime.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
-import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
+import type { TatolabCommandFromWindow, TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import { workspaceDependenciesOf } from "./workspace_dependencies.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
 
@@ -37,34 +43,73 @@ const workspaceDependenciesListed = Effect.fn("workspaceDependenciesListed")(fun
     ],
     { concurrency: "unbounded" },
   );
-  return yield* workspaceDependenciesOf(workspaceFolder, listed, workspaceViews, nameTheProject);
+  const checked = checkForNewer && listed.some((dependency) => isAMarketplaceDownload(dependency.dependency.source))
+    ? yield* catalogForTheRuntime().pipe(Effect.map((catalog) => listed.map((dependency) => checkedAgainstTheMarketplace(dependency, catalog))))
+    : listed;
+  return yield* workspaceDependenciesOf(workspaceFolder, checked, workspaceViews, nameTheProject);
 });
 
-/** The catalog entry `name`, the catalog read afresh; refused when the catalog does not read or lists nothing by that name. */
+/** The catalog read afresh, each entry judged against the release of the runtime answering, or the one a runtime of another contract names as it refuses, or none when no runtime names its release. */
+const catalogForTheRuntime = Effect.fn("catalogForTheRuntime")(function* () {
+  const [catalog, runtimeVersion] = yield* Effect.all(
+    [
+      PackageCatalog.use((packageCatalog) => packageCatalog.readTheCatalog),
+      describeRuntime().pipe(
+        Effect.map((runtimeDescription): string | null => runtimeDescription.version),
+        Effect.catch((failure) =>
+          Effect.logDebug("judged the package catalog against the release the runtime's refusal names, or none").pipe(
+            Effect.annotateLogs({ because: failure.words }),
+            Effect.as(failure._tag === "RuntimeOfAnotherContract" ? failure.mismatch.runtime_version : null),
+          ),
+        ),
+      ),
+    ],
+    { concurrency: "unbounded" },
+  );
+  return packageCatalogForTheRuntime(catalog, runtimeVersion);
+});
+
+/** Refused where `entry` needs a newer runtime than the one its catalog was judged against, in words naming the `ask` it stops. */
+const refusedWhereItNeedsANewerRuntime = Effect.fn("refusedWhereItNeedsANewerRuntime")(function* (entry: PackageCatalogEntry, ask: AskNeedingANewerRuntime) {
+  if (entry.newer_runtime_it_needs !== null) return yield* new CommandRefused({ words: whyTheModuleNeedsANewerRuntime(entry.title, entry.newer_runtime_it_needs, ask) });
+});
+
+/** The catalog entry `name`, the catalog read afresh for the runtime answering; refused when the catalog does not read or lists nothing by that name. */
 const catalogEntryNamed = Effect.fn("catalogEntryNamed")(function* (name: string) {
-  const catalog = yield* PackageCatalog.use((packageCatalog) => packageCatalog.readTheCatalog);
+  const catalog = yield* catalogForTheRuntime();
   if (catalog.kind === "not_read") return yield* new CommandRefused({ words: catalog.because });
   const entry = catalog.entries.find((listed) => listed.name === name);
   if (entry === undefined) return yield* new CommandRefused({ words: `The catalog lists nothing named ${name}.` });
   return entry;
 });
 
-/** The catalog entry `name`, downloaded as its `.zip` and checked, then copied into `workspaceFolder` by the runtime's `add_dependency`; a sample, or a module bringing nothing on this machine, is refused. */
-const marketplaceModuleImported = Effect.fn("marketplaceModuleImported")(function* (workspaceFolder: string, name: string) {
+/**
+ * The catalog entry `name`, downloaded as its `.zip` and checked, then copied into `workspaceFolder` by the runtime's `add_dependency`,
+ * each stage told to the window `commandFromWindow` names, whose Cancel stops it while it downloads; a sample, a module bringing
+ * nothing on this machine, or one needing a newer runtime than the one answering, is refused.
+ */
+const marketplaceModuleImported = Effect.fn("marketplaceModuleImported")(function* (workspaceFolder: string, name: string, commandFromWindow: TatolabCommandFromWindow) {
   const entry = yield* catalogEntryNamed(name);
   if (entry.kind === "sample") return yield* new CommandRefused({ words: `${entry.title} is a sample project; clone it into a project of its own instead.` });
   if (!entry.runs_on_this_machine && entry.platforms !== null) return yield* new CommandRefused({ words: whyTheModuleBringsNothingOnThisMachine(entry.title, entry.platforms) });
-  const zipPath = yield* PackageCatalog.use((packageCatalog) => packageCatalog.downloadTheZipOf(entry));
-  const added = yield* addDependency(workspaceFolder, zipPath);
-  yield* Effect.logInfo("imported a Marketplace module into the workspace").pipe(Effect.annotateLogs({ name, version: entry.version, folder: added.folder, project_folder: workspaceFolder }));
-  return added;
+  yield* refusedWhereItNeedsANewerRuntime(entry, "add");
+  return yield* Effect.scoped(
+    Effect.gen(function* () {
+      const followed = yield* MarketplaceImports.use((marketplaceImports) => marketplaceImports.followed(commandFromWindow, name));
+      const zipPath = yield* PackageCatalog.use((packageCatalog) => packageCatalog.downloadTheZipOf(entry, followed.download));
+      yield* followed.addingStarted;
+      const added = yield* addDependency(workspaceFolder, zipPath);
+      yield* Effect.logInfo("imported a Marketplace module into the workspace").pipe(Effect.annotateLogs({ name, version: entry.version, folder: added.folder, project_folder: workspaceFolder }));
+      return { kind: "imported", dependency: added } satisfies MarketplaceImport;
+    }),
+  ).pipe(Effect.catchTag("MarketplaceDownloadStopped", () => Effect.succeed<MarketplaceImport>({ kind: "cancelled" })));
 });
 
 /** The catalog's sample `name`, downloaded and checked as an import's `.zip` is, then made into a project of its own and opened in its studio window. */
 const marketplaceSampleCloned = Effect.fn("marketplaceSampleCloned")(function* (name: string) {
   const entry = yield* catalogEntryNamed(name);
   if (entry.kind !== "sample") return yield* new CommandRefused({ words: `${entry.title} is not a sample project; add it to a project instead.` });
-  const zipPath = yield* PackageCatalog.use((packageCatalog) => packageCatalog.downloadTheZipOf(entry));
+  const zipPath = yield* PackageCatalog.use((packageCatalog) => packageCatalog.downloadTheZipOf(entry, null));
   const cloned = yield* makeAProjectOfItsOwnFromTheArchive(zipPath, entry.title);
   yield* StatusRounds.use((statusRounds) => statusRounds.requestARound);
   yield* Effect.logInfo("cloned a Marketplace sample into a project of its own").pipe(Effect.annotateLogs({ name, version: entry.version, project_folder: cloned.folder }));
@@ -79,10 +124,27 @@ const dependencyAdded = Effect.fn("dependencyAdded")(function* (workspaceFolder:
   return added;
 });
 
-/** The import `project` of `workspaceFolder` copied again by the runtime's `update_dependency`, overwriting files edited since its copy only with `overwriteEditedFiles`. */
+/**
+ * The source an Update of the import `project` of `workspaceFolder` copies from: the catalog's current download, fetched and checked, for an
+ * import downloaded from the Marketplace at another version; `null`, its own source, for any other, and for one whose edited files the
+ * runtime will ask about first without `overwriteEditedFiles`, so nothing is downloaded for an Update that copies nothing. An Update to a
+ * version needing a newer runtime than the one answering is refused.
+ */
+const sourceToUpdateFrom = Effect.fn("sourceToUpdateFrom")(function* (workspaceFolder: string, project: string, overwriteEditedFiles: boolean) {
+  const listed = (yield* listDependencies(workspaceFolder, false)).find((dependency) => dependency.dependency.project === project);
+  if (listed === undefined || !isAMarketplaceDownload(listed.dependency.source)) return null;
+  if (!overwriteEditedFiles && listed.edited_files.length > 0) return null;
+  const entry = marketplacePackageToUpdateTo(yield* catalogForTheRuntime(), listed.dependency.source);
+  if (entry === null) return null;
+  yield* refusedWhereItNeedsANewerRuntime(entry, "update");
+  return yield* PackageCatalog.use((packageCatalog) => packageCatalog.downloadTheZipOf(entry, null));
+});
+
+/** The import `project` of `workspaceFolder` copied again by the runtime's `update_dependency`, from the Marketplace's current download where it came from there, overwriting files edited since its copy only with `overwriteEditedFiles`. */
 const dependencyUpdated = Effect.fn("dependencyUpdated")(function* (workspaceFolder: string, project: string, overwriteEditedFiles: boolean) {
-  const update = yield* updateDependency(workspaceFolder, project, overwriteEditedFiles);
-  if (update.kind === "updated") yield* Effect.logInfo("updated an import of the workspace").pipe(Effect.annotateLogs({ project, project_folder: workspaceFolder }));
+  const source = yield* sourceToUpdateFrom(workspaceFolder, project, overwriteEditedFiles);
+  const update = yield* updateDependency(workspaceFolder, project, overwriteEditedFiles, source);
+  if (update.kind === "updated") yield* Effect.logInfo("updated an import of the workspace").pipe(Effect.annotateLogs({ project, project_folder: workspaceFolder, source: update.dependency.source }));
   return update;
 });
 
@@ -103,6 +165,7 @@ type ModuleManagerCommandName =
   | "add_dependency_to_the_workspace"
   | "update_workspace_dependency"
   | "import_from_the_marketplace"
+  | "cancel_marketplace_import"
   | "remove_workspace_dependency"
   | "clone_marketplace_sample";
 
@@ -111,28 +174,39 @@ export function moduleManagerCommandHandlersOf(
   sharedState: TatolabAppSharedState,
   studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>,
 ): Pick<TatolabWindowCommandHandlers, ModuleManagerCommandName> {
-  /** The handler of the Module manager window's command `commandName`, its arguments decoded with `commandArguments`, `handler` given the folder of the project the asking window imports into; refused in any other window. */
-  function moduleManagerWindowCommand<CommandName extends ModuleManagerCommandName>(
+  /** The handler of the command `commandName`, its arguments decoded with `commandArguments`, `handler` given the folder of the project `folderOfTheWindow` finds for the asking window, which refuses any other window. */
+  function projectFolderCommand<CommandName extends ModuleManagerCommandName>(
     commandName: CommandName,
     commandArguments: Schema.Decoder<TatolabCommandSignatures[CommandName]["commandArguments"]>,
+    folderOfTheWindow: (moduleManagerWindows: ModuleManagerWindows["Service"], commandFromWindow: TatolabCommandFromWindow) => Effect.Effect<string, CommandRefused>,
     handler: (
       decoded: TatolabCommandSignatures[CommandName]["commandArguments"],
-      workspaceFolder: string,
+      projectFolder: string,
+      commandFromWindow: TatolabCommandFromWindow,
     ) => Effect.Effect<TatolabCommandSignatures[CommandName]["answer"], { readonly words: string }, StudioServices>,
   ) {
     return windowCommand(studioRuntime, commandName, commandArguments, (decoded, commandFromWindow) =>
-      ModuleManagerWindows.use((moduleManagerWindows) => moduleManagerWindows.workspaceFolderOfTheWindow(commandFromWindow)).pipe(
-        Effect.flatMap((workspaceFolder) => handler(decoded, workspaceFolder)),
+      ModuleManagerWindows.use((moduleManagerWindows) => folderOfTheWindow(moduleManagerWindows, commandFromWindow)).pipe(
+        Effect.flatMap((projectFolder) => handler(decoded, projectFolder, commandFromWindow)),
       ),
     );
   }
 
+  /** The handler of the Module manager window's command `commandName`, `handler` given the folder of the project the asking window imports into; refused in any other window. */
+  function moduleManagerWindowCommand<CommandName extends ModuleManagerCommandName>(
+    commandName: CommandName,
+    commandArguments: Schema.Decoder<TatolabCommandSignatures[CommandName]["commandArguments"]>,
+    handler: Parameters<typeof projectFolderCommand<CommandName>>[3],
+  ) {
+    return projectFolderCommand(commandName, commandArguments, (moduleManagerWindows, commandFromWindow) => moduleManagerWindows.workspaceFolderOfTheWindow(commandFromWindow), handler);
+  }
+
   return {
     open_module_manager_window: async (commandArguments, commandFromWindow) => {
-      if (!isAModuleManagerSectionAsked(commandArguments)) return { ok: false, refusal: `open_module_manager_window needs \`shows\`, one of ${MODULES_SHOWN.join(", ")}.` };
-      const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
-      if (studioWindow === null) return { ok: false, refusal: "Only a project's studio window opens Module manager." };
-      sharedState.appWindows.openTheModuleManagerWindowOf(studioWindow, commandArguments.shows);
+      if (!isAModuleManagerSectionAsked(commandArguments)) return { ok: false, refusal: `open_module_manager_window needs \`shows\`, one of ${MODULES_SHOWN.join(", ")}, and \`page\`, a catalog entry's name or null.` };
+      const studioWindow = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId);
+      if (studioWindow === null) return { ok: false, refusal: "Only a project's studio window, or a view popped out of it, opens Module manager." };
+      sharedState.appWindows.openTheModuleManagerWindowOf(studioWindow, commandArguments);
       return { ok: true, value: null };
     },
     read_module_manager_workspace: async (_commandArguments, commandFromWindow) => ({
@@ -143,7 +217,7 @@ export function moduleManagerCommandHandlersOf(
       ok: true,
       value: sharedState.appWindows.moduleManagerSectionLastAskedOfTheWindowWithContents(commandFromWindow.windowContentsId),
     }),
-    read_package_catalog: windowCommand(studioRuntime, "read_package_catalog", Schema.Undefined, () => PackageCatalog.use((packageCatalog) => packageCatalog.readTheCatalog)),
+    read_package_catalog: windowCommand(studioRuntime, "read_package_catalog", Schema.Undefined, () => catalogForTheRuntime()),
     list_workspace_dependencies: moduleManagerWindowCommand("list_workspace_dependencies", ListWorkspaceDependenciesArguments, ({ check_for_newer }, workspaceFolder) =>
       workspaceDependenciesListed(workspaceFolder, check_for_newer),
     ),
@@ -156,7 +230,15 @@ export function moduleManagerCommandHandlersOf(
     update_workspace_dependency: moduleManagerWindowCommand("update_workspace_dependency", UpdateDependencyArguments, ({ project, overwrite_edited_files }, workspaceFolder) =>
       dependencyUpdated(workspaceFolder, project, overwrite_edited_files),
     ),
-    import_from_the_marketplace: moduleManagerWindowCommand("import_from_the_marketplace", CatalogEntryArguments, ({ name }, workspaceFolder) => marketplaceModuleImported(workspaceFolder, name)),
+    import_from_the_marketplace: projectFolderCommand(
+      "import_from_the_marketplace",
+      CatalogEntryArguments,
+      (moduleManagerWindows, commandFromWindow) => moduleManagerWindows.projectFolderOfAWindowOfTheProject(commandFromWindow),
+      ({ name }, projectFolder, commandFromWindow) => marketplaceModuleImported(projectFolder, name, commandFromWindow),
+    ),
+    cancel_marketplace_import: windowCommand(studioRuntime, "cancel_marketplace_import", CatalogEntryArguments, ({ name }, commandFromWindow) =>
+      MarketplaceImports.use((marketplaceImports) => marketplaceImports.cancel(commandFromWindow, name)).pipe(Effect.as(null)),
+    ),
     remove_workspace_dependency: moduleManagerWindowCommand("remove_workspace_dependency", DependencyArguments, ({ project }, workspaceFolder) => dependencyRemoved(workspaceFolder, project)),
     clone_marketplace_sample: moduleManagerWindowCommand("clone_marketplace_sample", CatalogEntryArguments, ({ name }) => marketplaceSampleCloned(name)),
   };

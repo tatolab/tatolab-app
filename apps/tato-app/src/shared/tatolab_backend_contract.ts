@@ -64,6 +64,8 @@ export type {
   ProjectGraphTransaction,
   ProjectGraphTransactionApplying,
   ProjectGraphTransactionTheRuntimeAnswered,
+  CheckLinkCandidatesRequest,
+  LinkCandidatesCheckResult,
   ThePersonEditingReading,
   PortViewerTarget,
   PortViewerChannelWaveform,
@@ -423,6 +425,10 @@ export interface PackageCatalogEntry {
   platforms: PackageCatalogMachine[] | null;
   /** Whether it brings anything on this machine: `platforms` is `null` or names this one. On any other the import succeeds and brings no node. */
   runs_on_this_machine: boolean;
+  /** The lowest runtime release it runs on, as the catalog names it; `null` for an entry published before the catalog named one. */
+  lowest_runtime_version: string | null;
+  /** `lowest_runtime_version` where the runtime answering is an older release, so the runtime cannot resolve it; `null` where it can, or where no runtime answered to tell. */
+  newer_runtime_it_needs: string | null;
 }
 
 /** What `read_package_catalog` answers: the catalog's entries and how many it served that the app could not read, or why it was not read, in the words of what refused. */
@@ -440,6 +446,25 @@ export interface ProjectDependency {
   /** The SHA-256 naming the version its copy carried. */
   version: string;
 }
+
+/**
+ * How far adding a Marketplace package has come: its `.zip` downloading, `bytes_read` of `bytes_total` (`null` where the server
+ * announced no length); the download checked against the catalog's `sha256`; or the runtime's `add_dependency` adding it to the
+ * project, which can no longer be cancelled.
+ */
+export type MarketplaceImportStage =
+  | { kind: "downloading"; bytes_read: number; bytes_total: number | null }
+  | { kind: "verifying"; sha256: string }
+  | { kind: "adding" };
+
+/** How far adding the Marketplace package `name`, asked from the window told, has come. */
+export interface MarketplaceImportProgressed {
+  name: string;
+  stage: MarketplaceImportStage;
+}
+
+/** A Marketplace package added to the project, as the runtime's `add_dependency` copied it, or its download cancelled with nothing imported. */
+export type MarketplaceImport = { kind: "imported"; dependency: ProjectDependency } | { kind: "cancelled" };
 
 /** One of the workspace's imports as Module manager lists it: what the runtime says of it, and its name from `imports/<folder>/tatolab-project.json`. */
 export interface WorkspaceDependency extends ProjectDependency {

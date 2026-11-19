@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { newGestureIdempotencyKey, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import type { GraphEditMode, JsonValue, StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { jsonTextOf, type GraphEditMode, type JsonValue, type StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { streamGraphActionsAtTheLevel } from "../shared/stream_graph_edits";
 
 /** Where on a node's panel an edit was made, which its refusal shows under: the name, a config field, or a port. */
@@ -124,10 +124,10 @@ export function useGraphEditsInTheOpenProject(connection: Pick<TatoAppViewConnec
       keepTheRefusal: (place, refusal) => keepTheRefusal(nodeId, place, refusal),
       configToEditFrom: (configTheReadingShows) => {
         const sentAhead = configsSentAheadOfTheReading.current.get(nodeId);
-        return sentAhead !== undefined && sentAhead.readingWhenSent === JSON.stringify(configTheReadingShows) ? sentAhead.configSent : configTheReadingShows;
+        return sentAhead !== undefined && sentAhead.readingWhenSent === jsonTextOf(configTheReadingShows) ? sentAhead.configSent : configTheReadingShows;
       },
       rememberTheConfigSent: (configTheReadingShows, configSent) => {
-        configsSentAheadOfTheReading.current.set(nodeId, { readingWhenSent: JSON.stringify(configTheReadingShows), configSent });
+        configsSentAheadOfTheReading.current.set(nodeId, { readingWhenSent: jsonTextOf(configTheReadingShows), configSent });
       },
     }),
     [refusalsByNode, commit, sendLive, keepTheRefusal],

@@ -1,6 +1,6 @@
 // The fixture view, written in `.ts` on the view SDK and served as written, with no build: its own
 // header row after Studio's view-type menu, what is wired into its `picture` input, how the picture
-// fits kept in its area's settings, and its fader sent on its `fader` output. It draws with React and
+// fits kept in its node's settings, and its fader sent on its `fader` output. It draws with React and
 // the design system's parts, which the Studio supplies by name, through `createElement`; its own
 // boxes with a stylesheet of its own on the design system's tokens; and the fader's words with a
 // library it carries in `vendor/`.
@@ -20,7 +20,7 @@ import { levelWords } from "./vendor/level_words.js";
 
 type PictureFit = "contain" | "cover";
 
-/** How the picture fits the area, as the area's settings keep it. */
+/** How the picture fits the area, as its node's settings keep it. */
 function pictureFitOf(settings: ViewSettings): PictureFit {
   return settings?.["picture_fit"] === "cover" ? "cover" : "contain";
 }

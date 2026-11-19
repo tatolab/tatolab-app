@@ -3,7 +3,7 @@
 
 import type { DockIconHost, MainWindowChrome } from "../main_window_chrome.js";
 
-/** The hidden title bar the window draws under, with the 14 px traffic lights centred on the studio's 40 px menu bar, at its left end. */
+/** The hidden title bar the window draws under, with the 14 px traffic lights at its left end, centred 20 px down: the middle of the 40 px bars and the midline of the studio's title row. */
 export const MACOS_MAIN_WINDOW_CHROME: MainWindowChrome = { titleBarStyle: "hidden", trafficLightPosition: { x: 18, y: 13 } };
 
 /** A regular app with a Dock icon while the window shows, an accessory without one otherwise. */

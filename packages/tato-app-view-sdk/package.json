@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./studio_readings": "./src/studio_readings.ts",
+    "./marketplace_modules": "./src/marketplace_modules.ts",
     "./port_families": "./src/port_families.ts",
     "./stream_graph_builders": "./src/stream_graph_builders.ts",
     "./pin_type_readings": "./src/pin_type_readings.ts",

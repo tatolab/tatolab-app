@@ -10,7 +10,18 @@ export interface SearchPopoverItem {
   category_path: readonly string[] | null;
   /** The entry above the categories that also lists it, with the heading it is listed under there; `null` for none. */
   listed_above_the_categories: { entry: string; heading: string } | null;
+  /**
+   * The heading it is listed under after every category, with a quiet word at the heading's end, as "Not in stage-left-wall" and
+   * "Marketplace", for an item from beyond what the search browses; such an item is filed under no entry and no category, so it
+   * is listed only while text is searched for. Left out for none.
+   */
+  listed_after_the_categories?: { heading: string; aside: string | null };
+  /** Words at the end of its row: what choosing it does, as "Add module", drawn with ↵ while it is highlighted; or how its choice stands, drawn always, as "Adding…" or "Not added". Left out for none. */
+  end_words?: SearchPopoverItemEndWords;
 }
+
+/** The words at the end of an item's row: what choosing it does, a choice of it under way, or a choice of it refused. */
+export type SearchPopoverItemEndWords = { kind: "what_choosing_does"; words: string } | { kind: "under_way"; words: string } | { kind: "refused"; words: string };
 
 /** One row of the popover's left-hand list: an entry above the categories, a category at its depth, or the entry of the items filed under no category. */
 export interface SearchPopoverEntry {
@@ -30,6 +41,8 @@ export interface SearchPopoverSection {
   /** Told apart from every other section's, as a category's from a heading above the categories that reads the same. */
   section_id: string;
   heading: string | null;
+  /** A quiet word at the heading's end, as "Marketplace"; `null` for none. */
+  aside: string | null;
   items: SearchPopoverItem[];
 }
 
@@ -132,12 +145,12 @@ export function searchPopoverEntryItOpensOn(entries: readonly SearchPopoverEntry
   return (entries.find((entry) => entry.kind === "above_the_categories" && entry.match_count > 0) ?? entries.find((entry) => entry.kind !== "above_the_categories") ?? entries[0])?.entry_id ?? null;
 }
 
-type SearchPopoverItemUnderASection = { section_id: string; heading: string | null; item: SearchPopoverItem };
+type SearchPopoverItemUnderASection = { section_id: string; heading: string | null; aside?: string | null; item: SearchPopoverItem };
 
 function sectionsInTheOrderFirstNamed(itemsUnderSections: readonly SearchPopoverItemUnderASection[]): SearchPopoverSection[] {
   const sectionsById = new Map<string, SearchPopoverSection>();
-  for (const { section_id, heading, item } of itemsUnderSections) {
-    const section = sectionsById.get(section_id) ?? { section_id, heading, items: [] };
+  for (const { section_id, heading, aside = null, item } of itemsUnderSections) {
+    const section = sectionsById.get(section_id) ?? { section_id, heading, aside, items: [] };
     sectionsById.set(section_id, { ...section, items: [...section.items, item] });
   }
   return [...sectionsById.values()];
@@ -159,19 +172,27 @@ function sectionsByCategory(categorisedItems: readonly SearchPopoverItem[], unca
   );
 }
 
+function itemUnderItsHeadingAfterTheCategories(item: SearchPopoverItem): SearchPopoverItemUnderASection {
+  const heading = item.listed_after_the_categories?.heading ?? null;
+  return { section_id: `after:${heading ?? ""}`, heading, aside: item.listed_after_the_categories?.aside ?? null, item };
+}
+
 /**
  * The `matchingItems` the list shows under the entry `chosenEntryId`, by heading: an entry above the categories lists its
  * items under their headings there; a category lists everything filed inside it, each category's items under its path;
- * `null` lists every item, those no category lists first, under their headings above the categories.
+ * `null` lists every item, those no category lists first, under their headings above the categories, and those listed
+ * after the categories last, under their headings there.
  */
 export function searchPopoverSectionsShown(matchingItems: readonly SearchPopoverItem[], chosenEntryId: string | null, uncategorisedWords: string): SearchPopoverSection[] {
   if (chosenEntryId === null) {
+    const itemsListedAfter = matchingItems.filter((item) => item.listed_after_the_categories !== undefined);
     return [
-      ...sectionsInTheOrderFirstNamed(matchingItems.filter((item) => item.category_path === null).map(itemUnderItsHeadingAboveTheCategories)),
+      ...sectionsInTheOrderFirstNamed(matchingItems.filter((item) => item.category_path === null && item.listed_after_the_categories === undefined).map(itemUnderItsHeadingAboveTheCategories)),
       ...sectionsByCategory(
         matchingItems.filter((item) => item.category_path !== null),
         uncategorisedWords,
       ),
+      ...sectionsInTheOrderFirstNamed(itemsListedAfter.map(itemUnderItsHeadingAfterTheCategories)),
     ];
   }
   if (chosenEntryId === UNCATEGORISED_ENTRY_ID) {

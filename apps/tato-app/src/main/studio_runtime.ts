@@ -17,7 +17,8 @@ import type {
   TatolabStatus,
 } from "../shared/tatolab_backend_contract.js";
 import { projectPlaybackAsListed, streamsOfTheProjectIn, theStreamsListTheProjectOpen, type ProjectPlaybackAsListed } from "../shared/project_playback.js";
-import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
+import { MarketplaceDownloadStopped, MarketplaceImports, marketplaceImportsTelling } from "./marketplace_imports_followed.js";
+import { downloadTheCatalogEntrysZip, type MarketplaceDownloadFollowing } from "./marketplace_module_download.js";
 import type { ProjectFolderDialogPurpose, RecentProjectFolderOpened, StudioWindowOfTheProjectShown } from "./open_project.js";
 import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
@@ -30,6 +31,7 @@ import { failedWith, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import type { TatolabAppLog, TatolabAppLogFields, TatolabAppLogLevel } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
+import type { StudioWindowOfAProject } from "./tatolab_app_windows.js";
 import { studioWindowTheCommandCameFrom, type TatolabCommandFromWindow } from "./tatolab_command_answers.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
@@ -139,6 +141,8 @@ export class ModuleManagerWindows extends Context.Service<
   {
     /** The folder of the project the Module manager window a command came from imports into; refused in any other window. */
     readonly workspaceFolderOfTheWindow: (commandFromWindow: TatolabCommandFromWindow) => Effect.Effect<string, CommandRefused>;
+    /** The folder of the project the window a command came from belongs to: its studio window, a view popped out of it, or its Module manager window; refused in any other window. */
+    readonly projectFolderOfAWindowOfTheProject: (commandFromWindow: TatolabCommandFromWindow) => Effect.Effect<string, CommandRefused>;
     /** The desktop's open dialog for a project's folder or `.zip`, opened at `defaultFolder`; `null` when the person cancels. */
     readonly chooseDependencySource: (sourceKind: DependencySourceKind, defaultFolder: string) => Effect.Effect<string | null, CommandRefused>;
   }
@@ -150,8 +154,8 @@ export class PackageCatalog extends Context.Service<
   {
     /** The catalog read afresh: its entries for this machine, or why it did not read. */
     readonly readTheCatalog: Effect.Effect<PackageCatalogReading>;
-    /** The path of `entry`'s `.zip`, downloaded into the app's downloads folder and checked against the catalog. */
-    readonly downloadTheZipOf: (entry: PackageCatalogEntry) => Effect.Effect<string, CommandRefused>;
+    /** The path of `entry`'s `.zip`, downloaded into the app's downloads folder and checked against the catalog, `following` told each stage and able to stop it while it downloads. */
+    readonly downloadTheZipOf: (entry: PackageCatalogEntry, following: MarketplaceDownloadFollowing | null) => Effect.Effect<string, CommandRefused | MarketplaceDownloadStopped>;
   }
 >()("tatolab-app/PackageCatalog") {}
 
@@ -264,6 +268,11 @@ export class ProjectLogsFollowed extends Context.Service<ProjectLogsFollowed, Pr
 /** A window that follows the runtime's pushes: told each change of a stream graph and each project log record it follows. */
 export type WindowFollowingTheRuntime = WindowFollowingStreamGraphs & WindowFollowingProjectLogs;
 
+/** The folder of the project `studioWindow` shows, refused in `words` where no window was found. */
+function projectFolderOrRefusal(studioWindow: StudioWindowOfAProject | null, words: string): Effect.Effect<string, CommandRefused> {
+  return studioWindow === null ? Effect.fail(new CommandRefused({ words })) : Effect.succeed(studioWindow.openProject.projectFolder);
+}
+
 /** The stream graphs and project logs the windows follow, over the runtime's connections while the layer's scope is open. */
 export function runtimePushesFollowedLayerOver(runtimeControl: Layer.Layer<RuntimeControl>, tatolabAppLog: TatolabAppLog): Layer.Layer<StreamGraphsFollowed | ProjectLogsFollowed> {
   return Layer.mergeAll(
@@ -354,6 +363,7 @@ export type StudioServices =
   | RuntimeControl
   | StudioWindows
   | ModuleManagerWindows
+  | MarketplaceImports
   | PackageCatalog
   | ThisMachinesFolders
   | ProjectDialogs
@@ -461,16 +471,32 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
         return openProjectFolder?.ok === true ? openProjectFolder.value : null;
       },
     }),
+    Layer.succeed(
+      MarketplaceImports,
+      marketplaceImportsTelling((windowContentsId, progressed) => sharedState.appWindows.windowWithContents(windowContentsId)?.tellTheWindowTheMarketplaceImportProgressed(progressed), sharedState.readMonotonicClockMs),
+    ),
     Layer.succeed(ModuleManagerWindows, {
       workspaceFolderOfTheWindow: (commandFromWindow) => {
         const studioWindow = sharedState.appWindows.studioWindowOfTheModuleManagerWindowWithContents(commandFromWindow.windowContentsId);
-        return studioWindow === null ? Effect.fail(new CommandRefused({ words: "Only a Module manager window imports into a project." })) : Effect.succeed(studioWindow.openProject.projectFolder);
+        return projectFolderOrRefusal(studioWindow, "Only a Module manager window imports into a project.");
+      },
+      projectFolderOfAWindowOfTheProject: (commandFromWindow) => {
+        const studioWindow =
+          sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId) ?? sharedState.appWindows.studioWindowOfTheModuleManagerWindowWithContents(commandFromWindow.windowContentsId);
+        return projectFolderOrRefusal(studioWindow, "Only a project's studio window, a view popped out of it, or its Module manager window imports into the project.");
       },
       chooseDependencySource: (sourceKind, defaultFolder) => commandAnswerOfPlainCode(() => sharedState.dependencySourceDialog(sourceKind, defaultFolder)),
     }),
     Layer.succeed(PackageCatalog, {
       readTheCatalog: Effect.promise(() => readThePackageCatalog(sharedState.fetchTextOverHttps, sharedState.machineModulesInstallOn)),
-      downloadTheZipOf: (entry) => commandAnswerOfPlainCode(() => downloadTheCatalogEntrysZip(entry, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder)),
+      downloadTheZipOf: (entry, following) =>
+        Effect.promise(() => downloadTheCatalogEntrysZip(entry, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder, following)).pipe(
+          Effect.flatMap((downloaded) =>
+            fromResult(downloaded, (failure) =>
+              failure.kind === "stopped" ? new MarketplaceDownloadStopped({ words: `The download of ${entry.title} was cancelled; nothing was imported.` }) : new CommandRefused({ words: failure.because }),
+            ),
+          ),
+        ),
     }),
     Layer.succeed(ThisMachinesFolders, { homeDirectory: sharedState.homeDirectory, documentsDirectory: sharedState.documentsDirectory }),
     Layer.succeed(ProjectDialogs, {

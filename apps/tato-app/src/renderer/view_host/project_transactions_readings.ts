@@ -4,7 +4,9 @@
 
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type {
+  CheckLinkCandidatesRequest,
   GraphEditMode,
+  LinkCandidatesChecking,
   ProjectGraphTransactionApplying,
   ProjectTransaction,
   ProjectTransactionApplying,
@@ -27,7 +29,7 @@ export class ProjectTransactionsReadings {
   private stopListeningToTheBackend: (() => void) | null = null;
 
   constructor(
-    private readonly backend: Pick<TatolabBackend, "readOpenProjectTransactions" | "onProjectTransactionsChanged" | "undoInTheOpenProject" | "redoInTheOpenProject" | "transactInTheOpenProject" | "readThePersonEditingInStudio">,
+    private readonly backend: Pick<TatolabBackend, "readOpenProjectTransactions" | "onProjectTransactionsChanged" | "undoInTheOpenProject" | "redoInTheOpenProject" | "transactInTheOpenProject" | "checkLinkCandidatesInTheOpenProject" | "readThePersonEditingInStudio">,
     private readonly readTheOpenProjectFolder: () => string | null,
   ) {}
 
@@ -66,6 +68,15 @@ export class ProjectTransactionsReadings {
     return this.backend.transactInTheOpenProject(operations, mode, idempotencyKey).then(
       (applying): ProjectGraphTransactionApplying => applying,
       (rejection: unknown): ProjectGraphTransactionApplying => ({ kind: "not_sent", because: describeBackendRejection(rejection) }),
+    );
+  };
+
+  /** The runtime's `check_link_candidates` of `request` on a stream of the open project, which changes nothing. */
+  readonly checkLinkCandidates = async (projectFolder: string, request: CheckLinkCandidatesRequest): Promise<LinkCandidatesChecking> => {
+    if (this.readTheOpenProjectFolder() !== projectFolder) return { kind: "not_checked", because: onlyTheOpenProjectsFeedRefusal(projectFolder) };
+    return this.backend.checkLinkCandidatesInTheOpenProject(request).then(
+      (result): LinkCandidatesChecking => ({ kind: "checked", result }),
+      (rejection: unknown): LinkCandidatesChecking => ({ kind: "not_checked", because: describeBackendRejection(rejection) }),
     );
   };
 

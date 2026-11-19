@@ -1,4 +1,5 @@
 import { net } from "electron";
+import { bytesOfTheResponse } from "../https_response_bytes.js";
 import { describeCaughtFailure, failedWith, succeeded } from "../result.js";
 import type { FetchBytesOverHttps, FetchTextOverHttps } from "../package_catalog.js";
 
@@ -13,16 +14,14 @@ export const fetchTextOverHttpsThroughElectron: FetchTextOverHttps = async (url)
   }
 };
 
-/** Fetches through Chromium's network stack as `fetchTextOverHttpsThroughElectron` does, refusing a body over `largestByteCount` by its `Content-Length` and by the bytes read. */
-export const fetchBytesOverHttpsThroughElectron: FetchBytesOverHttps = async (url, largestByteCount) => {
+/**
+ * Fetches through Chromium's network stack as `fetchTextOverHttpsThroughElectron` does, reading the body a run of bytes at a time to tell
+ * `following` each, and refusing a body over `largestByteCount` by its `Content-Length` and by the bytes read.
+ */
+export const fetchBytesOverHttpsThroughElectron: FetchBytesOverHttps = async (url, largestByteCount, following) => {
   try {
-    const response = await net.fetch(url, { cache: "no-cache" });
-    if (response.status !== 200) return failedWith(`HTTP ${response.status} ${response.statusText}`.trim());
-    const announcedByteCount = Number(response.headers.get("content-length") ?? "0");
-    if (announcedByteCount > largestByteCount) return failedWith(`it is ${announcedByteCount} bytes, over the ${largestByteCount} a download may be`);
-    const body = Buffer.from(await response.arrayBuffer());
-    if (body.length > largestByteCount) return failedWith(`it is ${body.length} bytes, over the ${largestByteCount} a download may be`);
-    return succeeded(body);
+    const response = await net.fetch(url, { cache: "no-cache", ...(following === null ? {} : { signal: following.stopped }) });
+    return await bytesOfTheResponse(response, largestByteCount, following);
   } catch (fetchFailure) {
     return failedWith(describeCaughtFailure(fetchFailure));
   }

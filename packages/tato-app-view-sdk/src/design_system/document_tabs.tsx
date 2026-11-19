@@ -10,7 +10,7 @@ export interface DocumentTab {
   name: string;
 }
 
-/** The open documents' tabs along the bottom of the window's title row, each led by `icon`; the active one is the colour of the work under it, so the two read as one, and only it, or a tab under the pointer, shows the × that closes it. */
+/** The open documents' tabs along the bottom of the window's title row, each led by `icon` and as tall as the band the row gives them, so their labels share its midline; the active one is the colour of the work under it, so the two read as one, and only it, or a tab under the pointer, shows the × that closes it. */
 export function DocumentTabs({
   label,
   icon,
@@ -32,14 +32,14 @@ export function DocumentTabs({
   const Icon = studioIconNamed(icon);
   if (tabs.length === 0) return <p className="flex h-full min-w-0 items-center px-2 text-2xs text-fg-3"><span className="truncate">{whenNoneIsOpen}</span></p>;
   return (
-    <div role="tablist" aria-label={label} className="flex h-full min-w-0 items-end gap-0.5 overflow-x-auto [scrollbar-width:none]">
+    <div role="tablist" aria-label={label} className="flex h-full min-w-0 gap-0.5 overflow-x-auto [scrollbar-width:none]">
       {tabs.map((tab) => {
         const isActive = tab.tab_id === activeTabId;
         return (
           <div
             key={tab.tab_id}
             className={cn(
-              "group flex h-7.5 max-w-50 shrink-0 items-center rounded-t-lg pr-1.5 text-xs",
+              "group flex h-full max-w-50 shrink-0 items-center rounded-t-lg pr-1.5 text-xs",
               isActive ? "bg-studio-frame text-fg" : "text-fg-3 hover:bg-studio-frame/50 hover:text-fg-2",
             )}
           >

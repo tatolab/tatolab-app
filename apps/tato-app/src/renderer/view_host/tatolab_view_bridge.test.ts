@@ -63,6 +63,17 @@ const DJ_DECK_MANIFEST = manifestOf({
   settings: { type: "object", properties: { show_waveform: { type: "boolean", default: true }, zoom: { type: "number", minimum: 1, default: 1 } } },
 });
 
+/** An `area` view declaring DJ Deck's settings, which its area keeps. */
+const DECK_SETTINGS_MANIFEST = manifestOf({
+  contract: "1.0",
+  title: "Deck settings",
+  entry: "index.html",
+  placement: "area",
+  inputs: [],
+  outputs: [],
+  settings: { type: "object", properties: { show_waveform: { type: "boolean", default: true }, zoom: { type: "number", minimum: 1, default: 1 } } },
+});
+
 const STREAM_FILE_READ: ProjectFileRead = { file: "/set/stream.py", project_folder: "/set", text: "print()", version: "v1", is_editable: true };
 
 const UNDO_APPLIED: ProjectTransaction = {
@@ -133,6 +144,7 @@ function recordingHostServices() {
   const undosAsked: { projectFolder: string; author: ProjectTransactionAuthor }[] = [];
   const assetImportsAsked: { projectFolder: string; media: readonly string[] | null }[] = [];
   const assetChangesAsked: string[][] = [];
+  const nodeTypeGroupsAsked: [string, string, string | null][] = [];
   const recoveriesAsked: string[][] = [];
   const modulesAndMarketplaceSectionsOpened: string[] = [];
   const viewTypesShownInAreas: { viewTypeId: string; areaId: string }[] = [];
@@ -203,6 +215,12 @@ function recordingHostServices() {
       assetChangesAsked.push(["delete", projectFolder, asset]);
       return { kind: "changed" };
     },
+    setNodeTypeGroupInTheProject: async (projectFolder, nodeType, group) => {
+      nodeTypeGroupsAsked.push([projectFolder, nodeType, group]);
+      return group === "Show//Levels"
+        ? { kind: "not_changed", because: 'set_node_type_group failed: "Show//Levels" cannot file `nodes.mix:Mixer`: a group is one or more names split by `/`, none of them blank, as `Effects/Stylize`' }
+        : { kind: "changed" };
+    },
     recoverTheProjectsStreams: async (projectFolder, recovery) => {
       recoveriesAsked.push([projectFolder, recovery]);
       return projectFolder === "/set" ? { kind: "asked" } : { kind: "not_asked", because: `Tato Studio recovers the streams of this window's project only, not ${projectFolder}.` };
@@ -230,6 +248,11 @@ function recordingHostServices() {
       modulesAndMarketplaceSectionsOpened.push(shows);
       return modulesAndMarketplaceSectionsOpened.length === 1 ? { kind: "opened" } : { kind: "not_opened", because: "Only a project's studio window opens its Modules and Marketplace window." };
     },
+    readTheMarketplace: async () => ({
+      kind: "read",
+      entries: [{ kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames from a camera.", nodes: [{ name: "CameraSource", summary: "Frames from one camera." }], runs_on_this_machine: true, needs_a_newer_runtime: false }],
+    }),
+    addFromTheMarketplace: async (name) => (name === "tatolab-camera" ? { kind: "added", folder: "tatolab-camera" } : { kind: "not_added", because: `The catalog lists nothing named ${name}.` }),
     watchProjectTransactions: (projectFolder, listener) => {
       listener({ kind: "not_read", because: `No runtime follows ${projectFolder}.` });
       return () => undefined;
@@ -246,6 +269,8 @@ function recordingHostServices() {
       if (operations[0]?.operation === "set_node_input_value" && operations[0].input === "play_a") return { kind: "refused", refusal: VIEW_OUTPUT_VALUE_REFUSAL };
       return { kind: "applied", transaction: GRAPH_TRANSACTION_APPLIED };
     },
+    checkLinkCandidates: async (projectFolder, request) =>
+      projectFolder === "/set" ? { kind: "checked", result: { candidates: [{ end: { kind: "placed_port", node: "n-uuid", port: "video" }, check: { outcome: "connects" } }] } } : { kind: "not_checked", because: `No runtime follows ${request.stream}.` },
     readThePersonEditing: async () => ({ kind: "read", author: { kind: "person", name: "sam" } }),
     connectToPythonLanguageServer: (projectFolder, onEvent) => {
       const opened = { projectFolder, onEvent, closed: false };
@@ -271,7 +296,7 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, projectAssetPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, recoveriesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked };
+  return { hostServices, projectAssetPickHeld, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent, undosAsked, assetImportsAsked, assetChangesAsked, nodeTypeGroupsAsked, recoveriesAsked, modulesAndMarketplaceSectionsOpened, viewTypesShownInAreas, graphTransactionsAsked };
 }
 
 /** An area that keeps the settings it is asked to remember, says where the view's header row lies, and expands while a layout holds it. */
@@ -282,6 +307,7 @@ function recordingAreaServices(savedSettings: JsonValue | undefined) {
   const areaServices: TatolabViewAreaServices = {
     areaId: "properties",
     watchSavedSettings: (listener) => saved.watch((latest) => listener(latest.saved)),
+    readSavedSettings: () => saved.readLatest().saved,
     rememberSettings: (settings) => saved.publish({ saved: settings }),
     watchHeaderRow: headerRow.watch,
     expansion: {
@@ -365,6 +391,13 @@ describe("a view's connection to Studio, through the one bridge every view is se
     void picking;
   });
 
+  it("asks the runtime how a placed pin links to its candidates, its answer reaching the view unchanged and a refusal in words", async () => {
+    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
+    const request = { stream: "s-uuid", from: { output: { node: "m-uuid", port: "video" } }, among: "placed_ports", include_refused: true } as const;
+    expect(await connection.checkLinkCandidates("/set", request)).toEqual({ kind: "checked", result: { candidates: [{ end: { kind: "placed_port", node: "n-uuid", port: "video" }, check: { outcome: "connects" } }] } });
+    expect(await connection.checkLinkCandidates("/elsewhere", request)).toEqual({ kind: "not_checked", because: "No runtime follows s-uuid." });
+  });
+
   it("names the person editing, whose own edits Undo reverts", async () => {
     const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(await connection.readThePersonEditing()).toEqual({ kind: "read", author: { kind: "person", name: "sam" } });
@@ -430,6 +463,21 @@ describe("a view's connection to Studio, through the one bridge every view is se
     ]);
   });
 
+  it("files a node type of the project under a group and puts it back, a refusal in the runtime's words", async () => {
+    const { connection, nodeTypeGroupsAsked } = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await connection.setNodeTypeGroupInTheProject("/set", "nodes.mix:Mixer", "Show/Levels")).toEqual({ kind: "done" });
+    expect(await connection.setNodeTypeGroupInTheProject("/set", "nodes.mix:Mixer", null)).toEqual({ kind: "done" });
+    expect(await connection.setNodeTypeGroupInTheProject("/set", "nodes.mix:Mixer", "Show//Levels")).toEqual({
+      kind: "refused",
+      because: 'set_node_type_group failed: "Show//Levels" cannot file `nodes.mix:Mixer`: a group is one or more names split by `/`, none of them blank, as `Effects/Stylize`',
+    });
+    expect(nodeTypeGroupsAsked).toEqual([
+      ["/set", "nodes.mix:Mixer", "Show/Levels"],
+      ["/set", "nodes.mix:Mixer", null],
+      ["/set", "nodes.mix:Mixer", "Show//Levels"],
+    ]);
+  });
+
   it("reads an asset's preview picture, a refusal in the runtime's words", async () => {
     const { connection, assetChangesAsked } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(await connection.readAssetPreviewInTheProject("/set", "a-uuid")).toEqual({
@@ -480,6 +528,16 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(await connection.openModulesAndMarketplace("marketplace")).toEqual({ kind: "done" });
     expect(await connection.openModulesAndMarketplace("added_to_this_project")).toEqual({ kind: "refused", because: "Only a project's studio window opens its Modules and Marketplace window." });
     expect(modulesAndMarketplaceSectionsOpened).toEqual(["marketplace", "added_to_this_project"]);
+  });
+
+  it("reads the Marketplace and adds one of its packages to the open project, and says why when it can't", async () => {
+    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await connection.readTheMarketplace()).toEqual({
+      kind: "read",
+      entries: [{ kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames from a camera.", nodes: [{ name: "CameraSource", summary: "Frames from one camera." }], runs_on_this_machine: true, needs_a_newer_runtime: false }],
+    });
+    expect(await connection.addFromTheMarketplace("tatolab-camera")).toEqual({ kind: "added", folder: "tatolab-camera" });
+    expect(await connection.addFromTheMarketplace("tatolab-lens")).toEqual({ kind: "not_added", because: "The catalog lists nothing named tatolab-lens." });
   });
 
   it("reads the project's history and undoes through it", async () => {
@@ -677,7 +735,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
   });
 
   it("hands the view its area's settings checked against what it declares, keeps ones that fit, and refuses ones that do not, naming the setting", async () => {
-    const { connection, saved } = await connectedView(DJ_DECK_MANIFEST, {}, { zoom: 3, show_waveform: "yes" });
+    const { connection, saved } = await connectedView(DECK_SETTINGS_MANIFEST, {}, { zoom: 3, show_waveform: "yes" });
     const settingsSeen: ViewSettings[] = [];
     connection.watchSettings((settings) => settingsSeen.push(settings));
     await messagesDelivered();
@@ -692,6 +750,43 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(keptAnswer).toEqual({ kind: "done" });
     expect(refusedAnswer.kind === "refused" ? refusedAnswer.because : "kept").toContain("`zoom`:");
     expect(saved.readLatest()).toEqual({ saved: { show_waveform: true, zoom: 2 } });
+  });
+
+  it("sets a node view's changed settings on its node as one edit, keeps none with its area, and says why where they are not set", async () => {
+    const deckNode: StudioViewNodeAddress = { kind: "addressed", graph: { project_folder: "/set", stream_asset: "s-uuid", level: [] }, node_id: "id-dj-deck" };
+    const { connection, bridge, saved, graphTransactionsAsked, hostServices } = await connectedView(DJ_DECK_MANIFEST, {}, { zoom: 2 }, deckNode);
+
+    expect(await connection.rememberSettings({ zoom: 2, show_waveform: true })).toEqual({ kind: "done" });
+    expect(graphTransactionsAsked).toEqual([]);
+    expect(await connection.rememberSettings({ zoom: 3, show_waveform: false })).toEqual({ kind: "done" });
+    expect(graphTransactionsAsked).toEqual([
+      {
+        projectFolder: "/set",
+        operations: [
+          { operation: "set_node_input_value", stream: "s-uuid", node: "id-dj-deck", input: "show_waveform", value: false },
+          { operation: "set_node_input_value", stream: "s-uuid", node: "id-dj-deck", input: "zoom", value: 3 },
+        ],
+        mode: "commit",
+        idempotencyKey: null,
+      },
+    ]);
+    expect(saved.readLatest()).toEqual({ saved: { zoom: 2 } });
+    expect(await connection.rememberSettings({ zoom: 2, show_waveform: false })).toEqual({ kind: "done" });
+    expect(graphTransactionsAsked[1]?.operations).toEqual([{ operation: "set_node_input_value", stream: "s-uuid", node: "id-dj-deck", input: "zoom", value: 2 }]);
+    expect(await connection.rememberSettings({ zoom: 0 })).toMatchObject({ kind: "refused", because: expect.stringContaining("`zoom`:") });
+
+    hostServices.transactInTheProject = async () => ({ kind: "refused", refusal: VIEW_OUTPUT_VALUE_REFUSAL });
+    expect(await connection.rememberSettings({ zoom: 4 })).toEqual({ kind: "refused", because: VIEW_OUTPUT_VALUE_REFUSAL.runtime_words });
+    bridge.readdress({ kind: "not_addressed", because: "The runtime's graph of Set names no stream asset, so nothing is set on its Deck node." });
+    expect(await connection.rememberSettings({ zoom: 4 })).toEqual({ kind: "refused", because: "The runtime's graph of Set names no stream asset, so nothing is set on its Deck node." });
+    expect(graphTransactionsAsked).toHaveLength(2);
+  });
+
+  it("refuses a node view's settings while it has no node, keeping none with its area", async () => {
+    const { connection, saved } = await connectedView(DJ_DECK_MANIFEST, {}, { zoom: 2 });
+
+    expect(await connection.rememberSettings({ zoom: 3 })).toEqual({ kind: "refused", because: "DJ Deck shows its node's settings, and has no node, so its settings reach no stream." });
+    expect(saved.readLatest()).toEqual({ saved: { zoom: 2 } });
   });
 
   it("opens a view of a type on a file, tells views of that type what they were opened on, and says why when no area can show it", async () => {

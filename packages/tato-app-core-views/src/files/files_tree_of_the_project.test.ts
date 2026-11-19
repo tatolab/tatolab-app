@@ -9,9 +9,10 @@ const GALLERY: OpenProject = {
       project: "060206c3-f170-4008-b425-e6269e038d0d",
       name: "Doorway",
       folder: "doorway",
+      copied_from: "/home/sam/sources/doorway",
       source: { kind: "folder", project: { folder: "/w/gallery/imports/doorway", project: "060206c3-f170-4008-b425-e6269e038d0d", name: "Doorway" } },
     },
-    { project: "dde5a62f-b0a8-45d2-a741-79140871f978", name: "lobby", folder: "lobby", source: { kind: "folder_unreadable", folder: "/w/gallery/imports/lobby", refusal: "gone" } },
+    { project: "dde5a62f-b0a8-45d2-a741-79140871f978", name: "lobby", folder: "lobby", copied_from: "/home/sam/sources/lobby", source: { kind: "folder_unreadable", folder: "/w/gallery/imports/lobby", refusal: "gone" } },
   ],
   imports_not_listed_because: null,
 };

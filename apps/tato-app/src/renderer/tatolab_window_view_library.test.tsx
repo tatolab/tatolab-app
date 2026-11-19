@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mountedWindowOverTheMock, pressAsAPointerDoes, coreViewPage, showInTheLibrary, libraryRow, showTheLibraryInTheViewerArea, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
@@ -33,6 +33,66 @@ describe("the studio", () => {
     await showInTheLibrary("graph_generators");
     await waitFor(() => expect(libraryRow("source:project/graph_generators/generators.glow_looks:warm_glow").textContent).toBe("warm_glow"));
     expect(coreViewPage("library").querySelector('[data-tree-row-id="source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11"]')).toBeNull();
+  });
+
+  it("moves a node type into a group typed from its row's right-click menu and puts it back, a group with a blank name refused in the runtime's words", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await showTheLibraryInTheViewerArea();
+
+    const library = coreViewPage("library");
+    const stageLights = "source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11";
+    const dimmer = "imports/stage-lights/nodes.dimmer:Dimmer";
+    const chooseFromTheRowsMenu = async (rowId: string, choice: string) => {
+      fireEvent.contextMenu(await waitFor(() => libraryRow(rowId)));
+      // A fake core view frame is drawn by the window's own React, so its menu's portal opens in the window's document.
+      fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>(`[data-library-node-type-choice="${choice}"]`) ?? expect.unreachable(`no ${choice} in the menu of ${rowId}`)));
+    };
+    const groupField = () => library.querySelector<HTMLInputElement>("[data-library-node-type-group-field]") ?? expect.unreachable("no Group field");
+    const pressMove = () => fireEvent.click(library.querySelector<HTMLElement>('[data-library-node-type-group-action="move"]') ?? expect.unreachable("no Move button"));
+
+    fireEvent.click(await waitFor(() => libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`)));
+    await chooseFromTheRowsMenu(`${stageLights}/category:Lighting/node_type:${dimmer}`, "move_to_group");
+    await waitFor(() => expect(groupField().value).toBe("Lighting"));
+    fireEvent.change(groupField(), { target: { value: "Show//Levels" } });
+    pressMove();
+    const refusal = await waitFor(() => library.querySelector<HTMLElement>("[data-library-node-type-group-refusal]") ?? expect.unreachable("no refusal"));
+    expect(refusal.textContent).toContain('set_node_type_group failed: "Show//Levels" cannot file `imports/stage-lights/nodes.dimmer:Dimmer`: a group is one or more names split by `/`, none of them blank, as `Effects/Stylize`');
+    fireEvent.change(groupField(), { target: { value: "Show/Levels" } });
+    pressMove();
+    const movedRowId = `${stageLights}/category:Show/Levels/node_type:${dimmer}`;
+    await waitFor(() => libraryRow(movedRowId));
+    await waitFor(() => expect(library.querySelector("[data-library-node-type-group-form]")).toBeNull());
+    expect(library.querySelector(`[data-tree-row-id="${stageLights}/category:Lighting/node_type:${dimmer}"]`)).toBeNull();
+    // The node type chosen before the move is still chosen at its new row, its details saying the project files it there.
+    await waitFor(() => expect(library.querySelector(`[data-library-details="${dimmer}"]`)?.textContent).toContain("GroupShow / LevelsFiled byThis project"));
+    expect(libraryRow(movedRowId).getAttribute("aria-selected")).toBe("true");
+
+    // The Add node search reads the same node types, so it files Dimmer under Show › Levels too.
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-tool="add_node"]') ?? expect.unreachable("no Add node in the graph's ribbon")));
+    const nodeSearch = await waitFor(() => within(streamGraph.body).getByRole("dialog", { name: "Add a node" }));
+    fireEvent.click(await waitFor(() => nodeSearch.querySelector<HTMLElement>('[data-search-popover-entry="category:Show"]') ?? expect.unreachable("no Show in Add node")));
+    fireEvent.click(await waitFor(() => nodeSearch.querySelector<HTMLElement>('[data-search-popover-entry="category:Show/Levels"]') ?? expect.unreachable("no Show › Levels in Add node")));
+    await waitFor(() => expect(nodeSearch.querySelector(`[data-search-popover-item="${dimmer}"]`)).not.toBeNull());
+    fireEvent.keyDown(within(nodeSearch).getByRole("combobox"), { key: "Escape" });
+
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-node-type-action="put_back"]') ?? expect.unreachable("no Put back button in the details"));
+    await waitFor(() => libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`));
+    expect(library.querySelector(`[data-tree-row-id="${movedRowId}"]`)).toBeNull();
+
+    // One undo takes the put back away, so the project files Dimmer under Show › Levels again.
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+    await waitFor(() => libraryRow(movedRowId));
+    // The details offer Move to group… as a button, reached without a pointer's right-click.
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-node-type-action="move_to_group"]') ?? expect.unreachable("no Move to group… button in the details"));
+    await waitFor(() => expect(groupField().value).toBe("Show/Levels"));
+    fireEvent.keyDown(groupField(), { key: "Escape" });
+    await waitFor(() => expect(library.querySelector("[data-library-node-type-group-form]")).toBeNull());
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-node-type-action="put_back"]') ?? expect.unreachable("no Put back button in the details"));
+    await waitFor(() => libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`));
+    fireEvent.contextMenu(libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`));
+    await waitFor(() => document.querySelector('[data-library-node-type-choice="move_to_group"]') ?? expect.unreachable("no menu"));
+    expect(document.querySelector('[data-library-node-type-choice="put_back"]')).toBeNull();
   });
 
   it("shows the project's assets in the Library by folder, narrowed by the search, the card pressed outlined and no details beside it, its graph documents left out", async () => {

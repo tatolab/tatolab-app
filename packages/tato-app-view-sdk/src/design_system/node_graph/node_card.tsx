@@ -8,12 +8,12 @@ import { nodePinRows, type NodePin } from "../../pin_model/node_pins";
 import { valueWords } from "../../pin_model/value_words";
 import type { PinFlow, PinType } from "../../pin_type_readings";
 import { pinTypeKey, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
-import type { StreamGraphPortPin } from "../../studio_readings";
+import { jsonTextOf, type StreamGraphPortPin } from "../../studio_readings";
 import { InputControlMount } from "../input_control_mount";
 import { NodeGraphNodesFoundContext } from "../node_graph_find_bar";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "../support/full_strength_focus_ring";
-import type { NodeGraphCardCondition, NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
-import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphCardAndFrameEditingContext, NodeGraphInputValuesContext, NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE } from "../support/node_graph_flow_elements";
+import { nodeGraphPinKey, type NodeGraphCardCondition, type NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
+import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, connectionLookupKeyOfTheHandle, NodeGraphEditableContext, NodeGraphWireFitsContext, NodeGraphCardAndFrameEditingContext, NodeGraphInputValuesContext, NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE } from "../support/node_graph_flow_elements";
 import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "../support/node_graph_layout";
 import { isAPinSocketOfTheCardUnmeasured } from "../support/node_graph_pin_socket_measurement";
 
@@ -53,6 +53,7 @@ function NodeGraphPinSocket({
   takesNewWires: boolean;
 }) {
   const isEditable = useContext(NodeGraphEditableContext);
+  const wireFit = useContext(NodeGraphWireFitsContext)?.get(nodeGraphPinKey(nodeId, side, pin.name));
   const handleType = side === "input" ? "target" : "source";
   const handleId = side === "input" ? inputPinHandleId(pin.name) : outputPinHandleId(pin.name);
   // A socket is drawn again only when it gains its first link or loses its last; `useNodeConnections` would draw it
@@ -66,7 +67,8 @@ function NodeGraphPinSocket({
       isConnectable={isEditable && takesNewWires}
       className="node-graph-pin"
       {...socketLookAttributes(pin.pin)}
-      title={nodeGraphPinTooltip(pin)}
+      title={wireFit?.words ?? nodeGraphPinTooltip(pin)}
+      data-wire-fit={wireFit?.outcome}
       data-stream-facts={pin.stream_facts_words.length === 0 ? undefined : pin.stream_facts_words.join(" · ")}
       data-linked={isLinked || undefined}
     />
@@ -91,7 +93,7 @@ const NodeGraphInputValueWords = memo(function NodeGraphInputValueWords({ addres
 
 /** Whether a row's value words name the same input of the same type, so a new reading's equal address keeps the words' watch. */
 function haveTheSameInputAndType(before: { address: InputAddress; pinType: PinType | null }, after: { address: InputAddress; pinType: PinType | null }): boolean {
-  return inputAddressKey(before.address) === inputAddressKey(after.address) && (before.pinType === after.pinType || JSON.stringify(before.pinType) === JSON.stringify(after.pinType));
+  return inputAddressKey(before.address) === inputAddressKey(after.address) && (before.pinType === after.pinType || jsonTextOf(before.pinType) === jsonTextOf(after.pinType));
 }
 
 /** The mark a card's control carries, so the canvas hides it while zoomed out past reading it. */

@@ -213,11 +213,14 @@ export function addDependency(projectDirectory: string, source: string): Effect.
   return controlOperationReadWith("add_dependency", { project_directory: projectDirectory, source }, projectDependencyFromTheAddDependencyToolResult);
 }
 
-/** The import `project` of the project in `projectDirectory` copied again from its source by the runtime's `update_dependency`, overwriting files edited since its copy only with `overwriteEditedFiles`. */
-export function updateDependency(projectDirectory: string, project: string, overwriteEditedFiles: boolean): Effect.Effect<WorkspaceDependencyUpdate, RuntimeControlFailure, RuntimeControl> {
+/**
+ * The import `project` of the project in `projectDirectory` copied again by the runtime's `update_dependency`, from `source` where given and
+ * from the source it was last copied from otherwise, overwriting files edited since its copy only with `overwriteEditedFiles`.
+ */
+export function updateDependency(projectDirectory: string, project: string, overwriteEditedFiles: boolean, source: string | null = null): Effect.Effect<WorkspaceDependencyUpdate, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith(
     "update_dependency",
-    { project_directory: projectDirectory, project, overwrite_edited_files: overwriteEditedFiles },
+    { project_directory: projectDirectory, project, overwrite_edited_files: overwriteEditedFiles, ...(source === null ? {} : { source }) },
     dependencyUpdateFromTheUpdateDependencyToolResult,
   );
 }
@@ -259,6 +262,11 @@ export function relocateAsset(projectDirectory: string, asset: string, toPath: s
 /** The asset `asset` of the project in `projectDirectory` no longer tracked through the runtime's `delete_asset`, its file and sidecar leaving the project, one transaction recorded under `author`: the asset as it was. */
 export function deleteAsset(projectDirectory: string, asset: string, author: ProjectTransactionAuthor): Effect.Effect<ProjectAssetAtItsPath, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith("delete_asset", { project_directory: projectDirectory, asset, author: authorOnTheWire(author) }, (answered) => assetAtItsPathFromTheToolResult("delete_asset", answered));
+}
+
+/** The node type `nodeType` filed under `group`, a `/`-separated path, in the project in `projectDirectory` through the runtime's `set_node_type_group`, or with `null` put back where an import or its author files it, one transaction recorded under `author`. */
+export function setNodeTypeGroup(projectDirectory: string, nodeType: string, group: string | null, author: ProjectTransactionAuthor): Effect.Effect<void, RuntimeControlFailure, RuntimeControl> {
+  return RuntimeControl.use((runtimeControl) => runtimeControl.call("set_node_type_group", { project_directory: projectDirectory, node_type: nodeType, group, author: authorOnTheWire(author) })).pipe(Effect.asVoid);
 }
 
 /** The preview picture of the asset `asset` of the project in `projectDirectory`, an image's own or a video's poster frame, from the runtime's `read_asset_preview`. */

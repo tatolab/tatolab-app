@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { areasOfTheLayout, type StudioAreaLayoutNode } from "./studio_area_layout";
-import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, STUDIO_LAYOUT_SHAPES, studioLayoutHasAnAreaAt, studioLayoutShapedAs, studioLayoutShapePicture, studioLayoutWithEdgesHidden, studioLayoutWithShownSplitSizes } from "./studio_layout_shapes";
+import { codeStudioLayout } from "./studio_layout";
+import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, STUDIO_LAYOUT_SHAPES, studioLayoutHasAnAreaAt, studioLayoutPicture, studioLayoutShapedAs, studioLayoutShapePicture, studioLayoutWithEdgesHidden, studioLayoutWithShownSplitSizes } from "./studio_layout_shapes";
 
 const area = (area_id: string, view_type_id: string): StudioAreaLayoutNode => ({ kind: "area", area_id, view_type_id });
 
@@ -46,6 +47,22 @@ describe("a shape's picture in the layout menu", () => {
       { left_percent: 0, top_percent: 70, width_percent: 100, height_percent: 30, is_emphasised: false },
     ]);
     expect(studioLayoutShapePicture("grid").map(({ left_percent, top_percent }) => [left_percent, top_percent])).toEqual([[0, 0], [50, 0], [0, 50], [50, 50]]);
+  });
+
+  it("draws a layout Studio ships by its areas, the one it gives the most room emphasised", () => {
+    const picture = studioLayoutPicture(codeStudioLayout()).map(({ left_percent, top_percent, width_percent, height_percent, is_emphasised }) => [
+      Math.round(left_percent),
+      Math.round(top_percent),
+      Math.round(width_percent),
+      Math.round(height_percent),
+      is_emphasised,
+    ]);
+    expect(picture).toEqual([
+      [0, 0, 18, 100, false],
+      [18, 0, 52, 100, true],
+      [70, 0, 30, 45, false],
+      [70, 45, 30, 55, false],
+    ]);
   });
 
   it("covers the whole picture, with one emphasised slot, for every shape", () => {

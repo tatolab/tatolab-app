@@ -6,6 +6,7 @@
 
 import { fragmentOfTheNode, inputValueReadOfThePort, type StreamGraph, type StreamGraphInputValueChange, type StreamGraphNode } from "../../shared/tatolab_backend_contract";
 import type { StreamInputValue, StreamInputValuesReading } from "./studio_view_contract";
+import { jsonTextOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The values of one graph reading, each input's by its node and name. */
 interface ValuesOfAReading {
@@ -33,7 +34,7 @@ function valuesOfTheReading(graph: StreamGraph): ValuesOfAReading {
   return kept;
 }
 
-const readTheSame = (a: StreamInputValue["value_read"], b: StreamInputValue["value_read"]): boolean => a.comes_from === b.comes_from && JSON.stringify(a.value) === JSON.stringify(b.value);
+const readTheSame = (a: StreamInputValue["value_read"], b: StreamInputValue["value_read"]): boolean => a.comes_from === b.comes_from && jsonTextOf(a.value) === jsonTextOf(b.value);
 
 /** Apply `change` to `kept`, answering the input's new value; `null` when the reading holds no such input, or it already reads that. */
 function applyTheChange(kept: ValuesOfAReading, change: StreamGraphInputValueChange): StreamInputValue | null {
@@ -81,7 +82,7 @@ export class StreamInputValuesReadings {
     const kept = valuesOfTheReading(graph);
     for (const change of changesSinceTheReadStarted) applyTheChange(kept, change);
     const reading = valuesReadingOf(kept);
-    const readingJson = JSON.stringify(reading);
+    const readingJson = jsonTextOf(reading);
     this.kept = kept;
     if (readingJson === this.keptJson) return;
     this.keptJson = readingJson;
