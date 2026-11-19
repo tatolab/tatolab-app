@@ -1,9 +1,9 @@
 import { Effect } from "effect";
 import { afterEach, expect, test } from "vitest";
-import { FakeLocalApiServer, controlOperationResponseOfTheRecordedToolResponse, controlOperationFailedResponse } from "./fake_local_api_server.js";
-import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./runtime_operations_test_support.js";
+import { FakeLocalApiServer, controlOperationResponseOfTheRecordedToolResponse } from "./fake_local_api_server.js";
+import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./runtime_operations_test_support.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { describeNodeTypes, listNodeTypes, listProjectAssets, listProjectNodeTypes, nameTheProject, readAssetPreview } from "./runtime_operations.js";
+import { describeNodeTypes, listNodeTypes, listProjectAssets, nameTheProject, readAssetPreview } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -59,90 +59,6 @@ test("describing_a_node_type_the_project_does_not_offer_is_refused_in_the_runtim
   ]);
 
   expect(failureOf(await server.run(describeNodeTypes(EVERY_PIN_KIND, ["nodes.glow:Glow", "nodes.glow:NoSuchNode"]))).words).toContain("offers a node type `nodes.glow:NoSuchNode`");
-});
-
-test("listing_a_projects_node_types_calls_list_project_node_types_with_its_folder_and_reads_each_source", async () => {
-  const listingText = JSON.stringify({
-    project_directory: "/w/pattern",
-    project: "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90",
-    project_name: "pattern",
-    sources: [{ source: "project", node_types: [], graph_generators: [], unreadable_modules: [] }],
-  });
-  const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheResultText(listingText)]);
-
-  const listing = answerOf(await server.run(listProjectNodeTypes("/w/pattern")));
-
-  expect(listing.project_name).toBe("pattern");
-  expect(listing.sources.map((source) => source.origin)).toEqual([{ source: "project" }]);
-  const [, body] = headAndBodyOf(server.receivedRequests()[0]);
-  expect(JSON.parse(body).method).toBe("list_project_node_types");
-  expect(JSON.parse(body).params).toEqual({ project_directory: "/w/pattern" });
-});
-
-test("a_node_type_listing_the_runtime_refuses_carries_its_own_words", async () => {
-  const refusal = "list_project_node_types failed: the project's interpreter printed no listing";
-  const server = await fakeLocalApiServerAnswering([controlOperationFailedResponse(refusal)]);
-
-  expect(failureOf(await server.run(listProjectNodeTypes("/w/pattern"))).words).toBe(refusal);
-});
-
-test("a_real_node_type_listing_reads_the_projects_node_types_generator_unreadable_module_and_installed_distribution", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-node-types-tool-result-of-a-project-with-a-module-that-does-not-parse.json")),
-  ]);
-
-  const listing = answerOf(await server.run(listProjectNodeTypes("/private/tmp/tatolab-proof-projects/node-type-proof")));
-
-  expect(listing.project_name).toBe("node-type-proof");
-  expect(listing.sources.map((source) => source.origin)).toEqual([
-    { source: "project" },
-    { source: "dependency", project: "ba5fc2b1-df25-4e86-bec3-aba1564d6233", folder: "core-nodes", version: "0.68.82", project_name: "Core Nodes" },
-    { source: "installed_distribution", distribution: "tatolab-compositor", distribution_version: "0.68.82" },
-    { source: "installed_distribution", distribution: "tatolab-stream", distribution_version: "0.68.82" },
-    { source: "installed_distribution", distribution: "tatolab-testpattern", distribution_version: "0.68.82" },
-  ]);
-  const [projectSource, , , , testPatternSource] = listing.sources;
-  expect(projectSource?.node_types.map((nodeType) => [nodeType.type, nodeType.kind, nodeType.category])).toEqual([
-    ["nodes.brightness_meter:BrightnessMeter", "process", null],
-    ["nodes.edge_mask:EdgeMask", "process", "Masks"],
-    ["nodes.gain:scale_by_gain", "function", null],
-    ["nodes.halftone_lens_effect:HalftoneLensEffect", "process", null],
-  ]);
-  expect(projectSource?.node_types[1]?.outputs).toEqual([{ name: "mask_out", family: "image", description: "The edge mask.", annotation: null }]);
-  expect(projectSource?.node_types[2]?.inputs?.[1]).toEqual({ name: "gain", family: "channels", description: "", annotation: "float" });
-  expect(projectSource?.graph_generators).toEqual([
-    { generator: "nodes.masked_rig:masked_rig", description: "Wires `mask_count` edge masks in a row.", promoted_config: [{ name: "mask_count", annotation: "int" }], path: "nodes/masked_rig.py", line: 7 },
-  ]);
-  expect(projectSource?.unreadable_modules).toEqual([{ module: "nodes.half_written", path: "nodes/half_written.py", line: 4, column: 11, why: "SyntaxError: '(' was never closed" }]);
-  expect(testPatternSource?.node_types.map((nodeType) => nodeType.type)).toEqual(["tatolab.testpattern:TestPatternSource"]);
-});
-
-test("a_real_node_type_listing_of_a_folder_that_is_not_a_project_is_refused_in_the_runtimes_own_words", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-node-types-tool-refusal-for-a-folder-that-is-not-a-project.json")),
-  ]);
-
-  expect(failureOf(await server.run(listProjectNodeTypes("/private/tmp/tatolab-proof-185/not-a-project"))).words).toBe(
-    "list_project_node_types failed: /private/tmp/tatolab-proof-185/not-a-project holds no project: it has no tatolab-project.json",
-  );
-});
-
-test("a_real_node_type_listing_of_a_project_with_imports_lists_each_import_by_its_uuid_folder_and_version", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-node-types-tool-result-of-night-show-importing-doorways-and-lobby-wall.json")),
-  ]);
-
-  const listing = answerOf(await server.run(listProjectNodeTypes("/tmp/tatolab-proof-projects/night-show")));
-
-  expect(listing.sources.map((source) => [source.origin, source.node_types.length])).toEqual([
-    [{ source: "project" }, 2],
-    [{ source: "dependency", project: "27f7b9b7-9a4d-463c-9b72-10bbf0c3c3e1", folder: "doorways", version: "4c3ae2870d8408c96345817f9dd86c190d3cc1f0313079d56915d54b59dd5223", project_name: "doorways" }, 2],
-    [{ source: "dependency", project: "dde5a62f-b0a8-45d2-a741-79140871f978", folder: "lobby-wall", version: "b542d38ff3bc8901f8495be6d5ca434a24bc93a7174837b5c0e0e22a7c81c9d0", project_name: "lobby-wall" }, 2],
-    [{ source: "dependency", project: "ba5fc2b1-df25-4e86-bec3-aba1564d6233", folder: "core-nodes", version: "0.68.82", project_name: "Core Nodes" }, 74],
-    [{ source: "installed_distribution", distribution: "tatolab-compositor", distribution_version: "0.68.82" }, 1],
-    [{ source: "installed_distribution", distribution: "tatolab-stream", distribution_version: "0.68.82" }, 1],
-    [{ source: "installed_distribution", distribution: "tatolab-testpattern", distribution_version: "0.68.82" }, 1],
-  ]);
 });
 
 test("a_real_asset_listing_names_the_project_and_a_folder_that_is_not_a_project_is_refused_in_the_runtimes_own_words", async () => {
@@ -260,7 +176,7 @@ test("a_node_type_listing_waits_past_the_ordinary_request_timeout_for_the_projec
   const listingText = JSON.stringify({ project_directory: "/w/pattern", project: "p", project_name: "pattern", sources: [] });
   const server = await FakeLocalApiServer.answering([controlOperationResponseOfTheResultText(listingText)], 300);
   cleanUps.push(() => server.close());
-  const listing = await Effect.runPromise(listProjectNodeTypes("/w/pattern").pipe(Effect.provide(runtimeControlLayer(server.localApiSocketPath, 100))));
+  const listing = await Effect.runPromise(listNodeTypes("/w/pattern").pipe(Effect.provide(runtimeControlLayer(server.localApiSocketPath, 100))));
 
   expect(listing.project_name).toBe("pattern");
 });

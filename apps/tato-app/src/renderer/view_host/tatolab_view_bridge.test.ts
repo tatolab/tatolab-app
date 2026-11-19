@@ -169,7 +169,6 @@ function recordingHostServices() {
     createNodeFile: async () => ({ kind: "not_created", because: "no files in this test" }),
     listProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
     watchProjectLog: () => () => undefined,
-    watchProjectNodeTypes: () => () => undefined,
     watchProjectAssets: (projectFolder, listener) => {
       listener({ kind: "not_listed", because: `list_assets failed: ${projectFolder} holds no project: it has no tatolab-project.json` });
       return () => undefined;

@@ -7,7 +7,7 @@ import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse, controlOperationResultResponse, runOverTheLocalApiAt } from "./fake_local_api_server.js";
 import { runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./runtime_description_on_the_wire.js";
 import { httpRequestBytes, parseHttpResponse } from "./local_api_plain_http.js";
-import { checkTheRuntimesHealth, describeNodeTypes, describeRuntime, describeStreamGraph, listDependencies, listProjectAssets, listNodeTypes, listProjectNodeTypes, listStreams, readAssetPreview, readProjectLogRecords, readTheMachineName } from "./runtime_operations.js";
+import { checkTheRuntimesHealth, describeNodeTypes, describeRuntime, describeStreamGraph, listDependencies, listProjectAssets, listNodeTypes, listStreams, readAssetPreview, readProjectLogRecords, readTheMachineName } from "./runtime_operations.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { controlOperationOnTheConnectionReadWith, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
@@ -222,12 +222,11 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
   }
   for (const projectDirectory of new Set(streams.flatMap((listedStream) => (listedStream.location === null ? [] : [listedStream.location.project_directory])))) {
     const projectStreams = streams.filter((listedStream) => listedStream.location?.project_directory === projectDirectory);
-    const nodeTypeListing = await live(listProjectNodeTypes(projectDirectory));
     const nodeTypesListed = await live(listNodeTypes(projectDirectory));
     const nodeTypesNamed = nodeTypesListed.sources.flatMap((source) => source.node_types.map((listed) => listed.node_type));
     expect((await live(describeNodeTypes(projectDirectory, nodeTypesNamed))).node_types.map((described) => described.node_type)).toEqual(nodeTypesNamed);
     await live(listDependencies(projectDirectory, false));
-    expect(nodeTypeListing.sources[0]?.origin).toEqual({ source: "project" });
+    expect(nodeTypesListed.sources[0]?.source).toBe("project");
     const assetListing = await live(listProjectAssets(projectDirectory));
     expect(assetListing.assets.filter((asset) => asset.kind === "stream").length).toBeGreaterThanOrEqual(projectStreams.length);
     for (const previewedAsset of assetListing.assets.filter((asset) => asset.preview !== null)) {

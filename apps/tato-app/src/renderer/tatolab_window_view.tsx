@@ -141,9 +141,6 @@ export function mountTatolabWindow(
   const projectLogReadings = new ProjectLogReadings(backend);
   projectLogReadings.setReadingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectLogReadings.setReadingAllowed(isVisible));
-  const projectNodeTypeReadings = new ProjectListingReadingsWhileWatched((projectFolder) => backend.listProjectNodeTypes(projectFolder));
-  projectNodeTypeReadings.setReadingAllowed(isTatolabWindowVisible());
-  onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypeReadings.setReadingAllowed(isVisible));
   const projectNodeTypesDescribedReadings = new ProjectNodeTypesDescribedReadings(backend);
   projectNodeTypesDescribedReadings.setReadingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypesDescribedReadings.setReadingAllowed(isVisible));
@@ -166,9 +163,7 @@ export function mountTatolabWindow(
   backend.onProjectFilesChanged(listTheOpenProjectsAssetsAgain);
   backend.onProjectNodeTypesChanged(() => {
     const openProjectFolder = readTheOpenProjectFolder();
-    if (openProjectFolder === null) return;
-    projectNodeTypeReadings.listTheProjectAgainNow(openProjectFolder);
-    projectNodeTypesDescribedReadings.listTheProjectAgainNow(openProjectFolder);
+    if (openProjectFolder !== null) projectNodeTypesDescribedReadings.listTheProjectAgainNow(openProjectFolder);
   });
 
   const chooseProjectFolder = (chosenFor: ProjectFolderChosenFor) => {
@@ -260,7 +255,6 @@ export function mountTatolabWindow(
     viewHostServices: studioViewHostServicesOf(studioWindowModel.viewHostSources(studioViewTypeTitlesOf(viewTypeRegistry)), streamGraphReadings, {
       backend,
       projectLogReadings,
-      projectNodeTypeReadings,
       projectNodeTypesDescribedReadings,
       projectAssetReadings,
       projectTransactionsReadings,

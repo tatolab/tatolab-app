@@ -173,18 +173,18 @@ describe("the studio", () => {
     });
     await mountedWindowOverTheMock("state=running");
     await theAreasShownAre(["library-area", "code-area"]);
-    const invertingEffectRowId = "source:project/category:Effects/node_type:nodes.inverting_effect:InvertingEffect";
-    fireEvent.doubleClick(await waitFor(() => libraryRow(invertingEffectRowId)));
+    const glowRowId = "source:project/category:Every pin kind/node_type:nodes.glow:Glow";
+    fireEvent.doubleClick(await waitFor(() => libraryRow(glowRowId)));
 
-    const invertingEffectFile = `${PATTERN_PROJECT}/nodes/inverting_effect.py`;
+    const glowFile = `${PATTERN_PROJECT}/nodes/glow.py`;
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("read"));
-    expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(invertingEffectFile);
-    expect(coreViewPage("code").querySelector(`[data-code-file-tab="${CSS.escape(invertingEffectFile)}"]`)?.textContent).toContain("inverting_effect.py");
+    expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(glowFile);
+    expect(coreViewPage("code").querySelector(`[data-code-file-tab="${CSS.escape(glowFile)}"]`)?.textContent).toContain("glow.py");
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-project-log]")).not.toBeNull());
 
     fireEvent.click(coreViewPage("code").querySelector<HTMLElement>("[data-code-logs-toggle]") ?? expect.unreachable("no logs toggle"));
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-project-log]")).toBeNull());
-    fireEvent.click(coreViewPage("code").querySelector<HTMLElement>(`[data-code-file-tab-close="${CSS.escape(invertingEffectFile)}"]`) ?? expect.unreachable("no close on the tab"));
+    fireEvent.click(coreViewPage("code").querySelector<HTMLElement>(`[data-code-file-tab-close="${CSS.escape(glowFile)}"]`) ?? expect.unreachable("no close on the tab"));
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open"));
 
     const rightEdgeButton = () => document.querySelector<HTMLElement>('[data-studio-layout-edge="right"]') ?? expect.unreachable("no right edge button");
@@ -198,14 +198,14 @@ describe("the studio", () => {
     expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open");
     expect(coreViewPage("code").querySelector("[data-code-file-tab]")).toBeNull();
 
-    fireEvent.doubleClick(await waitFor(() => libraryRow(invertingEffectRowId)));
-    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(invertingEffectFile));
+    fireEvent.doubleClick(await waitFor(() => libraryRow(glowRowId)));
+    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(glowFile));
   });
 
   it("says why a node type's file isn't opened from the Library while no area shows Code", async () => {
     await mountedWindowOverTheMock("state=running");
     await showTheLibraryInTheViewerArea();
-    fireEvent.doubleClick(await waitFor(() => libraryRow("source:project/category:Effects/node_type:nodes.inverting_effect:InvertingEffect")));
+    fireEvent.doubleClick(await waitFor(() => libraryRow("source:project/category:Every pin kind/node_type:nodes.glow:Glow")));
 
     expect(await inTheCoreView("library").findByText(/No area shows code\. Choose it in an area's view menu, then open it again\./)).toBeTruthy();
   });

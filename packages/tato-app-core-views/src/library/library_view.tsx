@@ -16,13 +16,16 @@ import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/ru
 import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ProjectAssetPick, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import type { OpenProjectReading, ProjectAsset, ProjectAssetsReading, ProjectNodeTypePort, ProjectNodeTypesReading, StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { familyOfThePort, type NodeTypeDescribedOrWhyNot, type NodeTypePortDescribed, type OpenProjectReading, type ProjectAsset, type ProjectAssetsReading, type ProjectNodeTypesDescribedReading, type StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import { pinTypeWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
 import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { useRowExpansionKeptInSettings } from "../shared/row_expansion_kept_in_settings";
 import { NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS, nodeTypeCategoryPath } from "../shared/node_type_category_path";
 import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../shared/node_type_listing_tree";
+import { inputsAWireReaches } from "../shared/stream_graph_edits";
 import { LibraryAssetChangeForm, type LibraryAssetChange } from "./library_asset_change_form";
 import { previewPictureNotReadBecauseOf, previewPictureUrlOf } from "./library_asset_preview_pictures";
 import { useAssetPreviewPicturesOfTheProject } from "./use_asset_preview_pictures_of_the_project";
@@ -44,7 +47,7 @@ import {
 } from "./library_assets_of_the_listing";
 import { libraryViewGroupsOf, libraryViewRowIdOf, studioViewPortsWords, studioViewShownWhereWords } from "./library_views_of_the_listing";
 
-/** One declared port's row: which way it faces, its name, and its family in words. It draws no pin mark: the listing it reads names no pin type, so a mark could disagree with the type the canvas shows. */
+/** One declared port's row: which way it faces, its name, and its type or family in words. It draws no pin mark, since a type found with the graph is known only on the canvas. */
 function LibraryPortRow({ direction, portName, familyWords, portTitle, dataAttribute }: { direction: "In" | "Out"; portName: string; familyWords: string; portTitle: string | undefined; dataAttribute: "data-library-port" | "data-library-view-port" }) {
   return (
     <div className="flex h-6 min-w-0 items-center gap-2 text-xs" title={portTitle} {...{ [dataAttribute]: portName }}>
@@ -55,18 +58,45 @@ function LibraryPortRow({ direction, portName, familyWords, portTitle, dataAttri
   );
 }
 
-function PortsOfTheDeclaration({ direction, ports }: { direction: "In" | "Out"; ports: ProjectNodeTypePort[] | null }) {
-  if (ports === null) return <p className="px-1 text-xs text-fg-3">{direction === "In" ? "Inputs" : "Outputs"} stated only by its native half</p>;
+/** What a described port carries, in words: the pin type it states exactly, else its family, else its annotation as written. */
+function describedPortTypeWords(port: NodeTypePortDescribed & { annotation?: string | null }): string {
+  const pin = exactPinOfTheDeclaredPort(port);
+  if (pin !== null) return pinTypeWords(pin.pin_type);
+  const family = familyOfThePort(port);
+  return family === null ? (port.annotation ?? "Family not stated") : portFamilyWords(family);
+}
+
+function PortsOfTheDeclaration({ direction, ports }: { direction: "In" | "Out"; ports: readonly (NodeTypePortDescribed & { annotation?: string | null })[] }) {
   return ports.map((port) => (
     <LibraryPortRow
       key={`${direction}:${port.name}`}
       direction={direction}
       portName={port.name}
-      familyWords={port.family === null ? (port.annotation ?? "Family not stated") : portFamilyWords(port.family)}
-      portTitle={port.description === "" ? (port.annotation ?? undefined) : port.description}
+      familyWords={describedPortTypeWords(port)}
+      portTitle={port.documentation === "" ? (port.annotation ?? undefined) : port.documentation}
       dataAttribute="data-library-port"
     />
   ));
+}
+
+/** A node type's ports as its description states them, each input a wire reaches and each output; why the runtime has no description, in its words. */
+function PortsOfTheNodeType({ described }: { described: NodeTypeDescribedOrWhyNot | null }) {
+  if (described === null) return <p className="px-1 text-xs text-fg-3">Not described</p>;
+  if ("not_described_because" in described) {
+    return (
+      <div className="px-1 pb-2">
+        <RuntimeFailureWords words={described.not_described_because.runtime_words} data-library-not-described-because={described.node_type} />
+      </div>
+    );
+  }
+  const inputs = inputsAWireReaches(described);
+  if (inputs.length === 0 && described.outputs.length === 0) return <p className="px-1 text-xs text-fg-3">None</p>;
+  return (
+    <>
+      <PortsOfTheDeclaration direction="In" ports={inputs} />
+      <PortsOfTheDeclaration direction="Out" ports={described.outputs} />
+    </>
+  );
 }
 
 function placeInWords(path: string | null, line: number | null): string {
@@ -78,31 +108,25 @@ function placeInWords(path: string | null, line: number | null): string {
 function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowMeaning }) {
   switch (declaration.kind) {
     case "node_type_declaration": {
-      const { node_type: nodeType } = declaration;
+      const { node_type: nodeType, described } = declaration;
+      const declaredAt = described === null || "not_described_because" in described ? null : (described.declared_at ?? null);
       const facts: KeyValueRow[] = [
-        ["Type", <span className="font-mono">{nodeType.type}</span>],
+        ["Type", <span className="font-mono">{nodeType.node_type}</span>],
         ["Kind", nodeType.kind ?? "Not stated"],
-        ["Group", nodeTypeCategoryPath(nodeType.category).join(" / ") || NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS],
+        ["Group", nodeTypeCategoryPath(nodeType.category ?? null).join(" / ") || NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS],
         ["From", declaration.source_title],
-        ["Declared", <span className="font-mono">{placeInWords(nodeType.path, nodeType.line)}</span>],
+        ["Declared", <span className="font-mono">{placeInWords(declaredAt?.path ?? null, declaredAt?.line ?? null)}</span>],
       ];
       return (
         <>
-          <PropertySection title="Node type" data-library-details={nodeType.type}>
-            {nodeType.description !== "" && <p className="px-1 pb-2 text-xs text-fg-2">{nodeType.description}</p>}
+          <PropertySection title="Node type" data-library-details={nodeType.node_type}>
+            {nodeType.documentation !== "" && <p className="px-1 pb-2 text-xs text-fg-2">{nodeType.documentation}</p>}
             <div className="px-1 pb-2">
               <KeyValueRows rows={facts} />
             </div>
           </PropertySection>
           <PropertySection title="Ports">
-            {nodeType.inputs?.length === 0 && nodeType.outputs?.length === 0 ? (
-              <p className="px-1 text-xs text-fg-3">None</p>
-            ) : (
-              <>
-                <PortsOfTheDeclaration direction="In" ports={nodeType.inputs} />
-                <PortsOfTheDeclaration direction="Out" ports={nodeType.outputs} />
-              </>
-            )}
+            <PortsOfTheNodeType described={described} />
           </PropertySection>
         </>
       );
@@ -124,11 +148,11 @@ function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowM
             </div>
           </PropertySection>
           <PropertySection title="Promoted config">
-            {graphGenerator.promoted_config.length === 0 ? (
+            {graphGenerator.promoted_settings.length === 0 ? (
               <p className="px-1 text-xs text-fg-3">None</p>
             ) : (
               <div className="px-1 pb-2">
-                <KeyValueRows look="fields" rows={graphGenerator.promoted_config.map((setting): KeyValueRow => [setting.name, setting.annotation ?? ""])} />
+                <KeyValueRows look="fields" rows={graphGenerator.promoted_settings.map((setting): KeyValueRow => [setting.name, setting.annotation ?? ""])} />
               </div>
             )}
           </PropertySection>
@@ -245,7 +269,7 @@ function ViewsOfTheProject({ connection, searchText }: { connection: TatoAppView
 /** The open project's node types or graph generators, by source, as the runtime reads them from source. */
 function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown }: { connection: TatoAppViewConnection; projectFolder: string; declarationsShown: LibraryDeclarationsShown }) {
   const watchTheProjectsNodeTypes = useCallback(
-    (listener: (reading: ProjectNodeTypesReading) => void): StopWatching => connection.watchProjectNodeTypes(projectFolder, listener),
+    (listener: (reading: ProjectNodeTypesDescribedReading) => void): StopWatching => connection.watchNodeTypes(projectFolder, listener),
     [connection, projectFolder],
   );
   const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
@@ -254,7 +278,7 @@ function DeclarationsOfTheProject({ connection, projectFolder, declarationsShown
   const [chosenRowId, setChosenRowId] = useState<string | null>(null);
   const [openingRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
   const libraryRows = useMemo(
-    () => (nodeTypesReading?.kind === "listed" ? libraryTreeOfTheListing(nodeTypesReading.listing, expansionChoices, declarationsShown) : []),
+    () => (nodeTypesReading?.kind === "listed" ? libraryTreeOfTheListing(nodeTypesReading.node_types, expansionChoices, declarationsShown) : []),
     [nodeTypesReading, expansionChoices, declarationsShown],
   );
   if (nodeTypesReading === null) return <WaitingState title="Reading the project's node types" data-library-state="waiting" />;
