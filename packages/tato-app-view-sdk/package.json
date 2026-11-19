@@ -24,6 +24,7 @@
     "./supplied_modules.json": "./supplied_modules.json",
     "./tatolab_view.schema.json": "./tatolab_view.schema.json",
     "./tsconfig.strict_options.json": "./kit/tsconfig.strict_options.json",
+    "./extension_check": "./scripts/extension_check.ts",
     "./design_system/*": "./src/design_system/*.tsx",
     "./design_system/support/*": "./src/design_system/support/*.ts",
     "./design_system/styles/*": "./src/design_system/styles/*"
