@@ -1,7 +1,7 @@
 // The port viewers the host opens for its views, one per connection, each event and Image frame
 // the backend relays routed to the connection whose port viewer it names.
 
-import type { PortViewerEvent, PortViewerImageFrameFacts, PortViewerTarget } from "../../shared/tatolab_backend_contract";
+import type { PortViewerEvent, PortViewerImageFrameFacts, PortViewerRecovery, PortViewerTarget } from "../../shared/tatolab_backend_contract";
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { PortViewerConnection, PortViewerConnectionEvent } from "./studio_view_contract";
 
@@ -19,11 +19,11 @@ export class PortViewerConnections {
   readonly watchPortViewer = (target: PortViewerTarget, onEvent: (event: PortViewerConnectionEvent) => void): PortViewerConnection => {
     let portViewer: string | null = null;
     let isClosed = false;
-    const endWith = (because: string) => {
+    const endWith = (because: string, recovery: PortViewerRecovery) => {
       if (isClosed) return;
       isClosed = true;
       if (portViewer !== null) this.listenersByPortViewer.delete(portViewer);
-      onEvent({ kind: "ended", because });
+      onEvent({ kind: "ended", because, recovery });
     };
     this.backend.openPortViewer(target).then(
       (openedPortViewer) => {
@@ -33,11 +33,12 @@ export class PortViewerConnections {
         }
         portViewer = openedPortViewer;
         this.listenersByPortViewer.set(openedPortViewer, (event) => {
-          if (event.kind === "ended") endWith(event.because);
+          if (event.kind === "ended") endWith(event.because, event.recovery);
           else onEvent(event);
         });
       },
-      (rejection: unknown) => endWith(describeBackendRejection(rejection)),
+      // A refused open is the runtime's or the addon's refusal of the port as it is now, which opening it again tries anew.
+      (rejection: unknown) => endWith(describeBackendRejection(rejection), "open_the_port_again"),
     );
     return {
       close: () => {
@@ -58,8 +59,10 @@ export class PortViewerConnections {
       listener(imagePixels);
     } else if (event.kind === "message") {
       listener({ kind: "message", reading: event.reading, skipped_since_last_read: event.skipped_since_last_read });
+    } else if (event.kind === "reopening") {
+      listener({ kind: "reopening", because: event.because });
     } else {
-      listener({ kind: event.kind, because: event.because });
+      listener({ kind: "ended", because: event.because, recovery: event.recovery });
     }
   }
 

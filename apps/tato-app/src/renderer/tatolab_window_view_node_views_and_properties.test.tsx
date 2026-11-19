@@ -53,6 +53,11 @@ describe("the studio", () => {
     expect(playing.querySelector("canvas")?.getAttribute("aria-label")).toBe("Live picture of Inverting Effect › video_to_downstream");
     await waitFor(() => expect(playing.getAttribute("data-viewer-port-state")).toBe("ended"));
     expect(playing.textContent).toContain("This page has no WebCodecs VideoFrame to play the mock's frames.");
+    expect(playing.querySelector("[data-viewer-ended]")?.getAttribute("data-viewer-ended")).toBe("open_the_port_again");
+    fireEvent.click(within(playing).getByRole("button", { name: "Open again" }));
+    expect(playing.getAttribute("data-viewer-port-state")).toBe("waiting");
+    await waitFor(() => expect(playing.getAttribute("data-viewer-port-state")).toBe("ended"));
+    expect(playing.ownerDocument.activeElement).toBe(within(playing).getByRole("button", { name: "Open again" }));
 
     fireEvent.click(outlinerRow(`node:${PATTERN_MAIN_STREAM}/displaywindow`));
     const withoutOutput = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="node_without_output"]') ?? expect.unreachable("no placeholder for a node with no output"));
@@ -513,6 +518,17 @@ describe("the studio", () => {
     await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-condition]')?.textContent).toBe("loaded, playing, healthy"), { timeout: 10_000 });
     expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-diagnostic="start_refused"]')).toBeNull();
     expect(coreViewPage("stream_graph", "stream-graph").textContent).not.toContain("Restart playback was refused");
+  });
+
+  it("keeps a stream's diagnostic bar, and the focus on its action, as the graph is read under it", async () => {
+    await mountedWindowOverTheMock("state=refused-at-play");
+    const startRefused = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-stream-diagnostic="start_refused"]') ?? expect.unreachable("no start refused bar"));
+    const restart = within(startRefused).getByRole("button", { name: "Restart playback" });
+    restart.focus();
+
+    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[aria-label="Graph of main"]')).not.toBeNull());
+    expect(startRefused.isConnected).toBe(true);
+    expect(restart.ownerDocument.activeElement).toBe(restart);
   });
 
   it("draws a stopped stream's saved graph with its condition in the Stream graph's frame, and says no stream is open once its tab closes", async () => {

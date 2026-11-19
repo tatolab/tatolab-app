@@ -76,10 +76,11 @@ export type {
   PortViewerChannelWaveform,
   PortViewerArrayAttributeReading,
   PortViewerMessageReading,
+  PortViewerRecovery,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export { PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
 export { TATO_STUDIO_MCP_CLIENT_NAME, familyOfThePort, fragmentOfTheNode, inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { JsonValue, ListedStream, PortViewerMessageReading, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, ListedStream, PortViewerMessageReading, PortViewerRecovery, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The platform the app runs on, which decides the window's chrome. */
 export type TatolabPlatform = "macos" | "linux";
@@ -579,7 +580,7 @@ export type PortViewerEvent =
     }
   | { port_viewer: string; kind: "message"; reading: PortViewerMessageReading; skipped_since_last_read: number }
   | { port_viewer: string; kind: "reopening"; because: string }
-  | { port_viewer: string; kind: "ended"; because: string };
+  | { port_viewer: string; kind: "ended"; because: string; recovery: PortViewerRecovery };
 
 /** The items of the system menu bar only the desktop draws, which a studio menu places among its own entries: macOS's Services, Hide and Quit; Undo through Select All; Close Window, on ⇧⌘W beside a Close tab that holds ⌘W; Minimize and Zoom; Bring All to Front; and Enter Full Screen. */
 export type SystemMenuBarItems = "app_services_hide_and_quit" | "text_editing" | "close_window" | "close_window_beside_close_tab" | "window_arrangement" | "bring_all_to_front" | "full_screen";

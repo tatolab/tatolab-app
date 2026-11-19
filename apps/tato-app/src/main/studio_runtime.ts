@@ -33,8 +33,7 @@ import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { studioWindowTheCommandCameFrom, type TatolabCommandFromWindow } from "./tatolab_command_answers.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { runtimeViewerConnectionOpenedIn } from "./port_viewer_connection_over_the_runtime.js";
-import type { RuntimeViewerConnection } from "./runtime_viewer_control_connection.js";
+import { runtimeViewerConnectionOpenedIn, type RuntimeViewerConnection } from "./runtime_viewer_control_connection.js";
 import { LOCAL_API_REQUEST_TIMEOUT_MS, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { CommandRefused } from "./window_command.js";
 

@@ -12,6 +12,7 @@ import type {
   NodeCatalogReading,
   OpenProjectReading,
   PortViewerMessageReading,
+  PortViewerRecovery,
   PortViewerTarget,
   ProjectActionRefusal,
   ProjectAssetsImported,
@@ -38,7 +39,7 @@ import type {
 import type { NodeUiElementsReading } from "./node_ui/node_ui_elements_listing.js";
 import type { TatolabViewManifest } from "./tatolab_view_manifest.js";
 
-/** What a port viewer delivers: an Image frame as a `VideoFrame` the view closes once drawn, or as its pixels; another family's message, read by its family; or the viewer reopening or ending, with why. */
+/** What a port viewer delivers: an Image frame as a `VideoFrame` the view closes once drawn, or as its pixels; another family's message, read by its family; or the viewer reopening, with why, or ending, with why and how it recovers. */
 export type PortViewerEvent =
   | { kind: "image_frame"; video_frame: VideoFrame; format_wire_name: string; skipped_since_last_read: number }
   | {
@@ -54,7 +55,7 @@ export type PortViewerEvent =
     }
   | { kind: "message"; reading: PortViewerMessageReading; skipped_since_last_read: number }
   | { kind: "reopening"; because: string }
-  | { kind: "ended"; because: string };
+  | { kind: "ended"; because: string; recovery: PortViewerRecovery };
 
 /** The type of the message Studio posts into a view's frame, carrying the view's end of its MessagePort as its one transferred port. */
 export const VIEW_PORT_HANDOVER = "tatolab_view_port";

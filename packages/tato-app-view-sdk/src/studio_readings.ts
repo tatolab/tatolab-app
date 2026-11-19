@@ -662,6 +662,9 @@ export type PortViewerArrayAttributeReading = {
   statistics: { element_count: number; minimum: number; maximum: number; mean: number } | null;
 };
 
+/** How a port viewer that ended recovers: it shows again once the port's node runs, or the port is opened again, by the view or the person. */
+export type PortViewerRecovery = "shows_once_the_node_runs" | "open_the_port_again";
+
 /** What a port viewer read of one message of a family other than Image, from the family's descriptor and payload. */
 export type PortViewerMessageReading =
   | {

@@ -24,7 +24,7 @@ import {
   type TatolabStreamPageRequest,
 } from "../shared/tatolab_electron_bridge_contract.js";
 import { failedWith, type Result } from "./result.js";
-import type { WindowShowingPortViewers } from "./runtime_port_viewers.js";
+import type { WindowShowingPortViewers } from "./runtime_port_viewer_reads.js";
 import type { SharedTextureImportOfARuntimeViewerFrame } from "./runtime_viewer_image_frame_import.js";
 import type { WindowFollowingStreamGraphs } from "./stream_graph_changes_followed_for_the_windows.js";
 import type { WindowFollowingProjectLogs } from "./project_log_records_followed_for_the_windows.js";
