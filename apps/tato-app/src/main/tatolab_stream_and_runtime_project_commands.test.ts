@@ -68,13 +68,13 @@ test("each queued action answers the window null, and a missing argument or a pr
     ok: false,
     refusal: "The runtime lists no stream from /etc.",
   });
-  expect(await commandHandlers.list_project_node_types({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.list_node_types({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
   expect(await commandHandlers.follow_project_log_records({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
   expect(await commandHandlers.follow_project_log_records({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "Only a studio window or a popped-out view follows a project's log.",
   });
-  expect(await commandHandlers.list_project_node_types({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: 'list_project_node_types: Missing key\n  at ["project_directory"]' });
+  expect(await commandHandlers.list_node_types({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: 'list_node_types: Missing key\n  at ["project_directory"]' });
 });
 
 test("reloading a project the runtime lists open queues reload_project, one it lists closed open_project, each answering the action and observing again; one it does not list is refused", async () => {
@@ -404,25 +404,36 @@ test("a studio window reads the log and assets of its own project before the run
   ]);
 });
 
-test("the node catalog is read from the runtime's registry of the stream named, and a stream it has not loaded is refused in its words; a folder it lists no stream from is never asked about", async () => {
+test("a studio window lists and describes the node types of its own project, the folder resolved as it holds it; a folder the runtime lists no stream from is never asked about", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-registry-answer-of-a-test-root-runtime-naming-no-stream.json")),
-      httpResponse("404 Not Found", "application/json", await recordedResponseBody("local-api-registry-refusal-for-the-stream-front-door-not-loaded.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-node-types-result-of-every-pin-kind.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-node-types-result-of-every-pin-kind-describing-glow-and-channels-to-records.json")),
     ],
     "linux",
+    [],
+    null,
+    THE_RUNTIME_READS_EACH_PROJECT_AS_HALLWAYS,
   );
+  const projectFolder = await realpath(await mkdtemp(path.join(os.tmpdir(), "every-pin-kind-")));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  await sharedState.appWindows.openTheProjectInItsStudioWindow(projectFolder);
+  const fromTheStudioWindow = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
   const commandHandlers = commandHandlersOver(sharedState);
 
-  expect(await commandHandlers.list_project_assets({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
-  expect(await commandHandlers.describe_node_catalog({ stream: "pattern-main-3f2a1c" }, FROM_THE_PROJECTS_WINDOW)).toMatchObject({
-    ok: true,
-    value: { stream: "pattern-main-3f2a1c", node_types: [{ type: "tatolab.stream:RelayTrackSource" }] },
+  expect(await commandHandlers.list_node_types({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.describe_node_types({ project_directory: "/etc", node_types: ["nodes.glow:Glow"] }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "The runtime lists no stream from /etc.",
   });
-  const refusal = await commandHandlers.describe_node_catalog({ stream: "front-door" }, FROM_THE_PROJECTS_WINDOW);
-  expect(!refusal.ok && refusal.refusal).toContain("front-door");
-  expect(sharedState.localApiRequestLinesReceived()).toEqual([
-    "GET /api/registry?stream=pattern-main-3f2a1c HTTP/1.1",
-    "GET /api/registry?stream=front-door HTTP/1.1",
+  expect(await commandHandlers.describe_node_types({ project_directory: projectFolder }, fromTheStudioWindow)).toEqual({ ok: false, refusal: 'describe_node_types: Missing key\n  at ["node_types"]' });
+  expect(await commandHandlers.list_node_types({ project_directory: projectFolder }, fromTheStudioWindow)).toMatchObject({ ok: true, value: { project_name: "Every pin kind" } });
+  expect(await commandHandlers.describe_node_types({ project_directory: projectFolder, node_types: ["nodes.glow:Glow", "tatolab.stream:ChannelsToRecords"] }, fromTheStudioWindow)).toMatchObject({
+    ok: true,
+    value: { node_types: [{ node_type: "nodes.glow:Glow" }, { node_type: "tatolab.stream:ChannelsToRecords" }] },
+  });
+  expect(sharedState.localApiControlOperationCallsReceived()).toEqual([
+    ["list_node_types", { project_directory: projectFolder }],
+    ["describe_node_types", { project_directory: projectFolder, node_types: ["nodes.glow:Glow", "tatolab.stream:ChannelsToRecords"] }],
   ]);
 });

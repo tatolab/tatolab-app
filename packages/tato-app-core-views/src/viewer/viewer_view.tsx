@@ -3,10 +3,12 @@ import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { PortFamilyPlaceholder } from "@tatolab/tato-app-view-sdk/design_system/port_family_placeholder";
+import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import type { PortViewerEvent, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import {
   familyOfThePort,
   type PortViewerMessageReading,
+  type PortViewerRecovery,
   type PortViewerTarget,
   type StreamGraph,
   type StreamGraphPort,
@@ -63,9 +65,15 @@ type PortViewerShown =
   | { kind: "messages"; reading: PortViewerMessageReading; packets_units_seen: readonly PacketsUnitSeen[]; messages_read: number }
   | { kind: "undrawable"; format_wire_name: string }
   | { kind: "reopening"; because: string }
-  | { kind: "ended"; because: string };
+  | { kind: "ended"; because: string; recovery: PortViewerRecovery };
 
 const MESSAGE_READING_REDRAWN_EVERY_MS = 66;
+
+/** What an ended port viewer says of how it recovers. */
+const ENDED_EXPLANATIONS: Record<PortViewerRecovery, string> = {
+  shows_once_the_node_runs: "Nothing is reaching this port right now. It shows here live once the node runs again.",
+  open_the_port_again: "This port couldn't be read. Open it again to try once more.",
+};
 
 /** The picture, or the messages, the Node visualizer reads from a running node's output port. */
 function PortViewerPicture({
@@ -87,6 +95,7 @@ function PortViewerPicture({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [shown, setShown] = useState<PortViewerShown>({ kind: "waiting" });
+  const [timesOpenedAgain, setTimesOpenedAgain] = useState(0);
   const { stream, node_id, port } = target;
   useEffect(() => {
     setShown({ kind: "waiting" });
@@ -130,8 +139,9 @@ function PortViewerPicture({
         show(event);
       }
     };
-    return connection.watchPortViewer({ stream, node_id, port }, handleTheEvent, (because) => show({ kind: "ended", because }));
-  }, [connection, stream, node_id, port]);
+    // Studio refuses only a watch it holds under the same id already, which opening again, under a new watch id, does not repeat.
+    return connection.watchPortViewer({ stream, node_id, port }, handleTheEvent, (because) => show({ kind: "ended", because, recovery: "open_the_port_again" }));
+  }, [connection, stream, node_id, port, timesOpenedAgain]);
   const isAPicture = shown.kind === "picture";
   const streamFactsWords = portStreamFactsWords(streamFactsOfThePort).join(" · ");
   return (
@@ -178,9 +188,16 @@ function PortViewerPicture({
         <PortFamilyPlaceholder
           family={streamFactsOfThePort.family}
           title={portWords}
-          explanation="Nothing is reaching this port right now. It shows here live once the node runs again."
+          explanation={ENDED_EXPLANATIONS[shown.recovery]}
           details={shown.because}
-          data-viewer-ended=""
+          action={
+            shown.recovery === "open_the_port_again" ? (
+              <ActionButton size="small" hasFocusOnOpen={timesOpenedAgain > 0} onPressed={() => setTimesOpenedAgain((times) => times + 1)} data-viewer-open-again="">
+                Open again
+              </ActionButton>
+            ) : undefined
+          }
+          data-viewer-ended={shown.recovery}
         />
       )}
     </div>

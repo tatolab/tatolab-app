@@ -13,8 +13,8 @@ import type {
   ProjectFileSaved,
   NodeFileCreated,
   ProjectFiles,
-  NodeCatalog,
-  ProjectNodeTypeListing,
+  DescribeNodeTypesToolResult,
+  ListNodeTypesToolResult,
   ProjectAssetListing,
   ProjectAssetsImported,
   AssetPreviewPicture,
@@ -82,10 +82,10 @@ export interface TatolabBackend {
   stopFollowingStreamGraphChanges(streamId: string): Promise<void>;
   /** Calls `listener` with the id of each followed stream whose graph changed, and the change of what one of its inputs reads, or `null` to read that graph again; the returned function stops it. */
   onStreamGraphChanged(listener: (streamId: string, inputValueChange: StreamGraphInputValueChange | null) => void): () => void;
-  /** Every node type the loaded stream `streamId` can add, rejecting in the runtime's own words. */
-  describeNodeCatalog(streamId: string): Promise<NodeCatalog>;
-  /** What the project in `projectDirectory` and each source it draws node code from declares, read from source without running it; rejects in the runtime's own words. */
-  listProjectNodeTypes(projectDirectory: string): Promise<ProjectNodeTypeListing>;
+  /** The node types the project in `projectDirectory` offers, by source: its own, its imports', its installed distributions' and the runtime's; rejects in the runtime's own words. */
+  listNodeTypes(projectDirectory: string): Promise<ListNodeTypesToolResult>;
+  /** Each of `nodeTypes`, as the project in `projectDirectory` lists them, described with its inputs and outputs, or with why the runtime could not; rejects in the runtime's own words. */
+  describeNodeTypes(projectDirectory: string, nodeTypes: readonly string[]): Promise<DescribeNodeTypesToolResult>;
   /** Every asset of the project in `projectDirectory`, its graph documents among them; rejects in the runtime's own words. */
   listProjectAssets(projectDirectory: string): Promise<ProjectAssetListing>;
   /** Ask the person for files, offering first those of `media` (`null` for any), and import each into the window's project, where the runtime places it in its kind's folder, by the person editing; `null` when they choose nothing, rejecting in Studio's or the runtime's words. */

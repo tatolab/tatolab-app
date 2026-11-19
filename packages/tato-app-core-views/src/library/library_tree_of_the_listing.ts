@@ -1,9 +1,10 @@
 // The Library's tree of node types or of graph generators, derived from the open project's node
-// type listing: a heading per source, the project's own code first. Node types sit under their
-// categories beside the modules that do not parse; generators sit straight under their source, and
-// a source that declares none is left out.
+// types as `list_node_types` lists them: a heading per source, the project's own code first, the
+// runtime's built-in node types left out. Node types sit under their categories beside the modules
+// that do not parse; generators sit straight under their source, and a source that declares none is
+// left out.
 
-import type { ProjectNodeTypeListing } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { NodeTypeDescribedOrWhyNot, ProjectNodeTypesDescribed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import {
   nodeTypeSourceChildren,
   nodeTypeSourceKey,
@@ -21,29 +22,32 @@ export type LibraryRowMeaning = DeclarationRowMeaning | NothingToChooseRowMeanin
 /** Which declarations the Library's tree lists. */
 export type LibraryDeclarationsShown = "node_types" | "graph_generators";
 
-/** The Library's rows that show for `listing`'s `declarationsShown`, with what each stands for; every source opens by default but the installed distributions. */
+/** The Library's rows that show for `nodeTypes`' `declarationsShown`, with what each stands for; every source opens by default but the installed distributions. */
 export function libraryTreeOfTheListing(
-  listing: ProjectNodeTypeListing,
+  nodeTypes: ProjectNodeTypesDescribed,
   expansionChoices: Readonly<Record<string, boolean>>,
   declarationsShown: LibraryDeclarationsShown,
 ): ShownStudioTreeRow<LibraryRowMeaning>[] {
+  const { listing } = nodeTypes;
+  const describedByType = new Map<string, NodeTypeDescribedOrWhyNot>(nodeTypes.described.map((described) => [described.node_type, described]));
   const sourceNodes = listing.sources.flatMap((source): StudioTreeNode<LibraryRowMeaning>[] => {
-    const sourceRowId = `source:${nodeTypeSourceKey(source.origin)}`;
-    const sourceTitle = nodeTypeSourceTitle(source.origin);
-    const children = nodeTypeSourceChildren(source, sourceRowId, sourceTitle, listing.project_directory, declarationsShown);
+    if (source.source === "built_in") return [];
+    const sourceRowId = `source:${nodeTypeSourceKey(source)}`;
+    const sourceTitle = nodeTypeSourceTitle(source);
+    const children = nodeTypeSourceChildren(source, describedByType, sourceRowId, sourceTitle, listing.project_directory, declarationsShown);
     if (children.length === 0 && declarationsShown === "graph_generators") return [];
     return [
       {
         row: {
           row_id: sourceRowId,
           label: sourceTitle,
-          icon: source.origin.source === "project" ? "project" : "imports",
-          tone: source.origin.source === "project" ? undefined : "imports",
+          icon: source.source === "project" ? "project" : "imports",
+          tone: source.source === "project" ? undefined : "imports",
           isHeading: true,
-          isReadOnly: source.origin.source !== "project",
+          isReadOnly: source.source !== "project",
         },
         meaning: { kind: "nothing_to_select" },
-        isOpenByDefault: source.origin.source !== "installed_distribution",
+        isOpenByDefault: source.source !== "installed_distribution",
         children:
           children.length > 0
             ? children

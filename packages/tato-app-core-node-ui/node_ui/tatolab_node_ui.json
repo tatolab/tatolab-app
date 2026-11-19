@@ -4,6 +4,10 @@
     { "type": "boolean", "script": "boolean_switch.ts" },
     { "type": "integer", "script": "integer_stepper.ts" },
     { "type": "float", "script": "float_number.ts" },
+    { "type": "color", "script": "color_swatch.ts" },
+    { "type": "vector", "script": "vector_fields.ts" },
+    { "type": "rectangle", "script": "rectangle_fields.ts" },
+    { "type": "transform", "script": "transform_fields.ts" },
     { "type": "integer", "control": "slider", "script": "integer_slider.ts" },
     { "type": "float", "control": "slider", "script": "float_slider.ts" }
   ]

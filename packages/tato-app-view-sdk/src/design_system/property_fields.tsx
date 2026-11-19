@@ -553,7 +553,7 @@ export function PropertyPortRow({
             tooltip={meaning}
             isWide
             control={
-              <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="flex min-w-12 flex-1 items-center gap-1.5">
                 {pinMark}
                 <span className="truncate text-fg">
                   <MatchedWords words={portName} searchWords={searchWords} />
@@ -566,7 +566,9 @@ export function PropertyPortRow({
               {comesFromWords}
             </span>
           )}
-          <span className="shrink-0 text-2xs text-fg-3" data-properties-port-type-words>{typeWords}</span>
+          <span className="min-w-0 truncate text-2xs text-fg-3" title={typeWords} data-properties-port-type-words>
+            {typeWords}
+          </span>
           {(reset !== undefined || promotion !== undefined) && (
             <span className="flex shrink-0 items-center">
               {reset !== undefined && <IconButton icon={RotateCcw} label={reset.label} size="compact" onPressed={reset.onReset} data-properties-input-reset />}

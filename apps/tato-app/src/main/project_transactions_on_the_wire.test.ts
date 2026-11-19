@@ -159,7 +159,7 @@ test("a recorded refusal that suggests a call reads its code, the pointer into t
 });
 
 test("a refusal naming a place in a project file reads it, and a code this app does not know reads as refused", () => {
-  const refusal = { refusal_code: "check_ran_out_of_time", action: "check_project_code", refused_file: { path: "nodes/invert.py", line: 12 }, runtime_words: "the check ran out of time" };
+  const refusal = { refusal_code: "a_code_from_a_newer_runtime", action: "check_project_code", refused_file: { path: "nodes/invert.py", line: 12 }, runtime_words: "the check ran out of time" };
 
   expect(projectActionRefusalAt({ refusal })).toEqual({
     ok: true,

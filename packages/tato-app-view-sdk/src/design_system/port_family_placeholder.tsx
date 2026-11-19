@@ -182,6 +182,7 @@ export function PortFamilyPlaceholder({
   title,
   explanation,
   details,
+  action,
   ...controlDataAttributes
 }: {
   /** The family the previewed port carries; `null` draws a neutral emblem. */
@@ -189,6 +190,8 @@ export function PortFamilyPlaceholder({
   title: string;
   explanation: string;
   details?: ReactNode;
+  /** The control that recovers what the placeholder stands in for, under its explanation. */
+  action?: ReactNode;
 } & ControlDataAttributes) {
   return (
     <div className="port-family-placeholder" data-family={family ?? undefined} {...controlDataAttributes}>
@@ -198,6 +201,7 @@ export function PortFamilyPlaceholder({
       <div className="flex max-w-md flex-col items-center gap-1 text-center">
         <div className="text-sm text-fg">{title}</div>
         <div className="text-2xs text-fg-3">{explanation}</div>
+        {action !== undefined && <div className="mt-2">{action}</div>}
         {details !== undefined && (
           <details className="mt-1 text-2xs text-fg-3" data-port-family-placeholder-details="">
             <summary className="cursor-pointer select-none hover:text-fg-2">Details</summary>

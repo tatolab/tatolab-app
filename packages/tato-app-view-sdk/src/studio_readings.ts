@@ -17,11 +17,14 @@ import type {
   LinkCandidateEnd,
   LinkCandidatesCheckResult,
   LinkCheckResult,
+  ListNodeTypesToolResult,
+  NodeTypeDescribedOrWhyNot,
+  NodeTypeDescription,
   StreamGraphAction,
   StreamGraphActionLinkEnd,
   StreamGraphOnTheWire,
 } from "@tatolab/runtime-client/contract";
-import type { DeclaredPinType, NodeInputMode, PinAnnotations, PinFlow, PinType } from "./pin_type_readings.js";
+import type { PinFlow, PinType } from "./pin_type_readings.js";
 import { PORT_FAMILIES, type PortFamily } from "./port_families.js";
 
 /** A value as JSON carries it. */
@@ -156,6 +159,23 @@ export type {
   GraphNodeKindOnTheWire as StreamGraphNodeKind,
   InputValueComesFromOnTheWire as InputValueComesFrom,
 };
+
+/** The node types a project offers and how each is described, as the runtime's `list_node_types` and `describe_node_types` answer them: the control contract's own types, passed on unchanged. */
+export type {
+  ListNodeTypesToolResult,
+  DescribeNodeTypesToolResult,
+  NodeTypeSourceListed,
+  NodeTypeListed,
+  GraphGeneratorListed,
+  GraphGeneratorPromotedSettingReadFromSource,
+  NodeModuleNotReadable,
+  NodeTypeDescribedOrWhyNot,
+  NodeTypeDescription,
+  NodeTypeNotDescribed,
+  NodeTypeInputDescribed,
+  NodeTypePortDescribed,
+  NodeTypeInputMode,
+} from "@tatolab/runtime-client/contract";
 
 /** The pin type a port of a running graph carries, resolved, and its flow, which the runtime serves together. */
 export type StreamGraphPortPin = { pin_type: PinType; flow: PinFlow };
@@ -411,112 +431,17 @@ export function jsonObjectMembersOf(value: unknown): { readonly [key: string]: J
   return members;
 }
 
-/** The pin type a node type's port declares, or how it is found, and its flow, from the catalog port's `pin_type` and `flow` keys. */
-export type NodeCatalogPortPin = { pin_type: DeclaredPinType; flow: PinFlow };
-
-/** One port a node type declares, as the node catalog lists it. */
-export type NodeCatalogPort = {
-  name: string;
-  description: string;
-  family: PortFamily | null;
-  /** Its declared pin type and flow; `null` on a port the catalog serves neither for, because its code does not state its type exactly. */
-  pin: NodeCatalogPortPin | null;
-  /** On an input, whether it takes a wire, a stored value, or both, from its `input_mode` key; `null` on an input the catalog serves none for, which takes a wire, and on every output. */
-  input_mode: NodeInputMode | null;
-  /** What the port's annotations state of its value, such as its range, step, unit and the control that edits it; empty for a port the catalog serves none for. */
-  annotations: PinAnnotations;
+/** The node types a project offers, by source, and each one's inputs and outputs: `list_node_types`' and `describe_node_types`' answers, as the runtime gave them. */
+export type ProjectNodeTypesDescribed = {
+  listing: ListNodeTypesToolResult;
+  /** Each node type the listing names, described, or with why it could not be, in the listing's order. */
+  described: NodeTypeDescribedOrWhyNot[];
 };
 
-/** One node type a stream can add, as the node catalog lists it under the `type` a graph node carries. */
-export type NodeCatalogEntry = {
-  type: string;
-  description: string;
-  /** The category the runtime files it under, a path with `/` between its levels, as `Effects/Stylize`; `null` for a type served with none. */
-  category: string | null;
-  /** Its config's JSON Schema, draft 2020-12 with no `$schema` key; `null` for a type described without one. */
-  config_schema: JsonValue | null;
-  inputs: NodeCatalogPort[];
-  outputs: NodeCatalogPort[];
-};
-
-/** Every node type the loaded stream `stream` can add. */
-export type NodeCatalog = { stream: string; node_types: NodeCatalogEntry[] };
-
-/** One port of a node type as its declaration states it in source. */
-export type ProjectNodeTypePort = {
-  name: string;
-  description: string;
-  /** `null` where source alone does not say, or for one this app does not know. */
-  family: PortFamily | null;
-  /** A function or shader port's annotation as written; `null` for a process node's port. */
-  annotation: string | null;
-};
-
-/** One node type a project's source declares. */
-export type ProjectNodeType = {
-  /** The type `add_node` takes: the import path `<module>:<qualname>`. */
-  type: string;
-  /** `process`, `function` or `shader`, or a kind newer than this app; `null` where source does not show it. */
-  kind: string | null;
-  description: string;
-  /** The category the runtime files it under, a path with `/` between its levels, as `Effects/Stylize`; `null` for a type served with none. */
-  category: string | null;
-  /** `null` where only the node's native half states its ports. */
-  inputs: ProjectNodeTypePort[] | null;
-  outputs: ProjectNodeTypePort[] | null;
-  /** The declaring file, relative to its source's root. */
-  path: string | null;
-  line: number | null;
-};
-
-/** One setting a graph generator promotes, as its parameter states it. */
-export type ProjectGraphGeneratorPromotedSetting = { name: string; annotation: string | null };
-
-/** One `@graph_generator` a project's source declares. */
-export type ProjectGraphGenerator = {
-  /** The import path `import_graph_generator` takes: `<module>:<function>`. */
-  generator: string;
-  /** Its docstring. */
-  description: string;
-  promoted_config: ProjectGraphGeneratorPromotedSetting[];
-  path: string;
-  line: number;
-};
-
-/** A module of a source that does not parse, with why in the parser's words and where it stopped. */
-export type ProjectNodeModuleNotReadable = {
-  module: string;
-  path: string;
-  line: number | null;
-  column: number | null;
-  why: string;
-};
-
-/** Where a listed source's node code comes from: the project, an import by its UUID, folder under `imports/`, copied version and the name its own project file holds (`null` when that file does not read), an installed distribution, or an origin newer than this app. */
-export type ProjectNodeTypeSourceOrigin =
-  | { source: "project" }
-  | { source: "dependency"; project: string; folder: string; version: string; project_name: string | null }
-  | { source: "installed_distribution"; distribution: string; distribution_version: string }
-  | { source: "newer_than_this_app"; source_name: string };
-
-/** One source's node types, graph generators, and the modules of it that do not parse. */
-export type ProjectNodeTypeSource = {
-  origin: ProjectNodeTypeSourceOrigin;
-  node_types: ProjectNodeType[];
-  graph_generators: ProjectGraphGenerator[];
-  unreadable_modules: ProjectNodeModuleNotReadable[];
-};
-
-/** What the project and each source it draws node code from declares, read from source without running it. */
-export type ProjectNodeTypeListing = {
-  /** The project's folder, its links resolved. */
-  project_directory: string;
-  /** The project's UUID. */
-  project: string;
-  project_name: string;
-  /** The project first, then each import, then each installed distribution. */
-  sources: ProjectNodeTypeSource[];
-};
+/** The description of each node type `described` holds one of, by its `node_type`; a node type described with why not is left out. */
+export function nodeTypeDescriptionsByType(described: readonly NodeTypeDescribedOrWhyNot[]): ReadonlyMap<string, NodeTypeDescription> {
+  return new Map(described.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [[nodeType.node_type, nodeType] as const])));
+}
 
 /** An asset's preview picture as `list_assets` sizes it, in whole pixels above zero: an image's own picture or a video's poster frame, which `read_asset_preview` answers. */
 export type ProjectAssetPreview = {
@@ -666,6 +591,9 @@ export type PortViewerArrayAttributeReading = {
   statistics: { element_count: number; minimum: number; maximum: number; mean: number } | null;
 };
 
+/** How a port viewer that ended recovers: it shows again once the port's node runs, or the port is opened again, by the view or the person. */
+export type PortViewerRecovery = "shows_once_the_node_runs" | "open_the_port_again";
+
 /** What a port viewer read of one message of a family other than Image, from the family's descriptor and payload. */
 export type PortViewerMessageReading =
   | {
@@ -714,11 +642,8 @@ export type StreamInputValue = { level: string[]; node_id: string; input: string
  */
 export type StreamInputValuesReading = { kind: "values"; stream_asset: string | null; values: StreamInputValue[] } | { kind: "changed"; stream_asset: string | null; change: StreamInputValue };
 
-/** The node types a stream can add, or why the runtime lists none, in its own words. */
-export type NodeCatalogReading = { kind: "listed"; catalog: NodeCatalog } | { kind: "not_listed"; because: string };
-
-/** What a project and each source it draws node code from declares, or why the runtime lists none, in its own words. */
-export type ProjectNodeTypesReading = { kind: "listed"; listing: ProjectNodeTypeListing } | { kind: "not_listed"; because: string };
+/** The node types a project offers and each one's inputs and outputs, or why the runtime lists none, in its own words. */
+export type ProjectNodeTypesDescribedReading = { kind: "listed"; node_types: ProjectNodeTypesDescribed } | { kind: "not_listed"; because: string };
 
 /** One input or output a `node` view declares: its name and family. */
 export type StudioViewDeclaredPort = { name: string; family: PortFamily; description: string };

@@ -2,7 +2,8 @@
 // one binder from its connection; each control slot binds through it. The binder asks the table
 // which element draws the input, loads it, hands it its pin, state and value, and follows the
 // store. An element's `input` moves a gesture and its `change` releases it, a lone `change` being a
-// whole gesture, ended in a commit, or live in Perform; Escape, or a press the pointer gives up, cancels it. While a gesture is open the
+// whole gesture, ended in a commit, or live in Perform; the element's own `cancel`, Escape, or a press
+// the pointer gives up, cancels it. While a gesture is open the
 // binder never sets the element's value, and every value that arrives is set in one animation-frame
 // flush, so a surface's React tree never sees one. DOM only, no React.
 
@@ -11,7 +12,7 @@ import type { ControlledInput } from "../pin_model/controlled_inputs.js";
 import { jsonOfTheStoredPinValue, storedPinValueOfTheJson } from "../pin_model/stored_pin_values.js";
 import type { BuiltInPinTypeName } from "../pin_types.js";
 import type { ControlledPin, InputControlElement, InputControlState, NodeUiSurface } from "../node_ui/input_control_element.js";
-import { valueTheInputControlEventCarries } from "../node_ui/input_control_event_reading.js";
+import { isTheCancelOfAnInputControl, valueTheInputControlEventCarries } from "../node_ui/input_control_event_reading.js";
 import { loadNodeUiElement, type NodeUiElementLoading } from "../node_ui/load_node_ui_element.js";
 import { NodeUiControlTable, type NodeUiControlChoice } from "../node_ui/node_ui_control_table.js";
 import type { NodeUiElementHost } from "../node_ui/node_ui_element_host.js";
@@ -275,6 +276,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       this.setTheShownValue();
       element.addEventListener("input", this.#elementMoved);
       element.addEventListener("change", this.#elementReleased);
+      element.addEventListener("cancel", this.#elementCancelled);
       this.#host.append(element);
       this.#tell(element instanceof ReadOnlyValueLineElement ? "read_only_line" : "element");
     }
@@ -284,6 +286,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       if (element === null) return;
       element.removeEventListener("input", this.#elementMoved);
       element.removeEventListener("change", this.#elementReleased);
+      element.removeEventListener("cancel", this.#elementCancelled);
       this.#cancelTheGesture();
       this.#element = null;
       element.remove();
@@ -350,6 +353,12 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       if (value === undefined) return;
       this.#openGesture().release(value);
       this.#closeTheGesture();
+    };
+
+    /** The element's own `cancel` ends the gesture it opened with nothing used; a native `cancel`, or one with no gesture open, is not acted on. */
+    readonly #elementCancelled = (event: Event): void => {
+      if (this.#isIgnoringTheElement || this.#isUnbound || !isTheCancelOfAnInputControl(event)) return;
+      this.#cancelTheGesture();
     };
 
     /**

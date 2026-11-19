@@ -11,8 +11,9 @@ import {
   NODE_STUDIO_FIELDS_NONE_SET,
   studioFieldsOfTheNode,
   type JsonValue,
-  type NodeCatalogEntry,
-  type NodeCatalogPort,
+  type NodeTypeDescription,
+  type NodeTypeInputDescribed,
+  type NodeTypePortDescribed,
   type StreamGraphAction,
   type StreamGraphNode,
   type StreamGraphNodeStudioFields,
@@ -157,9 +158,14 @@ export function pinsWiredEdits(edited: EditedStreamGraph, source: { node_id: str
   return [{ operation: "connect", stream: edited.streamAsset, source: { node: sourceNode, port: source.pin }, target: { node: targetNode, port: target.pin } }];
 }
 
+/** The first port of `ports` that can take or give `family`; any port when the family is unknown, or one the port does not state. */
+function firstPortOfTheFamily(ports: readonly Pick<NodeTypePortDescribed, "name" | "family">[], family: string | null): string | null {
+  return (family === null ? ports[0] : (ports.find((port) => { const portFamily = familyOfThePort(port); return portFamily === family || portFamily === null; }) ?? null))?.name ?? null;
+}
+
 /** The inputs of `nodeType` a wire can end at: every input but a setting, which takes a stored value and no wire. */
-export function inputsAWireReaches(nodeType: Pick<NodeCatalogEntry, "inputs">): readonly NodeCatalogPort[] {
-  return nodeType.inputs.filter((input) => input.input_mode?.mode !== "setting_only");
+export function inputsAWireReaches(nodeType: Pick<NodeTypeDescription, "inputs">): readonly NodeTypeInputDescribed[] {
+  return nodeType.inputs.filter((input) => input.mode !== "setting_only");
 }
 
 /** A pin a wire was dragged off and let go of over the canvas. */
@@ -170,11 +176,11 @@ export interface LooseWire {
 }
 
 /** A node of `nodeType` placed with its card at `position`, and, from a loose wire, linked to the wire's pin by `wired.port`, the port of the placed node the runtime answered the wire fits. */
-export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: NodeCatalogEntry, position: StreamGraphCanvasPosition, wired: { looseWire: LooseWire; port: string } | null): StreamGraphAction[] {
+export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: string, position: StreamGraphCanvasPosition, wired: { looseWire: LooseWire; port: string } | null): StreamGraphAction[] {
   const placed: StreamGraphAction = {
     operation: "add_node",
     stream: edited.streamAsset,
-    type: nodeType.type,
+    type: nodeType,
     studio: { position: toTheCanvasPixel(position) },
     as: NODE_PLACED_IN_THIS_TRANSACTION,
   };
@@ -207,11 +213,6 @@ export function linkDisconnectedEdits(edited: EditedStreamGraph, link: { from_no
 /** A link's id as the canvas keys it: the runtime's id, or its ends while the runtime gives it none. */
 export function linkIdAsTheCanvasKeysIt(link: StreamGraph["links"][number]): string {
   return link.id === "" ? `${link.source.node}.${link.source.port}->${link.target.node}.${link.target.port}` : link.id;
-}
-
-/** The first port of `ports` that can take or give `family`; any port when the family is unknown. */
-function firstPortOfTheFamily(ports: readonly Pick<NodeCatalogPort, "name" | "family">[], family: string | null): string | null {
-  return (family === null ? ports[0] : (ports.find((port) => port.family === family || port.family === null) ?? null))?.name ?? null;
 }
 
 /** `nodeName`'s node spliced into the link `linkId`: the link's source feeds its first input of that family, its first output of that family feeds the link's target, and the link goes; nothing when it has no such ports. */

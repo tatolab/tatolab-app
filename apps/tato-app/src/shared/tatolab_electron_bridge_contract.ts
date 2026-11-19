@@ -5,8 +5,8 @@
 import type {
   ChosenProjectFolder,
   NewProjectDefaults,
-  NodeCatalog,
-  ProjectNodeTypeListing,
+  DescribeNodeTypesToolResult,
+  ListNodeTypesToolResult,
   ProjectAssetListing,
   ProjectAssetsImported,
   AssetPreviewPicture,
@@ -72,8 +72,8 @@ export const TATOLAB_COMMAND_NAMES = [
   "quit_tatolab_app",
   "read_project_log_records",
   "describe_stream_graph",
-  "describe_node_catalog",
-  "list_project_node_types",
+  "list_node_types",
+  "describe_node_types",
   "list_project_assets",
   "import_assets_into_the_open_project",
   "relocate_asset_in_the_open_project",
@@ -161,10 +161,10 @@ export const TATOLAB_COMMAND_NAMES = [
 
 /**
  * One command the window invokes. Arguments: `set_stream_failure_notifications`, `set_developer_mode` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after, until }`, `follow_project_log_records` and `stop_following_project_log_records` `{ project_directory }`,
- * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`, `delete_stream` `{ stream }`, `create_stream_in_the_open_project` `{ display_name }`,
+ * `remove_project`, `reload_project` and `list_node_types` `{ project_directory }`, `describe_node_types` `{ project_directory, node_types }`, `describe_stream_graph`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`, `delete_stream` `{ stream }`, `create_stream_in_the_open_project` `{ display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `open_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
  * `choose_project_folder` `{ chosen_for }`, `open_recent_project`, `duplicate_recent_project` and `delete_recent_project` `{ folder }`, `rename_recent_project` `{ folder, name }`, `read_recent_project_cover` `{ folder }`, `set_recent_project_description` `{ folder, description }`, `set_recent_project_cover` `{ folder, image }`, `import_project_archive` `{ archive, name, location }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_view` a `PoppedOutView`, `open_module_manager_window` `{ shows }`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace` and `clone_marketplace_sample` `{ name }`, `remove_workspace_dependency` `{ project }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
- * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` and the recent-project commands only on one of the recent projects, `import_project_archive` on any absolute `.zip`, which the runtime reads, and `read_project_log_records`, `follow_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab
+ * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` and the recent-project commands only on one of the recent projects, `import_project_archive` on any absolute `.zip`, which the runtime reads, and `read_project_log_records`, `follow_project_log_records`, `list_node_types`, `describe_node_types`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab
  * that installs in place, downloads it; `take_the_newer_tatolab_app_version` restarts into a downloaded one, downloads one a check found, or opens a `.deb`'s download, the person choosing it being the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
  */
@@ -357,9 +357,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   /** `stream` and `action` narrow the read, `null` for no narrowing; `after` is the `next_after` of the page before, `null` for the oldest record held; `until` a cursor the read stops at, `null` for none. */
   read_project_log_records: { commandArguments: { project_directory: string; after: string | null; until: string | null } & ProjectLogNarrowing; answer: ProjectLogRecordsPage };
   describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraph };
-  describe_node_catalog: { commandArguments: { stream: string }; answer: NodeCatalog };
-  /** `project_directory` the asking window's project, one of its imports, or a project the runtime lists; refused in the runtime's own words. */
-  list_project_node_types: { commandArguments: { project_directory: string }; answer: ProjectNodeTypeListing };
+  list_node_types: { commandArguments: { project_directory: string }; answer: ListNodeTypesToolResult };
+  describe_node_types: { commandArguments: { project_directory: string; node_types: readonly string[] }; answer: DescribeNodeTypesToolResult };
   /** `project_directory` the asking window's project, one of its imports, or a project the runtime lists; refused in the runtime's own words. */
   list_project_assets: { commandArguments: { project_directory: string }; answer: ProjectAssetListing };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };

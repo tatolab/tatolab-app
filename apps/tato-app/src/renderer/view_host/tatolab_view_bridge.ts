@@ -200,17 +200,15 @@ export class TatolabViewBridge {
       case "stream_graph":
         keep(this.hostServices.watchStreamGraph(subject.stream, (reading) => sendReading({ subject: "stream_graph", reading })));
         return;
-      case "node_catalog":
-        keep(this.hostServices.watchNodeCatalog(subject.stream, (reading) => sendReading({ subject: "node_catalog", reading })));
-        return;
       case "input_values":
         keep(this.hostServices.watchStreamInputValues(subject.stream, (reading) => sendReading({ subject: "input_values", reading })));
         return;
       case "project_log":
         keep(this.hostServices.watchProjectLog(subject.project_folder, (reading) => sendReading({ subject: "project_log", reading })));
         return;
-      case "project_node_types":
-        keep(this.hostServices.watchProjectNodeTypes(subject.project_folder, (reading) => sendReading({ subject: "project_node_types", reading })));
+        return;
+      case "node_types":
+        keep(this.hostServices.watchNodeTypes(subject.project_folder, (reading) => sendReading({ subject: "node_types", reading })));
         return;
       case "project_assets":
         keep(this.hostServices.watchProjectAssets(subject.project_folder, (reading) => sendReading({ subject: "project_assets", reading })));

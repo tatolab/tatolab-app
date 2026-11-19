@@ -1,11 +1,13 @@
 import { Effect } from "effect";
 import { afterEach, expect, test } from "vitest";
-import { FakeLocalApiServer, controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse } from "./fake_local_api_server.js";
-import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./runtime_operations_test_support.js";
+import { FakeLocalApiServer, controlOperationResponseOfTheRecordedToolResponse } from "./fake_local_api_server.js";
+import { answerOf, cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./runtime_operations_test_support.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { describeNodeCatalog, listProjectAssets, listProjectNodeTypes, nameTheProject, readAssetPreview } from "./runtime_operations.js";
+import { describeNodeTypes, listNodeTypes, listProjectAssets, nameTheProject, readAssetPreview } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
+
+const EVERY_PIN_KIND = "/home/user/streamlib/examples/every-pin-kind";
 
 const RECORDED_HARBOUR_LIGHTS = "/tmp/claude-0/live/home/Tato Studio/Harbour Lights";
 
@@ -13,127 +15,50 @@ const RECORDED_HARBOUR_DUSK_PNG = "38ab4435-5f49-4cd1-b60e-f03acf54db34";
 
 const RECORDED_QUAY_WALK_MP4 = "23199eb3-ea3c-4d31-8f0f-2bf9395590d2";
 
-test("the_node_catalog_is_read_from_the_registry_of_the_stream_asked_for", async () => {
+test("listing_node_types_calls_list_node_types_with_the_project_folder_and_passes_each_source_on_as_the_contract_types_it", async () => {
+  const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-node-types-result-of-every-pin-kind.json"))]);
+
+  const listing = answerOf(await server.run(listNodeTypes(EVERY_PIN_KIND)));
+
+  expect(controlOperationCallsReceivedBy(server)).toEqual([["list_node_types", { project_directory: EVERY_PIN_KIND }]]);
+  expect(listing.project_name).toBe("Every pin kind");
+  expect(listing.sources.map((source) => source.source)).toEqual(["project", "installed_distribution", "installed_distribution", "installed_distribution", "built_in"]);
+  expect(listing.sources[0]?.node_types.map((nodeType) => nodeType.node_type)).toEqual(["nodes.beat:Beat", "nodes.beat:Warmth", "nodes.frame_tally:FrameTally", "nodes.glow:Glow", "nodes.spotlight:Spotlight"]);
+});
+
+test("listing_the_node_types_of_a_folder_holding_no_project_is_refused_in_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-node-types-refusal-for-a-folder-that-is-not-a-project.json"))]);
+
+  expect(failureOf(await server.run(listNodeTypes("/etc"))).words).toBe("list_node_types failed: /etc holds no project: it has no tatolab-project.json");
+});
+
+test("describing_node_types_calls_describe_node_types_with_each_type_and_passes_a_typed_port_and_an_untyped_port_on_as_the_runtime_describes_them", async () => {
   const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-registry-answer-of-a-test-root-runtime-naming-no-stream.json")),
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-node-types-result-of-every-pin-kind-describing-glow-and-channels-to-records.json")),
   ]);
 
-  const nodeCatalog = answerOf(await server.run(describeNodeCatalog("pattern-main-3f2a1c")));
+  const { node_types: described } = answerOf(await server.run(describeNodeTypes(EVERY_PIN_KIND, ["nodes.glow:Glow", "tatolab.stream:ChannelsToRecords"])));
 
-  expect(server.receivedRequests()[0]?.startsWith("GET /api/registry?stream=pattern-main-3f2a1c HTTP/1.1\r\n")).toBe(true);
-  expect(nodeCatalog.stream).toBe("pattern-main-3f2a1c");
-  expect(nodeCatalog.node_types.map((nodeType) => nodeType.type)).toEqual(["tatolab.stream:RelayTrackSource"]);
+  expect(controlOperationCallsReceivedBy(server)).toEqual([["describe_node_types", { project_directory: EVERY_PIN_KIND, node_types: ["nodes.glow:Glow", "tatolab.stream:ChannelsToRecords"] }]]);
+  const [glow, channelsToRecords] = described;
+  if (glow === undefined || "not_described_because" in glow || channelsToRecords === undefined || "not_described_because" in channelsToRecords) throw new Error("both node types are described");
+  expect(glow.inputs.map(({ name, mode, pin_type }) => ({ name, mode, pin_type }))).toEqual([
+    { name: "image", mode: "wire_only", pin_type: { kind: "is", pin_type: { type: "texture" } } },
+    { name: "glow", mode: "wire_or_value", pin_type: { kind: "is", pin_type: { type: "float", exact_size: "float32" } } },
+    { name: "warmth", mode: "wire_or_value", pin_type: { kind: "is", pin_type: { type: "float", exact_size: "float32" } } },
+  ]);
+  expect(channelsToRecords.inputs.map(({ name, mode, pin_type, family }) => ({ name, mode, pin_type, family }))).toEqual([
+    { name: "channels", mode: "wire_or_value", pin_type: undefined, family: { family: "channels" } },
+    { name: "channel_names", mode: "setting_only", pin_type: undefined, family: undefined },
+  ]);
 });
 
-test("a_real_node_catalog_reads_the_pin_type_and_flow_a_typed_port_declares_and_an_untyped_port_by_its_family_alone", async () => {
+test("describing_a_node_type_the_project_does_not_offer_is_refused_in_the_runtimes_own_words", async () => {
   const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-registry-answer-of-pins-naming-the-texture-ports-of-two-built-ins.json")),
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-node-types-refusal-for-a-node-type-every-pin-kind-does-not-offer.json")),
   ]);
 
-  const nodeCatalog = answerOf(await server.run(describeNodeCatalog("pins-main-cbc98f")));
-
-  const portsOf = (type: string) => {
-    const nodeType = nodeCatalog.node_types.find((listed) => listed.type === type);
-    return [nodeType?.inputs.map(({ name, family, pin }) => ({ name, family, pin })), nodeType?.outputs.map(({ name, family, pin }) => ({ name, family, pin }))];
-  };
-  const aDeclaredTexture = { pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" };
-  expect(portsOf("tatolab.stream:ArrayToImage")).toEqual([[{ name: "array", family: "array", pin: null }], [{ name: "image", family: "image", pin: aDeclaredTexture }]]);
-  expect(portsOf("tatolab.stream:ImageToArray")).toEqual([[{ name: "image", family: "image", pin: aDeclaredTexture }], [{ name: "array", family: "array", pin: null }]]);
-  expect(portsOf("tatolab.stream:ChannelsToRecords")).toEqual([[{ name: "channels", family: "channels", pin: null }], [{ name: "records", family: "records", pin: null }]]);
-});
-
-test("a_node_catalog_of_a_stream_not_loaded_is_refused_in_the_runtimes_own_words", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    httpResponse("404 Not Found", "application/json", await recordedResponseBody("local-api-registry-refusal-for-the-stream-front-door-not-loaded.json")),
-  ]);
-
-  expect(failureOf(await server.run(describeNodeCatalog("front-door"))).words).toBe(
-    "Resource not found: no stream with the id `front-door` is loaded in this runtime. Loaded: none",
-  );
-});
-
-test("listing_a_projects_node_types_calls_list_project_node_types_with_its_folder_and_reads_each_source", async () => {
-  const listingText = JSON.stringify({
-    project_directory: "/w/pattern",
-    project: "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90",
-    project_name: "pattern",
-    sources: [{ source: "project", node_types: [], graph_generators: [], unreadable_modules: [] }],
-  });
-  const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheResultText(listingText)]);
-
-  const listing = answerOf(await server.run(listProjectNodeTypes("/w/pattern")));
-
-  expect(listing.project_name).toBe("pattern");
-  expect(listing.sources.map((source) => source.origin)).toEqual([{ source: "project" }]);
-  const [, body] = headAndBodyOf(server.receivedRequests()[0]);
-  expect(JSON.parse(body).method).toBe("list_project_node_types");
-  expect(JSON.parse(body).params).toEqual({ project_directory: "/w/pattern" });
-});
-
-test("a_node_type_listing_the_runtime_refuses_carries_its_own_words", async () => {
-  const refusal = "list_project_node_types failed: the project's interpreter printed no listing";
-  const server = await fakeLocalApiServerAnswering([controlOperationFailedResponse(refusal)]);
-
-  expect(failureOf(await server.run(listProjectNodeTypes("/w/pattern"))).words).toBe(refusal);
-});
-
-test("a_real_node_type_listing_reads_the_projects_node_types_generator_unreadable_module_and_installed_distribution", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-node-types-tool-result-of-a-project-with-a-module-that-does-not-parse.json")),
-  ]);
-
-  const listing = answerOf(await server.run(listProjectNodeTypes("/private/tmp/tatolab-proof-projects/node-type-proof")));
-
-  expect(listing.project_name).toBe("node-type-proof");
-  expect(listing.sources.map((source) => source.origin)).toEqual([
-    { source: "project" },
-    { source: "dependency", project: "ba5fc2b1-df25-4e86-bec3-aba1564d6233", folder: "core-nodes", version: "0.68.82", project_name: "Core Nodes" },
-    { source: "installed_distribution", distribution: "tatolab-compositor", distribution_version: "0.68.82" },
-    { source: "installed_distribution", distribution: "tatolab-stream", distribution_version: "0.68.82" },
-    { source: "installed_distribution", distribution: "tatolab-testpattern", distribution_version: "0.68.82" },
-  ]);
-  const [projectSource, , , , testPatternSource] = listing.sources;
-  expect(projectSource?.node_types.map((nodeType) => [nodeType.type, nodeType.kind, nodeType.category])).toEqual([
-    ["nodes.brightness_meter:BrightnessMeter", "process", null],
-    ["nodes.edge_mask:EdgeMask", "process", "Masks"],
-    ["nodes.gain:scale_by_gain", "function", null],
-    ["nodes.halftone_lens_effect:HalftoneLensEffect", "process", null],
-  ]);
-  expect(projectSource?.node_types[1]?.outputs).toEqual([{ name: "mask_out", family: "image", description: "The edge mask.", annotation: null }]);
-  expect(projectSource?.node_types[2]?.inputs?.[1]).toEqual({ name: "gain", family: "channels", description: "", annotation: "float" });
-  expect(projectSource?.graph_generators).toEqual([
-    { generator: "nodes.masked_rig:masked_rig", description: "Wires `mask_count` edge masks in a row.", promoted_config: [{ name: "mask_count", annotation: "int" }], path: "nodes/masked_rig.py", line: 7 },
-  ]);
-  expect(projectSource?.unreadable_modules).toEqual([{ module: "nodes.half_written", path: "nodes/half_written.py", line: 4, column: 11, why: "SyntaxError: '(' was never closed" }]);
-  expect(testPatternSource?.node_types.map((nodeType) => nodeType.type)).toEqual(["tatolab.testpattern:TestPatternSource"]);
-});
-
-test("a_real_node_type_listing_of_a_folder_that_is_not_a_project_is_refused_in_the_runtimes_own_words", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-node-types-tool-refusal-for-a-folder-that-is-not-a-project.json")),
-  ]);
-
-  expect(failureOf(await server.run(listProjectNodeTypes("/private/tmp/tatolab-proof-185/not-a-project"))).words).toBe(
-    "list_project_node_types failed: /private/tmp/tatolab-proof-185/not-a-project holds no project: it has no tatolab-project.json",
-  );
-});
-
-test("a_real_node_type_listing_of_a_project_with_imports_lists_each_import_by_its_uuid_folder_and_version", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-node-types-tool-result-of-night-show-importing-doorways-and-lobby-wall.json")),
-  ]);
-
-  const listing = answerOf(await server.run(listProjectNodeTypes("/tmp/tatolab-proof-projects/night-show")));
-
-  expect(listing.sources.map((source) => [source.origin, source.node_types.length])).toEqual([
-    [{ source: "project" }, 2],
-    [{ source: "dependency", project: "27f7b9b7-9a4d-463c-9b72-10bbf0c3c3e1", folder: "doorways", version: "4c3ae2870d8408c96345817f9dd86c190d3cc1f0313079d56915d54b59dd5223", project_name: "doorways" }, 2],
-    [{ source: "dependency", project: "dde5a62f-b0a8-45d2-a741-79140871f978", folder: "lobby-wall", version: "b542d38ff3bc8901f8495be6d5ca434a24bc93a7174837b5c0e0e22a7c81c9d0", project_name: "lobby-wall" }, 2],
-    [{ source: "dependency", project: "ba5fc2b1-df25-4e86-bec3-aba1564d6233", folder: "core-nodes", version: "0.68.82", project_name: "Core Nodes" }, 74],
-    [{ source: "installed_distribution", distribution: "tatolab-compositor", distribution_version: "0.68.82" }, 1],
-    [{ source: "installed_distribution", distribution: "tatolab-stream", distribution_version: "0.68.82" }, 1],
-    [{ source: "installed_distribution", distribution: "tatolab-testpattern", distribution_version: "0.68.82" }, 1],
-  ]);
+  expect(failureOf(await server.run(describeNodeTypes(EVERY_PIN_KIND, ["nodes.glow:Glow", "nodes.glow:NoSuchNode"]))).words).toContain("offers a node type `nodes.glow:NoSuchNode`");
 });
 
 test("a_real_asset_listing_names_the_project_and_a_folder_that_is_not_a_project_is_refused_in_the_runtimes_own_words", async () => {
@@ -251,7 +176,7 @@ test("a_node_type_listing_waits_past_the_ordinary_request_timeout_for_the_projec
   const listingText = JSON.stringify({ project_directory: "/w/pattern", project: "p", project_name: "pattern", sources: [] });
   const server = await FakeLocalApiServer.answering([controlOperationResponseOfTheResultText(listingText)], 300);
   cleanUps.push(() => server.close());
-  const listing = await Effect.runPromise(listProjectNodeTypes("/w/pattern").pipe(Effect.provide(runtimeControlLayer(server.localApiSocketPath, 100))));
+  const listing = await Effect.runPromise(listNodeTypes("/w/pattern").pipe(Effect.provide(runtimeControlLayer(server.localApiSocketPath, 100))));
 
   expect(listing.project_name).toBe("pattern");
 });

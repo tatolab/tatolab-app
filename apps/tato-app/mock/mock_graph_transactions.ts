@@ -1,8 +1,8 @@
 // The browser mock's `transact`: graph actions applied to the mock streams' graphs whole or not at all, a node named
 // by its id or an earlier `add_node`'s `as`, answered as the runtime answers (`GraphTransactionToolResult`). History
 // keeps each operation as the runtime does: its stream by asset UUID, with `from` and `to`, the inverse swapping them.
-// The mock judges no edit: it applies each one as asked, a node added with the ports the recorded node catalog
-// lists, a link made between any two ports. What the runtime decides, a refusal among it, is a recording a scenario
+// The mock judges no edit: it applies each one as asked, a node added with the ports the recorded node types
+// describe, a link made between any two ports. What the runtime decides, a refusal among it, is a recording a scenario
 // replays before the edit reaches here. An edit naming what the mock's graphs do not hold, which no window sends, or
 // an action the mock does not model, is a defect of whoever sent it, thrown as `MockGraphEditNotApplicable`.
 //
@@ -15,8 +15,8 @@ import { mockGraphNodeIdOf, mockUuidOf, type MockGraphLink, type MockGraphNode, 
 import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
 import { echoTheInputValueSet } from "./mock_value_echo";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
-import { fragmentKindOfTheNode, isAJsonValue, NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { PORT_FAMILIES, type JsonValue, type NodeCatalogEntry, type NodeCatalogPort, type PortFamily, type ProjectGraphTransaction, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
+import { familyOfThePort, fragmentKindOfTheNode, isAJsonValue, NODE_STUDIO_FIELDS_NONE_SET, type NodeTypePortDescribed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { PORT_FAMILIES, type JsonValue, type NodeTypeDescription, type PortFamily, type ProjectGraphTransaction, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
 
 /** A mock stream a graph action can name: its id, and the graph the mock holds for it. */
 export interface MockStreamGraphTarget {
@@ -40,9 +40,9 @@ export interface MockGraphTransactionApplied {
 }
 
 /** An edit the mock cannot apply, naming what its graphs do not hold: a defect of the caller, never an answer the window reads. */
-/** What one mock runtime adds a node from: the node catalog it lists, and the ports of each node an edit removed, by its id, so an undo or redo adding back a node of a type the catalog does not list gives it the ports it had, as the runtime's document keeps them. */
+/** What one mock runtime adds a node from: the node types it describes, and the ports of each node an edit removed, by its id, so an undo or redo adding back a node of a type it does not describe gives it the ports it had, as the runtime's document keeps them. */
 export interface MockGraphEditGrounds {
-  nodeCatalog: readonly NodeCatalogEntry[];
+  nodeTypesDescribed: readonly NodeTypeDescription[];
   portsOfTheNodesRemoved: Map<string, Pick<MockGraphNode, "input_ports" | "output_ports">>;
 }
 
@@ -216,9 +216,10 @@ export function isAHistoryOperationTheMockMakesAgainFromTheEditInside(historyOpe
   return isAJsonObject(historyOperation) && ["create_stream_document", "delete_stream_document", "carry_the_links_onto_the_ports_of_a_placed_stream"].includes(String(historyOperation["operation"]));
 }
 
-/** A port of a node added from `port`, its catalog port: its name, family and pin type as the catalog lists them, stating no stream facts and reading no value yet. */
-function graphPortOfTheCatalogPort(port: Pick<NodeCatalogPort, "name" | "family" | "pin">): MockGraphPort {
-  return { name: port.name, family: port.family, stream_facts: null, values_checked: port.family === "records" ? false : null, pin: exactPinOfTheDeclaredPort(port.pin), value_read: null };
+/** A port of a node added from `port`, as its node type's description describes it: its name, family and pin type as described, stating no stream facts and reading no value yet. */
+function graphPortOfTheDescribedPort(port: Pick<NodeTypePortDescribed, "name" | "family" | "pin_type" | "flow">): MockGraphPort {
+  const family = familyOfThePort(port);
+  return { name: port.name, family, stream_facts: null, values_checked: family === "records" ? false : null, pin: exactPinOfTheDeclaredPort(port), value_read: null };
 }
 
 function shortNameOfTheType(nodeType: string): string {
@@ -320,11 +321,11 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
  * operation has applied to a copy of it. Applied by an undo or a redo, an `add_node`'s `as` is the id the node had, which
  * it takes again. An `add_group` or `add_note` takes the id its operation in `historyOperationsReplayed` recorded, so the
  * running graph a commit changes after the saved one gets the same ids. An operation naming a placed stream's asset, as
- * history does, is made at that stream's first placement. A node is added with the ports `nodeCatalog` lists for its type.
+ * history does, is made at that stream's first placement. A node is added with the ports `nodeTypesDescribed` describes for its type.
  */
 export function applyMockGraphTransaction(
   targetsByStreamAsset: ReadonlyMap<string, MockStreamGraphTarget>,
-  { nodeCatalog, portsOfTheNodesRemoved }: MockGraphEditGrounds,
+  { nodeTypesDescribed, portsOfTheNodesRemoved }: MockGraphEditGrounds,
   operations: readonly StreamGraphAction[],
   applying: "a_transaction" | "a_live_transaction" | "undo_or_redo" = "a_transaction",
   historyOperationsReplayed: readonly JsonValue[] = [],
@@ -432,10 +433,10 @@ export function applyMockGraphTransaction(
       }
       case "add_node": {
         const interfaceType = operation.type === GRAPH_INPUT_NODE_TYPE || operation.type === GRAPH_OUTPUT_NODE_TYPE ? operation.type : null;
-        const catalogEntry = nodeCatalog.find((entry) => entry.type === operation.type);
+        const described = nodeTypesDescribed.find((nodeType) => nodeType.node_type === operation.type);
         const label = operation.as ?? null;
         const portsItHadBeforeItsRemoval = applying === "undo_or_redo" && label !== null ? portsOfTheNodesRemoved.get(label) : undefined;
-        if (interfaceType === null && catalogEntry === undefined && portsItHadBeforeItsRemoval === undefined) throw new MockGraphEditNotApplicable(`the recorded node catalog lists no node type \`${operation.type}\``);
+        if (interfaceType === null && described === undefined && portsItHadBeforeItsRemoval === undefined) throw new MockGraphEditNotApplicable(`the recorded node types describe no node type \`${operation.type}\``);
         const shortName = operation.name ?? shortNameOfTheType(operation.type);
         const takenNames = new Set(graph.nodes.map((node) => node.name));
         let name = shortName;
@@ -452,8 +453,8 @@ export function applyMockGraphTransaction(
           pins,
           ...(interfaceType !== null
             ? portsOfTheInterfaceNode(interfaceType, PORT_FAMILIES.find((family) => family === declaredFamily) ?? null)
-            : catalogEntry !== undefined
-              ? { input_ports: catalogEntry.inputs.filter((input) => input.input_mode?.mode !== "setting_only").map(graphPortOfTheCatalogPort), output_ports: catalogEntry.outputs.map(graphPortOfTheCatalogPort) }
+            : described !== undefined
+              ? { input_ports: described.inputs.filter((input) => input.mode !== "setting_only").map(graphPortOfTheDescribedPort), output_ports: described.outputs.map(graphPortOfTheDescribedPort) }
               : structuredClone(portsItHadBeforeItsRemoval ?? { input_ports: [], output_ports: [] })),
         };
         if (operation.studio !== undefined && operation.studio !== null) addedNode.studio = studioFieldsOfTheAction(jsonObjectTheActionCarries(operation.studio, "studio"), label ?? name);
@@ -469,10 +470,10 @@ export function applyMockGraphTransaction(
       case "set_exposed_config_fields": {
         const node = nodeNamed(operation.node);
         const from = node.exposed_config_fields ?? [];
-        const catalogInputs = nodeCatalog.find((entry) => entry.type === node.type)?.inputs ?? [];
+        const describedInputs = nodeTypesDescribed.find((nodeType) => nodeType.node_type === node.type)?.inputs ?? [];
         node.input_ports = [
           ...node.input_ports.filter((port) => !from.includes(port.name)),
-          ...operation.exposed_config_fields.map((field) => graphPortOfTheCatalogPort(catalogInputs.find((input) => input.name === field) ?? { name: field, family: null, pin: null })),
+          ...operation.exposed_config_fields.map((field) => graphPortOfTheDescribedPort(describedInputs.find((input) => input.name === field) ?? { name: field })),
         ];
         node.exposed_config_fields = [...operation.exposed_config_fields];
         recordInHistory(

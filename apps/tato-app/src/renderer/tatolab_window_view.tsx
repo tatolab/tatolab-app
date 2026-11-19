@@ -23,7 +23,8 @@ import { STUDIO_LAYOUT_PRESETS_ON_A_DIGIT, StudioLayoutKeptInStorage } from "./s
 
 import { studioViewHostServicesOf } from "./view_host/studio_view_host_services";
 import { useWatchedStudioValue } from "./view_host/watched_studio_value";
-import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
+import { StreamGraphReadings } from "./view_host/stream_graph_readings";
+import { ProjectNodeTypesDescribedReadings } from "./view_host/project_node_types_described_readings";
 import { StudioViewTypeRegistry, studioViewTypeTitlesOf } from "./view_host/studio_view_type_registry";
 import { tatolabFrameViewType } from "./view_host/tatolab_frame_view_type";
 import { coreViewTypesOf, servedCoreViewFolderUrl } from "./view_host/core_view_types";
@@ -134,15 +135,15 @@ export function mountTatolabWindow(
   const runtimeDescriptionReadings = new RuntimeDescriptionReadings(backend);
   runtimeDescriptionReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => runtimeDescriptionReadings.setPollingAllowed(isVisible));
-  const streamGraphAndCatalogReadings = new StreamGraphAndCatalogReadings(backend);
-  streamGraphAndCatalogReadings.setReadingAllowed(isTatolabWindowVisible());
-  onTatolabWindowVisibilityChanged((isVisible) => streamGraphAndCatalogReadings.setReadingAllowed(isVisible));
+  const streamGraphReadings = new StreamGraphReadings(backend);
+  streamGraphReadings.setReadingAllowed(isTatolabWindowVisible());
+  onTatolabWindowVisibilityChanged((isVisible) => streamGraphReadings.setReadingAllowed(isVisible));
   const projectLogReadings = new ProjectLogReadings(backend);
   projectLogReadings.setReadingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectLogReadings.setReadingAllowed(isVisible));
-  const projectNodeTypeReadings = new ProjectListingReadingsWhileWatched((projectFolder) => backend.listProjectNodeTypes(projectFolder));
-  projectNodeTypeReadings.setReadingAllowed(isTatolabWindowVisible());
-  onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypeReadings.setReadingAllowed(isVisible));
+  const projectNodeTypesDescribedReadings = new ProjectNodeTypesDescribedReadings(backend);
+  projectNodeTypesDescribedReadings.setReadingAllowed(isTatolabWindowVisible());
+  onTatolabWindowVisibilityChanged((isVisible) => projectNodeTypesDescribedReadings.setReadingAllowed(isVisible));
   const projectAssetReadings = new ProjectListingReadingsWhileWatched((projectFolder) => backend.listProjectAssets(projectFolder));
   projectAssetReadings.setReadingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectAssetReadings.setReadingAllowed(isVisible));
@@ -162,7 +163,7 @@ export function mountTatolabWindow(
   backend.onProjectFilesChanged(listTheOpenProjectsAssetsAgain);
   backend.onProjectNodeTypesChanged(() => {
     const openProjectFolder = readTheOpenProjectFolder();
-    if (openProjectFolder !== null) projectNodeTypeReadings.listTheProjectAgainNow(openProjectFolder);
+    if (openProjectFolder !== null) projectNodeTypesDescribedReadings.listTheProjectAgainNow(openProjectFolder);
   });
 
   const chooseProjectFolder = (chosenFor: ProjectFolderChosenFor) => {
@@ -251,10 +252,10 @@ export function mountTatolabWindow(
   const studioWindowSources: StudioWindowSources = {
     model: studioWindowModel,
     viewTypeRegistry,
-    viewHostServices: studioViewHostServicesOf(studioWindowModel.viewHostSources(studioViewTypeTitlesOf(viewTypeRegistry)), streamGraphAndCatalogReadings, {
+    viewHostServices: studioViewHostServicesOf(studioWindowModel.viewHostSources(studioViewTypeTitlesOf(viewTypeRegistry)), streamGraphReadings, {
       backend,
       projectLogReadings,
-      projectNodeTypeReadings,
+      projectNodeTypesDescribedReadings,
       projectAssetReadings,
       projectTransactionsReadings,
       pythonLanguageServerConnections,
@@ -457,7 +458,8 @@ export function mountTatolabWindow(
   let runtimeStateLastShown: TatolabStatus["runtime_state"] | null = null;
   const showStatusOutsideReact = (status: TatolabStatus) => {
     studioWindowModel.showStatus(status);
-    streamGraphAndCatalogReadings.takeTheStreamsListed(status.streams);
+    streamGraphReadings.takeTheStreamsListed(status.streams);
+    projectNodeTypesDescribedReadings.takeTheStreamsListed(status.streams);
     if (runtimeStateLastShown !== null && status.runtime_state !== runtimeStateLastShown) runtimeDescriptionReadings.forgetAndReadAgainAsTheRuntimesStateChanged();
     runtimeStateLastShown = status.runtime_state;
   };

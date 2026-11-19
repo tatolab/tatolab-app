@@ -1,7 +1,8 @@
 import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { Effect } from "effect";
 import { expect, test } from "vitest";
 import type { PortViewerEvent, PortViewerImageFrameFacts } from "../shared/tatolab_backend_contract.js";
-import type { OpenedRuntimeViewer, RuntimeViewerCallFailure, RuntimeViewerConnection, RuntimeViewerTarget } from "./runtime_viewer_control_connection.js";
+import { RuntimeViewerCallFailed, type OpenedRuntimeViewer, type RuntimeViewerConnection, type RuntimeViewerTarget } from "./runtime_viewer_control_connection.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { PORT_VIEWER_REOPEN_AFTER_MS, RuntimePortViewers, type WindowShowingPortViewers } from "./runtime_port_viewers.js";
 import type { RuntimeViewerChannelReaderOfTheAddon, RuntimeViewerImageFrame, RuntimeViewerMessageRead, SharedTextureImportOfARuntimeViewerFrame } from "./runtime_viewer_image_frame_import.js";
@@ -86,14 +87,37 @@ class FakeViewerConnection implements RuntimeViewerConnection {
   readonly openedTargets: RuntimeViewerTarget[] = [];
   readonly closedViewers: string[] = [];
   openRefusal: string | null = null;
-  private open = true;
+  /** A defect each open dies of, as a call that breaks rather than answers. */
+  openBreaksWith: Error | null = null;
+  private heldOpens: (() => void)[] | null = null;
+  private whyItClosedOnce: string | null = null;
   private readonly closedListeners: ((whyItClosed: string) => void)[] = [];
 
-  openViewer(target: RuntimeViewerTarget): Promise<Result<OpenedRuntimeViewer, RuntimeViewerCallFailure>> {
-    this.openedTargets.push(target);
-    if (this.openRefusal !== null) return Promise.resolve(failedWith({ words: this.openRefusal, theRuntimeRefusedIt: true }));
-    return Promise.resolve(
-      succeeded({
+  /** Hold every open from now on until `releaseHeldOpens`, as a runtime slow to answer `open_viewer`. */
+  holdOpens(): void {
+    this.heldOpens = [];
+  }
+
+  releaseHeldOpens(): void {
+    const heldOpens = this.heldOpens ?? [];
+    this.heldOpens = null;
+    for (const release of heldOpens) release();
+  }
+
+  openViewer(target: RuntimeViewerTarget): Effect.Effect<OpenedRuntimeViewer, RuntimeViewerCallFailed> {
+    const answered = Effect.callback<void>((resume) => {
+      if (this.heldOpens === null) resume(Effect.void);
+      else this.heldOpens.push(() => resume(Effect.void));
+    });
+    return answered.pipe(Effect.andThen(this.openAnswered(target)));
+  }
+
+  private openAnswered(target: RuntimeViewerTarget): Effect.Effect<OpenedRuntimeViewer, RuntimeViewerCallFailed> {
+    return Effect.suspend(() => {
+      this.openedTargets.push(target);
+      if (this.openBreaksWith !== null) return Effect.die(this.openBreaksWith);
+      if (this.openRefusal !== null) return Effect.fail(new RuntimeViewerCallFailed({ words: this.openRefusal, theRuntimeRefusedIt: true }));
+      return Effect.succeed({
         viewer: `${target.stream}/${target.node_id}/${target.port}`,
         stream: target.stream,
         node_id: target.node_id,
@@ -104,30 +128,44 @@ class FakeViewerConnection implements RuntimeViewerConnection {
         wake_service: `${target.node_id}/notify`,
         viewer_reads: target.port === "audio" ? "every_message" : "latest_message",
         surface_share_address: "/tmp/tatolab/surface-share.sock",
-      }),
-    );
+      });
+    });
   }
 
-  closeViewer(viewer: string): Promise<Result<string, RuntimeViewerCallFailure>> {
-    this.closedViewers.push(viewer);
-    return Promise.resolve(succeeded(viewer));
+  closeViewer(viewer: string): Effect.Effect<string, RuntimeViewerCallFailed> {
+    return Effect.sync(() => {
+      this.closedViewers.push(viewer);
+      return viewer;
+    });
   }
 
-  onClosed(whenTheConnectionCloses: (whyItClosed: string) => void): void {
-    this.closedListeners.push(whenTheConnectionCloses);
+  get whyItClosed(): Effect.Effect<string> {
+    return Effect.callback<string>((resume) => {
+      if (this.whyItClosedOnce !== null) resume(Effect.succeed(this.whyItClosedOnce));
+      else this.closedListeners.push((why) => resume(Effect.succeed(why)));
+    });
   }
 
-  isOpen(): boolean {
-    return this.open;
+  get isOpen(): Effect.Effect<boolean> {
+    return Effect.sync(() => this.whyItClosedOnce === null);
   }
 
-  close(): void {
-    this.open = false;
+  get close(): Effect.Effect<void> {
+    return Effect.sync(() => this.closeBecause("closed by the app"));
+  }
+
+  isOpenNow(): boolean {
+    return this.whyItClosedOnce === null;
   }
 
   dropByTheRuntime(whyItClosed: string): void {
-    this.open = false;
-    for (const listener of this.closedListeners) listener(whyItClosed);
+    this.closeBecause(whyItClosed);
+  }
+
+  private closeBecause(why: string): void {
+    if (this.whyItClosedOnce !== null) return;
+    this.whyItClosedOnce = why;
+    for (const listener of this.closedListeners.splice(0)) listener(why);
   }
 }
 
@@ -145,19 +183,32 @@ class FakeWindowShowingPortViewers implements WindowShowingPortViewers {
   }
 }
 
+/** Let every fiber the port viewers forked run to its next wait: a shared opening runs in a fiber of its own, a few turns of the event loop after the one that asked for it. */
+async function settle(): Promise<void> {
+  for (let turn = 0; turn < 5; turn += 1) await new Promise((settled) => setImmediate(settled));
+}
+
 function harness() {
   const connections: FakeViewerConnection[] = [];
   const channelReaders: FakeChannelReader[] = [];
   const waits: { afterMs: number; then: () => void }[] = [];
   let addonRefusal: string | null = null;
   let followRefusal: Error | null = null;
+  let heldConnectionOpenings: (() => void)[] | null = null;
   const streamStatesTheRuntimeLists = new Map([[CAMERA_VIDEO.stream, "running"]]);
   const runtimePortViewers = new RuntimePortViewers({
-    openTheViewerConnection: () => {
-      const connection = new FakeViewerConnection();
-      connections.push(connection);
-      return Promise.resolve(succeeded(connection));
-    },
+    openTheViewerConnection: Effect.callback<void>((resume) => {
+      if (heldConnectionOpenings === null) resume(Effect.void);
+      else heldConnectionOpenings.push(() => resume(Effect.void));
+    }).pipe(
+      Effect.andThen(
+        Effect.sync(() => {
+          const connection = new FakeViewerConnection();
+          connections.push(connection);
+          return connection;
+        }),
+      ),
+    ),
     openAChannelReader: () => {
       if (addonRefusal !== null) return failedWith(addonRefusal);
       const channelReader = new FakeChannelReader();
@@ -166,11 +217,12 @@ function harness() {
       return succeeded(channelReader);
     },
     viewerProcessId: 4242,
-    waitThen: (afterMs, then) => waits.push({ afterMs, then }),
+    waitBeforeReopening: Effect.callback<void>((resume) => {
+      waits.push({ afterMs: PORT_VIEWER_REOPEN_AFTER_MS, then: () => resume(Effect.void) });
+    }),
     streamStateTheRuntimeListsNow: (stream) => streamStatesTheRuntimeLists.get(stream) ?? null,
     tatolabAppLog: SILENT_TATOLAB_APP_LOG,
   });
-  const settle = () => new Promise((settled) => setImmediate(settled));
   const writeAndSettle = async () => {
     for (const channelReader of channelReaders) if (!channelReader.closed) channelReader.tellAWriteCame?.(null);
     await settle();
@@ -180,8 +232,16 @@ function harness() {
     connections,
     channelReaders,
     waits,
-    settle,
     writeAndSettle,
+    /** Hold every connection opening from now on until `releaseHeldConnectionOpenings`, as a runtime slow to accept the connection. */
+    holdConnectionOpenings: () => {
+      heldConnectionOpenings = [];
+    },
+    releaseHeldConnectionOpenings: () => {
+      const held = heldConnectionOpenings ?? [];
+      heldConnectionOpenings = null;
+      for (const release of held) release();
+    },
     refuseInTheAddon: (refusal: string) => {
       addonRefusal = refusal;
     },
@@ -193,7 +253,7 @@ function harness() {
 }
 
 test("a_port_viewer_opens_a_runtime_viewer_as_the_main_process_reads_its_latest_message_and_follows_its_writes", async () => {
-  const { runtimePortViewers, connections, channelReaders, settle } = harness();
+  const { runtimePortViewers, connections, channelReaders } = harness();
 
   const opened = await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
   await settle();
@@ -205,7 +265,7 @@ test("a_port_viewer_opens_a_runtime_viewer_as_the_main_process_reads_its_latest_
 });
 
 test("a_port_viewer_reads_once_per_write_and_reads_again_after_a_write_that_came_during_a_read", async () => {
-  const { runtimePortViewers, channelReaders, settle } = harness();
+  const { runtimePortViewers, channelReaders } = harness();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
   await settle();
   const channelReader = channelReaders[0];
@@ -232,7 +292,7 @@ test("a_port_viewer_whose_writes_cannot_be_followed_does_not_open_and_closes_its
 });
 
 test("a_viewer_that_stops_hearing_writes_ends_every_port_viewer_of_that_port", async () => {
-  const { runtimePortViewers, channelReaders, settle } = harness();
+  const { runtimePortViewers, channelReaders } = harness();
   const windowShowingPortViewers = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
   await settle();
@@ -240,7 +300,7 @@ test("a_viewer_that_stops_hearing_writes_ends_every_port_viewer_of_that_port", a
   channelReaders[0]?.tellAWriteCame?.(new Error("the viewer stopped hearing writes: the event service went away"));
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([
-    { port_viewer: "port-viewer-1", kind: "ended", because: "The viewer stopped reading camera › video: the viewer stopped hearing writes: the event service went away" },
+    { port_viewer: "port-viewer-1", kind: "ended", because: "The viewer stopped reading camera › video: the viewer stopped hearing writes: the event service went away", recovery: "shows_once_the_node_runs" },
   ]);
   expect(channelReaders[0]?.closed).toBe(true);
 });
@@ -308,7 +368,7 @@ test("a_frame_electron_cannot_import_and_that_has_no_pixels_ends_the_port_viewer
 
   await writeAndSettle();
 
-  expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "ended", because: "Electron cannot import a rgba64 frame as a shared texture" }]);
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "ended", because: "Electron cannot import a rgba64 frame as a shared texture", recovery: "open_the_port_again" }]);
   expect(channelReaders[0]?.closed).toBe(true);
 });
 
@@ -369,14 +429,14 @@ test("a_port_viewer_opened_before_its_stream_runs_waits_saying_why_and_opens_onc
   expect(waiting).toEqual(succeeded({ port_viewer: "port-viewer-2" }));
   expect(waits.map((wait) => wait.afterMs)).toEqual([PORT_VIEWER_REOPEN_AFTER_MS]);
   waits[0]?.then();
-  await new Promise((settle) => setImmediate(settle));
+  await settle();
   expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-2", kind: "reopening", because: notRunningYet }]);
   expect(waits).toHaveLength(2);
 
   streamStatesTheRuntimeLists.set(CAMERA_VIDEO.stream, "running");
   connection.openRefusal = null;
   waits[1]?.then();
-  await new Promise((settle) => setImmediate(settle));
+  await settle();
 
   expect(channelReaders).toHaveLength(2);
   expect(channelReaders[1]?.closed).toBe(false);
@@ -412,7 +472,7 @@ test("two_windows_waiting_for_one_ports_stream_share_one_wait", async () => {
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, secondWindow);
   expect(waits).toHaveLength(1);
   waits[0]?.then();
-  await new Promise((settle) => setImmediate(settle));
+  await settle();
 
   expect(firstWindow.portViewerEvents).toEqual([{ port_viewer: "port-viewer-2", kind: "reopening", because: "node `camera-id` is not running" }]);
   expect(secondWindow.portViewerEvents).toEqual([{ port_viewer: "port-viewer-3", kind: "reopening", because: "node `camera-id` is not running" }]);
@@ -444,7 +504,7 @@ test("a_port_viewer_waiting_for_its_stream_stops_waiting_when_its_window_closes_
 
   runtimePortViewers.closeThePortViewersOf(windowShowingPortViewers);
   waits[0]?.then();
-  await new Promise((settle) => setImmediate(settle));
+  await settle();
 
   expect(connection.openedTargets).toHaveLength(opensAskedBeforeClosing);
   expect(waits).toHaveLength(1);
@@ -481,12 +541,13 @@ test("a_dropped_connection_tells_the_windows_and_reopens_their_port_on_a_new_one
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
 
   connections[0]?.dropByTheRuntime("the runtime stopped");
+  await settle();
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "reopening", because: "the runtime stopped" }]);
   expect(channelReaders[0]?.closed).toBe(true);
   expect(waits.map((wait) => wait.afterMs)).toEqual([PORT_VIEWER_REOPEN_AFTER_MS]);
   waits[0]?.then();
-  await new Promise((settle) => setImmediate(settle));
+  await settle();
 
   expect(connections).toHaveLength(2);
   expect(connections[1]?.openedTargets).toEqual([{ ...CAMERA_VIDEO, viewer_process_id: 4242 }]);
@@ -508,7 +569,7 @@ test("a_reload_of_the_stream_reopens_its_port_once_the_runtime_lists_it_without_
   expect(channelReaders[0]?.closed).toBe(true);
   expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
   waits[0]?.then();
-  await new Promise((settle) => setImmediate(settle));
+  await settle();
 
   expect(connections[0]?.openedTargets).toHaveLength(2);
   expect(channelReaders).toHaveLength(2);
@@ -551,18 +612,85 @@ test("a_failed_read_ends_every_port_viewer_of_that_port", async () => {
   await writeAndSettle();
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([
-    { port_viewer: "port-viewer-1", kind: "ended", because: "The viewer stopped reading camera › video: the channel's publisher went away" },
+    { port_viewer: "port-viewer-1", kind: "ended", because: "The viewer stopped reading camera › video: the channel's publisher went away", recovery: "shows_once_the_node_runs" },
   ]);
 });
 
-test("quitting_closes_every_port_viewer_and_the_connection", async () => {
-  const { runtimePortViewers, connections } = harness();
+test("quitting_closes_the_connection_which_takes_its_viewers_with_it_and_lets_go_of_their_channels", async () => {
+  const { runtimePortViewers, connections, channelReaders } = harness();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
 
   runtimePortViewers.closeEveryPortViewer();
+  await settle();
 
-  expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
-  expect(connections[0]?.isOpen()).toBe(false);
+  expect(connections[0]?.isOpenNow()).toBe(false);
+  expect(connections[0]?.closedViewers).toEqual([]);
+  expect(channelReaders[0]?.closed).toBe(true);
+});
+
+test("a_connection_that_opens_as_the_app_quits_is_closed", async () => {
+  const { runtimePortViewers, connections, holdConnectionOpenings, releaseHeldConnectionOpenings } = harness();
+  holdConnectionOpenings();
+  const opening = runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
+  await settle();
+
+  runtimePortViewers.closeEveryPortViewer();
+  releaseHeldConnectionOpenings();
+  expect(await opening).toEqual({ ok: false, failure: "the app is quitting" });
+  await settle();
+
+  expect(connections).toHaveLength(1);
+  expect(connections[0]?.isOpenNow()).toBe(false);
+});
+
+test("a_window_closing_its_last_viewer_of_a_port_while_another_waits_for_the_port_to_reopen_hands_the_reopened_viewer_to_the_one_waiting", async () => {
+  const { runtimePortViewers, connections, channelReaders, waits, streamStatesTheRuntimeLists } = harness();
+  const firstWindow = new FakeWindowShowingPortViewers();
+  const secondWindow = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, firstWindow);
+  runtimePortViewers.closeThePortViewersOf(firstWindow);
+  const connection = connections[0];
+  if (connection === undefined) throw new Error("the connection was not opened");
+  streamStatesTheRuntimeLists.set(CAMERA_VIDEO.stream, "preparing");
+  connection.openRefusal = "node `camera-id` is not running";
+  expect(await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, firstWindow)).toEqual(succeeded({ port_viewer: "port-viewer-2" }));
+  streamStatesTheRuntimeLists.set(CAMERA_VIDEO.stream, "running");
+  connection.openRefusal = null;
+  connection.holdOpens();
+  waits[0]?.then();
+  await settle();
+
+  const secondOpening = runtimePortViewers.openAPortViewer(CAMERA_VIDEO, secondWindow);
+  runtimePortViewers.closeThePortViewersOf(firstWindow);
+  await settle();
+  connection.releaseHeldOpens();
+
+  expect(await secondOpening).toEqual(succeeded({ port_viewer: "port-viewer-3" }));
+  await settle();
+  expect(channelReaders).toHaveLength(2);
+  expect(channelReaders[1]?.closed).toBe(false);
+  expect(connection.closedViewers).toEqual(["studio/camera-id/video"]);
+});
+
+test("a_reopening_that_breaks_ends_its_port_viewers_saying_they_can_be_opened_again", async () => {
+  const { runtimePortViewers, connections, waits, streamStatesTheRuntimeLists } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+  runtimePortViewers.closeThePortViewersOf(windowShowingPortViewers);
+  const connection = connections[0];
+  if (connection === undefined) throw new Error("the connection was not opened");
+  streamStatesTheRuntimeLists.set(CAMERA_VIDEO.stream, "preparing");
+  connection.openRefusal = "node `camera-id` is not running";
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+  connection.openBreaksWith = new Error("the socket broke mid-call");
+
+  waits[0]?.then();
+  await settle();
+
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([
+    { port_viewer: "port-viewer-2", kind: "ended", because: "reopening the port broke: the socket broke mid-call", recovery: "open_the_port_again" },
+  ]);
+  expect(waits).toHaveLength(1);
 });
 
 test("a_window_closes_only_the_port_viewers_it_opened", async () => {
@@ -576,4 +704,37 @@ test("a_window_closes_only_the_port_viewers_it_opened", async () => {
   runtimePortViewers.closeAPortViewer("port-viewer-1", firstWindow);
 
   expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
+});
+
+test("two_windows_opening_one_port_at_once_share_one_opening_of_its_runtime_viewer", async () => {
+  const { runtimePortViewers, connections, channelReaders } = harness();
+
+  const [first, second] = await Promise.all([
+    runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers()),
+    runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers()),
+  ]);
+
+  expect([first, second]).toEqual([succeeded({ port_viewer: "port-viewer-1" }), succeeded({ port_viewer: "port-viewer-2" })]);
+  expect(connections).toHaveLength(1);
+  expect(connections[0]?.openedTargets).toHaveLength(1);
+  expect(channelReaders).toHaveLength(1);
+});
+
+test("a_port_the_addon_refuses_as_it_reopens_ends_saying_it_can_be_opened_again", async () => {
+  const { runtimePortViewers, connections, waits, refuseInTheAddon } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+  connections[0]?.dropByTheRuntime("the runtime stopped");
+  await settle();
+  refuseInTheAddon("this build carries no viewer addon");
+
+  waits[0]?.then();
+  await settle();
+
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([
+    { port_viewer: "port-viewer-1", kind: "reopening", because: "the runtime stopped" },
+    { port_viewer: "port-viewer-1", kind: "ended", because: "this build carries no viewer addon", recovery: "open_the_port_again" },
+  ]);
+  expect(connections[1]?.closedViewers).toEqual(["studio/camera-id/video"]);
+  expect(waits).toHaveLength(1);
 });

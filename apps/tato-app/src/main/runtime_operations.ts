@@ -1,12 +1,13 @@
 // Each runtime operation the main process asks for, as an Effect on `RuntimeControl`: the control
 // operation or plain request it makes, and the reader that walks its answer into the shape Studio
-// keeps. Every one fails with a `RuntimeControlFailure`, an answer its reader cannot read as not the
-// contract's type.
+// keeps, or the answer passed on as the contract types it. Every one fails with a
+// `RuntimeControlFailure`, an answer its reader cannot read as not the contract's type.
 
 import { Effect } from "effect";
 import type {
   ListedStream,
-  NodeCatalog,
+  DescribeNodeTypesToolResult,
+  ListNodeTypesToolResult,
   ProjectCreationQueued,
   ProjectDependency,
   ProjectTheRuntimeNames,
@@ -14,7 +15,6 @@ import type {
   ProjectAssetListing,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
-  ProjectNodeTypeListing,
   ProjectStreamActionQueued,
   ProjectTransaction,
   ProjectTransactionAuthor,
@@ -29,7 +29,6 @@ import { isAJsonObject, jsonTextKeepingTheWrittenNumbers, parseJsonOnTheWire, re
 import { bodyOfAnOkAnswer } from "./local_api_plain_http.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
-import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectAssetListingFromTheListAssetsToolResult } from "./project_asset_listing.js";
 import {
   assetAtItsPathFromTheToolResult,
@@ -56,7 +55,6 @@ import {
   type ProjectFileWriteRecorded,
 } from "./project_files_on_the_wire.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
-import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
 import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTheListAssetsToolResult, type ProjectSummaryTheRuntimeServes } from "./project_the_runtime_names.js";
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
 import { projectViewsFromTheListProjectViewsToolResult, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
@@ -111,14 +109,14 @@ export function describeStreamGraph(stream: string): Effect.Effect<StreamGraph, 
   return controlOperationReadWith("graph", { stream }, (answered) => ("streams" in answered ? failedWith("every loaded stream's graph answered for a call naming one") : succeeded(answered)));
 }
 
-/** Every node type the loaded stream `stream` can add, from `GET /api/registry?stream=`; refused in the runtime's own words. */
-export function describeNodeCatalog(stream: string): Effect.Effect<NodeCatalog, RuntimeControlFailure, RuntimeControl> {
-  return restReadWith(nodeCatalogRequestTarget(stream), "the node registry", (registryAnswer) => nodeCatalogFromTheRegistryAnswer(stream, registryAnswer));
+/** The node types the project in `projectDirectory` offers, by source, the runtime's `list_node_types` answer passed on as the contract types it. */
+export function listNodeTypes(projectDirectory: string): Effect.Effect<ListNodeTypesToolResult, RuntimeControlFailure, RuntimeControl> {
+  return RuntimeControl.use((runtimeControl) => runtimeControl.call("list_node_types", { project_directory: projectDirectory }));
 }
 
-/** What the project in `projectDirectory`, each import and each installed distribution declare, from the runtime's `list_project_node_types`, read from source without running it. */
-export function listProjectNodeTypes(projectDirectory: string): Effect.Effect<ProjectNodeTypeListing, RuntimeControlFailure, RuntimeControl> {
-  return controlOperationReadWith("list_project_node_types", { project_directory: projectDirectory }, projectNodeTypeListingFromTheToolResult);
+/** Each of `nodeTypes`, as the project in `projectDirectory` lists them, described or with why not, the runtime's `describe_node_types` answer passed on as the contract types it. */
+export function describeNodeTypes(projectDirectory: string, nodeTypes: readonly string[]): Effect.Effect<DescribeNodeTypesToolResult, RuntimeControlFailure, RuntimeControl> {
+  return RuntimeControl.use((runtimeControl) => runtimeControl.call("describe_node_types", { project_directory: projectDirectory, node_types: [...nodeTypes] }));
 }
 
 /** Every asset of the project in `projectDirectory`, its graph documents among them, from the runtime's `list_assets`. */

@@ -148,10 +148,8 @@ export interface MockTatolabOptions {
   projectHistoryScenario: MockProjectHistoryScenario;
   /** `?recent=none`: no project opened before, as on first run; six recent ones by default. */
   recentProjectsInTheQuery: string | null;
-  /** Each port's family is served in the graph and the node catalog, as the runtime serves it; `?port_families=unserved` serves none, as a runtime from before strict-port-families. */
+  /** Each port's family is served in the graph and in each node type described, as the runtime serves it; `?port_families=unserved` serves none, as a runtime from before strict-port-families. */
   arePortFamiliesServed: boolean;
-  /** `?node_types=unreadable_project`: every module of the open project's own node code does not parse; one of them does not by default. */
-  isEveryOwnNodeModuleUnreadable: boolean;
   /** `?asset_import=refuses_one`: Import asset… also refuses a graph document chosen beside the file it imports. */
   assetImportScenario: MockAssetImportScenario;
   /** `?popped_out_view=<popped-out view as JSON>`: the page is a view popped out of the studio, as Pop out into a window opens it in a new tab; the studio by default. */
@@ -298,7 +296,6 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     projectHistoryScenario: mockProjectHistoryScenarioNamed(pageQuery.get("history")),
     recentProjectsInTheQuery: pageQuery.get("recent"),
     arePortFamiliesServed: pageQuery.get("port_families") !== "unserved",
-    isEveryOwnNodeModuleUnreadable: pageQuery.get("node_types") === "unreadable_project",
     assetImportScenario: pageQuery.get("asset_import") === "refuses_one" ? "refuses_one" : "imports_one",
     poppedOutView: mockPoppedOutViewFrom(pageQuery.get(POPPED_OUT_VIEW_QUERY_PARAMETER)),
     moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),

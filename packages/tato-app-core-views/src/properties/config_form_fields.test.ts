@@ -1,5 +1,7 @@
 import { expect, test } from "vitest";
-import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, recordsOfAListField } from "./config_form_fields";
+import type { NodeTypeDescription } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { aGraphNode, aGraphPort } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
+import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, configSchemaOfTheSettings, recordsOfAListField } from "./config_form_fields";
 
 const RUST_SPELLED_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -162,4 +164,49 @@ test("a_string_key_the_runtime_marks_as_a_project_asset_reads_as_an_asset_picker
     ["backdrop", { kind: "project_asset", media_it_takes: null }, true],
     ["label", { kind: "text" }, false],
   ]);
+});
+
+/** A node type described with a stream input, a setting the graph shows as an input, and settings it does not: one typed, one holding a project image, and one whose type no pin type holds. */
+const TALLY_DESCRIBED: NodeTypeDescription = {
+  node_type: "nodes.frame_tally:FrameTally",
+  described_from: "interpreter",
+  documentation: "",
+  inputs: [
+    { name: "picture", documentation: "", pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream", mode: "wire_only" },
+    { name: "gain", documentation: "", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", mode: "setting_only", default_value: 1, value_json_schema: { type: "number" } },
+    { name: "report_every", documentation: "How many pictures between reports.", pin_type: { kind: "is", pin_type: { type: "integer" } }, flow: "value", mode: "setting_only", default_value: 30, value_json_schema: { type: "integer", minimum: 1 } },
+    { name: "backdrop", documentation: "", pin_type: { kind: "is", pin_type: { type: "string" } }, flow: "value", annotations: { project_asset: { media: ["image"] } }, mode: "setting_only", default_value: "", value_json_schema: { type: "string" } },
+    { name: "labels", documentation: "", mode: "setting_only", default_value: ["value"] },
+  ],
+  outputs: [],
+  source: "project",
+};
+
+test("the_config_form_of_a_described_node_holds_each_setting_the_graph_does_not_show_as_an_input_with_its_schema_documentation_and_default", () => {
+  const tally = aGraphNode("tally", { inputs: [aGraphPort("picture", null), aGraphPort("gain", null)] });
+  const schema = configSchemaOfTheSettings(TALLY_DESCRIBED, tally);
+  expect(schema).toEqual({
+    type: "object",
+    properties: {
+      report_every: { type: "integer", minimum: 1, description: "How many pictures between reports.", default: 30 },
+      backdrop: { "x-tatolab-project-asset": { media: ["image"] }, type: "string", default: "" },
+      labels: { default: ["value"] },
+    },
+    additionalProperties: false,
+  });
+  const form = configFormOf(schema, { report_every: 60 });
+  expect(form.kind === "fields" && form.fields.map((field) => [field.key, field.control, field.value, field.value_source])).toEqual([
+    ["report_every", { kind: "number", is_whole_number: true, minimum: 1, maximum: null }, 60, "config"],
+    ["backdrop", { kind: "project_asset", media_it_takes: ["image"] }, "", "default"],
+    ["labels", { kind: "json" }, ["value"], "default"],
+  ]);
+});
+
+test("a_setting_whose_schema_states_no_type_takes_its_control_from_its_value_and_a_node_type_with_no_description_has_no_config_schema", () => {
+  const form = configFormOf({ type: "object", properties: { every: { default: 30 }, name: { default: "tally" } }, additionalProperties: false }, {});
+  expect(form.kind === "fields" && form.fields.map((field) => field.control)).toEqual([
+    { kind: "number", is_whole_number: true, minimum: null, maximum: null },
+    { kind: "text" },
+  ]);
+  expect(configSchemaOfTheSettings(undefined, aGraphNode("tally", {}))).toBeNull();
 });
