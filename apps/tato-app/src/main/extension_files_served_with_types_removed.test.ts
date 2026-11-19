@@ -3,7 +3,6 @@ import { SUPPLIED_MODULES_IMPORT_MAP_TEXT } from "@tatolab/tato-app-view-sdk/sup
 import { Layer, ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vitest";
 import {
-  howAProjectViewFileIsServed,
   projectViewFileOfTheRequest,
   projectViewFileRequestsAnsweredOn,
   projectViewFolderUrl,
@@ -54,16 +53,6 @@ test("a request outside a view folder, climbing out of one, or naming a project 
   }
 });
 
-test("each file a view's folder holds is served with its content type and its transform: a page with the import map, a .ts file as JavaScript with its types removed, any other as read", () => {
-  expect(["views/deck/index.html", "views/deck/assets/app.js", "views/deck/deck.TS", "views/deck/icon.png", "views/deck/model.onnx"].map(howAProjectViewFileIsServed)).toEqual([
-    { content_type: "text/html; charset=utf-8", served_as: "with_import_map" },
-    { content_type: "text/javascript; charset=utf-8", served_as: "as_read" },
-    { content_type: "text/javascript; charset=utf-8", served_as: "types_removed" },
-    { content_type: "image/png", served_as: "as_read" },
-    { content_type: "application/octet-stream", served_as: "as_read" },
-  ]);
-});
-
 const IMPORT_MAP_SCRIPT = `<script type="importmap">${SUPPLIED_MODULES_IMPORT_MAP_TEXT}</script>`;
 const DECK_PAGE = '<!doctype html>\n<script type="module" src="./deck.ts"></script>\n';
 /** A view written in `.ts` only: its entry imports the SDK by name and its own file by relative path, with types to remove. */
@@ -91,6 +80,9 @@ const DECK_SCRIPT_WITH_ITS_TYPES_REMOVED = [
 ].join("\n");
 const SCRIPT_WITH_AN_ENUM = ["const tracks = 2;", "", "enum Lane {", "  Left,", "}", ""].join("\n");
 const VENDORED_SCRIPT = "export const chart = (points: number) => points;\n";
+const VENDORED_DECLARATION = "export declare const chart: (points: number) => number;\n";
+/** A view's own built `.js`, outside `vendor/`, which is still served as it was read. */
+const BUILT_SCRIPT = "export const meter = (level) => level;\n";
 
 /** The runtime's `read_project_file` answer for `filePath` holding `fileText`, as the contract writes it. */
 function fileReadAnswer(filePath: string, fileText: string): Buffer {
@@ -115,6 +107,8 @@ async function projectViewFilesServedOverAnOpenNightShow(answerAnotherRead: (fil
     ["views/deck/deck.ts", async () => fileReadAnswer("views/deck/deck.ts", DECK_SCRIPT)],
     ["views/deck/lanes.ts", async () => fileReadAnswer("views/deck/lanes.ts", SCRIPT_WITH_AN_ENUM)],
     ["views/deck/vendor/chart.js", async () => fileReadAnswer("views/deck/vendor/chart.js", VENDORED_SCRIPT)],
+    ["views/deck/vendor/chart.d.ts", async () => fileReadAnswer("views/deck/vendor/chart.d.ts", VENDORED_DECLARATION)],
+    ["views/deck/built_meter.js", async () => fileReadAnswer("views/deck/built_meter.js", BUILT_SCRIPT)],
     ["views/weather/index.html", async () => fileReadAnswer("views/weather/index.html", "<html><body></body></html>")],
   ]);
   const server = await FakeLocalApiServer.answeringEachControlOperation(async (method, params) => {
@@ -178,7 +172,7 @@ test("a view made only of .ts files is served as JavaScript with its types remov
   expect(served.pathsTheRuntimeWasAskedToRead()).toEqual(["views/deck/index.html", "views/deck/deck.ts", "views/weather/index.html"]);
 });
 
-test("a .js file and any other file are served as the runtime read them", async () => {
+test("a library in the view's vendor/ folder is served as it is written, its declaration as text, and a .js file outside it and any other file as the runtime read them", async () => {
   const served = await projectViewFilesServedOverAnOpenNightShow();
   const deckFolderUrl = projectViewFolderUrl(NIGHT_SHOW, "views/deck");
 
@@ -187,6 +181,16 @@ test("a .js file and any other file are served as the runtime read them", async 
     kind: "served",
     content_type: "text/javascript; charset=utf-8",
     file_text: VENDORED_SCRIPT,
+  });
+  expect(withItsBytesAsText(await served.answerAProjectViewFileRequest(new URL("vendor/chart.d.ts", deckFolderUrl).href))).toEqual({
+    kind: "served",
+    content_type: "text/plain; charset=utf-8",
+    file_text: VENDORED_DECLARATION,
+  });
+  expect(withItsBytesAsText(await served.answerAProjectViewFileRequest(new URL("built_meter.js", deckFolderUrl).href))).toEqual({
+    kind: "served",
+    content_type: "text/javascript; charset=utf-8",
+    file_text: BUILT_SCRIPT,
   });
 });
 
