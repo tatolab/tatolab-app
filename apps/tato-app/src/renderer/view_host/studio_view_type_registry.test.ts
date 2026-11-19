@@ -1,4 +1,4 @@
-import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk/studio_host";
 import { describe, expect, it } from "vitest";
 import type { JsonValue, StudioViewTypeSource } from "./studio_view_contract";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";

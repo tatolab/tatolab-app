@@ -1,4 +1,5 @@
-import { jsonValueSchema } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { jsonValueSchema } from "@tatolab/tato-app-view-sdk/studio_host";
+import { Result, Schema } from "effect";
 import { mockWorkspaceDependenciesScenarioNamed, type MockWorkspaceDependenciesScenario } from "./mock_workspace_dependencies";
 import { mockMainGraphNamed, type MockMachine, type MockMainGraph } from "./mock_stream_fixtures";
 import { mockReplayedRefusalNamed, type MockReplayedRefusal } from "./mock_replayed_refusals";
@@ -212,9 +213,9 @@ function mockPoppedOutViewFrom(poppedOutViewInTheQuery: string | null): PoppedOu
   const field = (fieldName: string): unknown => Object.entries(parsed).find(([parsedFieldName]) => parsedFieldName === fieldName)?.[1];
   const viewTypeId = field("view_type_id");
   const windowTitle = field("window_title");
-  const pinnedTo = jsonValueSchema.safeParse(field("pinned_to"));
-  if (typeof viewTypeId !== "string" || typeof windowTitle !== "string" || !pinnedTo.success) return null;
-  return { view_type_id: viewTypeId, window_title: windowTitle, pinned_to: pinnedTo.data };
+  const pinnedTo = Schema.decodeUnknownResult(jsonValueSchema)(field("pinned_to"));
+  if (typeof viewTypeId !== "string" || typeof windowTitle !== "string" || Result.isFailure(pinnedTo)) return null;
+  return { view_type_id: viewTypeId, window_title: windowTitle, pinned_to: pinnedTo.success };
 }
 
 /** What `?open_at_login=` names. */

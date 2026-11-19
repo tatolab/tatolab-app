@@ -1,4 +1,5 @@
-import { readTatolabViewManifest, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import type { TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk/studio_host";
 import { expect, test } from "vitest";
 import { framePermissionsPolicyOf } from "./tatolab_frame_view_type";
 

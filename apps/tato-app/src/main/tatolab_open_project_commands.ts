@@ -1,4 +1,5 @@
 import path from "node:path";
+import { projectTransactionAuthorSchema } from "@tatolab/tato-app-view-sdk/studio_host/studio_reading_schemas";
 import { Effect, Schema, type ManagedRuntime } from "effect";
 import type { JsonValue, OpenProjectReading, PoppedOutView, PortViewerTarget, ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
@@ -83,7 +84,7 @@ function undoOrRedoCommand(studioRuntime: ManagedRuntime.ManagedRuntime<StudioSe
 }
 
 /** The arguments of `undo_in_the_open_project` and `redo_in_the_open_project`: the person or agent by the name history shows. */
-const UndoOrRedoArguments = Schema.Struct({ author: Schema.Struct({ kind: Schema.Literals(["person", "agent"]), name: Schema.String }) });
+const UndoOrRedoArguments = Schema.Struct({ author: projectTransactionAuthorSchema });
 
 /** The arguments of `relocate_asset_in_the_open_project`: the UUID of an asset of the open project and its new path in the project. */
 const RelocateAssetArguments = Schema.Struct({ asset: Schema.String, to_path: Schema.String });

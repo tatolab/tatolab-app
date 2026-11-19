@@ -133,6 +133,10 @@ const reportedCases: [string, string, string, string][] = [
   ["effect imported by the pin model", "view-sdk:src/pin_model/zz_planted.ts", 'import { Schema } from "effect";\nexport const planted = Schema.String;\n', "@typescript-eslint/no-restricted-imports"],
   ["React imported by the pin services", "view-sdk:src/pin_services/zz_planted.ts", 'import { useSyncExternalStore } from "react";\nexport const planted = useSyncExternalStore;\n', "@typescript-eslint/no-restricted-imports"],
   ["effect imported by the pin services", "view-sdk:src/pin_services/zz_planted.ts", 'import { Effect } from "effect";\nexport const planted = Effect.void;\n', "@typescript-eslint/no-restricted-imports"],
+  ["the Studio side reached from the SDK's public entry", "view-sdk:src/index.ts", 'export * from "./studio_host.js";\n', "@typescript-eslint/no-restricted-imports"],
+  ["the Studio side reached from a public file by its folder", "view-sdk:src/view_settings.ts", 'import { readViewSettings } from "./studio_host/view_settings_reading.js";\nexport const planted = readViewSettings;\n', "@typescript-eslint/no-restricted-imports"],
+  ["a library imported by the SDK's public entry", "view-sdk:src/index.ts", 'import { Schema } from "effect";\nexport const planted = Schema.String;\n', "tatolab_package/imports_no_library"],
+  ["the runtime client's code imported by the readings", "view-sdk:src/studio_readings.ts", 'import { isControlContractValue } from "@tatolab/runtime-client/contract";\nexport const planted = isControlContractValue;\n', "tatolab_package/imports_no_library"],
 ];
 
 test.each(reportedCases)("reports %s", async (_caseDescription, filePath, plantedSource, expectedRuleId) => {
@@ -161,6 +165,8 @@ const quietCases: [string, string, string][] = [
   ["as const in shipped main-process code", "src/main/zz_planted.ts", 'export const planted = ["as a string", "throw it"] as const;\n'],
   ["the pin services building on the pin model and the view connection's types", "view-sdk:src/pin_services/zz_planted.ts", 'import type { InputAddress } from "../pin_model/node_inputs.js";\nimport type { TatoAppViewConnection } from "../tato_app_view_connection.js";\nexport type Planted = [InputAddress, TatoAppViewConnection];\n'],
   ["the pin model building on the readings", "view-sdk:src/pin_model/zz_planted.ts", 'import type { JsonValue } from "../studio_readings.js";\nexport type Planted = JsonValue;\n'],
+  ["the readings taking the control contract's types", "view-sdk:src/studio_readings.ts", 'import type { GraphEditMode } from "@tatolab/runtime-client/contract";\nexport type Planted = GraphEditMode;\n'],
+  ["the Studio side building on the public types and effect", "view-sdk:src/studio_host/zz_planted.ts", 'import { Schema } from "effect";\nimport type { StudioSelection } from "../studio_readings.js";\nexport const planted: Schema.Decoder<StudioSelection["kind"]> = Schema.Literal("nothing");\n'],
   ["the forms named only in a comment and a string", "src/main/zz_planted.ts", '// planted: as Error, throw, Date.now() and electron in a comment\nexport const planted = "throw it and Date.now()";\n'],
 ];
 

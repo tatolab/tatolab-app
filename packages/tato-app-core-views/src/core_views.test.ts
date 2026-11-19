@@ -1,4 +1,4 @@
-import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk/studio_host";
 import { expect, test } from "vitest";
 import { CORE_VIEW_FOLDERS } from "../core_view_folders";
 import { CORE_VIEWS } from "./index";

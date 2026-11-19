@@ -60,7 +60,7 @@ function valuesRead(gain: JsonValue, comesFrom: "saved" | "default" | "live" = "
 
 /** A binder over a store whose every write applies at once, with the listing, the loads and the flushes in the test's hands. */
 function binderUnderTest({ loading = { kind: "defined", tag: STAND_IN_TAG }, surface = "node" }: { loading?: NodeUiElementLoading; surface?: NodeUiSurface } = {}) {
-  const sent: { value: JsonValue | null; mode: GraphEditMode }[] = [];
+  const sent: { value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
       for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ value: operation.value ?? null, mode: sending.mode });
@@ -266,7 +266,7 @@ test("unbinding the last slot takes its element off and stops watching the listi
 });
 
 test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and_a_clear_each_as_one_commit_through_the_one_sender", async () => {
-  const sent: { value: JsonValue | null; mode: GraphEditMode }[] = [];
+  const sent: { value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
       for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ value: operation.value ?? null, mode: sending.mode });
@@ -293,7 +293,7 @@ test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and
 });
 
 test("a_surfaces_own_field_bound_live_sends_its_gesture_and_its_clear_live_and_shows_the_refusal_of_its_last_write", async () => {
-  const sent: { value: JsonValue | null; mode: GraphEditMode }[] = [];
+  const sent: { value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
       for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ value: operation.value ?? null, mode: sending.mode });

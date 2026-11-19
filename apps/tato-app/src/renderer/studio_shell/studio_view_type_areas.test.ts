@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { modulesAndMarketplaceSectionSchema } from "@tatolab/tato-app-view-sdk";
+import { modulesAndMarketplaceSectionSchema } from "@tatolab/tato-app-view-sdk/studio_host";
 import { MODULES_SHOWN } from "../../shared/tatolab_electron_bridge_contract";
 import type { StudioAreaLayoutNode } from "./studio_area_layout";
 import { A_POPPED_OUT_WINDOW_HAS_NO_AREAS, NO_LAYOUT_WHILE_NO_PROJECT_IS_OPEN, showViewTypeInAreaOf, watchAreasForTheViewType, type StudioViewTypeAreaSources } from "./studio_view_type_areas";
@@ -96,6 +96,6 @@ describe("a view type's areas in the layout", () => {
 
 describe("the sections a view may open the Modules and Marketplace window on", () => {
   it("are the window's own sections, so neither list drifts from the other", () => {
-    expect([...modulesAndMarketplaceSectionSchema.options]).toEqual([...MODULES_SHOWN]);
+    expect([...modulesAndMarketplaceSectionSchema.literals]).toEqual([...MODULES_SHOWN]);
   });
 });

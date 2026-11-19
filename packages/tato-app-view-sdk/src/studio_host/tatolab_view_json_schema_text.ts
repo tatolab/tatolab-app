@@ -1,4 +1,4 @@
-import { tatolabViewJsonSchema } from "./tatolab_view_manifest.js";
+import { tatolabViewJsonSchema } from "./tatolab_view_manifest_reading.js";
 
 /** `tatolab_view.schema.json`'s text, exactly as the SDK ships it. */
 export function tatolabViewJsonSchemaText(): string {

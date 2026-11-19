@@ -2,7 +2,7 @@ import { InputControlBinderContext } from "@tatolab/tato-app-view-sdk/design_sys
 import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import { createInputControlBinder } from "@tatolab/tato-app-view-sdk/pin_services/input_control_binding";
 import { createInputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
-import type { GraphEditMode, JsonValue, ProjectGraphTransactionApplying, StreamGraphInputValueRead } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { GraphEditMode, ProjectGraphTransactionApplying, StreamGraphInputValueRead } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, test } from "vitest";
@@ -29,7 +29,7 @@ afterEach(() => {
 
 /** The row of `graphInput` drawn in a frame whose store reads its value as `valueRead` and answers each write with `answerOf`, recording each one it sends. */
 function drawTheRow(graphInput: GraphInputOfTheStream, valueRead: StreamGraphInputValueRead, answerOf: (mode: GraphEditMode) => ProjectGraphTransactionApplying = APPLIED) {
-  const sent: { node: string; input: string; value: JsonValue | null; mode: GraphEditMode }[] = [];
+  const sent: { node: string; input: string; value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: async (_projectFolder, operations, sending) => {
       for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ node: operation.node, input: operation.input, value: operation.value ?? null, mode: sending.mode });

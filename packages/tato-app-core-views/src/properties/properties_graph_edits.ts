@@ -47,8 +47,8 @@ export function pinValueFromTheWordsTyped(words: string): JsonValue {
   return typed.kind === "value" ? typed.value : words;
 }
 
-/** A `set_node_config` action, which replaces the node's whole config. */
-export type SetNodeConfigAction = Extract<StreamGraphAction, { operation: "set_node_config" }>;
+/** A `set_node_config` action, which replaces the node's whole config, as the panel builds it: a config of JSON values. */
+export type SetNodeConfigAction = Extract<StreamGraphAction, { operation: "set_node_config" }> & { config: Record<string, JsonValue> };
 
 /** `configEditedFrom` with `key` set to `value`, as `set_node_config` takes the node's whole config. */
 export function setTheConfigField(stream: string, nodeId: string, configEditedFrom: Record<string, JsonValue>, key: string, value: JsonValue): SetNodeConfigAction {

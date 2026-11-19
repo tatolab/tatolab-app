@@ -1,7 +1,7 @@
 // The words a person types into a Graph Input's field in Perform, read as the value its `value` input
 // takes, or refused before anything is sent.
 
-import { jsonValueSchema, type JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { isAJsonValue, type JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The words typed into a field, read as a value or refused with why. */
 export type GraphInputWordsTyped = { kind: "value"; value: JsonValue } | { kind: "not_a_value"; because: string };
@@ -14,8 +14,8 @@ export function numberFromTheWordsTyped(words: string): GraphInputWordsTyped {
 
 /** `words` read as JSON. */
 export function jsonFromTheWordsTyped(words: string): GraphInputWordsTyped {
-  const parsed = jsonValueSchema.safeParse(textParsedAsJson(words));
-  return parsed.success ? { kind: "value", value: parsed.data } : { kind: "not_a_value", because: `“${words}” isn't JSON.` };
+  const parsed = textParsedAsJson(words);
+  return isAJsonValue(parsed) ? { kind: "value", value: parsed } : { kind: "not_a_value", because: `“${words}” isn't JSON.` };
 }
 
 /** `words` read as a JSON object, the one value a Records Input takes. */

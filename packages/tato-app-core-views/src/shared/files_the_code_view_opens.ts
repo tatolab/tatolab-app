@@ -1,7 +1,7 @@
 // The files Code opens, by the extensions its `tatolab_view.json` accepts, so the Files view and
 // Code's own file menu offer the same files and neither keeps a list of its own.
 
-import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk/studio_host";
 import codeManifestText from "../code/tatolab_view.json?raw";
 
 /** The view type Studio opens a project's code files in. */

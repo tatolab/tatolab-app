@@ -1,4 +1,6 @@
-import { streamTabAddressSchema, studioSelectionSchema, type JsonValue, type StreamTabAddress, type StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, StreamTabAddress, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { streamTabAddressSchema, studioSelectionSchema } from "@tatolab/tato-app-view-sdk/studio_host";
+import { Result, Schema } from "effect";
 import type { PoppedOutView } from "../../shared/tatolab_backend_contract";
 
 /** What a popped-out view's window pins it to: the stream tab shown and the selection as they were when it popped out, and the settings its area held. */
@@ -39,12 +41,15 @@ export function poppedOutViewOfTheArea(areaPoppingOut: AreaPoppingOut): PoppedOu
   };
 }
 
+const decodeStreamTab = Schema.decodeUnknownResult(Schema.NullOr(streamTabAddressSchema));
+const decodeSelection = Schema.decodeUnknownResult(studioSelectionSchema);
+
 /** The pin a popped-out view's `pinned_to` names; `null` when it names none this window reads. */
 export function poppedOutViewPinOf(pinnedTo: JsonValue): PoppedOutViewPin | null {
   if (typeof pinnedTo !== "object" || pinnedTo === null || Array.isArray(pinnedTo)) return null;
-  const streamTab = streamTabAddressSchema.nullable().safeParse(pinnedTo["stream_tab"]);
-  const selection = studioSelectionSchema.safeParse(pinnedTo["selection"]);
+  const streamTab = decodeStreamTab(pinnedTo["stream_tab"]);
+  const selection = decodeSelection(pinnedTo["selection"]);
   const settings = pinnedTo["settings"];
-  if (!streamTab.success || !selection.success || settings === undefined) return null;
-  return { stream_tab: streamTab.data, selection: selection.data, settings };
+  if (Result.isFailure(streamTab) || Result.isFailure(selection) || settings === undefined) return null;
+  return { stream_tab: streamTab.success, selection: selection.success, settings };
 }

@@ -20,7 +20,7 @@ import type {
   StreamGraphNode,
   StreamGraphSummary,
 } from "../shared/tatolab_backend_contract.js";
-import { streamGraphNodeKindSchema } from "../shared/tatolab_backend_contract.js";
+import { isAStreamGraphNodeKind } from "../shared/tatolab_backend_contract.js";
 import {
   arrayOrEmpty,
   everyOneRead,
@@ -189,8 +189,7 @@ function exposedConfigFieldsOnTheWire(exposedConfigFields: unknown): string[] {
 
 /** The node's `kind`, one the runtime renders on every node whose type it registers; `null` where it renders none or one this window does not know. */
 function streamGraphNodeKindOnTheWire(kindOnTheWire: unknown): StreamGraphNodeKind | null {
-  const kind = streamGraphNodeKindSchema.safeParse(kindOnTheWire);
-  return kind.success ? kind.data : null;
+  return isAStreamGraphNodeKind(kindOnTheWire) ? kindOnTheWire : null;
 }
 
 function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNode, string> {
