@@ -457,6 +457,7 @@ export function mountTatolabWindow(
   let runtimeStateLastShown: TatolabStatus["runtime_state"] | null = null;
   const showStatusOutsideReact = (status: TatolabStatus) => {
     studioWindowModel.showStatus(status);
+    streamGraphAndCatalogReadings.takeTheStreamsListed(status.streams);
     if (runtimeStateLastShown !== null && status.runtime_state !== runtimeStateLastShown) runtimeDescriptionReadings.forgetAndReadAgainAsTheRuntimesStateChanged();
     runtimeStateLastShown = status.runtime_state;
   };

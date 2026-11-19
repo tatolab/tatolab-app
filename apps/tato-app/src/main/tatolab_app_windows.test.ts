@@ -51,7 +51,7 @@ function aStreamOf(projectFolder: string, state: string): ListedStream {
     state,
     node_count: state === "running" ? 3 : null,
     failed_because: null,
-    capture_devices_whose_access_was_never_asked_for: [],
+    capture_devices_whose_access_was_never_asked_for: [], condition: null,
     action: null,
     step: null,
   };

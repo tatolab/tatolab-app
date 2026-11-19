@@ -17,7 +17,7 @@ const NIGHT_SHOW_MAIN: ListedStream = {
   state: "preparing",
   node_count: null,
   failed_because: null,
-  capture_devices_whose_access_was_never_asked_for: [],
+  capture_devices_whose_access_was_never_asked_for: [], condition: null,
   action: "Riioiuiuj7n1z3ghkm7s9n1xi-6",
   step: "making_the_venv",
 };

@@ -106,7 +106,7 @@ export function readProjectLogRecords(
   );
 }
 
-/** The graph of the loaded stream `stream`, the runtime's `graph` answer passed on as the contract types it; an answer of every stream's graph, which a call naming one never gets, fails as not the contract's. */
+/** The graph of the stream `stream`, running or saved, the runtime's `graph` answer passed on as the contract types it; an answer of every stream's graph, which a call naming one never gets, fails as not the contract's. */
 export function describeStreamGraph(stream: string): Effect.Effect<StreamGraph, RuntimeControlFailure, RuntimeControl> {
   return controlOperationReadWith("graph", { stream }, (answered) => ("streams" in answered ? failedWith("every loaded stream's graph answered for a call naming one") : succeeded(answered)));
 }

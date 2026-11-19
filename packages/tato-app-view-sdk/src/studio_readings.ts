@@ -40,6 +40,55 @@ export type StreamLocation = {
   stream_asset: string;
 };
 
+/** Whether a stream's graph is loaded in the runtime; a value newer than this app reads as `not_loaded`. */
+export type StreamLoad = "loading" | "loaded" | "unloading" | "not_loaded";
+
+/** Whether a stream plays; a value newer than this app reads as `stopped`. */
+export type StreamPlayback = "starting" | "playing" | "paused" | "stopping" | "stopped";
+
+/** Whether a stream is healthy; a value newer than this app reads as `failed`. */
+export type StreamHealth = "healthy" | "degraded" | "failed";
+
+/** What a problem of a stream or a node is; a kind newer than this app reads as `other`, shown by its words. */
+export type StreamDiagnosticKind =
+  | "project_venv_not_made"
+  | "load_refused"
+  | "start_refused"
+  | "node_type_not_described"
+  | "link_refused"
+  | "keeps_crashing_the_runtime"
+  | "recorded_by_an_earlier_runtime"
+  | "node_failed"
+  | "node_raising"
+  | "node_not_ready"
+  | "edit_not_live"
+  | "other";
+
+/** What recovers from a problem; a recovery newer than this app reads as `retry_the_load`. */
+export type StreamDiagnosticRecovery =
+  | "fix_the_code"
+  | "fix_the_dependencies"
+  | "fix_the_link"
+  | "restart_the_playback"
+  | "remove_the_stream"
+  | "wait_for_the_node"
+  | "retry_the_load";
+
+/** Where a problem applies: the stream as a whole, one node by its graph `id` and name, or one link by the node names and ports its document draws it between. */
+export type StreamDiagnosticPlace =
+  | { on: "stream" }
+  | { on: "node"; node_id: string; node_name: string }
+  | { on: "link"; from_node: string; from_port: string; to_node: string; to_port: string };
+
+/** One problem a stream or a node has: what it is, where it applies, the runtime's words for it, never rewritten, and what recovers from it. */
+export type StreamDiagnostic = { kind: StreamDiagnosticKind; place: StreamDiagnosticPlace; words: string; recovery: StreamDiagnosticRecovery };
+
+/** What a view asks Studio to recover a project's streams with: their playback stopped and started again, or the project read again from disk. */
+export type ProjectStreamsRecovery = "restart_the_playback" | "reload_the_project";
+
+/** A stream's load, playback and health, each apart, and every problem behind its health: the stream's own, then each of its nodes'. */
+export type StreamCondition = { load: StreamLoad; playback: StreamPlayback; health: StreamHealth; diagnostics: StreamDiagnostic[] };
+
 /** One stream the runtime lists. `state` is running, stopped, failed, preparing or stopping, or a state newer than this app. */
 export type ListedStream = {
   /** Its stream id, `<project name>-<stream name>-<hash>`, which every tool about one stream names it by. */
@@ -54,6 +103,8 @@ export type ListedStream = {
   failed_because: string | null;
   /** Each capture device, `camera` or `microphone` or one newer than this app, that a node of the loaded stream refused because nobody has asked the person for its access; empty when it is not loaded. */
   capture_devices_whose_access_was_never_asked_for: string[];
+  /** Its load, playback and health, with every problem behind its health; `null` from a runtime that lists no condition. */
+  condition: StreamCondition | null;
   /** The stream action queued or under way on it while it is `preparing` or `stopping`; `null` otherwise. */
   action: string | null;
   /** That action's step, or one newer than this app; `null` while the action waits in its project's queue, and while no action works on it. */
@@ -325,6 +376,11 @@ export function fragmentOfTheNode(node: Pick<GraphNodeOnTheWire, "kind" | "fragm
 /** The port `node` declares for its stream when it is a `GraphInput` or `GraphOutput` the runtime renders as one; `null` on every other node. */
 export function graphInterfacePortOfTheNode(node: Pick<GraphNodeOnTheWire, "components">): GraphInterfacePortOnTheWire | null {
   return node.components.graph_interface ?? null;
+}
+
+/** Whether the running graph holds `part`, a node or a link: the runtime marks `live: false` on one its graph document holds that the running stream has not taken yet. */
+export function isLiveInTheRunningGraph(part: Pick<GraphNodeOnTheWire | GraphLinkOnTheWire, "live">): boolean {
+  return part.live !== false;
 }
 
 /** The bags `node` lost on its inbound link `linkId`, `0` where it counts none. */

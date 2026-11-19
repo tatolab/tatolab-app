@@ -1,6 +1,7 @@
 // A stream's graph as the node graph canvas draws it: a card per node keyed by its name and titled as the
 // studio writes it, where it was left and the frame it sits in, its declared ports as pins of their types,
-// a link per link of the graph drawn by its state, a frame per labelled group and the graph's canvas notes.
+// a link per link of the graph drawn by its state, a frame per labelled group and the graph's canvas notes. A
+// node or link the running stream does not hold yet, and one a diagnostic of the stream names, shows it.
 
 import type {
   NodeGraphCanvasFrame,
@@ -15,23 +16,25 @@ import {
   canvasNotesOfTheGraph,
   fragmentKindOfTheNode,
   fragmentOfTheNode,
+  isLiveInTheRunningGraph,
   studioFieldsOfTheNode,
   type NodeCatalog,
+  type StreamCondition,
+  type StreamDiagnosticKind,
   type StreamGraph,
   type StreamGraphLink,
   type StreamGraphNode,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-import {
-  descriptionWords,
-  nodeInputs,
-  nodeOutputs,
-} from "../shared/node_pins_of_the_graph";
-import {
-  isANameTheCodeGave,
-  nodeTitle,
-  nodeTypeClassName,
-} from "../shared/node_words";
+import { descriptionWords, nodeInputs, nodeOutputs } from "../shared/node_pins_of_the_graph";
+import { isANameTheCodeGave, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { linkIdAsTheCanvasKeysIt } from "../shared/stream_graph_edits";
+import { diagnosticsAtTheLink, diagnosticsAtTheNode, doesTheDiagnosticWarn } from "../shared/stream_condition_words";
+
+/** What a card or link says of a part the running stream does not hold yet. */
+const NOT_LIVE_YET_WORDS = "Not live yet: the running stream hasn't taken this edit. Restart the playback to make it live.";
+
+/** The diagnostics a node's own fields already carry, which its card shows from them. */
+const DIAGNOSTICS_THE_NODE_CARRIES: ReadonlySet<StreamDiagnosticKind> = new Set(["node_failed", "node_raising", "node_not_ready", "edit_not_live"]);
 
 /** What the canvas draws of one stream's graph. */
 export interface StreamGraphCanvasContents {
@@ -61,28 +64,33 @@ function linkLookAndWords(linkState: StreamGraphLink["state"]): {
   }
 }
 
-/** How a node's card shows its processor state: `Error` failed with the runtime's reason, a `process()` that keeps raising failed with what it raised, a node not ready yet not ready with the runtime's reason, `Restarting` restarting, every other state healthy. */
-function cardConditionOf({
-  components,
-}: StreamGraphNode): NodeGraphCardCondition {
-  if (components.state === "Error")
-    return { look: "failed", failed_because: components.failed_because };
-  if (components.process_raising_because !== null)
-    return {
-      look: "failed",
-      failed_because: components.process_raising_because,
-    };
-  if (components.not_ready_because !== null)
-    return {
-      look: "not_ready",
-      not_ready_because: components.not_ready_because,
-    };
+/**
+ * How a node's card shows how it is doing: not ready while the running stream does not hold it yet, `Error` failed with the
+ * runtime's reason, a `process()` that keeps raising failed with what it raised, a node not ready yet not ready with the
+ * runtime's reason, any other diagnostic of `condition` at it in its words, `Restarting` restarting, every other state healthy.
+ */
+function cardConditionOf(node: StreamGraphNode, condition: StreamCondition | null): NodeGraphCardCondition {
+  const { components } = node;
+  if (!isLiveInTheRunningGraph(node)) return { look: "not_ready", not_ready_because: NOT_LIVE_YET_WORDS };
+  if (components.state === "Error") return { look: "failed", failed_because: components.failed_because };
+  if (components.process_raising_because !== null) return { look: "failed", failed_because: components.process_raising_because };
+  if (components.not_ready_because !== null) return { look: "not_ready", not_ready_because: components.not_ready_because };
+  const diagnostic = diagnosticsAtTheNode(condition, node.name).find(({ kind }) => !DIAGNOSTICS_THE_NODE_CARRIES.has(kind));
+  if (diagnostic !== undefined) return doesTheDiagnosticWarn(diagnostic.kind) ? { look: "not_ready", not_ready_because: diagnostic.words } : { look: "failed", failed_because: diagnostic.words };
   if (components.state === "Restarting") return { look: "restarting" };
   return { look: "healthy" };
 }
 
-function canvasLinkOf(link: StreamGraphLink): NodeGraphCanvasLink {
-  const { look, words } = linkLookAndWords(link.state);
+/** How `link` is drawn: waiting while the running stream does not hold it yet, failed while a diagnostic of `condition` names it, else by its state. */
+function linkLookAndWordsOf(link: StreamGraphLink, condition: StreamCondition | null): { look: NodeGraphLinkLook; words: string } {
+  if (!isLiveInTheRunningGraph(link)) return { look: "waiting", words: NOT_LIVE_YET_WORDS };
+  const diagnostic = diagnosticsAtTheLink(condition, link).at(0);
+  if (diagnostic !== undefined) return { look: doesTheDiagnosticWarn(diagnostic.kind) ? "waiting" : "failed", words: diagnostic.words };
+  return linkLookAndWords(link.state);
+}
+
+function canvasLinkOf(link: StreamGraphLink, condition: StreamCondition | null): NodeGraphCanvasLink {
+  const { look, words } = linkLookAndWordsOf(link, condition);
   return {
     link_id: linkIdAsTheCanvasKeysIt(link),
     source_node_id: link.source.node,
@@ -132,13 +140,15 @@ function holdTheSameValues(a: unknown, b: unknown): boolean {
  * description as `catalog` gives it, and each unlinked input that holds a value addressed at `valuesAt`, the level of the
  * graph it is; `null` addresses none. A link renders on every input it feeds, one that takes no stored value too, so a
  * linked input is addressed by none. A node that `previous` draws the same is drawn by the very object `previous` holds, so its
- * card is not drawn again; a value is not part of it.
+ * card is not drawn again; a value is not part of it. Each diagnostic of `condition`, the stream's as the runtime lists it, shows
+ * on the node or link it names; a level inside a subgraph is handed none.
  */
 export function streamGraphCanvasContents(
   graph: StreamGraph,
   catalog: NodeCatalog | null,
   previous: StreamGraphCanvasContents | null = null,
   valuesAt: GraphAddress | null = null,
+  condition: StreamCondition | null = null,
 ): StreamGraphCanvasContents {
   const groups = graph.groups ?? [];
   const groupIds = new Set(groups.map((group) => group.id));
@@ -164,7 +174,7 @@ export function streamGraphCanvasContents(
         description: descriptionWords(
           catalogEntryByType.get(node.type)?.description,
         ),
-        condition: cardConditionOf(node),
+        condition: cardConditionOf(node, condition),
         inputs: nodeInputs(
           graph,
           node,
@@ -185,7 +195,7 @@ export function streamGraphCanvasContents(
           fragmentOfTheNode(node) === null ? null : fragmentKindOfTheNode(node),
       });
     }),
-    links: graph.links.map(canvasLinkOf),
+    links: graph.links.map((link) => canvasLinkOf(link, condition)),
     frames: groups.map((group) => ({
       frame_id: group.id,
       title: group.title,

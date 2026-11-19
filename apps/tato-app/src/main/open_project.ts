@@ -218,7 +218,7 @@ const newProjectDirectoryFor = Effect.fn("newProjectDirectoryFor")(function* (na
   return projectDirectory;
 });
 
-/** The project in `folder` opened on the runtime when it holds it closed, since it draws and edits only a loaded stream's graph, then a status round; left as it is while open. */
+/** The project in `folder` opened on the runtime when it holds it closed, so its streams load and can play, then a status round; left as it is while open. */
 export const openTheProjectWhenTheRuntimeHoldsItClosed = Effect.fn("openTheProjectWhenTheRuntimeHoldsItClosed")(function* (folder: string) {
   const listedStreams = yield* listStreams();
   if (theStreamsListTheProjectOpen(streamsOfTheProjectIn(listedStreams, folder))) return;

@@ -14,6 +14,7 @@ import type {
   AssetPreviewReading,
   ProjectAssetsReading,
   ProjectTransactionApplying,
+  ProjectStreamsRecovery,
   ProjectTransactionAuthor,
   ProjectTransactionsReading,
   StudioViewsReading,
@@ -88,6 +89,9 @@ export type ViewOpening = { kind: "opened" } | { kind: "not_opened"; because: st
 /** An asset of the window's project renamed, moved or deleted, or why not, in Studio's or the runtime's words. */
 export type ProjectAssetChanging = { kind: "changed" } | { kind: "not_changed"; because: string };
 
+/** Whether a recovery of a project's streams was asked of the runtime, or why not, in Studio's or the runtime's own words. */
+export type ProjectStreamsRecovering = { kind: "asked" } | { kind: "not_asked"; because: string };
+
 /** One Python language server, started for a project folder, its JSON-RPC messages carried both ways. */
 export interface PythonLanguageServerConnection {
   /** Send one JSON-RPC message; messages sent before the server has started are held and sent in order. */
@@ -155,6 +159,8 @@ export interface StudioViewHostServices {
   readAssetPreviewInTheProject(projectFolder: string, asset: string): Promise<AssetPreviewReading>;
   /** Stop tracking the asset `asset` of the window's project, when `projectFolder` names it, by the person editing, the project's assets listed again at once; refused for any other folder, or in the runtime's own words. */
   deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ProjectAssetChanging>;
+  /** Recover the streams of the window's project, when `projectFolder` names it, with `recovery`: its playback stopped and started again, or the project reloaded; refused for any other folder, or in the runtime's own words. */
+  recoverTheProjectsStreams(projectFolder: string, recovery: ProjectStreamsRecovery): Promise<ProjectStreamsRecovering>;
   /** The views an area can show, at once and again each time the open project's are listed. */
   watchStudioViews(listener: (reading: StudioViewsReading) => void): StopWatching;
   /** The node UI elements every view's control table picks from; the first reading arrives once listed. */

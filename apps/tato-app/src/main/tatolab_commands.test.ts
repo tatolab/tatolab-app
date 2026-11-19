@@ -38,7 +38,7 @@ test("the_status_and_a_log_page_serialize_exactly_as_the_window_reads_them", asy
       '"platform":"macos","runtime_state":"running","runtime_not_running_because":null,"runtime_of_another_age":null,' +
       '"machine_name":"jonathanf-macbook","streams":[' +
       '{"stream":"pattern-main-41d0c2","display_name":"main","location":{"project_directory":"/private/tmp/x/pattern","project":"0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55","stream_asset":"7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68"},' +
-      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"project_venv_syncs_under_way":[],"project_venv_syncs_just_ended":[],"project_stream_action_failures":[],"streams_not_listed_because":null,' +
+      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"condition":null,"action":null,"step":null}],"project_venv_syncs_under_way":[],"project_venv_syncs_just_ended":[],"project_stream_action_failures":[],"streams_not_listed_because":null,' +
       '"command_line_tool_link":{"kind":"linked","path":"/Users/someone/.local/bin/tatolab"},' +
       '"app_update":{"kind":"not_checked"},"app_update_announcement":null,' +
       `"local_api_socket":${JSON.stringify(runningRuntime.localApiSocketPath)},` +
