@@ -9,6 +9,7 @@ import { describeBackendRejection, type TatolabBackend } from "../backend/tatola
 import { StreamInputValuesReadings } from "./stream_input_values_readings";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import type { StopWatching, StreamGraphReading, StreamInputValuesReading } from "./studio_view_contract";
+import { jsonTextOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** What the host reads a stream's graph through, and is told of its graph's changes by. */
 type StreamGraphBackend = Pick<TatolabBackend, "describeStreamGraph" | "followStreamGraphChanges" | "stopFollowingStreamGraphChanges" | "onStreamGraphChanged" | "onProjectTransactionsChanged">;
@@ -40,9 +41,9 @@ class LatestReadingWatchers<Reading> {
     };
   }
 
-  /** Keep `reading` and tell every watcher; a reading equal to the last as JSON tells none. */
+  /** Keep `reading` and tell every watcher; a reading equal to the last as JSON text tells none. */
   publish(reading: Reading): void {
-    const readingJson = JSON.stringify(reading);
+    const readingJson = jsonTextOf(reading);
     if (readingJson === this.latestReadingJson) return;
     this.latestReading = reading;
     this.latestReadingJson = readingJson;

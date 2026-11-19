@@ -7,7 +7,7 @@ import { ToggleSwitch } from "@tatolab/tato-app-view-sdk/design_system/toggle_sw
 import { takesAControl, type ControlledInput } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
 import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { InputValueGesture } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
-import type { JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { jsonTextOf, type JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { useId, useMemo, useRef, useState } from "react";
 import { jsonFromTheWordsTyped, jsonObjectFromTheWordsTyped, numberFromTheWordsTyped, type GraphInputWordsTyped } from "./graph_input_words_typed";
 import { GRAPH_INPUT_VALUE_INPUT, LIFETIME_WORDS, whyNoControlWritesTheInput, whyNothingSetsTheInput, type GraphInputOfTheStream } from "./graph_inputs_of_the_stream";
@@ -164,7 +164,7 @@ function OwnFieldOfTheGraphInput({
       return (
         <PropertyTextField
           fieldId={fieldId}
-          words={shownValue === null ? "" : JSON.stringify(shownValue)}
+          words={shownValue === null ? "" : jsonTextOf(shownValue)}
           label={portName}
           onCommitted={(words) => releaseTheWordsTyped(graphInput.family === "records" ? jsonObjectFromTheWordsTyped(words) : jsonFromTheWordsTyped(words))}
         />

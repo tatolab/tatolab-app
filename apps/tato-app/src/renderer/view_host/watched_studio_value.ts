@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { StopWatching } from "./studio_view_contract";
+import { jsonTextOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** A value every watcher is told of: at once when it starts watching, then on each change. */
 export class WatchedStudioValue<Value> {
@@ -17,9 +18,9 @@ export class WatchedStudioValue<Value> {
     };
   };
 
-  /** Keep `value` and tell every watcher; a value equal to the last as JSON tells none. */
+  /** Keep `value` and tell every watcher; a value equal to the last as JSON text tells none. */
   publish(value: Value): void {
-    if (JSON.stringify(value) === JSON.stringify(this.latestValue)) return;
+    if (jsonTextOf(value) === jsonTextOf(this.latestValue)) return;
     this.latestValue = value;
     for (const listener of [...this.listeners]) listener(value);
   }

@@ -5,6 +5,7 @@
 
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { StopWatching } from "./studio_view_contract";
+import { jsonTextOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** A project's listing, or why the runtime gave none, in its own words. */
 export type ProjectListingReading<Listing> = { kind: "listed"; listing: Listing } | { kind: "not_listed"; because: string };
@@ -61,7 +62,7 @@ class OneProjectsListing<Listing> {
   }
 
   private publish(reading: ProjectListingReading<Listing>): void {
-    const readingText = JSON.stringify(reading);
+    const readingText = jsonTextOf(reading);
     if (readingText === this.latestReadingText) return;
     this.latestReadingText = readingText;
     this.latestReading = reading;
