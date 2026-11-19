@@ -50,6 +50,7 @@ describe("the studio", () => {
     const groupField = () => library.querySelector<HTMLInputElement>("[data-library-node-type-group-field]") ?? expect.unreachable("no Group field");
     const pressMove = () => fireEvent.click(library.querySelector<HTMLElement>('[data-library-node-type-group-action="move"]') ?? expect.unreachable("no Move button"));
 
+    fireEvent.click(await waitFor(() => libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`)));
     await chooseFromTheRowsMenu(`${stageLights}/category:Lighting/node_type:${dimmer}`, "move_to_group");
     await waitFor(() => expect(groupField().value).toBe("Lighting"));
     fireEvent.change(groupField(), { target: { value: "Show//Levels" } });
@@ -62,10 +63,11 @@ describe("the studio", () => {
     await waitFor(() => libraryRow(movedRowId));
     await waitFor(() => expect(library.querySelector("[data-library-node-type-group-form]")).toBeNull());
     expect(library.querySelector(`[data-tree-row-id="${stageLights}/category:Lighting/node_type:${dimmer}"]`)).toBeNull();
-    fireEvent.click(libraryRow(movedRowId));
+    // The node type chosen before the move is still chosen at its new row, its details saying the project files it there.
     await waitFor(() => expect(library.querySelector(`[data-library-details="${dimmer}"]`)?.textContent).toContain("GroupShow / LevelsFiled byThis project"));
+    expect(libraryRow(movedRowId).getAttribute("aria-selected")).toBe("true");
 
-    await chooseFromTheRowsMenu(movedRowId, "put_back");
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-node-type-action="put_back"]') ?? expect.unreachable("no Put back button in the details"));
     await waitFor(() => libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`));
     expect(library.querySelector(`[data-tree-row-id="${movedRowId}"]`)).toBeNull();
     fireEvent.contextMenu(libraryRow(`${stageLights}/category:Lighting/node_type:${dimmer}`));

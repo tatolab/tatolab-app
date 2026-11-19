@@ -2,13 +2,14 @@
 // asks the runtime's `relocate_asset` or `delete_asset` through the view's connection and closes once the runtime
 // has changed the project. It sits in the view, not over it, since a view's dialog is held to the view's area.
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import type { TatoAppViewConnection, ViewAskDone } from "@tatolab/tato-app-view-sdk";
+import { useId, useState } from "react";
+import type { TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { ProjectAsset } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { PendingActionWords } from "@tatolab/tato-app-view-sdk/design_system/pending_action_words";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { TextField } from "@tatolab/tato-app-view-sdk/design_system/text_field";
+import { useLibraryChangeFormAsk } from "./library_change_form_ask";
 import { assetFileName, assetFileNameRefusal, assetFolderOf, assetFolderRefusal, assetPathMoved, assetPathRenamed } from "./library_assets_of_the_listing";
 
 /** Which change of an asset the Library asks for: a new name in its folder, another folder under its name, or no longer tracking it. */
@@ -63,50 +64,16 @@ export function LibraryAssetChangeForm({
   const refusalId = useId();
   const words = change === "delete" ? DELETE_ASSET_WORDS : RELOCATE_ASSET_WORDS[change];
   const [typedText, setTypedText] = useState(change === "rename" ? assetFileName(asset.path) : change === "move" ? assetFolderOf(asset.path) : "");
-  const [changeRefusal, setChangeRefusal] = useState<string | null>(null);
-  const [isChanging, setIsChanging] = useState(false);
+  const { formElement, isAsking: isChanging, refusal: changeRefusal, clearTheRefusal, askIt, closeUnlessAsking: closeUnlessChanging, answerTheKeyInTheForm } = useLibraryChangeFormAsk(onClosed, '[data-library-asset-change-action="cancel"]');
   const fieldRefusal = change === "rename" ? assetFileNameRefusal(typedText) : change === "move" ? assetFolderRefusal(typedText) : null;
   const pathItLandsAt = change === "rename" ? assetPathRenamed(asset.path, typedText) : assetPathMoved(asset.path, typedText);
-  const formElement = useRef<HTMLElement>(null);
-  const focusTheFormsFirstControl = () => {
-    const field = formElement.current?.querySelector("input") ?? null;
-    if (field !== null) field.select();
-    else formElement.current?.querySelector<HTMLButtonElement>('[data-library-asset-change-action="cancel"]')?.focus();
-  };
-  useEffect(focusTheFormsFirstControl, []);
   const changeIt = () => {
     if (fieldRefusal !== null || isChanging) return;
     if (change !== "delete" && pathItLandsAt === asset.path) {
       onClosed();
       return;
     }
-    setIsChanging(true);
-    setChangeRefusal(null);
-    const asking: Promise<ViewAskDone> =
-      change === "delete" ? connection.deleteAssetFromTheProject(projectFolder, asset.asset) : connection.relocateAssetInTheProject(projectFolder, asset.asset, pathItLandsAt);
-    void asking.then((done) => {
-      setIsChanging(false);
-      if (done.kind === "done") {
-        onClosed();
-        return;
-      }
-      setChangeRefusal(done.because);
-      focusTheFormsFirstControl();
-    });
-  };
-  const closeUnlessChanging = () => {
-    if (!isChanging) onClosed();
-  };
-  const answerTheKeyInTheForm = (keyboardEvent: KeyboardEvent<HTMLElement>) => {
-    if (keyboardEvent.nativeEvent.isComposing) return;
-    if (keyboardEvent.key === "Escape") {
-      keyboardEvent.preventDefault();
-      closeUnlessChanging();
-      return;
-    }
-    if (keyboardEvent.key !== "Enter" || !(keyboardEvent.target instanceof HTMLInputElement)) return;
-    keyboardEvent.preventDefault();
-    changeIt();
+    askIt(() => (change === "delete" ? connection.deleteAssetFromTheProject(projectFolder, asset.asset) : connection.relocateAssetInTheProject(projectFolder, asset.asset, pathItLandsAt)));
   };
   const refusalUnderTheField =
     changeRefusal !== null ? (
@@ -115,7 +82,7 @@ export function LibraryAssetChangeForm({
       <RefusalLine layout="under_field" tone="warning" words={fieldRefusal} data-library-asset-change-field-refusal="" />
     ) : null;
   return (
-    <section ref={formElement} aria-label={words.title} className="flex flex-col gap-2 border-b px-4 py-3" onKeyDown={answerTheKeyInTheForm} data-library-asset-change-form={change}>
+    <section ref={formElement} aria-label={words.title} className="flex flex-col gap-2 border-b px-4 py-3" onKeyDown={(keyboardEvent) => answerTheKeyInTheForm(keyboardEvent, changeIt)} data-library-asset-change-form={change}>
       <h3 className="text-sm font-medium text-fg">{words.title}</h3>
       {change === "delete" ? (
         <>
@@ -137,7 +104,7 @@ export function LibraryAssetChangeForm({
               text={typedText}
               onTextChanged={(text) => {
                 setTypedText(text);
-                setChangeRefusal(null);
+                clearTheRefusal();
               }}
               isMachineWord
               isRequired={change === "rename"}

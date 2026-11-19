@@ -1,8 +1,9 @@
-// The Library's Move to group of a node type, opened from its row's right-click menu: a form above the tree that
+// The Library's Move to group of a node type, opened from its row's right-click menu: a form atop the tree that
 // asks the runtime's `set_node_type_group` through the view's connection and closes once the project files the node
-// type under the group typed. It sits in the view, not over it, since a view's dialog is held to the view's area.
+// type under the group typed. It scrolls with the tree, not over it, since a view's dialog is held to the view's area
+// and a short area would otherwise hide the form's buttons.
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useState } from "react";
 import type { TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { PendingActionWords } from "@tatolab/tato-app-view-sdk/design_system/pending_action_words";
@@ -10,6 +11,7 @@ import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_li
 import { TextField } from "@tatolab/tato-app-view-sdk/design_system/text_field";
 import { nodeTypeCategoryPath } from "../shared/node_type_category_path";
 import type { DeclarationRowMeaning } from "../shared/node_type_listing_tree";
+import { useLibraryChangeFormAsk } from "./library_change_form_ask";
 
 /** A node type as the Library's tree lists it. */
 export type NodeTypeTheLibraryLists = Extract<DeclarationRowMeaning, { kind: "node_type_declaration" }>["node_type"];
@@ -35,49 +37,21 @@ export function LibraryNodeTypeGroupForm({
   const refusalId = useId();
   const groupFiledUnderNow = groupTypedForTheNodeType(nodeType);
   const [typedGroup, setTypedGroup] = useState(groupFiledUnderNow);
-  const [moveRefusal, setMoveRefusal] = useState<string | null>(null);
-  const [isMoving, setIsMoving] = useState(false);
+  const { formElement, isAsking: isMoving, refusal: moveRefusal, clearTheRefusal, askIt, closeUnlessAsking: closeUnlessMoving, answerTheKeyInTheForm } = useLibraryChangeFormAsk(onClosed, '[data-library-node-type-group-action="cancel"]');
   const groupAsked = typedGroup.trim();
   const whyItCannotMove = groupAsked === "" ? "Type the group to move it into." : null;
-  const formElement = useRef<HTMLElement>(null);
-  const selectTheField = () => formElement.current?.querySelector("input")?.select();
-  useEffect(selectTheField, []);
   const moveIt = () => {
     if (whyItCannotMove !== null || isMoving) return;
     if (groupAsked === groupFiledUnderNow) {
       onClosed();
       return;
     }
-    setIsMoving(true);
-    setMoveRefusal(null);
-    void connection.setNodeTypeGroupInTheProject(projectFolder, nodeType.node_type, groupAsked).then((done) => {
-      setIsMoving(false);
-      if (done.kind === "done") {
-        onClosed();
-        return;
-      }
-      setMoveRefusal(done.because);
-      selectTheField();
-    });
-  };
-  const closeUnlessMoving = () => {
-    if (!isMoving) onClosed();
-  };
-  const answerTheKeyInTheForm = (keyboardEvent: KeyboardEvent<HTMLElement>) => {
-    if (keyboardEvent.nativeEvent.isComposing) return;
-    if (keyboardEvent.key === "Escape") {
-      keyboardEvent.preventDefault();
-      closeUnlessMoving();
-      return;
-    }
-    if (keyboardEvent.key !== "Enter" || !(keyboardEvent.target instanceof HTMLInputElement)) return;
-    keyboardEvent.preventDefault();
-    moveIt();
+    askIt(() => connection.setNodeTypeGroupInTheProject(projectFolder, nodeType.node_type, groupAsked));
   };
   return (
-    <section ref={formElement} aria-label="Move to group" className="flex flex-col gap-2 border-b px-4 py-3" onKeyDown={answerTheKeyInTheForm} data-library-node-type-group-form={nodeType.node_type}>
+    <section ref={formElement} aria-label="Move to group" className="flex flex-col gap-2 border-b px-4 py-3" onKeyDown={(keyboardEvent) => answerTheKeyInTheForm(keyboardEvent, moveIt)} data-library-node-type-group-form={nodeType.node_type}>
       <h3 className="text-sm font-medium text-fg">Move to group</h3>
-      <p className="text-xs text-fg-3">The project files the node type under this group in the Library and the Add node menu. Put a group inside another with “/”, as Effects/Stylize. What the node does stays the same.</p>
+      <p className="text-xs text-fg-3">Where the Library and Add node list it in this project. Put a group inside another with “/”, as Effects/Stylize.</p>
       <div>
         <label htmlFor={fieldId} className="block pb-1 text-2xs text-fg-3">
           Group
@@ -88,7 +62,7 @@ export function LibraryNodeTypeGroupForm({
           text={typedGroup}
           onTextChanged={(text) => {
             setTypedGroup(text);
-            setMoveRefusal(null);
+            clearTheRefusal();
           }}
           isRequired
           isRefused={moveRefusal !== null}

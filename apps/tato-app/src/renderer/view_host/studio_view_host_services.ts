@@ -90,7 +90,7 @@ export async function importAssetsIntoTheOpenProjectForAView(projectFolder: stri
 /** What a view's change to the window's project reaches: the open project, what of it changes in Studio's words, as "assets", and the listing of that to read again. */
 export interface ProjectChangeForAViewSources {
   readTheOpenProject: () => OpenProjectReading;
-  whatChanges: string;
+  readonly whatChanges: "assets" | "node type groups";
   listTheProjectAgainNow: (projectFolder: string) => void;
 }
 

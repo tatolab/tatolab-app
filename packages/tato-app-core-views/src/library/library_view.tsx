@@ -1,5 +1,5 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { Boxes, FilePlus2, Folder, FolderInput, FolderTree, PencilLine, Trash2, Undo2 } from "lucide-react";
 import { MenuItem, MenuSeparator, MenuSingleChoiceGroup, RightClickMenuItem, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { ProjectAssetCard } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
@@ -112,7 +112,7 @@ function placeInWords(path: string | null, line: number | null): string {
 }
 
 /** The chosen row's declaration: what it is, where it is declared, and its ports or promoted config; for a module that does not parse, why, in the parser's words. */
-function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowMeaning }) {
+function DetailsOfTheDeclaration({ declaration, nodeTypeActions }: { declaration: DeclarationRowMeaning; nodeTypeActions: ReactNode }) {
   switch (declaration.kind) {
     case "node_type_declaration": {
       const { node_type: nodeType, described } = declaration;
@@ -132,6 +132,7 @@ function DetailsOfTheDeclaration({ declaration }: { declaration: DeclarationRowM
             <div className="px-1 pb-2">
               <KeyValueRows rows={facts} />
             </div>
+            <div className="flex flex-wrap gap-2 px-1 pb-2">{nodeTypeActions}</div>
           </PropertySection>
           <PropertySection title="Ports">
             <PortsOfTheNodeType described={described} />
@@ -289,7 +290,7 @@ function DeclarationsOfTheProject({
   const nodeTypesReading = useNodeTypesOfTheProject(connection, projectFolder);
   const settings = useViewReading(connection.watchSettings);
   const [expansionChoices, toggleTheRow] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
-  const [chosenRowId, setChosenRowId] = useState<string | null>(null);
+  const [chosenRow, setChosenRow] = useState<{ rowId: string; nodeType: string | null } | null>(null);
   const [openingRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
   const [nodeTypeMoveAsked, setNodeTypeMoveAsked] = useState<NodeTypeTheLibraryLists | null>(null);
   const libraryRows = useMemo(
@@ -307,7 +308,20 @@ function DeclarationsOfTheProject({
   if (libraryRows.length === 0 && declarationsShown === "graph_generators")
     return <WaitingState title="No graph generators" explanation="Neither the project nor anything it imports declares one." data-library-state="no_graph_generators" />;
   const meaningOfRow = (rowId: string): LibraryRowMeaning => libraryRows.find((libraryRow) => libraryRow.row.row_id === rowId)?.meaning ?? { kind: "nothing_to_select" };
+  const chooseTheRow = (rowId: string) => {
+    const meaning = meaningOfRow(rowId);
+    setChosenRow(meaning.kind === "nothing_to_select" ? null : { rowId, nodeType: meaning.kind === "node_type_declaration" ? meaning.node_type.node_type : null });
+  };
+  // A node type moved into another group is listed under another row; the choice follows the node type there.
+  const chosenRowId =
+    chosenRow === null
+      ? null
+      : meaningOfRow(chosenRow.rowId).kind !== "nothing_to_select"
+        ? chosenRow.rowId
+        : (libraryRows.find(({ meaning }) => meaning.kind === "node_type_declaration" && meaning.node_type.node_type === chosenRow.nodeType)?.row.row_id ?? null);
   const chosenMeaning = chosenRowId === null ? null : meaningOfRow(chosenRowId);
+  const putTheNodeTypeBack = (nodeType: NodeTypeTheLibraryLists) =>
+    showTheRefusalOf("The node type wasn't put back:", connection.setNodeTypeGroupInTheProject(projectFolder, nodeType.node_type, null));
   const rightClickChoicesOfRow = (rowId: string) => {
     const meaning = meaningOfRow(rowId);
     if (meaning.kind !== "node_type_declaration") return null;
@@ -318,13 +332,25 @@ function DeclarationsOfTheProject({
           Move to group…
         </RightClickMenuItem>
         {nodeType.category_from === "project" && (
-          <RightClickMenuItem
-            icon={Undo2}
-            onChosen={() => showTheRefusalOf("The node type wasn't put back:", connection.setNodeTypeGroupInTheProject(projectFolder, nodeType.node_type, null))}
-            data-library-node-type-choice="put_back"
-          >
+          <RightClickMenuItem icon={Undo2} onChosen={() => putTheNodeTypeBack(nodeType)} data-library-node-type-choice="put_back">
             Put back in its own group
           </RightClickMenuItem>
+        )}
+      </>
+    );
+  };
+  const nodeTypeActionsOf = (declaration: DeclarationRowMeaning): ReactNode => {
+    if (declaration.kind !== "node_type_declaration") return null;
+    const nodeType = declaration.node_type;
+    return (
+      <>
+        <ActionButton appearance="quiet" size="small" onPressed={() => setNodeTypeMoveAsked(nodeType)} data-library-node-type-action="move_to_group">
+          Move to group…
+        </ActionButton>
+        {nodeType.category_from === "project" && (
+          <ActionButton appearance="quiet" size="small" onPressed={() => putTheNodeTypeBack(nodeType)} data-library-node-type-action="put_back">
+            Put back in its own group
+          </ActionButton>
         )}
       </>
     );
@@ -332,15 +358,15 @@ function DeclarationsOfTheProject({
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-library-declarations={declarationsShown}>
       <RefusalOfTheLatestAskBar refusal={openingRefusal} />
-      {nodeTypeMoveAsked !== null && (
-        <LibraryNodeTypeGroupForm key={nodeTypeMoveAsked.node_type} nodeType={nodeTypeMoveAsked} projectFolder={projectFolder} connection={connection} onClosed={() => setNodeTypeMoveAsked(null)} />
-      )}
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
+        {nodeTypeMoveAsked !== null && (
+          <LibraryNodeTypeGroupForm key={nodeTypeMoveAsked.node_type} nodeType={nodeTypeMoveAsked} projectFolder={projectFolder} connection={connection} onClosed={() => setNodeTypeMoveAsked((asked) => (asked?.node_type === nodeTypeMoveAsked.node_type ? null : asked))} />
+        )}
         <TreeView
           label={LIBRARY_SHOWN_WORDS[declarationsShown]}
           rows={libraryRows.map((libraryRow) => libraryRow.row)}
           selectedRowId={chosenMeaning === null || chosenMeaning.kind === "nothing_to_select" ? null : chosenRowId}
-          onRowSelected={(rowId) => setChosenRowId(meaningOfRow(rowId).kind === "nothing_to_select" ? null : rowId)}
+          onRowSelected={chooseTheRow}
           onRowActivated={(rowId) => {
             const meaning = meaningOfRow(rowId);
             if (meaning.kind === "node_type_declaration") showTheRefusalOf("Didn't open the code:", openTheCodeOfTheNodeType(connection, codeOfTheNodeType(nodeTypesReading, imports, meaning.node_type.node_type)));
@@ -352,7 +378,7 @@ function DeclarationsOfTheProject({
       </div>
       {chosenMeaning !== null && chosenMeaning.kind !== "nothing_to_select" && (
         <div className="scrollbar-thin max-h-[55%] shrink-0 overflow-y-auto border-t">
-          <DetailsOfTheDeclaration declaration={chosenMeaning} />
+          <DetailsOfTheDeclaration declaration={chosenMeaning} nodeTypeActions={nodeTypeActionsOf(chosenMeaning)} />
         </div>
       )}
     </div>

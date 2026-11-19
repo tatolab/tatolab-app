@@ -57,7 +57,7 @@ test("a folder that is not the window's open project is refused in Studio's word
 test("a view's rename, move or delete of an asset changes the window's open project, listed again at once, a rejection in its own words, and any other folder refused with nothing asked", async () => {
   const projectsListedAgain: string[] = [];
   let changesAsked = 0;
-  const assetChangeSources = { readTheOpenProject: () => GALLERY_WALL_OPEN, whatChanges: "assets", listTheProjectAgainNow: (projectFolder: string) => projectsListedAgain.push(projectFolder) };
+  const assetChangeSources = { readTheOpenProject: () => GALLERY_WALL_OPEN, whatChanges: "assets" as const, listTheProjectAgainNow: (projectFolder: string) => projectsListedAgain.push(projectFolder) };
   const changeAnswering = (answer: () => Promise<void>) => () => {
     changesAsked += 1;
     return answer();
@@ -78,7 +78,7 @@ test("a view's rename, move or delete of an asset changes the window's open proj
 
 test("a view's change to a node type's group refuses any other folder in words that name the node type groups, nothing asked", async () => {
   let changesAsked = 0;
-  const nodeTypeGroupChangeSources = { readTheOpenProject: () => GALLERY_WALL_OPEN, whatChanges: "node type groups", listTheProjectAgainNow: () => undefined };
+  const nodeTypeGroupChangeSources = { readTheOpenProject: () => GALLERY_WALL_OPEN, whatChanges: "node type groups" as const, listTheProjectAgainNow: () => undefined };
   expect(
     await changeTheOpenProjectForAView("/projects/elsewhere", nodeTypeGroupChangeSources, async () => {
       changesAsked += 1;
