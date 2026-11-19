@@ -1,7 +1,6 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { ProjectViewsListedToTheWindows } from "./extension_files_served_with_types_removed.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
-import { localApiRequestFailure } from "./local_api_request_failure.js";
 import os from "node:os";
 import path from "node:path";
 import { Effect, Layer, ManagedRuntime } from "effect";
@@ -44,6 +43,7 @@ import {
   studioRuntimeLayer,
   runtimePushesFollowedLayerOver,
   streamActionsFollowedLayerOver,
+  runtimeConnectionsForPortViewersLayerOver,
   projectFeedsFollowedLayerOver,
   type WindowFollowingTheRuntime,
   StudioWindows,
@@ -149,6 +149,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
     runtimeControl,
     runtimePushesFollowedLayerOver(overrides.runtimeControlOfThePushes ?? runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog),
     projectFeedsFollowedLayerOver(runtimeControl),
+    runtimeConnectionsForPortViewersLayerOver(runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog),
     streamActionsFollowedLayerOver(runtimeControl, overrides.tatolabAppLog ?? quietTatolabAppLog, new StreamActionsNoticed(), () => {}),
     Layer.succeed(StudioWindows, {
       projectFolderOfTheWindow: (commandFromWindow) =>
@@ -354,7 +355,7 @@ export async function sharedStateOverFakes(
       tatolabAppLog: quietTatolabAppLog,
     }),
     runtimePortViewers: new RuntimePortViewers({
-      openTheViewerConnection: async () => localApiRequestFailure("these tests open no viewer connection"),
+      openTheViewerConnection: async () => failedWith("these tests open no viewer connection"),
       openAChannelReader: () => failedWith("these tests read no channel"),
       viewerProcessId: 4242,
       waitThen: () => undefined,

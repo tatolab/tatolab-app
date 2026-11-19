@@ -32,7 +32,7 @@ import { tatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import { closeProject, listDependencies, nameTheProject } from "./runtime_operations.js";
 import { resultInWordsOf } from "./result_as_effect.js";
 import { answerOnTheStudioRuntime } from "./window_command.js";
-import { ProjectFeedsFollowed, ProjectLogsFollowed, StreamActionsFollowed, StreamGraphsFollowed, studioRuntimeLayer, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
+import { RuntimeConnectionsForPortViewers, ProjectFeedsFollowed, ProjectLogsFollowed, StreamActionsFollowed, StreamGraphsFollowed, studioRuntimeLayer, thenAStatusRound, type StudioServices } from "./studio_runtime.js";
 import type { MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
@@ -52,7 +52,6 @@ import type { ProjectAssetFilesDialog } from "./project_assets_imported_from_cho
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { projectViewFileRequestsAnsweredOn, ProjectViewsListedToTheWindows, type AnswerAProjectViewFileRequest } from "./extension_files_served_with_types_removed.js";
 import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
-import { RuntimeViewerControlConnection } from "./runtime_viewer_control_connection.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
 import { StreamActionsNoticed } from "./stream_action_changes_followed_for_the_status.js";
 import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
@@ -61,10 +60,6 @@ import { StudioWarningsOfThisRun } from "./studio_warnings.js";
 import { recentProjectFoldersFileIn } from "./recent_project_folders_file.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
 import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy_handoff.js";
-
-/** How long a port viewer's `open_viewer` or `close_viewer` waits on the runtime. */
-const PORT_VIEWER_REQUEST_TIMEOUT_MS = 5_000;
-
 
 const TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET = "Tato Studio has not reached the runtime yet.";
 
@@ -342,7 +337,7 @@ export async function startTatolabApp(
   });
   pythonLanguageServersOnceBuilt = pythonLanguageServers;
   const runtimePortViewers = new RuntimePortViewers({
-    openTheViewerConnection: () => RuntimeViewerControlConnection.open(platformForThisBuild.localApiSocket, PORT_VIEWER_REQUEST_TIMEOUT_MS),
+    openTheViewerConnection: () => answerInWordsOnTheStudioRuntime("opening the port viewers' connection", RuntimeConnectionsForPortViewers.use((connections) => connections.open)),
     openAChannelReader: runtimeViewerChannelReaderOpenerOver(tatolabElectronAppShell.runtimeViewerFrameImportAddonPath, platformForThisBuild.viewerImageFrameReading),
     viewerProcessId: tatolabElectronAppShell.mainProcessId,
     waitThen: (afterMs, then) => {

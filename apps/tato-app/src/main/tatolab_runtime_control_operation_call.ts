@@ -1,8 +1,7 @@
 // The main process's one importer of streamlib's generated `@tatolab/runtime-client`, and the one
 // module that calls the runtime through it: it calls a control operation over the runtime's
 // JSON-RPC adapter, in one `POST /control` or on the WebSocket at `/control/ws`. `RuntimeControl`
-// makes the call as an Effect failing with a `RuntimeControlFailure`; the calls not yet converted
-// settle every outcome as a `Result`. The client checks each call and answer against the control
+// makes the call as an Effect failing with a `RuntimeControlFailure`. The client checks each call and answer against the control
 // contract: it rejects params that do not match with `ControlRequestInvalid` before sending them,
 // an answer that does not match with `ControlAnswerInvalid`, the runtime's JSON-RPC error with
 // `ControlOperationError`, the runtime's refusal of the client's contract with `ControlContractMismatch`, and with any other
@@ -33,7 +32,6 @@ import {
 } from "@tatolab/runtime-client";
 import { Context, Effect, type Scope, type Stream } from "effect";
 import { TATO_STUDIO_MCP_CLIENT_NAME, type ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
-import { localApiRequestFailure, theRuntimesRefusal, type LocalApiRequestFailure } from "./local_api_request_failure.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { ContractMismatch, RuntimeOfAnotherContract, RuntimeRefused, RuntimeTimedOut, RuntimeUnreachable, type RuntimeControlFailure } from "./runtime_control_failures.js";
 import { fromResult } from "./result_as_effect.js";
@@ -57,11 +55,6 @@ export type ControlOperationParams<Method extends ControlOperationMethodName> = 
 
 /** What `method` answers, as the control contract declares it. */
 export type ControlOperationResult<Method extends ControlOperationMethodName> = ControlOperations[Method]["result"];
-
-/** What one call to `method` answered: its result in the contract's type, or the operation's own refusal in the runtime's words. */
-export type ControlOperationAnswer<Method extends ControlOperationMethodName> =
-  | { kind: "answered"; result: ControlOperationResult<Method> }
-  | { kind: "refused_by_the_operation"; words: string };
 
 /** How an issue at the root of a call's params or answer names where it is. */
 const THE_WHOLE_VALUE = "(the whole value)";
@@ -173,33 +166,6 @@ export function runtimeControlFailureOfTheCall(method: ControlOperationMethodNam
   });
 }
 
-/** How the call to `method` that `sendTheCall` made settled, given up after `responseTimeoutMs`. */
-async function controlOperationAnswerOfTheCall<Method extends ControlOperationMethodName>(
-  method: Method,
-  localApiSocketPath: string,
-  responseTimeoutMs: number,
-  sendTheCall: (callOptions: ControlCallOptions) => Promise<ControlOperationResult<Method>>,
-): Promise<Result<ControlOperationAnswer<Method>, LocalApiRequestFailure>> {
-  const responseTimeout = AbortSignal.timeout(responseTimeoutMs);
-  try {
-    const result = await sendTheCall({ signal: responseTimeout });
-    return succeeded({ kind: "answered", result });
-  } catch (callFailure) {
-    const failure = runtimeControlFailureOfTheCall(method, localApiSocketPath, callFailure);
-    switch (failure._tag) {
-      case "RuntimeRefused":
-        return failure.byTheOperation ? succeeded({ kind: "refused_by_the_operation", words: failure.words }) : theRuntimesRefusal(failure.words);
-      case "RuntimeOfAnotherContract":
-        return theRuntimesRefusal(failure.words);
-      case "RuntimeUnreachable":
-        return localApiRequestFailure(responseTimeout.aborted ? runtimeTimedOut(method, localApiSocketPath, responseTimeoutMs).words : failure.words);
-      case "RuntimeTimedOut":
-      case "ContractMismatch":
-        return localApiRequestFailure(failure.words);
-    }
-  }
-}
-
 /** One answer to a plain HTTP request of the local API: its status and its body as UTF-8 text. */
 export interface LocalApiHttpResponse {
   readonly statusCode: number;
@@ -285,75 +251,4 @@ export function closedWithoutWaitingForThePeer(connectedClient: TatolabRuntimeCl
   return Effect.sync(() => {
     connectedClient.close().catch(() => {});
   });
-}
-
-/** One WebSocket to the runtime's control API at `/control/ws`, carrying any number of calls at once until it closes. */
-export class TatolabRuntimeControlWebSocketConnection {
-  private whyTheConnectionClosed: string | null = null;
-  private readonly listenersToTheConnectionClosing: ((whyItClosed: string) => void)[] = [];
-
-  private constructor(
-    private readonly localApiSocketPath: string,
-    private readonly controlClient: TatolabRuntimeClient,
-    private readonly requestTimeoutMs: number,
-  ) {
-    void controlClient.closed.then(() => this.closeBecause(`the runtime at ${localApiSocketPath} closed the /control/ws connection`));
-  }
-
-  /** Open a fresh WebSocket to the local API at `localApiSocketPath`, giving up on it and on any later answer after `requestTimeoutMs`; refused when the runtime serves another contract version. */
-  static async open(localApiSocketPath: string, requestTimeoutMs: number): Promise<Result<TatolabRuntimeControlWebSocketConnection, LocalApiRequestFailure>> {
-    let controlClient: TatolabRuntimeClient | null = null;
-    const connected = await controlOperationAnswerOfTheCall(
-      "discover",
-      localApiSocketPath,
-      requestTimeoutMs,
-      async ({ signal }) => {
-        const connectedClient = await controlClientConnectedOverAWebSocket(localApiSocketPath, signal);
-        controlClient = connectedClient;
-        return connectedClient.discovered;
-      },
-    );
-    if (!connected.ok) return connected;
-    if (connected.value.kind === "refused_by_the_operation" || controlClient === null) {
-      return theRuntimesRefusal(`the runtime at ${localApiSocketPath} refused the control connection: ${connected.value.kind === "refused_by_the_operation" ? connected.value.words : "it opened no connection"}`);
-    }
-    return succeeded(new TatolabRuntimeControlWebSocketConnection(localApiSocketPath, controlClient, requestTimeoutMs));
-  }
-
-  /** Call `method` with `params` on this connection, giving up after the request timeout; a call on a closed connection is not sent. */
-  async callControlOperation<Method extends ControlOperationMethodName>(method: Method, params: ControlOperationParams<Method>): Promise<Result<ControlOperationAnswer<Method>, LocalApiRequestFailure>> {
-    if (this.whyTheConnectionClosed !== null) return localApiRequestFailure(`\`${method}\` was not sent: ${this.whyTheConnectionClosed}`);
-    return controlOperationAnswerOfTheCall(method, this.localApiSocketPath, this.requestTimeoutMs, (callOptions) => this.controlClient.call(method, params, callOptions));
-  }
-
-  /** Call `listener` with the params of each `method` notification the runtime sends on this connection until it closes; the returned function stops it. */
-  onNotification<Method extends ControlNotificationMethodName>(method: Method, listener: (params: ControlNotifications[Method]) => void): () => void {
-    return this.controlClient.onNotification(method, listener);
-  }
-
-  /** Call `whenTheConnectionCloses` once, with why, when the connection closes from either end; at once if it already has. */
-  onClosed(whenTheConnectionCloses: (whyItClosed: string) => void): void {
-    if (this.whyTheConnectionClosed !== null) {
-      whenTheConnectionCloses(this.whyTheConnectionClosed);
-      return;
-    }
-    this.listenersToTheConnectionClosing.push(whenTheConnectionCloses);
-  }
-
-  /** Whether the connection is still open. */
-  isOpen(): boolean {
-    return this.whyTheConnectionClosed === null;
-  }
-
-  /** Close the connection, which closes every viewer it opened; every call still awaiting its answer fails. */
-  close(): void {
-    this.closeBecause(`the app closed its /control/ws connection to the runtime at ${this.localApiSocketPath}`);
-    void this.controlClient.close();
-  }
-
-  private closeBecause(whyItClosed: string): void {
-    if (this.whyTheConnectionClosed !== null) return;
-    this.whyTheConnectionClosed = whyItClosed;
-    for (const whenTheConnectionCloses of this.listenersToTheConnectionClosing.splice(0)) whenTheConnectionCloses(whyItClosed);
-  }
 }

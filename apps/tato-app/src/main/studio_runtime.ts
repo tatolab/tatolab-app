@@ -31,7 +31,10 @@ import { fromResult } from "./result_as_effect.js";
 import type { TatolabAppLog, TatolabAppLogFields, TatolabAppLogLevel } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { studioWindowTheCommandCameFrom, type TatolabCommandFromWindow } from "./tatolab_command_answers.js";
+import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
+import { runtimeViewerConnectionOpenedIn } from "./port_viewer_connection_over_the_runtime.js";
+import type { RuntimeViewerConnection } from "./runtime_viewer_control_connection.js";
 import { LOCAL_API_REQUEST_TIMEOUT_MS, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { CommandRefused } from "./window_command.js";
 
@@ -313,6 +316,31 @@ export function projectFeedsFollowedLayerOver(runtimeControl: Layer.Layer<Runtim
   ).pipe(Layer.provide(runtimeControl));
 }
 
+/** The connections port viewers are opened over, each open until it is closed, the runtime closes it, or the studio runtime is disposed. */
+export class RuntimeConnectionsForPortViewers extends Context.Service<
+  RuntimeConnectionsForPortViewers,
+  {
+    /** A connection port viewers are opened over, opened now. */
+    readonly open: Effect.Effect<RuntimeViewerConnection, RuntimeControlFailure>;
+  }
+>()("tatolab-app/RuntimeConnectionsForPortViewers") {}
+
+/** Port viewers' connections opened over `runtimeControl` in the layer's scope, a call on one that breaks logged to `tatolabAppLog`. */
+export function runtimeConnectionsForPortViewersLayerOver(runtimeControl: Layer.Layer<RuntimeControl>, tatolabAppLog: TatolabAppLog): Layer.Layer<RuntimeConnectionsForPortViewers> {
+  return Layer.effect(
+    RuntimeConnectionsForPortViewers,
+    Effect.gen(function* () {
+      const layerScope = yield* Effect.scope;
+      const overTheRuntime = yield* Effect.context<RuntimeControl>();
+      return { open: runtimeViewerConnectionOpenedIn(layerScope).pipe(Effect.provide(overTheRuntime)) };
+    }),
+    // Each connection's calls run on the services provided here, its logger among them.
+  ).pipe(Layer.provide(Layer.merge(runtimeControl, tatolabAppLogAsEffectsLogger(tatolabAppLog))));
+}
+
+/** How long a port viewers' connection waits for the runtime to open or close a viewer. */
+const PORT_VIEWER_CONNECTION_REQUEST_TIMEOUT_MS = 5_000;
+
 /** How long a project change feed's connection waits for the runtime to read the feed, which opens the project, or to subscribe it. */
 const PROJECT_FEEDS_CONNECTION_REQUEST_TIMEOUT_MS = 10_000;
 
@@ -346,7 +374,8 @@ export type StudioServices =
   | StreamGraphsFollowed
   | StreamActionsFollowed
   | ProjectFeedsFollowed
-  | ProjectLogsFollowed;
+  | ProjectLogsFollowed
+  | RuntimeConnectionsForPortViewers;
 
 /** The app's log level each of Effect's log levels writes at; `None` writes nothing. */
 function tatolabAppLogLevelOf(logLevel: LogLevel.LogLevel): TatolabAppLogLevel | null {
@@ -412,6 +441,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
     runtimeControlLayer(localApiSocketPath, LOCAL_API_REQUEST_TIMEOUT_MS),
     runtimePushesFollowedLayerOver(runtimeControlLayer(localApiSocketPath, CONTROL_PUSHES_CONNECTION_REQUEST_TIMEOUT_MS), sharedState.tatolabAppLog),
     projectFeedsFollowedLayerOver(runtimeControlLayer(localApiSocketPath, PROJECT_FEEDS_CONNECTION_REQUEST_TIMEOUT_MS)),
+    runtimeConnectionsForPortViewersLayerOver(runtimeControlLayer(localApiSocketPath, PORT_VIEWER_CONNECTION_REQUEST_TIMEOUT_MS), sharedState.tatolabAppLog),
     streamActionsFollowedLayerOver(runtimeControlLayer(localApiSocketPath, STREAM_ACTIONS_CONNECTION_REQUEST_TIMEOUT_MS), sharedState.tatolabAppLog, sharedState.streamActionsNoticed, () =>
       sharedState.statusPublisher.requestRefresh(),
     ),
