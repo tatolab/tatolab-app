@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import { PictureInPicture2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { OpenProjectReading, TatolabPlatform } from "../../shared/tatolab_backend_contract";
@@ -305,15 +304,19 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
             </div>
           )}
           <div
-            className={cn("flex items-stretch pr-2.5 pl-(--studio-menu-bar-leading-inset)", menusLiveInTheSystemMenuBar ? "h-(--studio-menu-bar-height)" : "h-9")}
+            // The row's top padding leaves the tabs headroom; everything in it is centered on the band under that, on the midline of macOS's window buttons.
+            className="flex h-9 items-stretch pt-1 pr-2.5 pl-(--studio-menu-bar-leading-inset)"
             data-window-drag-region={windowDragRegionAttribute(platform, "deep") ?? undefined}
             data-studio-title-row=""
           >
             {presentPlatform(platform).hasOverlayTitleBar && (
-              // macOS's overlay title bar draws no title of its own, so the row names the project; Linux's window title bar shows it.
-              <p className="flex max-w-60 shrink-0 items-center pr-6 text-2xs text-fg-3" data-studio-window-title="">
-                <span className="truncate">{openProjectTitleInTheTitleRow(openProject)}</span>
-              </p>
+              // macOS's overlay title bar draws no title of its own, so the row names the project, set apart from the window buttons and the tabs; Linux's window title bar shows it.
+              <>
+                <p className="flex max-w-60 shrink-0 items-center pr-3 pl-3 text-xs font-medium text-fg-2" data-studio-window-title="">
+                  <span className="truncate">{openProjectTitleInTheTitleRow(openProject)}</span>
+                </p>
+                <ToolbarDivider />
+              </>
             )}
             <DocumentTabs
               label="Open streams"
@@ -325,9 +328,11 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               whenNoneIsOpen="Open a stream from the outliner to see it here."
             />
             <div className="min-w-6 flex-1" />
-            <StudioTitleRowPlayerControl playbackControls={playbackControls} commands={commands} />
-            <ToolbarDivider />
-            <StudioTitleRowLayoutButtons model={model} studioLayout={studioLayout} commands={commands} platform={platform} />
+            <div className="flex shrink-0 items-center">
+              <StudioTitleRowPlayerControl playbackControls={playbackControls} commands={commands} />
+              <ToolbarDivider />
+              <StudioTitleRowLayoutButtons model={model} studioLayout={studioLayout} commands={commands} platform={platform} />
+            </div>
           </div>
         </header>
       ) : (
