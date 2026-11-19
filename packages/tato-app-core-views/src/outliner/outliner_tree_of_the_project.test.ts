@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { NODE_STUDIO_FIELDS_NONE_SET, type ListedStream, type OpenProject, type StreamCondition, type StreamGraphNode, type StreamGraphNodeKind, type StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ListedStream, OpenProject, StreamCondition, StreamGraphNode, StreamGraphNodeKind, StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { aGraphNode, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 import { groupOfTheSelectedNodes, outlinerRowIdsOfTheSelection, outlinerTreeOfTheProject, selectionAfterTheOutlinerPick, streamsTheOutlinerShows } from "./outliner_tree_of_the_project";
 
 const HALL_OF_LIGHT_PROJECT = "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11";
@@ -38,25 +39,18 @@ function listedStream(projectFolder: string, displayName: string): ListedStream 
 }
 
 function graphNode(name: string, type: string, group: string | null, failedBecause: string | null = null, kind: StreamGraphNodeKind | null = "process"): StreamGraphNode {
-  return {
+  return aGraphNode(name, {
     id: `${name}-uuid`,
-    name,
     type,
     kind,
-    state: failedBecause === null ? "Running" : "Error",
-    failed_because: failedBecause,
-    process_raising_because: null,
-    not_ready_because: null,
-    config: {},
-    pins: {},
-    exposed_config_fields: [],
-    input_ports: [],
-    output_ports: [],
-    dropped_bags_by_link: {},
-    refused_bags_by_output_port: {},
-    studio: { ...NODE_STUDIO_FIELDS_NONE_SET, group },
-    fragment: null, graph_interface: null, live: true,
-  };
+    studio: { contract: 1, group },
+    components: { state: failedBecause === null ? "Running" : "Error", failed_because: failedBecause },
+  });
+}
+
+/** `node` with `components` set beside the ones it holds. */
+function withComponents(node: StreamGraphNode, components: Partial<StreamGraphNode["components"]>): StreamGraphNode {
+  return { ...node, components: { ...node.components, ...components } };
 }
 
 const INPUTS_GROUP = "9b1e4c2a-1111-4d55-9a57-1f1b8f6f0a11";
@@ -64,23 +58,23 @@ const LOOK_GROUP = "9b1e4c2a-2222-4d55-9a57-1f1b8f6f0a11";
 
 const LOBBY_WALL_GRAPH: StreamGraphReading = {
   kind: "read",
-  graph: {
-    stream: "lobby_wall-id",
-    stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68",
-    groups: [
-      { id: INPUTS_GROUP, title: "Inputs", description: null, colour: null },
-      { id: LOOK_GROUP, title: "The look", description: null, colour: null },
-    ],
-    notes: [],
-    nodes: [
+  graph: aStreamGraph(
+    [
       graphNode("camerasource", "tatolab.stream:CameraSource", INPUTS_GROUP),
       graphNode("Halftone", "lens.nodes:HalftoneLensEffect", LOOK_GROUP, "the shader did not compile", "shader"),
       graphNode("display", "tatolab.stream:Display", null, null, "function"),
       graphNode("stray", "tatolab.stream:Display", "a-group-the-graph-no-longer-has", null, null),
     ],
-    links: [],
-    graph_document_text: "{}",
-  },
+    [],
+    {
+      stream: "lobby_wall-id",
+      asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68",
+      groups: [
+        { id: INPUTS_GROUP, title: "Inputs" },
+        { id: LOOK_GROUP, title: "The look" },
+      ],
+    },
+  ),
 };
 
 function tree(streams: ListedStream[], graphs: Record<string, StreamGraphReading>, openStream: string | null, expansion: Record<string, boolean> = {}, searchWords = ""): string[] {
@@ -136,7 +130,7 @@ describe("the outliner's tree", () => {
   });
 
   it("marks a running node whose process() keeps raising as failed", () => {
-    const raising = { ...graphNode("Halftone", "tatolab.stream:HalftoneLensEffect", null), process_raising_because: "process() raised ValueError: no lens (nodes/halftone.py, line 12)" };
+    const raising = withComponents(graphNode("Halftone", "tatolab.stream:HalftoneLensEffect", null), { process_raising_because: "process() raised ValueError: no lens (nodes/halftone.py, line 12)" });
     if (LOBBY_WALL_GRAPH.kind !== "read") throw new Error("LOBBY_WALL_GRAPH is a read graph");
     const graph: StreamGraphReading = { kind: "read", graph: { ...LOBBY_WALL_GRAPH.graph, nodes: [raising] } };
     const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [listedStream("/w/studio", "lobby_wall")] }, { "lobby_wall-id": graph }, "lobby_wall-id", {});
@@ -145,8 +139,8 @@ describe("the outliner's tree", () => {
   });
 
   it("marks a running node that is not ready as not ready, and one whose process() also keeps raising as failed", () => {
-    const notReady = { ...graphNode("Poster", "core_nodes.image_file:ImageFile", null), not_ready_because: "ImageFile names no image asset" };
-    const notReadyAndRaising = { ...graphNode("Halftone", "tatolab.stream:HalftoneLensEffect", null), not_ready_because: "no lens yet", process_raising_because: "process() raised ValueError: no lens" };
+    const notReady = withComponents(graphNode("Poster", "core_nodes.image_file:ImageFile", null), { not_ready_because: "ImageFile names no image asset" });
+    const notReadyAndRaising = withComponents(graphNode("Halftone", "tatolab.stream:HalftoneLensEffect", null), { not_ready_because: "no lens yet", process_raising_because: "process() raised ValueError: no lens" });
     if (LOBBY_WALL_GRAPH.kind !== "read") throw new Error("LOBBY_WALL_GRAPH is a read graph");
     const graph: StreamGraphReading = { kind: "read", graph: { ...LOBBY_WALL_GRAPH.graph, nodes: [notReady, notReadyAndRaising] } };
     const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [listedStream("/w/studio", "lobby_wall")] }, { "lobby_wall-id": graph }, "lobby_wall-id", {});
@@ -190,7 +184,7 @@ describe("the outliner's tree", () => {
     const streams = [listedStream("/w/studio", "waiting"), listedStream("/w/studio", "refused"), listedStream("/w/studio", "empty"), failedStream];
     const graphs: Record<string, StreamGraphReading> = {
       "refused-id": { kind: "not_read", because: "graph failed: no stream refused-id" },
-      "empty-id": { kind: "read", graph: { stream: "empty-id", stream_asset: null, groups: [], notes: [], nodes: [], links: [], graph_document_text: "{}" } },
+      "empty-id": { kind: "read", graph: aStreamGraph([], [], { stream: "empty-id" }) },
     };
     const expansion = { "stream:waiting-id": true, "stream:refused-id": true, "stream:empty-id": true, "stream:studio-main-ff588e": true };
     const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams }, graphs, null, expansion);
@@ -288,7 +282,7 @@ describe("the outliner's tree", () => {
   it("says a group holds no nodes", () => {
     const emptyGroupGraph: StreamGraphReading = {
       kind: "read",
-      graph: { stream: "lobby_wall-id", stream_asset: null, groups: [{ id: INPUTS_GROUP, title: "Inputs", description: null, colour: null }], notes: [], nodes: [], links: [], graph_document_text: "{}" },
+      graph: aStreamGraph([], [], { stream: "lobby_wall-id", groups: [{ id: INPUTS_GROUP, title: "Inputs" }] }),
     };
     expect(tree([listedStream("/w/studio", "lobby_wall")], { "lobby_wall-id": emptyGroupGraph }, "lobby_wall-id")).toEqual(["lobby_wall · stream expanded", "  Inputs · group expanded", "    No nodes leaf"]);
   });

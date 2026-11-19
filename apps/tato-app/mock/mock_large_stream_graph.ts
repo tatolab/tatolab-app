@@ -1,4 +1,4 @@
-import type { StreamGraphDeclaredPort, StreamGraphLink } from "../src/shared/tatolab_backend_contract";
+import type { MockGraphLink, MockGraphPort } from "./mock_stream_fixtures";
 import type { MockGraphNode, MockStreamGraph } from "./mock_stream_fixtures";
 
 /** How many cards the large graph holds, in columns of `LARGE_GRAPH_ROWS`. */
@@ -15,12 +15,12 @@ const LARGE_GRAPH_LINK_COUNT = 450;
 const LARGE_GRAPH_COLUMN_STEP = 300;
 const LARGE_GRAPH_ROW_STEP = 170;
 
-const channelsPort = (name: string): StreamGraphDeclaredPort => ({ name, family: "channels", stream_facts: null, values_checked: null, pin: null, value_read: null });
+const channelsPort = (name: string): MockGraphPort => ({ name, family: "channels", stream_facts: null, values_checked: null, pin: null, value_read: null });
 
 const largeGraphNodeName = (index: number) => `stage-${String(index + 1).padStart(3, "0")}`;
 
 /** The link into `targetIndex`'s input `inputName` from the output of `sourceIndex`. */
-function largeGraphLink(sourceIndex: number, targetIndex: number, inputName: string): StreamGraphLink {
+function largeGraphLink(sourceIndex: number, targetIndex: number, inputName: string): MockGraphLink {
   return {
     id: `Llarge${String(sourceIndex).padStart(3, "0")}${String(targetIndex).padStart(3, "0")}${inputName}`,
     source_node: largeGraphNodeName(sourceIndex),
@@ -28,7 +28,6 @@ function largeGraphLink(sourceIndex: number, targetIndex: number, inputName: str
     target_node: largeGraphNodeName(targetIndex),
     target_port: inputName,
     state: "wired",
-    live: true,
   };
 }
 

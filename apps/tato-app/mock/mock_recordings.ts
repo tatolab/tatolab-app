@@ -4,8 +4,9 @@
 // its stream `main`, that stream's graph, and the refusals of `transact` a scenario replays. The mock
 // holds no node type, graph or refusal of its own for this work; a recording that no longer reads
 // fails the mock's load, as the app would fail to read the runtime's answer. They were recorded from the
-// `tatolabd` 0.68.82 that `cargo xtask build-runtime` built at streamlib 415f6e3, the sample created with
-// `create_project` and played until its `glow` node had written frames.
+// `tatolabd` 0.68.82 that `cargo xtask build-runtime` built, the sample played until its `glow` node had
+// written frames: the node catalog at streamlib 415f6e3, the graph and the refusals at 6c0be0f, which
+// answered the refusals word for word as 415f6e3 did.
 
 import registryAnswerOfMain from "./recordings/every-pin-kind-registry-answer-of-main.json?raw";
 import graphResultOfMain from "./recordings/every-pin-kind-graph-result-of-main.json?raw";
@@ -13,11 +14,19 @@ import transactRefusalForALinkOfAnotherType from "./recordings/every-pin-kind-tr
 import transactRefusalForAValueOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-words-as-a-float-value.json?raw";
 import { nodeCatalogFromTheRegistryAnswer } from "../src/main/node_catalog";
 import { projectActionRefusalOfTheContract } from "../src/main/project_transactions_on_the_wire";
-import { streamGraphSummaryFromTheGraphToolResult } from "../src/main/stream_graph_summary";
-import { controlContractRefusalOf } from "../src/main/tatolab_runtime_control_operation_call";
+import { controlContractRefusalOf, describeTheContractIssues, readControlContractValue } from "../src/main/tatolab_runtime_control_operation_call";
 import type { Result } from "../src/main/result";
-import type { NodeCatalogEntry, ProjectActionRefusal, StreamGraphNode, StreamGraphSummary } from "../src/shared/tatolab_backend_contract";
-import type { MockGraphNode, MockStreamGraph } from "./mock_stream_fixtures";
+import {
+  canvasNotesOfTheGraph,
+  familyOfThePort,
+  inputValueReadOfThePort,
+  jsonObjectMembersOf,
+  pinOfThePort,
+  streamFactsOfThePort,
+  studioFieldsOfTheNode,
+} from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { NodeCatalogEntry, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphNode, StreamGraphPort } from "../src/shared/tatolab_backend_contract";
+import type { MockGraphLink, MockGraphNode, MockGraphPort, MockStreamGraph } from "./mock_stream_fixtures";
 
 /** A recording the readers cannot read: the recording, or the reader, has drifted from the runtime. */
 class MockRecordingUnreadable extends Error {
@@ -39,50 +48,72 @@ function partOfTheRecordedResponse(recording: string, responseText: string, part
 }
 
 /** The stream the sample's recordings were made from, as the runtime named it. */
+
+/** The stream the sample's recordings were made from, as the runtime named it. */
 const RECORDED_STREAM = "main";
 
 /** Every node type the runtime's registry listed for the sample's stream `main`, read as the app reads `GET /api/registry?stream=`. */
 export const MOCK_RECORDED_NODE_CATALOG: readonly NodeCatalogEntry[] = readOrFail("every-pin-kind-registry-answer-of-main", nodeCatalogFromTheRegistryAnswer(RECORDED_STREAM, registryAnswerOfMain)).node_types;
 
-/** The sample's stream `main` as the runtime's `graph` answered it while it played, read as the app reads it. */
-const RECORDED_GRAPH_OF_MAIN: StreamGraphSummary = readOrFail(
-  "every-pin-kind-graph-result-of-main",
-  streamGraphSummaryFromTheGraphToolResult(RECORDED_STREAM, JSON.stringify(partOfTheRecordedResponse("every-pin-kind-graph-result-of-main", graphResultOfMain, "result"))),
-);
+/** The sample's stream `main` as the runtime's `graph` answered it while it played, read by the runtime client's checker as the contract types it. */
+const RECORDED_GRAPH_OF_MAIN: StreamGraph = (() => {
+  const recordedGraph = readControlContractValue("StreamGraphOnTheWire", partOfTheRecordedResponse("every-pin-kind-graph-result-of-main", graphResultOfMain, "result"));
+  if (!recordedGraph.read) throw new MockRecordingUnreadable(`the recording every-pin-kind-graph-result-of-main does not read: ${describeTheContractIssues(recordedGraph.issues, "the graph")}`);
+  return recordedGraph.value;
+})();
+
+/** `port`, as the runtime's graph serves it, held as the mock holds a port. */
+function mockGraphPortOfTheRecordedPort(port: StreamGraphPort, direction: "input" | "output"): MockGraphPort {
+  return {
+    name: port.name,
+    family: familyOfThePort(port),
+    stream_facts: streamFactsOfThePort(port),
+    values_checked: port.values_checked ?? null,
+    pin: pinOfThePort(port),
+    value_read: direction === "input" ? inputValueReadOfThePort(port) : null,
+  };
+}
 
 /** `node`, as the runtime's graph read it, held as the mock holds a node: under the runtime's own id, each input reading what the runtime said it read, a value the input read by default kept as its default. */
 function mockGraphNodeOfTheRecordedNode(node: StreamGraphNode): MockGraphNode {
-  const inputDefaults = Object.fromEntries(node.input_ports.flatMap((port) => (port.value_read?.comes_from === "default" ? [[port.name, port.value_read.value] as const] : [])));
+  const inputPorts = node.ports.inputs.map((port) => mockGraphPortOfTheRecordedPort(port, "input"));
+  const inputDefaults = Object.fromEntries(inputPorts.flatMap((port) => (port.value_read?.comes_from === "default" ? [[port.name, port.value_read.value] as const] : [])));
+  const { components } = node;
   return {
     name: node.name,
     id_kept_through_renames: node.id,
     type: node.type,
-    ...(node.kind === null ? {} : { kind: node.kind }),
-    state: node.state,
-    ...(node.failed_because === null ? {} : { failed_because: node.failed_because }),
-    ...(node.process_raising_because === null ? {} : { process_raising_because: node.process_raising_because }),
-    ...(node.not_ready_because === null ? {} : { not_ready_because: node.not_ready_because }),
-    config: node.config,
-    pins: node.pins,
+    ...(node.kind === undefined || node.kind === null ? {} : { kind: node.kind }),
+    state: components.state ?? null,
+    ...(components.failed_because === null ? {} : { failed_because: components.failed_because }),
+    ...(components.process_raising_because === null ? {} : { process_raising_because: components.process_raising_because }),
+    ...(components.not_ready_because === null ? {} : { not_ready_because: components.not_ready_because }),
+    config: { ...jsonObjectMembersOf(node.config) },
+    pins: { ...jsonObjectMembersOf(node.pins) },
     input_defaults: inputDefaults,
-    exposed_config_fields: node.exposed_config_fields,
+    exposed_config_fields: node.exposed_config_fields ?? [],
     // The mock reads `wire` on a linked input itself; unlinked, an input the runtime read from its wire reads its default, or nothing while it has none.
-    input_ports: node.input_ports.map((port) =>
+    input_ports: inputPorts.map((port) =>
       port.value_read?.comes_from === "wire" ? { ...port, value_read: port.name in inputDefaults ? { value: inputDefaults[port.name] ?? null, comes_from: "default" } : { value: null, comes_from: null } } : port,
     ),
-    output_ports: node.output_ports,
-    studio: node.studio,
+    output_ports: node.ports.outputs.map((port) => mockGraphPortOfTheRecordedPort(port, "output")),
+    studio: { ...studioFieldsOfTheNode(node) },
   };
+}
+
+/** `link`, as the runtime's graph serves it, held as the mock holds a link: a link served with no state is pending, as the runtime reads it. */
+function mockGraphLinkOfTheRecordedLink(link: StreamGraphLink): MockGraphLink {
+  return { id: link.id, source_node: link.source.node, source_port: link.source.port, target_node: link.target.node, target_port: link.target.port, state: link.state ?? "pending" };
 }
 
 /** A fresh copy of the sample's stream `main` as the mock holds a graph, its nodes and links as the runtime's `graph` answered them. */
 export function mockRecordedGraphOfTheEveryPinKindSample(): MockStreamGraph {
   return {
     nodes: RECORDED_GRAPH_OF_MAIN.nodes.map(mockGraphNodeOfTheRecordedNode),
-    links: structuredClone(RECORDED_GRAPH_OF_MAIN.links),
+    links: RECORDED_GRAPH_OF_MAIN.links.map(mockGraphLinkOfTheRecordedLink),
     counterRates: { droppedPerSecondByLinkId: {}, refusedPerSecondByOutput: [] },
-    groups: structuredClone(RECORDED_GRAPH_OF_MAIN.groups),
-    notes: structuredClone(RECORDED_GRAPH_OF_MAIN.notes),
+    groups: structuredClone(RECORDED_GRAPH_OF_MAIN.groups ?? []),
+    notes: structuredClone([...canvasNotesOfTheGraph(RECORDED_GRAPH_OF_MAIN)]),
   };
 }
 

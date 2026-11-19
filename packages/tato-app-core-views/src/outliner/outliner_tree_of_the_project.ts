@@ -3,7 +3,20 @@
 // them as their `studio.group`, with each diagnostic of the stream's condition on the row it names.
 
 import type { TreeRowPick, TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
-import type { ListedStream, ListedStreamsReading, OpenProject, StreamCondition, StreamGraphAction, StreamGraphNode, StreamGraphNodeKind, StreamGraphReading, StreamGraphSummary, StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import {
+  isLiveInTheRunningGraph,
+  studioFieldsOfTheNode,
+  type ListedStream,
+  type ListedStreamsReading,
+  type OpenProject,
+  type StreamCondition,
+  type StreamGraph,
+  type StreamGraphAction,
+  type StreamGraphNode,
+  type StreamGraphNodeKind,
+  type StreamGraphReading,
+  type StudioSelection,
+} from "@tatolab/tato-app-view-sdk/studio_readings";
 import { shownStudioTreeRows, studioTreeNodesMatching, type StudioTreeNode } from "../shared/node_type_listing_tree";
 import { nodeTitle } from "../shared/node_words";
 import { editedStreamGraphOf, selectionFramedEdits } from "../shared/stream_graph_edits";
@@ -110,7 +123,7 @@ const OUTLINER_TYPE_OF_THE_NODE_KIND: Record<StreamGraphNodeKind, string> = {
 
 /** What the outliner's Type column says for `node`. */
 export function outlinerTypeOfTheNode(node: StreamGraphNode): string {
-  return node.kind === null ? "node" : OUTLINER_TYPE_OF_THE_NODE_KIND[node.kind];
+  return node.kind === undefined || node.kind === null ? "node" : OUTLINER_TYPE_OF_THE_NODE_KIND[node.kind];
 }
 
 function leafNode(row: OutlinerTreeNode["row"]): OutlinerTreeNode {
@@ -126,10 +139,10 @@ const NOT_READY_ROW: Pick<OutlinerTreeNode["row"], "icon" | "tone"> = { icon: "n
  * warns names it; plain otherwise.
  */
 function nodeRowCondition(node: StreamGraphNode, condition: StreamCondition | null): Pick<OutlinerTreeNode["row"], "icon" | "tone"> {
-  if (node.failed_because !== null || node.process_raising_because !== null) return FAILED_ROW;
+  if (node.components.failed_because !== null || node.components.process_raising_because !== null) return FAILED_ROW;
   const diagnostics = diagnosticsAtTheNode(condition, node.name);
   if (diagnostics.some((diagnostic) => !doesTheDiagnosticWarn(diagnostic.kind))) return FAILED_ROW;
-  if (!node.live || node.not_ready_because !== null || diagnostics.length > 0) return NOT_READY_ROW;
+  if (!isLiveInTheRunningGraph(node) || node.components.not_ready_because !== null || diagnostics.length > 0) return NOT_READY_ROW;
   return { icon: "graph_node", tone: undefined };
 }
 
@@ -149,7 +162,7 @@ function graphNodeRow(stream: ListedStream, projectName: string, node: StreamGra
 
 /** The rows of the nodes in the group `group`, or a row saying it holds none. */
 function groupChildren(stream: ListedStream, projectName: string, group: string, nodes: readonly StreamGraphNode[]): OutlinerTreeNode[] {
-  const nodeRows = nodes.filter((node) => node.studio.group === group).map((node) => graphNodeRow(stream, projectName, node));
+  const nodeRows = nodes.filter((node) => studioFieldsOfTheNode(node).group === group).map((node) => graphNodeRow(stream, projectName, node));
   return nodeRows.length > 0 ? nodeRows : [leafNode({ row_id: `group:${stream.stream}/${group}/empty`, label: "No nodes", icon: "waiting", tone: "waiting" })];
 }
 
@@ -177,8 +190,8 @@ function streamRowCondition(stream: ListedStream): Pick<OutlinerTreeNode["row"],
 }
 
 /** The rows of a graph the runtime served: its groups, each holding its nodes, then the nodes in no group; or a row saying it holds none. */
-function streamGraphRows(stream: ListedStream, projectName: string, graph: StreamGraphSummary): OutlinerTreeNode[] {
-  const { groups, nodes } = graph;
+function streamGraphRows(stream: ListedStream, projectName: string, graph: StreamGraph): OutlinerTreeNode[] {
+  const { groups = [], nodes } = graph;
   if (nodes.length === 0 && groups.length === 0) return [leafNode({ row_id: `${streamRowId(stream.stream)}/empty`, label: "No nodes yet", icon: "waiting", tone: "waiting" })];
   const groupIds = new Set(groups.map((group) => group.id));
   const groupRows = groups.map(
@@ -189,7 +202,10 @@ function streamGraphRows(stream: ListedStream, projectName: string, graph: Strea
       children: groupChildren(stream, projectName, group.id, nodes),
     }),
   );
-  const ungroupedNodeRows = nodes.filter((node) => node.studio.group === null || !groupIds.has(node.studio.group)).map((node) => graphNodeRow(stream, projectName, node));
+  const ungroupedNodeRows = nodes.filter((node) => {
+    const { group } = studioFieldsOfTheNode(node);
+    return group === null || !groupIds.has(group);
+  }).map((node) => graphNodeRow(stream, projectName, node));
   return [...groupRows, ...ungroupedNodeRows];
 }
 

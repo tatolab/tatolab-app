@@ -4,7 +4,7 @@ import { afterEach, expect, test } from "vitest";
 import type { ControlledInput } from "../pin_model/controlled_inputs";
 import { createInputControlBinder, type InputControlBinder, type InputControlShown } from "../pin_services/input_control_binding";
 import { createInputValues } from "../pin_services/input_values";
-import type { GraphEditMode, JsonValue, StreamGraphInputValueRead, StreamInputValuesReading } from "../studio_readings";
+import type { GraphEditMode, StreamGraphInputValueRead, StreamInputValuesReading } from "../studio_readings";
 import { InputControlBinderContext, InputControlMount, useOwnFieldOfTheInput } from "./input_control_mount";
 
 const COUNT: ControlledInput = {
@@ -97,7 +97,7 @@ test("the slot draws its fallback while the control is pending and its own field
 });
 
 test("a surface's own field shows the store's value as each reading changes it, and sends an edit as one commit", async () => {
-  const sent: { value: JsonValue | null; mode: GraphEditMode }[] = [];
+  const sent: { value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
       for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ value: operation.value ?? null, mode: sending.mode });

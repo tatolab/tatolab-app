@@ -40,8 +40,8 @@ it("a drag on an input's value is live while it moves, reads no graph, and is on
   host.watchStreamInputValues(MAIN, (reading) => inputValues.takeTheInputValues(PATTERN_FOLDER, reading));
   const graph = await settled(backend.describeStreamGraph(MAIN));
   const invert = graph.nodes.find((node) => node.name === "invertingeffect");
-  if (invert === undefined || graph.stream_asset === null) return expect.unreachable("the main stream holds the inverting effect");
-  const amount: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.stream_asset, level: [] }, node_id: invert.id, input: "amount" };
+  if (invert === undefined || typeof graph.asset !== "string") return expect.unreachable("the main stream holds the inverting effect");
+  const amount: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: invert.id, input: "amount" };
   expect(inputValues.shownValue(amount)).toEqual({ value: 1, comes_from: "default" });
   const entriesBefore = await historyLength();
   const readsBeforeTheDrag = graphReads;
@@ -85,11 +85,11 @@ it("a value set live from outside the window shows in every frame's store with n
   await vi.advanceTimersByTimeAsync(100);
   const graph = await reading;
   const invert = graph.nodes.find((node) => node.name === "invertingeffect");
-  if (invert === undefined || graph.stream_asset === null) return expect.unreachable("the main stream holds the inverting effect");
-  const amount: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.stream_asset, level: [] }, node_id: invert.id, input: "amount" };
+  if (invert === undefined || typeof graph.asset !== "string") return expect.unreachable("the main stream holds the inverting effect");
+  const amount: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: invert.id, input: "amount" };
   const readsBeforeTheSet = graphReads;
 
-  const setFromAShell = backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: graph.stream_asset, node: invert.id, input: "amount", value: 0.3 }], "live", null);
+  const setFromAShell = backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: graph.asset, node: invert.id, input: "amount", value: 0.3 }], "live", null);
   await vi.advanceTimersByTimeAsync(100);
   await setFromAShell;
   expect(canvas.shownValue(amount)).toEqual({ value: 0.3, comes_from: "live" });
@@ -115,9 +115,9 @@ it("a drag on a Graph Input's value released live in Perform leaves no history e
   };
   host.watchStreamInputValues(MAIN, (reading) => inputValues.takeTheInputValues(PATTERN_FOLDER, reading));
   const graph = await settled(backend.describeStreamGraph(MAIN));
-  const brightnessInput = graph.nodes.find((node) => node.graph_interface?.port === "brightness");
-  if (brightnessInput === undefined || graph.stream_asset === null) return expect.unreachable("the main stream declares brightness");
-  const brightness: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.stream_asset, level: [] }, node_id: brightnessInput.id, input: "value" };
+  const brightnessInput = graph.nodes.find((node) => node.components.graph_interface?.port === "brightness");
+  if (brightnessInput === undefined || typeof graph.asset !== "string") return expect.unreachable("the main stream declares brightness");
+  const brightness: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: brightnessInput.id, input: "value" };
   expect(inputValues.shownValue(brightness)).toEqual({ value: 0.5, comes_from: "default" });
   const entriesBefore = await historyLength();
 
@@ -128,7 +128,7 @@ it("a drag on a Graph Input's value released live in Perform leaves no history e
   await settled(Promise.resolve());
   expect(inputValues.shownValue(brightness)).toEqual({ value: 0.9, comes_from: "live" });
   expect(await historyLength()).toBe(entriesBefore);
-  expect((await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === brightnessInput.id)?.graph_interface?.current_value).toBe(0.9);
+  expect((await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === brightnessInput.id)?.components.graph_interface?.current_value).toBe(0.9);
 
   inputValues.clear(brightness, "live");
   await settled(Promise.resolve());

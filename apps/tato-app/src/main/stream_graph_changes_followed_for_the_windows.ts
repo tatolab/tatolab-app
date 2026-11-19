@@ -6,9 +6,8 @@
 // follows it across reloads itself.
 
 import { Effect, Stream } from "effect";
-import type { StreamGraphInputValueChange } from "../shared/tatolab_backend_contract.js";
+import { inputValueReadOfThePort, type StreamGraphInputValueChange } from "../shared/tatolab_backend_contract.js";
 import type { ControlPushesFeed, ControlPushesFollowed, SubjectPushed } from "./control_pushes_followed_for_the_windows.js";
-import { inputValueReadOnTheWire } from "./input_value_read_on_the_wire.js";
 import type { ControlNotifications } from "./tatolab_runtime_control_operation_call.js";
 
 /** A window that follows stream graphs: where each change of one it follows goes, a value change, or `null` to read the graph again. */
@@ -24,7 +23,7 @@ export type StreamGraphChangesFollowedForTheWindows = ControlPushesFollowed<Wind
 
 /** What an input reads after an `input_value_changed`: a value, a link feeding it, or nothing at all. */
 export function inputValueChangeOnTheWire(changed: ControlNotifications["input_value_changed"]): StreamGraphInputValueChange {
-  return { node: changed.node, input: changed.input, value_read: inputValueReadOnTheWire(changed) ?? { value: null, comes_from: null } };
+  return { node: changed.node, input: changed.input, value_read: inputValueReadOfThePort(changed) ?? { value: null, comes_from: null } };
 }
 
 /** Stream graphs as followed on a connection: both subscriptions for each stream, each `stream_graph_changed` and each `input_value_changed`. */

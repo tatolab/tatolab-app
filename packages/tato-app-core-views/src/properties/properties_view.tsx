@@ -41,17 +41,18 @@ import {
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { newGestureIdempotencyKey, type AreasForAViewTypeReading, type StopWatching, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { FieldMenu, MenuItem, MenuNote } from "@tatolab/tato-app-view-sdk/design_system/menus";
-import type {
-  InputValueComesFrom,
-  JsonValue,
-  NodeCatalogEntry,
-  NodeCatalogReading,
-  ProjectAssetsReading,
-  StreamGraphDeclaredPort,
-  StreamGraphNode,
-  StreamGraphPortPin,
-  StreamGraphReading,
-  StreamGraphSummary,
+import {
+  inputValueReadOfThePort,
+  jsonObjectMembersOf,
+  type InputValueComesFrom,
+  type JsonValue,
+  type NodeCatalogEntry,
+  type NodeCatalogReading,
+  type ProjectAssetsReading,
+  type StreamGraph,
+  type StreamGraphNode,
+  type StreamGraphPort,
+  type StreamGraphReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
@@ -137,7 +138,7 @@ function ConfigFieldControl({
       graphEdits.keepTheRefusal(place, LIST_ENTRY_MOVED_ON_REFUSAL);
       return null;
     }
-    graphEdits.rememberTheConfigSent(node.config, configEdit.config);
+    graphEdits.rememberTheConfigSent(jsonObjectMembersOf(node.config), configEdit.config);
     return configEdit;
   };
   const commitTheConfigFieldValue = (newValue: (typeof field)["value"]) => {
@@ -312,13 +313,13 @@ function ConfigFieldRows({
   graphEdits: GraphEditsOfTheNode;
   searchWords: string;
 }) {
-  const configEditedFrom = () => graphEdits.configToEditFrom(node.config);
+  const configEditedFrom = () => graphEdits.configToEditFrom(jsonObjectMembersOf(node.config));
   const commitTheConfig = (place: PlaceOfAnEdit, configAction: SetNodeConfigAction | null) => {
     if (configAction === null) {
       graphEdits.keepTheRefusal(place, LIST_ENTRY_MOVED_ON_REFUSAL);
       return;
     }
-    graphEdits.rememberTheConfigSent(node.config, configAction.config);
+    graphEdits.rememberTheConfigSent(jsonObjectMembersOf(node.config), configAction.config);
     void graphEdits.commit(place, [configAction]);
   };
   const fieldPlace = placeOfTheConfigField(field.key);
@@ -424,7 +425,7 @@ function meaningOfAConfigKey(field: ConfigFormField): string {
 }
 
 /** What a port's name shows while the pointer rests on it: the stream facts it reads, and that a Records port's values are not checked. */
-function meaningOfAPort(pin: Pick<NodePin, "stream_facts_words">, port: Pick<StreamGraphDeclaredPort, "values_checked">): string | undefined {
+function meaningOfAPort(pin: Pick<NodePin, "stream_facts_words">, port: Pick<StreamGraphPort, "values_checked">): string | undefined {
   const meaning = [pin.stream_facts_words.length > 0 ? pin.stream_facts_words.join(" · ") : null, port.values_checked === false ? VALUES_UNCHECKED_MEANING : null]
     .filter((words): words is string => words !== null)
     .join("\n");
@@ -449,7 +450,7 @@ interface InputRowsOfTheNode {
   connection: TatoAppViewConnection;
   stream: string;
   level: readonly string[];
-  graph: StreamGraphSummary;
+  graph: StreamGraph;
   node: StreamGraphNode;
   /** The stream's asset, which every edit names; `null` where the graph can't be edited. */
   streamAsset: string | null;
@@ -465,10 +466,10 @@ interface InputRowsOfTheNode {
  * own field where the table has none, says where the store's value comes from, and offers Reset to default and Promote to a
  * Graph Input.
  */
-function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port: StreamGraphDeclaredPort; bandShade: PropertyPortBandShade; rows: InputRowsOfTheNode }) {
+function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port: StreamGraphPort; bandShade: PropertyPortBandShade; rows: InputRowsOfTheNode }) {
   const { connection, stream, level, graph, node, streamAsset, inputValues, graphEdits, searchWords } = rows;
   const place = placeOfTheInput(pin.name);
-  const state = inputRowStateOf({ input: pin, value_comes_from: port.value_read?.comes_from ?? null, driven_by: linkedEndsOfThePort(graph, node, "input", pin.name), is_editable: streamAsset !== null });
+  const state = inputRowStateOf({ input: pin, value_comes_from: inputValueReadOfThePort(port)?.comes_from ?? null, driven_by: linkedEndsOfThePort(graph, node, "input", pin.name), is_editable: streamAsset !== null });
   const valueSource = useWhereTheInputsValueComesFrom(state.kind === "holds_a_value" ? state.address : null, "commit");
   const comesFrom = valueSource?.comes_from ?? null;
   const canBePromoted = (state.kind === "holds_a_value" || state.kind === "not_connected") && state.can_be_promoted;
@@ -492,7 +493,7 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
               label: `Promote ${pin.name} to a Graph Input`,
               onPromoted: () => {
                 const nodeNamesTaken = new Set(graph.nodes.map((graphNode) => graphNode.name));
-                const valueShown = state.kind === "holds_a_value" ? inputValues.shownValue(state.address).value : (port.value_read?.value ?? null);
+                const valueShown = state.kind === "holds_a_value" ? inputValues.shownValue(state.address).value : (inputValueReadOfThePort(port)?.value ?? null);
                 void graphEdits.commit(place, promoteToGraphInput(streamAsset, { node, input: port, valueShown, isOnTheStreamsOwnLevel: level.length === 0, nodeNamesTaken }));
               },
             }
@@ -517,7 +518,7 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
       }
       unlinkedValue={
         state.kind === "holds_a_value" ? (
-          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} pin={pin.pin} address={state.address} />
+          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} nodePin={pin} address={state.address} />
         ) : state.kind === "wired_from_outside_the_level" ? (
           <span className="text-fg-3" data-properties-input-wired-from-outside-the-level>
             Wired
@@ -533,15 +534,15 @@ function InputRowOfTheNode({ pin, port, bandShade, rows }: { pin: NodePin; port:
  * words while that control loads, and the panel's own field where the table has no control for it. Under it, the store's
  * refusal of the last value sent to it.
  */
-function ValueOfTheUnwiredInput({ fieldId, pin, address }: { fieldId: string; pin: StreamGraphPortPin | null; address: InputAddress }) {
-  const controlled = takesAControl({ name: address.input, pin, value_address: address });
+function ValueOfTheUnwiredInput({ fieldId, nodePin, address }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations">; address: InputAddress }) {
+  const controlled = takesAControl({ name: address.input, pin: nodePin.pin, annotations: nodePin.annotations, value_address: address });
   const ownField = <OwnFieldOfTheInput fieldId={fieldId} address={address} />;
   return (
     <div className="flex w-full min-w-0 flex-col gap-1">
       {controlled === null ? (
         ownField
       ) : (
-        <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={<InputValueWords address={address} pinType={pin?.pin_type ?? null} data-properties-input-value-words={address.input} />} noControl={ownField} className="w-full" />
+        <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={<InputValueWords address={address} pinType={nodePin.pin?.pin_type ?? null} data-properties-input-value-words={address.input} />} noControl={ownField} className="w-full" />
       )}
       <RefusalOfTheInputsValue address={address} />
     </div>
@@ -572,7 +573,7 @@ function RefusalOfTheInputsValue({ address }: { address: InputAddress }) {
 }
 
 /** One output of the node: its type, its description, and each input it feeds. */
-function OutputRowOfTheNode({ pin, port, bandShade, graph, node, searchWords }: { pin: NodePin; port: StreamGraphDeclaredPort; bandShade: PropertyPortBandShade; graph: StreamGraphSummary; node: StreamGraphNode; searchWords: string }) {
+function OutputRowOfTheNode({ pin, port, bandShade, graph, node, searchWords }: { pin: NodePin; port: StreamGraphPort; bandShade: PropertyPortBandShade; graph: StreamGraph; node: StreamGraphNode; searchWords: string }) {
   return (
     <PropertyPortRow
       direction="output"
@@ -696,9 +697,9 @@ function PropertiesOfTheSelectedNode({
   if (nodeSelectedByName !== undefined) nodeShownWhileItWasSelectedByName.current = { nodeName, nodeId: nodeSelectedByName.id };
   const graphEdits = graphEditsInTheProject.ofTheNode(node?.id ?? "", level);
   const catalogEntry: NodeCatalogEntry | undefined = catalogReading?.kind === "listed" && node !== undefined ? catalogReading.catalog.node_types.find((entry) => entry.type === node.type) : undefined;
-  const configForm = useMemo(() => (node === undefined ? null : configFormOf(catalogEntry?.config_schema ?? null, node.config)), [node, catalogEntry]);
+  const configForm = useMemo(() => (node === undefined ? null : configFormOf(catalogEntry?.config_schema ?? null, jsonObjectMembersOf(node.config))), [node, catalogEntry]);
   useInputValuesOfTheStream(connection, inputValues, stream, projectFolder);
-  const streamAssetOfTheGraph = streamGraph?.stream_asset ?? null;
+  const streamAssetOfTheGraph = streamGraph?.asset ?? null;
   const valuesAt = useMemo(
     (): GraphAddress | null => (projectFolder === null || streamAssetOfTheGraph === null ? null : { project_folder: projectFolder, stream_asset: streamAssetOfTheGraph, level }),
     [projectFolder, streamAssetOfTheGraph, level],
@@ -714,7 +715,7 @@ function PropertiesOfTheSelectedNode({
   if (graphReading.kind === "not_read") return <WaitingState title={`${nodeName} can't be read`} explanation={graphReading.because} data-properties-state="graph_not_read" />;
   if (graph === null || node === undefined || configForm === null)
     return <WaitingState title={`${nodeName} is gone`} explanation="Its stream's graph no longer has it." data-properties-state="node_gone" />;
-  const streamAsset = graph.stream_asset;
+  const streamAsset = graph.asset ?? null;
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((candidate) => candidate.stream === stream) : undefined;
   const streamName = listedStream?.display_name ?? stream;
   const typeClassName = nodeTypeClassName(node.type);
@@ -722,18 +723,18 @@ function PropertiesOfTheSelectedNode({
   const configFields = configForm.kind === "fields" ? configForm.fields : [];
   const matching = propertiesMatchingTheSearch(
     configFields.map((field) => field.key),
-    node.input_ports.map((port) => port.name),
-    node.output_ports.map((port) => port.name),
+    node.ports.inputs.map((port) => port.name),
+    node.ports.outputs.map((port) => port.name),
     searchWords,
   );
   const configFieldsListed = configFields.filter((field) => matching.config_keys_listed.has(field.key));
   const inputPins = nodeInputs(graph, node, catalogEntry, valuesAt);
   const outputPins = nodeOutputs(node, catalogEntry);
-  const inputPortsListed = node.input_ports.flatMap((port, portIndex) => {
+  const inputPortsListed = node.ports.inputs.flatMap((port, portIndex) => {
     const pin = inputPins[portIndex];
     return pin !== undefined && matching.input_ports_listed.has(port.name) ? [{ port, pin }] : [];
   });
-  const outputPortsListed = node.output_ports.flatMap((port, portIndex) => {
+  const outputPortsListed = node.ports.outputs.flatMap((port, portIndex) => {
     const pin = outputPins[portIndex];
     return pin !== undefined && matching.output_ports_listed.has(port.name) ? [{ port, pin }] : [];
   });
@@ -770,27 +771,27 @@ function PropertiesOfTheSelectedNode({
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {node.state === "Error" && (
+        {node.components.state === "Error" && (
           <div data-properties-node-failed={node.name}>
-            <FailureBanner place="panel">{node.failed_because === null ? "This node failed. The runtime gave no reason." : "This node failed."}</FailureBanner>
-            {node.failed_because !== null && (
+            <FailureBanner place="panel">{node.components.failed_because === null ? "This node failed. The runtime gave no reason." : "This node failed."}</FailureBanner>
+            {node.components.failed_because !== null && (
               <div className="border-b px-3 py-2.5">
-                <RuntimeFailureWords words={node.failed_because} data-properties-failed-because={node.name} />
+                <RuntimeFailureWords words={node.components.failed_because} data-properties-failed-because={node.name} />
               </div>
             )}
           </div>
         )}
-        {node.state !== "Error" && node.process_raising_because !== null && (
+        {node.components.state !== "Error" && node.components.process_raising_because !== null && (
           <div data-properties-node-process-raising={node.name}>
             <FailureBanner place="panel">This node is running, but its process() keeps raising.</FailureBanner>
             <div className="border-b px-3 py-2.5">
-              <RuntimeFailureWords words={node.process_raising_because} data-properties-process-raising-because={node.name} />
+              <RuntimeFailureWords words={node.components.process_raising_because} data-properties-process-raising-because={node.name} />
             </div>
           </div>
         )}
-        {node.not_ready_because !== null && (
+        {node.components.not_ready_because !== null && (
           <div data-properties-node-not-ready={node.name}>
-            <RefusalLine lead="This node isn't ready:" words={node.not_ready_because} tone="warning" layout="bar" data-properties-not-ready-because={node.name} />
+            <RefusalLine lead="This node isn't ready:" words={node.components.not_ready_because} tone="warning" layout="bar" data-properties-not-ready-because={node.name} />
           </div>
         )}
         {streamAsset === null && <p className="border-b px-3 py-1.5 text-xs text-fg-3">This runtime names no stream asset for {streamName}, so its nodes can't be edited from here.</p>}
@@ -820,7 +821,7 @@ function PropertiesOfTheSelectedNode({
         )}
         {(!matching.is_searching || matching.input_ports_listed.size > 0) && (
           <PropertySection title="Inputs" data-properties-section="inputs">
-            {node.input_ports.length === 0 ? (
+            {node.ports.inputs.length === 0 ? (
               <p className="px-1 text-xs text-fg-3">None</p>
             ) : (
               inputPortsListed.map(({ port, pin }, portIndex) => <InputRowOfTheNode key={port.name} pin={pin} port={port} bandShade={bandShadeAt(portIndex)} rows={inputRows} />)
@@ -829,7 +830,7 @@ function PropertiesOfTheSelectedNode({
         )}
         {(!matching.is_searching || matching.output_ports_listed.size > 0) && (
           <PropertySection title="Outputs" data-properties-section="outputs">
-            {node.output_ports.length === 0 ? (
+            {node.ports.outputs.length === 0 ? (
               <p className="px-1 text-xs text-fg-3">None</p>
             ) : (
               outputPortsListed.map(({ port, pin }, portIndex) => (

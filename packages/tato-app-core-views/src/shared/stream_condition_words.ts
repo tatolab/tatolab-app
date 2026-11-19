@@ -1,7 +1,7 @@
 // What a view says of a stream's condition as the runtime lists it: its load, playback and health in
 // words, and each diagnostic where it applies, in the runtime's words, with what recovers from it.
 
-import type { ProjectStreamsRecovery, StreamCondition, StreamDiagnostic, StreamDiagnosticKind, StreamDiagnosticPlace, StreamDiagnosticRecovery, StreamHealth, StreamLoad, StreamPlayback } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ProjectStreamsRecovery, StreamCondition, StreamDiagnostic, StreamDiagnosticKind, StreamDiagnosticPlace, StreamDiagnosticRecovery, StreamGraphLink, StreamHealth, StreamLoad, StreamPlayback } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** A link as a diagnostic names it: the nodes at its ends by name, and their ports. */
 export type StreamDiagnosticLink = Extract<StreamDiagnosticPlace, { on: "link" }>;
@@ -106,15 +106,15 @@ export function diagnosticsAtTheNode(condition: StreamCondition | null, nodeName
   return (condition?.diagnostics ?? []).filter((diagnostic) => diagnostic.place.on === "node" && diagnostic.place.node_name === nodeName);
 }
 
-/** The diagnostics of `condition` at the link from `source_node`'s `source_port` to `target_node`'s `target_port`. */
-export function diagnosticsAtTheLink(condition: StreamCondition | null, link: { source_node: string; source_port: string; target_node: string; target_port: string }): StreamDiagnostic[] {
+/** The diagnostics of `condition` at `link`, from its source node's port to its target node's. */
+export function diagnosticsAtTheLink(condition: StreamCondition | null, link: Pick<StreamGraphLink, "source" | "target">): StreamDiagnostic[] {
   return (condition?.diagnostics ?? []).filter(
     (diagnostic) =>
       diagnostic.place.on === "link" &&
-      diagnostic.place.from_node === link.source_node &&
-      diagnostic.place.from_port === link.source_port &&
-      diagnostic.place.to_node === link.target_node &&
-      diagnostic.place.to_port === link.target_port,
+      diagnostic.place.from_node === link.source.node &&
+      diagnostic.place.from_port === link.source.port &&
+      diagnostic.place.to_node === link.target.node &&
+      diagnostic.place.to_port === link.target.port,
   );
 }
 

@@ -11,12 +11,12 @@
 // links onto a port it renames or removes are carried at every placement. History names a node inside by the id its
 // first placement draws it under, where the runtime names it by the placed stream's own.
 
-import { mockGraphNodeIdOf, mockUuidOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
+import { mockGraphNodeIdOf, mockUuidOf, type MockGraphLink, type MockGraphNode, type MockGraphPort, type MockStreamGraph } from "./mock_stream_fixtures";
 import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
 import { echoTheInputValueSet } from "./mock_value_echo";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
-import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { PORT_FAMILIES, type JsonValue, type NodeCatalogEntry, type NodeCatalogPort, type PortFamily, type ProjectGraphTransaction, type StreamGraphDeclaredPort, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphLink, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
+import { fragmentKindOfTheNode, isAJsonValue, NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { PORT_FAMILIES, type JsonValue, type NodeCatalogEntry, type NodeCatalogPort, type PortFamily, type ProjectGraphTransaction, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
 
 /** A mock stream a graph action can name: its id, and the graph the mock holds for it. */
 export interface MockStreamGraphTarget {
@@ -27,7 +27,7 @@ export interface MockStreamGraphTarget {
 /** One level of a mock stream's graph: the stream's own, or the inside of a subgraph, which holds no notes. */
 interface MockGraphLevel {
   nodes: MockGraphNode[];
-  links: StreamGraphLink[];
+  links: MockGraphLink[];
   groups?: StreamGraphGroup[];
   notes?: StreamGraphNote[];
 }
@@ -48,6 +48,17 @@ export interface MockGraphEditGrounds {
 
 export class MockGraphEditNotApplicable extends Error {
   override readonly name = "MockGraphEditNotApplicable";
+}
+
+/** A value a graph action carries, which the contract leaves unknown, as the JSON the mock graphs hold; an action carrying one that is not JSON is not one the mock applies. */
+function jsonTheActionCarries(value: unknown, where: string): JsonValue {
+  if (isAJsonValue(value)) return value;
+  throw new MockGraphEditNotApplicable(`${where} is not JSON`);
+}
+
+/** An object a graph action carries, as a JSON object the mock graphs hold. */
+function jsonObjectTheActionCarries(value: { [key: string]: unknown }, where: string): { [key: string]: JsonValue } {
+  return Object.fromEntries(Object.entries(value).map(([key, held]) => [key, jsonTheActionCarries(held, `${where}.${key}`)]));
 }
 
 /** The studio fields of a `studio` object an action gives, as the runtime keeps them: every key it does not know under `metadata`. */
@@ -142,7 +153,7 @@ function whyTheNodeHasNoInsideToEdit(subgraph: MockGraphNode | undefined, subgra
 
 /** The one port `value` a Graph Input declares as its output and a Graph Output as its input, of the family its config names, as the runtime builds an interface node no registry lists. */
 function portsOfTheInterfaceNode(type: typeof GRAPH_INPUT_NODE_TYPE | typeof GRAPH_OUTPUT_NODE_TYPE, family: PortFamily | null): Pick<MockGraphNode, "input_ports" | "output_ports"> {
-  const valuePort: StreamGraphDeclaredPort = { name: "value", family, stream_facts: null, values_checked: null, pin: null, value_read: null };
+  const valuePort: MockGraphPort = { name: "value", family, stream_facts: null, values_checked: null, pin: null, value_read: null };
   return type === GRAPH_INPUT_NODE_TYPE ? { input_ports: [], output_ports: [valuePort] } : { input_ports: [valuePort], output_ports: [] };
 }
 
@@ -206,7 +217,7 @@ export function isAHistoryOperationTheMockMakesAgainFromTheEditInside(historyOpe
 }
 
 /** A port of a node added from `port`, its catalog port: its name, family and pin type as the catalog lists them, stating no stream facts and reading no value yet. */
-function graphPortOfTheCatalogPort(port: Pick<NodeCatalogPort, "name" | "family" | "pin">): StreamGraphDeclaredPort {
+function graphPortOfTheCatalogPort(port: Pick<NodeCatalogPort, "name" | "family" | "pin">): MockGraphPort {
   return { name: port.name, family: port.family, stream_facts: null, values_checked: port.family === "records" ? false : null, pin: exactPinOfTheDeclaredPort(port.pin), value_read: null };
 }
 
@@ -375,8 +386,9 @@ export function applyMockGraphTransaction(
       case "set_node_config": {
         const node = nodeNamed(operation.node);
         const from = structuredClone(node.config);
-        node.config = structuredClone(operation.config);
-        recordInHistory({ operation: "set_node_config", node: nodeIdOf(node), from, to: operation.config }, { operation: "set_node_config", node: nodeIdOf(node), from: operation.config, to: from });
+        const to = jsonObjectTheActionCarries(operation.config, "config");
+        node.config = structuredClone(to);
+        recordInHistory({ operation: "set_node_config", node: nodeIdOf(node), from, to }, { operation: "set_node_config", node: nodeIdOf(node), from: to, to: from });
         break;
       }
       case "set_pin_value": {
@@ -384,7 +396,7 @@ export function applyMockGraphTransaction(
         if (!node.input_ports.some((port) => port.name === operation.input)) {
           throw new MockGraphEditNotApplicable(`node ${operation.node} has no input \`${operation.input}\``);
         }
-        const to = operation.value ?? null;
+        const to = jsonTheActionCarries(operation.value ?? null, "value");
         const from = echoTheInputValueSet(node, operation.input, to, applying);
         recordInHistory({ operation: "set_pin_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_pin_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
         break;
@@ -395,7 +407,7 @@ export function applyMockGraphTransaction(
         if (port === undefined || port.value_read === null) {
           throw new MockGraphEditNotApplicable(`node ${operation.node} has no input \`${operation.input}\` that holds a value`);
         }
-        const to = operation.value ?? null;
+        const to = jsonTheActionCarries(operation.value ?? null, "value");
         const from = echoTheInputValueSet(node, operation.input, to, applying);
         if (applying === "a_live_transaction") break;
         recordInHistory({ operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
@@ -421,15 +433,16 @@ export function applyMockGraphTransaction(
       case "add_node": {
         const interfaceType = operation.type === GRAPH_INPUT_NODE_TYPE || operation.type === GRAPH_OUTPUT_NODE_TYPE ? operation.type : null;
         const catalogEntry = nodeCatalog.find((entry) => entry.type === operation.type);
-        const portsItHadBeforeItsRemoval = applying === "undo_or_redo" && operation.as !== undefined ? portsOfTheNodesRemoved.get(operation.as) : undefined;
+        const label = operation.as ?? null;
+        const portsItHadBeforeItsRemoval = applying === "undo_or_redo" && label !== null ? portsOfTheNodesRemoved.get(label) : undefined;
         if (interfaceType === null && catalogEntry === undefined && portsItHadBeforeItsRemoval === undefined) throw new MockGraphEditNotApplicable(`the recorded node catalog lists no node type \`${operation.type}\``);
         const shortName = operation.name ?? shortNameOfTheType(operation.type);
         const takenNames = new Set(graph.nodes.map((node) => node.name));
         let name = shortName;
-        for (let suffix = 2; operation.name === undefined && takenNames.has(name); suffix += 1) name = `${shortName}-${suffix}`;
+        for (let suffix = 2; (operation.name ?? null) === null && takenNames.has(name); suffix += 1) name = `${shortName}-${suffix}`;
         if (takenNames.has(name)) throw new MockGraphEditNotApplicable(`node \`${name}\` in this graph already has that name`);
-        const config = configHoldingTheDefaultNameOfAGraphPortOrVariable(operation.type, structuredClone(operation.config ?? {}), graph.nodes);
-        const pins = structuredClone(operation.pins ?? {});
+        const config = configHoldingTheDefaultNameOfAGraphPortOrVariable(operation.type, jsonObjectTheActionCarries(operation.config ?? {}, "config"), graph.nodes);
+        const pins = jsonObjectTheActionCarries(operation.pins ?? {}, "pins");
         const declaredFamily = config["family"];
         const addedNode: MockGraphNode = {
           name,
@@ -443,12 +456,12 @@ export function applyMockGraphTransaction(
               ? { input_ports: catalogEntry.inputs.filter((input) => input.input_mode?.mode !== "setting_only").map(graphPortOfTheCatalogPort), output_ports: catalogEntry.outputs.map(graphPortOfTheCatalogPort) }
               : structuredClone(portsItHadBeforeItsRemoval ?? { input_ports: [], output_ports: [] })),
         };
-        if (operation.studio !== undefined) addedNode.studio = studioFieldsOfTheAction(operation.studio, operation.as ?? name);
-        if (applying === "undo_or_redo" && operation.as !== undefined) addedNode.id_kept_through_renames = operation.as;
+        if (operation.studio !== undefined && operation.studio !== null) addedNode.studio = studioFieldsOfTheAction(jsonObjectTheActionCarries(operation.studio, "studio"), label ?? name);
+        if (applying === "undo_or_redo" && label !== null) addedNode.id_kept_through_renames = label;
         graph.nodes.push(addedNode);
         const nodeId = nodeIdOf(addedNode);
-        if (operation.as !== undefined) nodeIdsByLabel.set(operation.as, nodeId);
-        applied.added_nodes.push({ stream: target.stream_id, node: nodeId, name, as: operation.as ?? null });
+        if (label !== null) nodeIdsByLabel.set(label, nodeId);
+        applied.added_nodes.push({ stream: target.stream_id, node: nodeId, name, as: label });
         const studio: { studio?: JsonValue } = addedNode.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(addedNode.studio) };
         recordInHistory({ operation: "add_node", node: { id: nodeId, name, type: operation.type, config, pins, ...studio } }, { operation: "remove_node", node: nodeId });
         break;
@@ -492,7 +505,7 @@ export function applyMockGraphTransaction(
         const hasThePorts = source.graphNode.output_ports.some((port) => port.name === operation.source.port) && targetEnd.graphNode.input_ports.some((port) => port.name === operation.target.port);
         if (!hasThePorts) throw new MockGraphEditNotApplicable(`no port ${source.graphNode.name}.${operation.source.port} to ${targetEnd.graphNode.name}.${operation.target.port}`);
         mockLinksMade += 1;
-        graph.links.push({ id: `Lmock${mockLinksMade.toString(36).padStart(21, "0")}`, source_node: source.graphNode.name, source_port: operation.source.port, target_node: targetEnd.graphNode.name, target_port: operation.target.port, state: "wired", live: true });
+        graph.links.push({ id: `Lmock${mockLinksMade.toString(36).padStart(21, "0")}`, source_node: source.graphNode.name, source_port: operation.source.port, target_node: targetEnd.graphNode.name, target_port: operation.target.port, state: "wired" });
         const link = { source: source.end, target: targetEnd.end };
         applied.connected_links.push({ stream: target.stream_id, ...link, state: "wired", error_reason: null });
         recordInHistory({ operation: "connect", link }, { operation: "disconnect", link });
@@ -514,7 +527,7 @@ export function applyMockGraphTransaction(
       case "set_studio_fields": {
         const node = nodeNamed(operation.node);
         const from = studioAsTheRuntimeRendersIt(node.studio ?? NODE_STUDIO_FIELDS_NONE_SET);
-        node.studio = studioFieldsOfTheAction(operation.studio, operation.node);
+        node.studio = studioFieldsOfTheAction(jsonObjectTheActionCarries(operation.studio, "studio"), operation.node);
         const to = studioAsTheRuntimeRendersIt(node.studio);
         recordInHistory({ operation: "set_studio_fields", node: nodeIdOf(node), from, to }, { operation: "set_studio_fields", node: nodeIdOf(node), from: to, to: from });
         break;
@@ -524,7 +537,7 @@ export function applyMockGraphTransaction(
         const groups = (graph.groups ??= []);
         mockGroupsAndNotesMade += 1;
         const group = idTheReplayedOperationKept("group") ?? mockUuidOf(`group\n${target.stream_id}\n${mockGroupsAndNotesMade}\n${operation.title}`);
-        const added = { id: group, title: operation.title, description: operation.description ?? null, colour: operation.colour ?? null };
+        const added: StreamGraphGroup = { id: group, title: operation.title, ...(operation.description === undefined || operation.description === null ? {} : { description: operation.description }), ...(operation.colour === undefined || operation.colour === null ? {} : { colour: operation.colour }) };
         groups.push(added);
         for (const member of members) member.studio = { ...(member.studio ?? NODE_STUDIO_FIELDS_NONE_SET), group };
         const memberIds = members.map(nodeIdOf);
@@ -535,11 +548,11 @@ export function applyMockGraphTransaction(
       case "set_group_fields": {
         const group = graph.groups?.find((candidate) => candidate.id === operation.group);
         if (group === undefined) throw new MockGraphEditNotApplicable(`no group ${operation.group} in the stream's graph`);
-        const from = { title: group.title, description: group.description, colour: group.colour };
-        if (operation.title !== undefined) group.title = operation.title;
-        if (operation.description !== undefined) group.description = operation.description;
-        if (operation.colour !== undefined) group.colour = operation.colour;
-        const to = { title: group.title, description: group.description, colour: group.colour };
+        const from = { title: group.title, description: group.description ?? null, colour: group.colour ?? null };
+        group.title = operation.title ?? group.title;
+        group.description = operation.description ?? group.description;
+        group.colour = operation.colour ?? group.colour;
+        const to = { title: group.title, description: group.description ?? null, colour: group.colour ?? null };
         recordInHistory({ operation: "set_group_fields", group: group.id, from, to }, { operation: "set_group_fields", group: group.id, from: to, to: from });
         break;
       }
@@ -566,9 +579,9 @@ export function applyMockGraphTransaction(
         const note = graph.notes?.find((candidate) => candidate.id === operation.note);
         if (note === undefined) throw new MockGraphEditNotApplicable(`no note ${operation.note} in the stream's graph`);
         const from = { text: note.text, position: note.position, size: note.size };
-        if (operation.text !== undefined) note.text = operation.text;
-        if (operation.position !== undefined) note.position = operation.position;
-        if (operation.size !== undefined) note.size = operation.size;
+        note.text = operation.text ?? note.text;
+        note.position = operation.position ?? note.position;
+        note.size = operation.size ?? note.size;
         const to = { text: note.text, position: note.position, size: note.size };
         recordInHistory({ operation: "set_note_fields", note: note.id, from, to }, { operation: "set_note_fields", note: note.id, from: to, to: from });
         break;
@@ -623,7 +636,7 @@ export function applyMockGraphTransaction(
             outsideLinks.push({ ...link, source_node: name, source_port: interfaceName });
           } else outsideLinks.push(link);
         }
-        subgraph.fragment = { kind: "placed_stream", nodes: insideNodes, links: insideLinks, groups: [] };
+        subgraph.fragment = { nodes: insideNodes, links: insideLinks, groups: [] };
         const firstMember = members[0];
         if (firstMember?.studio?.position !== undefined && firstMember.studio.position !== null) subgraph.studio = { ...NODE_STUDIO_FIELDS_NONE_SET, position: firstMember.studio.position };
         graph.nodes = [...graph.nodes.filter((node) => !members.includes(node)), subgraph];
@@ -638,10 +651,10 @@ export function applyMockGraphTransaction(
         break;
       }
       case "import_graph_generator": {
-        const subgraph = graph.nodes.find((node) => node.name === operation.name && node.type === operation.generator && node.fragment?.kind === "generated");
+        const subgraph = graph.nodes.find((node) => node.name === operation.name && node.type === operation.generator && node.fragment !== undefined && fragmentKindOfTheNode(node) === "generated");
         if (subgraph === undefined) throw new MockGraphEditNotApplicable(`the mock runs no graph generator; it refreshes only a fragment of \`${operation.generator}\` the graph holds`);
         const from = structuredClone(subgraph.config);
-        subgraph.config = structuredClone(operation.config ?? subgraph.config);
+        subgraph.config = operation.config === undefined || operation.config === null ? subgraph.config : jsonObjectTheActionCarries(operation.config, "config");
         const fragment = nodeIdOf(subgraph);
         recordInHistory({ operation: "refresh_fragment", node: fragment, from: { type: subgraph.type, config: from }, to: { type: subgraph.type, config: subgraph.config } }, { operation: "refresh_fragment", node: fragment, from: { type: subgraph.type, config: subgraph.config }, to: { type: subgraph.type, config: from } });
         break;
@@ -690,11 +703,11 @@ export function applyMockGraphTransaction(
       const carriedByHoldingStream = new Map<string, { port_links_taken_out: JsonValue[]; port_links_put_back: JsonValue[] }>();
       for (const [workingStreamAsset, workingGraph] of workingGraphs) {
         for (const { placing, holdingLevel, holdingStream } of eachPlacementOf(streamOfTheLevel, workingGraph, workingStreamAsset)) {
-          if (placing.fragment !== graph) placing.fragment = { kind: "placed_stream", ...structuredClone({ nodes: graph.nodes, links: graph.links, groups: graph.groups ?? [] }) };
+          if (placing.fragment !== graph) placing.fragment = { ...structuredClone({ nodes: graph.nodes, links: graph.links, groups: graph.groups ?? [] }) };
           placing.input_ports = portsOf("input");
           placing.output_ports = portsOf("output");
           const carried = carriedByHoldingStream.get(holdingStream) ?? { port_links_taken_out: [], port_links_put_back: [] };
-          const linksKept: StreamGraphLink[] = [];
+          const linksKept: MockGraphLink[] = [];
           for (const [position, link] of holdingLevel.links.entries()) {
             const portAfter =
               link.target_node === placing.name ? portNamedAfterTheEdit("input", link.target_port) : link.source_node === placing.name ? portNamedAfterTheEdit("output", link.source_port) : undefined;

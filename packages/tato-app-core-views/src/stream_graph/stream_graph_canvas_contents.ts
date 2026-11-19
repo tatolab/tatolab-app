@@ -3,9 +3,28 @@
 // a link per link of the graph drawn by its state, a frame per labelled group and the graph's canvas notes. A
 // node or link the running stream does not hold yet, and one a diagnostic of the stream names, shows it.
 
-import type { NodeGraphCanvasFrame, NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCanvasNote, NodeGraphCardCondition, NodeGraphLinkLook } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
+import type {
+  NodeGraphCanvasFrame,
+  NodeGraphCanvasLink,
+  NodeGraphCanvasNode,
+  NodeGraphCanvasNote,
+  NodeGraphCardCondition,
+  NodeGraphLinkLook,
+} from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import type { NodeCatalog, StreamCondition, StreamDiagnosticKind, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import {
+  canvasNotesOfTheGraph,
+  fragmentKindOfTheNode,
+  fragmentOfTheNode,
+  isLiveInTheRunningGraph,
+  studioFieldsOfTheNode,
+  type NodeCatalog,
+  type StreamCondition,
+  type StreamDiagnosticKind,
+  type StreamGraph,
+  type StreamGraphLink,
+  type StreamGraphNode,
+} from "@tatolab/tato-app-view-sdk/studio_readings";
 import { descriptionWords, nodeInputs, nodeOutputs } from "../shared/node_pins_of_the_graph";
 import { isANameTheCodeGave, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { linkIdAsTheCanvasKeysIt } from "../shared/stream_graph_edits";
@@ -25,23 +44,23 @@ export interface StreamGraphCanvasContents {
   notes: NodeGraphCanvasNote[];
 }
 
-/** How a link in `linkState` is drawn, and its state in words; a state newer than this app is drawn waiting, in its own spelling. */
-function linkLookAndWords(linkState: string): { look: NodeGraphLinkLook; words: string } {
+/** How a link in `linkState` is drawn, and its state in words; a link the runtime renders with no state is waiting to be wired, as the runtime reads it. */
+function linkLookAndWords(linkState: StreamGraphLink["state"]): {
+  look: NodeGraphLinkLook;
+  words: string;
+} {
   switch (linkState) {
     case "wired":
       return { look: "carrying", words: "wired" };
+    case undefined:
     case "pending":
       return { look: "waiting", words: "waiting to be wired" };
-    case "awaiting_remote":
-      return { look: "waiting", words: "waiting for the other machine" };
     case "error":
       return { look: "failed", words: "failed" };
     case "disconnecting":
       return { look: "ending", words: "disconnecting" };
     case "disconnected":
       return { look: "ending", words: "disconnected" };
-    default:
-      return { look: "waiting", words: linkState };
   }
 }
 
@@ -51,19 +70,20 @@ function linkLookAndWords(linkState: string): { look: NodeGraphLinkLook; words: 
  * runtime's reason, any other diagnostic of `condition` at it in its words, `Restarting` restarting, every other state healthy.
  */
 function cardConditionOf(node: StreamGraphNode, condition: StreamCondition | null): NodeGraphCardCondition {
-  if (!node.live) return { look: "not_ready", not_ready_because: NOT_LIVE_YET_WORDS };
-  if (node.state === "Error") return { look: "failed", failed_because: node.failed_because };
-  if (node.process_raising_because !== null) return { look: "failed", failed_because: node.process_raising_because };
-  if (node.not_ready_because !== null) return { look: "not_ready", not_ready_because: node.not_ready_because };
+  const { components } = node;
+  if (!isLiveInTheRunningGraph(node)) return { look: "not_ready", not_ready_because: NOT_LIVE_YET_WORDS };
+  if (components.state === "Error") return { look: "failed", failed_because: components.failed_because };
+  if (components.process_raising_because !== null) return { look: "failed", failed_because: components.process_raising_because };
+  if (components.not_ready_because !== null) return { look: "not_ready", not_ready_because: components.not_ready_because };
   const diagnostic = diagnosticsAtTheNode(condition, node.name).find(({ kind }) => !DIAGNOSTICS_THE_NODE_CARRIES.has(kind));
   if (diagnostic !== undefined) return doesTheDiagnosticWarn(diagnostic.kind) ? { look: "not_ready", not_ready_because: diagnostic.words } : { look: "failed", failed_because: diagnostic.words };
-  if (node.state === "Restarting") return { look: "restarting" };
+  if (components.state === "Restarting") return { look: "restarting" };
   return { look: "healthy" };
 }
 
 /** How `link` is drawn: waiting while the running stream does not hold it yet, failed while a diagnostic of `condition` names it, else by its state. */
 function linkLookAndWordsOf(link: StreamGraphLink, condition: StreamCondition | null): { look: NodeGraphLinkLook; words: string } {
-  if (!link.live) return { look: "waiting", words: NOT_LIVE_YET_WORDS };
+  if (!isLiveInTheRunningGraph(link)) return { look: "waiting", words: NOT_LIVE_YET_WORDS };
   const diagnostic = diagnosticsAtTheLink(condition, link).at(0);
   if (diagnostic !== undefined) return { look: doesTheDiagnosticWarn(diagnostic.kind) ? "waiting" : "failed", words: diagnostic.words };
   return linkLookAndWords(link.state);
@@ -73,29 +93,46 @@ function canvasLinkOf(link: StreamGraphLink, condition: StreamCondition | null):
   const { look, words } = linkLookAndWordsOf(link, condition);
   return {
     link_id: linkIdAsTheCanvasKeysIt(link),
-    source_node_id: link.source_node,
-    source_pin: link.source_port,
-    target_node_id: link.target_node,
-    target_pin: link.target_port,
+    source_node_id: link.source.node,
+    source_pin: link.source.port,
+    target_node_id: link.target.node,
+    target_pin: link.target.port,
     look,
-    description: `${link.source_node}.${link.source_port} → ${link.target_node}.${link.target_port}, ${words}`,
+    description: `${link.source.node}.${link.source.port} → ${link.target.node}.${link.target.port}, ${words}`,
   };
 }
 
 /** The quiet type beside a card's title: a subgraph's kind (a generated one by its generator), or a node's type when its name is the one the code gave. */
 function typeNameOnTheCard(node: StreamGraphNode): string | null {
-  if (node.fragment?.kind === "placed_stream") return "Subgraph";
-  if (node.fragment?.kind === "generated") return nodeTypeClassName(node.type);
-  return isANameTheCodeGave(node.name, node.type) ? nodeTypeClassName(node.type) : null;
+  if (fragmentOfTheNode(node) !== null)
+    return fragmentKindOfTheNode(node) === "placed_stream"
+      ? "Subgraph"
+      : nodeTypeClassName(node.type);
+  return isANameTheCodeGave(node.name, node.type)
+    ? nodeTypeClassName(node.type)
+    : null;
 }
 
 /** Whether `a` and `b` hold the same values; it compares JSON-shaped data only (plain objects, arrays and primitives), as a `NodeGraphCanvasNode` is. */
 function holdTheSameValues(a: unknown, b: unknown): boolean {
   if (a === b) return true;
-  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || Array.isArray(a) !== Array.isArray(b)) return false;
+  if (
+    typeof a !== "object" ||
+    typeof b !== "object" ||
+    a === null ||
+    b === null ||
+    Array.isArray(a) !== Array.isArray(b)
+  )
+    return false;
   const aEntries = Object.entries(a);
   const bValues = new Map(Object.entries(b));
-  return aEntries.length === bValues.size && aEntries.every(([key, value]) => bValues.has(key) && holdTheSameValues(value, bValues.get(key)));
+  return (
+    aEntries.length === bValues.size &&
+    aEntries.every(
+      ([key, value]) =>
+        bValues.has(key) && holdTheSameValues(value, bValues.get(key)),
+    )
+  );
 }
 
 /**
@@ -107,35 +144,69 @@ function holdTheSameValues(a: unknown, b: unknown): boolean {
  * on the node or link it names; a level inside a subgraph is handed none.
  */
 export function streamGraphCanvasContents(
-  graph: StreamGraphSummary,
+  graph: StreamGraph,
   catalog: NodeCatalog | null,
   previous: StreamGraphCanvasContents | null = null,
   valuesAt: GraphAddress | null = null,
   condition: StreamCondition | null = null,
 ): StreamGraphCanvasContents {
-  const groupIds = new Set(graph.groups.map((group) => group.id));
-  const catalogEntryByType = new Map((catalog?.node_types ?? []).map((entry) => [entry.type, entry]));
-  const previousNodeById = new Map((previous?.nodes ?? []).map((node) => [node.node_id, node]));
+  const groups = graph.groups ?? [];
+  const groupIds = new Set(groups.map((group) => group.id));
+  const catalogEntryByType = new Map(
+    (catalog?.node_types ?? []).map((entry) => [entry.type, entry]),
+  );
+  const previousNodeById = new Map(
+    (previous?.nodes ?? []).map((node) => [node.node_id, node]),
+  );
   const keptWhereTheSame = (node: NodeGraphCanvasNode): NodeGraphCanvasNode => {
     const previousNode = previousNodeById.get(node.node_id);
-    return previousNode !== undefined && holdTheSameValues(previousNode, node) ? previousNode : node;
+    return previousNode !== undefined && holdTheSameValues(previousNode, node)
+      ? previousNode
+      : node;
   };
   return {
-    nodes: graph.nodes.map((node) => keptWhereTheSame({
-      node_id: node.name,
-      title: nodeTitle(node.name, node.type),
-      type_name: typeNameOnTheCard(node),
-      description: descriptionWords(catalogEntryByType.get(node.type)?.description),
-      condition: cardConditionOf(node, condition),
-      inputs: nodeInputs(graph, node, catalogEntryByType.get(node.type), valuesAt),
-      outputs: nodeOutputs(node, catalogEntryByType.get(node.type)),
-      saved_position: node.studio.position === null ? null : { x: node.studio.position[0], y: node.studio.position[1] },
-      frame_id: node.studio.group !== null && groupIds.has(node.studio.group) ? node.studio.group : null,
-      is_collapsed: node.studio.collapsed === true,
-      subgraph: node.fragment?.kind ?? null,
-    })),
+    nodes: graph.nodes.map((node) => {
+      const studio = studioFieldsOfTheNode(node);
+      return keptWhereTheSame({
+        node_id: node.name,
+        title: nodeTitle(node.name, node.type),
+        type_name: typeNameOnTheCard(node),
+        description: descriptionWords(
+          catalogEntryByType.get(node.type)?.description,
+        ),
+        condition: cardConditionOf(node, condition),
+        inputs: nodeInputs(
+          graph,
+          node,
+          catalogEntryByType.get(node.type),
+          valuesAt,
+        ),
+        outputs: nodeOutputs(node, catalogEntryByType.get(node.type)),
+        saved_position:
+          studio.position === null
+            ? null
+            : { x: studio.position[0], y: studio.position[1] },
+        frame_id:
+          studio.group !== null && groupIds.has(studio.group)
+            ? studio.group
+            : null,
+        is_collapsed: studio.collapsed === true,
+        subgraph:
+          fragmentOfTheNode(node) === null ? null : fragmentKindOfTheNode(node),
+      });
+    }),
     links: graph.links.map((link) => canvasLinkOf(link, condition)),
-    frames: graph.groups.map((group) => ({ frame_id: group.id, title: group.title, description: group.description, colour: group.colour })),
-    notes: graph.notes.map((note) => ({ note_id: note.id, text: note.text, position: { x: note.position[0], y: note.position[1] }, size: { width: note.size[0], height: note.size[1] } })),
+    frames: groups.map((group) => ({
+      frame_id: group.id,
+      title: group.title,
+      description: group.description ?? null,
+      colour: group.colour ?? null,
+    })),
+    notes: canvasNotesOfTheGraph(graph).map((note) => ({
+      note_id: note.id,
+      text: note.text,
+      position: { x: note.position[0], y: note.position[1] },
+      size: { width: note.size[0], height: note.size[1] },
+    })),
   };
 }

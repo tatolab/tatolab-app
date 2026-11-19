@@ -1,11 +1,10 @@
 // `tatolab_view.json`, view contract 1.0: what every panel declares, Tato Studio's own or brought by a
-// project. This schema is the source of truth; `tatolab_view.schema.json` is written from it, less
-// the checks only code can make (a path that stays inside the view's folder), which Studio still
-// enforces.
+// project. The Studio reads a manifest with the Schema of `./studio_host`, held to the types here,
+// and writes `tatolab_view.schema.json` from it, less the checks only code can make (a path that
+// stays inside the view's folder), which Studio still enforces.
 
-import { z } from "zod";
-import { PORT_FAMILIES, type PortFamily } from "./port_families.js";
-import { jsonValueSchema } from "./studio_readings.js";
+import type { PortFamily } from "./port_families.js";
+import type { JsonValue } from "./studio_readings.js";
 
 /** The view contract this SDK speaks; a manifest built for a later minor, or another major, is refused by name. */
 export const VIEW_CONTRACT_SERVED = { major: 1, minor: 0 } as const;
@@ -26,155 +25,58 @@ export const VIEW_CAPABILITIES = [
 /** A part of the view contract a manifest declares it uses. */
 export type ViewCapability = (typeof VIEW_CAPABILITIES)[number];
 
+/** Where a view shows: `area`, a panel with no node, opened from any area; `node`, a panel shown on a node of its type, reading that node's inputs and writing its outputs. */
+export type ViewPlacement = "area" | "node";
+
 /** A path inside the view's own folder: relative, with no `..` step, no scheme and no backslash. */
 export function isAPathInsideTheViewsFolder(path: string): boolean {
   if (path === "" || path.startsWith("/") || path.includes("\\") || /^[a-z][a-z0-9+.-]*:/i.test(path)) return false;
   return path.split("/").every((step) => step !== "" && step !== "." && step !== "..");
 }
 
-const pathInsideTheViewsFolderSchema = z
-  .string()
-  .min(1)
-  .refine(isAPathInsideTheViewsFolder, { message: "it is a path inside the view's folder, with no `..` step, scheme or backslash" });
-
-const contractSchema = z
-  .string()
-  .regex(/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/, { message: 'it names the view contract the view was built for, as "1.0"' })
-  .refine(
-    (contract) => {
-      const [major, minor] = contract.split(".").map(Number);
-      return major === VIEW_CONTRACT_SERVED.major && minor !== undefined && minor <= VIEW_CONTRACT_SERVED.minor;
-    },
-    { message: `this Tato Studio serves view contract ${VIEW_CONTRACT_SERVED.major}.${VIEW_CONTRACT_SERVED.minor}` },
-  );
-
-const portNameSchema = z.string().regex(/^[a-z_][a-z0-9_]*$/, { message: "a port name is lower-case letters, digits and underscores" });
-
 /** The families of the outputs a panel writes: each value of one is set on the view node's input of the output's name, and published on the output. */
 export const FAMILIES_A_PANEL_WRITES: readonly PortFamily[] = ["array", "channels", "records"];
 
 /** An input or output a `node` view declares, as a node declares a port. */
-export const viewDeclaredPortSchema = z.object({
-  name: portNameSchema,
-  family: z.enum(PORT_FAMILIES),
-  description: z.string().optional(),
-  /** The lowest and highest value an Array port carries, for a control such as a fader. */
-  range: z.tuple([z.number(), z.number()]).refine(([lowest, highest]) => lowest < highest, { message: "a range is [lowest, highest], lowest first" }).optional(),
-});
-/** An input or output a `node` view declares. */
-export type ViewDeclaredPort = z.infer<typeof viewDeclaredPortSchema>;
+export type ViewDeclaredPort = {
+  /** Lower-case letters, digits and underscores, named once among the view's ports. */
+  name: string;
+  family: PortFamily;
+  description?: string | undefined;
+  /** The lowest and highest value an Array port carries, for a control such as a fader, lowest first. */
+  range?: [number, number] | undefined;
+};
 
-function portsNamedOnce(ports: readonly ViewDeclaredPort[], context: z.RefinementCtx): void {
-  const namesSeen = new Set<string>();
-  ports.forEach((port, index) => {
-    if (namesSeen.has(port.name)) context.addIssue({ code: "custom", message: `\`${port.name}\` is named twice`, path: [index, "name"] });
-    namesSeen.add(port.name);
-    if (port.range !== undefined && port.family !== "array") context.addIssue({ code: "custom", message: "only an Array port carries a range", path: [index, "range"] });
-  });
-}
+/** The JSON Schema of what a view's area remembers: an object whose every property gives its `default`, which fits the property's own schema; any other JSON Schema keyword is kept as written. */
+export type ViewSettingsDeclaration = {
+  type: "object";
+  properties: { [settingName: string]: { default: JsonValue; [keyword: string]: unknown } };
+  additionalProperties?: boolean | undefined;
+  [keyword: string]: unknown;
+};
 
-const declaredPortsSchema = z.array(viewDeclaredPortSchema).superRefine(portsNamedOnce);
-
-const fileExtensionSchema = z.string().regex(/^\.[a-z0-9]+$/, { message: 'an extension is lower case with its dot, as ".glb"' });
-
-/** The JSON Schema of what a view's area remembers: an object whose every property gives its `default`. */
-export const viewSettingsDeclarationSchema = z
-  .looseObject({
-    type: z.literal("object"),
-    properties: z.record(z.string(), z.looseObject({ default: jsonValueSchema })),
-    additionalProperties: z.boolean().optional(),
-  })
-  .superRefine((declaration, context) => {
-    const declaredSettings = settingsSchemaOfTheDeclaration(declaration);
-    if (declaredSettings.kind === "not_a_schema") {
-      context.addIssue({ code: "custom", message: `it is not JSON Schema Studio can check settings against: ${declaredSettings.because}` });
-      return;
-    }
-    const defaults = Object.fromEntries(Object.entries(declaration.properties).map(([settingName, property]) => [settingName, property.default]));
-    for (const issue of declaredSettings.schema.safeParse(defaults).error?.issues ?? []) {
-      context.addIssue({ code: "custom", message: `its default does not fit its own schema: ${issue.message}`, path: ["properties", ...issue.path.map(String), "default"] });
-    }
-  });
-
-/** The Zod schema a settings declaration's JSON Schema makes, or why it makes none. */
-export function settingsSchemaOfTheDeclaration(declaration: Parameters<typeof z.fromJSONSchema>[0]): { kind: "schema"; schema: z.ZodType } | { kind: "not_a_schema"; because: string } {
-  try {
-    return { kind: "schema", schema: z.fromJSONSchema(declaration) };
-  } catch (refusal) {
-    return { kind: "not_a_schema", because: refusal instanceof Error ? refusal.message : String(refusal) };
-  }
-}
-/** The JSON Schema of what a view's area remembers. */
-export type ViewSettingsDeclaration = z.infer<typeof viewSettingsDeclarationSchema>;
-
-/** What `tatolab_view.json` declares, for view contract 1.0. A view's id is never written here: one Tato Studio ships with is its folder's name, a project's view's its project's name and its folder's. */
-export const tatolabViewManifestSchema = z
-  .strictObject({
-    contract: contractSchema,
-    title: z.string().trim().min(1, { message: "it is the name the view-type menu lists" }),
-    description: z.string().optional(),
-    /** An SVG or PNG inside the view's folder; left out, Studio shows its view icon. */
-    icon: pathInsideTheViewsFolderSchema.optional(),
-    /** A picture of the view inside its folder, for a listing of views. */
-    preview: pathInsideTheViewsFolderSchema.optional(),
-    /** The HTML file the view's frame opens on, inside its folder. */
-    entry: pathInsideTheViewsFolderSchema,
-    /** `area`: a panel with no node, opened from any area. `node`: a panel shown on a node of its type, reading that node's inputs and writing its outputs. */
-    placement: z.enum(["area", "node"]),
-    inputs: declaredPortsSchema.default([]),
-    outputs: declaredPortsSchema.default([]),
-    accepts: z.strictObject({ files: z.array(fileExtensionSchema).default([]) }).default({ files: [] }),
-    settings: viewSettingsDeclarationSchema.optional(),
-    /** What the view declares it uses; a camera or microphone left out is refused to its frame. */
-    capabilities: z.array(z.enum(VIEW_CAPABILITIES)).default([]),
-  })
-  .superRefine((manifest, context) => {
-    if (manifest.placement === "area" && (manifest.inputs.length > 0 || manifest.outputs.length > 0)) {
-      context.addIssue({ code: "custom", message: "an `area` view has no node, so it declares no inputs or outputs; a view with ports has `node` placement", path: ["placement"] });
-    }
-    outputsNamedApartFromItsInputsAndSettings(manifest, context);
-  });
-
-/** An output and an input of a view are one name on its node, and so is an output a panel writes and a setting, its value being set on the node's input of the output's name. */
-function outputsNamedApartFromItsInputsAndSettings(manifest: { inputs: readonly ViewDeclaredPort[]; outputs: readonly ViewDeclaredPort[]; settings?: ViewSettingsDeclaration | undefined }, context: z.RefinementCtx): void {
-  const inputNames = new Set(manifest.inputs.map((input) => input.name));
-  const settingNames = new Set(Object.keys(manifest.settings?.properties ?? {}));
-  manifest.outputs.forEach(({ name, family }, index) => {
-    const path = ["outputs", index, "name"];
-    if (inputNames.has(name)) context.addIssue({ code: "custom", message: `\`${name}\` names an input too, and a port is named once`, path });
-    else if (FAMILIES_A_PANEL_WRITES.includes(family) && settingNames.has(name)) {
-      context.addIssue({
-        code: "custom",
-        message: `\`${name}\` names a setting too, and the value of an output a panel writes is set on the view node's input of the output's name, so such an output is named after no setting`,
-        path,
-      });
-    }
-  });
-}
-
-/** What `tatolab_view.json` declares, defaults filled in. */
-export type TatolabViewManifest = z.output<typeof tatolabViewManifestSchema>;
+/** What `tatolab_view.json` declares, for view contract 1.0, defaults filled in. A view's id is never written here: one Tato Studio ships with is its folder's name, a project's view's its project's name and its folder's. */
+export type TatolabViewManifest = {
+  /** The view contract the view was built for, as `"1.0"`. */
+  contract: string;
+  /** The name the view-type menu lists. */
+  title: string;
+  description?: string | undefined;
+  /** An SVG or PNG inside the view's folder; left out, Studio shows its view icon. */
+  icon?: string | undefined;
+  /** A picture of the view inside its folder, for a listing of views. */
+  preview?: string | undefined;
+  /** The HTML file the view's frame opens on, inside its folder. */
+  entry: string;
+  placement: ViewPlacement;
+  inputs: ViewDeclaredPort[];
+  outputs: ViewDeclaredPort[];
+  /** The files the view opens, by extension, lower case with its dot, as `".glb"`. */
+  accepts: { files: string[] };
+  settings?: ViewSettingsDeclaration | undefined;
+  /** What the view declares it uses, each once; a camera or microphone left out is refused to its frame. */
+  capabilities: ViewCapability[];
+};
 
 /** A view's manifest as read, or why it cannot open, in words naming the field. */
 export type TatolabViewManifestReading = { kind: "read"; manifest: TatolabViewManifest } | { kind: "not_read"; because: string };
-
-function fieldPathWords(path: readonly PropertyKey[]): string {
-  if (path.length === 0) return "`tatolab_view.json`";
-  return `\`${path.map((step, index) => (typeof step === "number" ? `[${step}]` : `${index === 0 ? "" : "."}${String(step)}`)).join("")}\``;
-}
-
-/** `manifestJson`, a view's `tatolab_view.json` as parsed, read against the contract this SDK speaks. */
-export function readTatolabViewManifest(manifestJson: unknown): TatolabViewManifestReading {
-  const parsed = tatolabViewManifestSchema.safeParse(manifestJson);
-  if (parsed.success) return { kind: "read", manifest: { ...parsed.data, capabilities: [...new Set(parsed.data.capabilities)] } };
-  const because = parsed.error.issues.map((issue) => `${fieldPathWords(issue.path)}: ${issue.message}.`).join(" ");
-  return { kind: "not_read", because };
-}
-
-/** The JSON Schema authors' editors check `tatolab_view.json` against, written from the Zod schema. */
-export function tatolabViewJsonSchema(): Record<string, unknown> {
-  return {
-    title: "tatolab_view.json, view contract 1.0",
-    ...z.toJSONSchema(tatolabViewManifestSchema, { target: "draft-2020-12", io: "input", unrepresentable: "any" }),
-  };
-}

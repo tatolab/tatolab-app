@@ -1,44 +1,39 @@
 // The view contract as it crosses the MessagePort between a view's frame and Studio. Studio's own
 // build writes every message it sends a view, so a view takes it as the type below and parses none
-// of it; a message a view sends is an author's code, so Studio parses it against the schemas here.
-// Every view's frame shares Studio's origin, so an Image frame crosses as the transferred
-// `VideoFrame`, with no copy.
+// of it; a message a view sends is an author's code, so Studio decodes it on its own side, with the
+// Schemas of `./studio_host`, each held to a type here. Every view's frame shares Studio's origin, so
+// an Image frame crosses as the transferred `VideoFrame`, with no copy.
 
-import { z } from "zod";
-import {
-  jsonValueSchema,
-  graphEditModeSchema,
-  portViewerTargetSchema,
-  projectStreamsRecoverySchema,
-  projectTransactionAuthorSchema,
-  streamGraphActionSchema,
-  streamTabAddressSchema,
-  studioSelectionSchema,
-  type AssetPreviewPicture,
-  type JsonValue,
-  type ListedStreamsReading,
-  type NodeCatalogReading,
-  type OpenProjectReading,
-  type PortViewerMessageReading,
-  type ProjectActionRefusal,
-  type ProjectAssetsImported,
-  type ProjectAssetsReading,
-  type ProjectFileRead,
-  type ProjectFiles,
-  type ProjectGraphTransaction,
-  type ProjectLogReading,
-  type ProjectNodeTypesReading,
-  type ProjectTransaction,
-  type ProjectTransactionAuthor,
-  type ProjectTransactionsReading,
-  type PythonLanguageServerConnectionEvent,
-  type StreamGraphReading,
-  type StreamInputValuesReading,
-  type StreamTabAddress,
-  type StudioSelection,
-  type StudioViewsReading,
-  type ViewHeaderRow,
-  type ViewOpenedOn,
+import type {
+  AssetPreviewPicture,
+  GraphEditMode,
+  JsonValue,
+  ListedStreamsReading,
+  NodeCatalogReading,
+  OpenProjectReading,
+  PortViewerMessageReading,
+  PortViewerTarget,
+  ProjectActionRefusal,
+  ProjectAssetsImported,
+  ProjectAssetsReading,
+  ProjectFileRead,
+  ProjectFiles,
+  ProjectGraphTransaction,
+  ProjectLogReading,
+  ProjectNodeTypesReading,
+  ProjectStreamsRecovery,
+  ProjectTransaction,
+  ProjectTransactionAuthor,
+  ProjectTransactionsReading,
+  PythonLanguageServerConnectionEvent,
+  StreamGraphAction,
+  StreamGraphReading,
+  StreamInputValuesReading,
+  StreamTabAddress,
+  StudioSelection,
+  StudioViewsReading,
+  ViewHeaderRow,
+  ViewOpenedOn,
 } from "./studio_readings.js";
 import type { NodeUiElementsReading } from "./node_ui/node_ui_elements_listing.js";
 import type { TatolabViewManifest } from "./tatolab_view_manifest.js";
@@ -64,12 +59,8 @@ export type PortViewerEvent =
 /** The type of the message Studio posts into a view's frame, carrying the view's end of its MessagePort as its one transferred port. */
 export const VIEW_PORT_HANDOVER = "tatolab_view_port";
 
-const watchOrAskIdSchema = z.number().int().nonnegative();
-
 /** A section of the window that lists modules: the modules added to the open project, or the Marketplace's packages and samples. */
-export const modulesAndMarketplaceSectionSchema = z.enum(["added_to_this_project", "marketplace"]);
-/** A section of the Modules and Marketplace window. */
-export type ModulesAndMarketplaceSection = z.infer<typeof modulesAndMarketplaceSectionSchema>;
+export type ModulesAndMarketplaceSection = "added_to_this_project" | "marketplace";
 
 /** One area of the studio window's layout, as a view of some type could be shown in it: what it shows now, by its view's title, and whether that is the view type itself or the area of the view asking. */
 export type AreaForAViewType = {
@@ -84,126 +75,104 @@ export type AreaForAViewType = {
 export type AreasForAViewTypeReading = { kind: "not_a_view_type" } | { kind: "areas_listed"; view_title: string; areas: AreaForAViewType[] } | { kind: "no_areas"; because: string };
 
 /** A project asset the person is choosing in Studio's asset picker, as for a config field naming one. */
-export const projectAssetPickSchema = z.object({
+export type ProjectAssetPick = {
   /** The `media_facts` members of which a chosen asset's bytes hold one, as `["image"]`; `null` takes any asset of the project. */
-  media: z.array(z.string()).nullable(),
+  media: string[] | null;
   /** The UUID of the asset chosen now, which the picker marks; `null` for none. */
-  chosen_now: z.string().nullable(),
-});
-/** A project asset being chosen in Studio's asset picker. */
-export type ProjectAssetPick = z.infer<typeof projectAssetPickSchema>;
+  chosen_now: string | null;
+};
 
 /** What a view may watch. */
-export const viewWatchedSubjectSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("open_project") }),
-  z.object({ kind: z.literal("listed_streams") }),
-  z.object({ kind: z.literal("active_stream_tab") }),
-  z.object({ kind: z.literal("selection") }),
-  z.object({ kind: z.literal("stream_graph"), stream: z.string() }),
-  z.object({ kind: z.literal("node_catalog"), stream: z.string() }),
+export type ViewWatchedSubject =
+  | { kind: "open_project" }
+  | { kind: "listed_streams" }
+  | { kind: "active_stream_tab" }
+  | { kind: "selection" }
+  | { kind: "stream_graph"; stream: string }
+  | { kind: "node_catalog"; stream: string }
   /** Every input's value in the stream's graph, then each change of one. */
-  z.object({ kind: z.literal("input_values"), stream: z.string() }),
-  z.object({ kind: z.literal("project_log"), project_folder: z.string() }),
-  z.object({ kind: z.literal("project_node_types"), project_folder: z.string() }),
+  | { kind: "input_values"; stream: string }
+  | { kind: "project_log"; project_folder: string }
+  | { kind: "project_node_types"; project_folder: string }
   /** The project's assets, listed again while watched. */
-  z.object({ kind: z.literal("project_assets"), project_folder: z.string() }),
+  | { kind: "project_assets"; project_folder: string }
   /** The project's change feed, read again each time the runtime applies a transaction to it. */
-  z.object({ kind: z.literal("project_transactions"), project_folder: z.string() }),
+  | { kind: "project_transactions"; project_folder: string }
   /** The views Studio ships with and those the open project and its imports bring, listed again with the project's. */
-  z.object({ kind: z.literal("studio_views") }),
+  | { kind: "studio_views" }
   /** The node UI elements the Studio and the open project bring, each panel's control table read from them. */
-  z.object({ kind: z.literal("node_ui_elements") }),
+  | { kind: "node_ui_elements" }
   /** A running node's output port, read until the watch stops. */
-  z.object({ kind: z.literal("port_viewer"), target: portViewerTargetSchema }),
+  | { kind: "port_viewer"; target: PortViewerTarget }
   /** What is wired into one of a `node` view's own inputs. */
-  z.object({ kind: z.literal("input"), input: z.string() }),
+  | { kind: "input"; input: string }
   /** Pyright's language server for a project folder, started for this watch and stopped with it; messages to it go as `send_to_python_language_server` asks. */
-  z.object({ kind: z.literal("python_language_server"), project_folder: z.string() }),
-  z.object({ kind: z.literal("settings") }),
-  z.object({ kind: z.literal("opened_on") }),
-  z.object({ kind: z.literal("header_row") }),
+  | { kind: "python_language_server"; project_folder: string }
+  | { kind: "settings" }
+  | { kind: "opened_on" }
+  | { kind: "header_row" }
   /** Whether the view's area fills the window now, at once and on each change. */
-  z.object({ kind: z.literal("area_expansion") }),
+  | { kind: "area_expansion" }
   /** The layout's areas for the view type `view_type_id`, read again as the layout or the view types change. */
-  z.object({ kind: z.literal("areas_for_the_view_type"), view_type_id: z.string() }),
+  | { kind: "areas_for_the_view_type"; view_type_id: string }
   /** The asset pick the view is shown in Studio's asset picker to answer; `null` for a view shown anywhere else. */
-  z.object({ kind: z.literal("project_asset_pick") }),
-]);
-/** What a view may watch. */
-export type ViewWatchedSubject = z.infer<typeof viewWatchedSubjectSchema>;
+  | { kind: "project_asset_pick" };
 
 /** A file of the open project or its imports, or a running node's output port, that a view of some type is opened on. */
-export const viewOpeningTargetSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("file"), file: z.string() }),
-  z.object({ kind: z.literal("port"), target: portViewerTargetSchema }),
-]);
-/** What a view of some type is opened on. */
-export type ViewOpeningTarget = z.infer<typeof viewOpeningTargetSchema>;
+export type ViewOpeningTarget = { kind: "file"; file: string } | { kind: "port"; target: PortViewerTarget };
 
 /** What a view may ask Studio to do; an output's payload travels beside the ask in the same message. */
-export const viewAskSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("select"), selection: studioSelectionSchema }),
-  z.object({ kind: z.literal("open_stream_tab"), stream_tab: streamTabAddressSchema }),
+export type ViewAsk =
+  | { kind: "select"; selection: StudioSelection }
+  | { kind: "open_stream_tab"; stream_tab: StreamTabAddress }
   /** Open a view of `view_type_id` on `on`, in an area showing that type, or in the area the layout gives it. */
-  z.object({ kind: z.literal("open_view"), view_type_id: z.string(), on: viewOpeningTargetSchema }),
+  | { kind: "open_view"; view_type_id: string; on: ViewOpeningTarget }
   /** Keep `settings` with the view's area, checked against the view's declared settings. */
-  z.object({ kind: z.literal("remember_settings"), settings: jsonValueSchema }),
-  z.object({ kind: z.literal("read_project_file"), file: z.string() }),
+  | { kind: "remember_settings"; settings: JsonValue }
+  | { kind: "read_project_file"; file: string }
   /** Write `text` to `file` whole when it is still at `based_on_version` on disk (`null` for a new file); never over a file changed since, or an import's. */
-  z.object({ kind: z.literal("save_project_file"), file: z.string(), text: z.string(), based_on_version: z.string().nullable() }),
+  | { kind: "save_project_file"; file: string; text: string; based_on_version: string | null }
   /** A new Python node file at `file`, absolute, in the open project's own folder, from the runtime's node template. */
-  z.object({ kind: z.literal("create_node_file"), file: z.string() }),
-  z.object({ kind: z.literal("list_project_files"), project_folder: z.string() }),
+  | { kind: "create_node_file"; file: string }
+  | { kind: "list_project_files"; project_folder: string }
   /** One JSON-RPC message for the language server the view's watch `watch_id` started. */
-  z.object({ kind: z.literal("send_to_python_language_server"), watch_id: watchOrAskIdSchema, message: jsonValueSchema }),
-  z.object({ kind: z.literal("send_output"), output: z.string() }),
+  | { kind: "send_to_python_language_server"; watch_id: number; message: JsonValue }
+  | { kind: "send_output"; output: string }
   /** Undo `author`'s latest transaction in the project not undone yet, through the runtime's `undo`. */
-  z.object({ kind: z.literal("undo_in_the_project"), project_folder: z.string(), author: projectTransactionAuthorSchema }),
+  | { kind: "undo_in_the_project"; project_folder: string; author: ProjectTransactionAuthor }
   /** Redo what `author`'s latest undo in the project reversed, through the runtime's `redo`. */
-  z.object({ kind: z.literal("redo_in_the_project"), project_folder: z.string(), author: projectTransactionAuthorSchema }),
-  /** Apply `operations` on the graphs of the project's streams as one transaction through the runtime's `transact`; `idempotency_key` is minted once per gesture, so a retry answers the first transaction. */
-  z.object({
-    kind: z.literal("transact_in_the_project"),
-    project_folder: z.string(),
-    operations: z.array(streamGraphActionSchema).min(1),
-    mode: graphEditModeSchema,
-    idempotency_key: z.string().nullable(),
-  }),
+  | { kind: "redo_in_the_project"; project_folder: string; author: ProjectTransactionAuthor }
+  /** Apply `operations`, at least one, on the graphs of the project's streams as one transaction through the runtime's `transact`; `idempotency_key` is minted once per gesture, so a retry answers the first transaction. */
+  | { kind: "transact_in_the_project"; project_folder: string; operations: StreamGraphAction[]; mode: GraphEditMode; idempotency_key: string | null }
   /** The person editing in Studio, the author history records their edits under and their own undo takes. */
-  z.object({ kind: z.literal("read_the_person_editing") }),
-  /** Ask the person for files in the desktop's open dialog, offering the files of `media` (`null` for any), and import each into the project through the runtime's `import_asset`, which places it in its kind's folder. */
-  z.object({ kind: z.literal("import_assets_into_the_project"), project_folder: z.string(), media: z.array(z.string()).nullable().default(null) }),
+  | { kind: "read_the_person_editing" }
+  /** Ask the person for files in the desktop's open dialog, offering the files of `media` (`null` for any, and when left out), and import each into the project through the runtime's `import_asset`, which places it in its kind's folder. */
+  | { kind: "import_assets_into_the_project"; project_folder: string; media: string[] | null }
   /** Put the asset `asset` of the project at `to_path`, renaming it, moving it or both, through the runtime's `relocate_asset`, by the person editing. */
-  z.object({ kind: z.literal("relocate_asset_in_the_project"), project_folder: z.string(), asset: z.string(), to_path: z.string() }),
+  | { kind: "relocate_asset_in_the_project"; project_folder: string; asset: string; to_path: string }
   /** The preview picture of the asset `asset` of the project, an image's own or a video's poster frame, through the runtime's `read_asset_preview`. */
-  z.object({ kind: z.literal("read_asset_preview_in_the_project"), project_folder: z.string(), asset: z.string() }),
+  | { kind: "read_asset_preview_in_the_project"; project_folder: string; asset: string }
   /** Stop tracking the asset `asset` of the project, its file leaving it, through the runtime's `delete_asset`, by the person editing. */
-  z.object({ kind: z.literal("delete_asset_from_the_project"), project_folder: z.string(), asset: z.string() }),
+  | { kind: "delete_asset_from_the_project"; project_folder: string; asset: string }
   /** Recover the project's streams with `recovery`: their playback stopped and started again, or the project read again from disk. */
-  z.object({ kind: z.literal("recover_the_projects_streams"), project_folder: z.string(), recovery: projectStreamsRecoverySchema }),
+  | { kind: "recover_the_projects_streams"; project_folder: string; recovery: ProjectStreamsRecovery }
   /** Show the view type `view_type_id` in area `area_id` of the layout, in place of what it shows. */
-  z.object({ kind: z.literal("show_view_type_in_area"), view_type_id: z.string(), area_id: z.string() }),
+  | { kind: "show_view_type_in_area"; view_type_id: string; area_id: string }
   /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
-  z.object({ kind: z.literal("open_modules_and_marketplace"), shows: modulesAndMarketplaceSectionSchema }),
+  | { kind: "open_modules_and_marketplace"; shows: ModulesAndMarketplaceSection }
   /** Have the person choose a project asset in Studio's asset picker over the window, ending any asset pick held; answered once the picker closes. */
-  z.object({ kind: z.literal("pick_a_project_asset"), pick: projectAssetPickSchema }),
+  | { kind: "pick_a_project_asset"; pick: ProjectAssetPick }
   /** End the asset pick held with the asset `asset` chosen, by its UUID. */
-  z.object({ kind: z.literal("answer_the_project_asset_pick"), asset: z.string() }),
+  | { kind: "answer_the_project_asset_pick"; asset: string }
   /** Grow the view's area to fill the window, or put the layout back; refused where the view shows outside a layout. */
-  z.object({ kind: z.literal("expand_the_area"), is_expanded: z.boolean() }),
-]);
-/** What a view may ask Studio to do. */
-export type ViewAsk = z.infer<typeof viewAskSchema>;
+  | { kind: "expand_the_area"; is_expanded: boolean };
 
-/** One message a view sends Studio. */
-export const messageFromTheViewSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("watch"), watch_id: watchOrAskIdSchema, subject: viewWatchedSubjectSchema }),
-  z.object({ kind: z.literal("stop_watching"), watch_id: watchOrAskIdSchema }),
+/** One message a view sends Studio; a watch or ask id is a whole number, `0` or more. */
+export type MessageFromTheView =
+  | { kind: "watch"; watch_id: number; subject: ViewWatchedSubject }
+  | { kind: "stop_watching"; watch_id: number }
   /** `payload`, beside a `send_output` ask: a `VideoFrame` for Image, which Studio then owns, or JSON. */
-  z.object({ kind: z.literal("ask"), ask_id: watchOrAskIdSchema, ask: viewAskSchema, payload: z.unknown().optional() }),
-]);
-/** One message a view sends Studio. */
-export type MessageFromTheView = z.infer<typeof messageFromTheViewSchema>;
+  | { kind: "ask"; ask_id: number; ask: ViewAsk; payload?: unknown };
 
 /** What an input delivers: its port viewer's events, or why nothing is wired into it. */
 export type ViewInputEvent = PortViewerEvent | { kind: "unwired"; because: string };

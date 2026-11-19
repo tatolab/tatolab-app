@@ -36,7 +36,7 @@ import type {
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
-  StreamGraphSummary,
+  StreamGraph,
   StreamGraphInputValueChange,
   StreamGraphInputValueRead,
   InputValueComesFrom,
@@ -353,7 +353,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   quit_tatolab_app: { commandArguments: undefined; answer: null };
   /** `stream` and `action` narrow the read, `null` for no narrowing; `after` is the `next_after` of the page before, `null` for the oldest record held; `until` a cursor the read stops at, `null` for none. */
   read_project_log_records: { commandArguments: { project_directory: string; after: string | null; until: string | null } & ProjectLogNarrowing; answer: ProjectLogRecordsPage };
-  describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraphSummary };
+  describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraph };
   describe_node_catalog: { commandArguments: { stream: string }; answer: NodeCatalog };
   /** `project_directory` the asking window's project, one of its imports, or a project the runtime lists; refused in the runtime's own words. */
   list_project_node_types: { commandArguments: { project_directory: string }; answer: ProjectNodeTypeListing };

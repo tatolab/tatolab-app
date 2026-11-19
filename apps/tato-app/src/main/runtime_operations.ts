@@ -21,11 +21,11 @@ import type {
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
-  StreamGraphSummary,
+  StreamGraph,
 } from "../shared/tatolab_backend_contract.js";
 import { assetPreviewPictureFromTheReadAssetPreviewToolResult, type AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import { listedStreamsFromTheListStreamsToolResult } from "./listed_streams_on_the_wire.js";
-import { isAJsonObject, jsonTextKeepingTheWrittenNumbers, parseJsonOnTheWire, prettyJsonTextKeepingTheWrittenNumbers, requiredText } from "./json_on_the_wire.js";
+import { isAJsonObject, jsonTextKeepingTheWrittenNumbers, parseJsonOnTheWire, requiredText } from "./json_on_the_wire.js";
 import { bodyOfAnOkAnswer } from "./local_api_plain_http.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
@@ -69,7 +69,6 @@ import {
   streamActionDescriptionFromTheDescribeStreamActionToolResult,
 } from "./stream_action_description.js";
 import { queuedStreamActionFromTheToolResult, streamAssetChangeFromTheToolResult, streamsThePauseOrResumeReachedFromTheToolResult, type StreamAssetChange } from "./stream_changes_on_the_wire.js";
-import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { authorOnTheWire, controlOperationReadWith, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 
 /**
@@ -107,9 +106,9 @@ export function readProjectLogRecords(
   );
 }
 
-/** The graph of the stream `stream`, running or saved, from the runtime's `graph`, its numbers kept as the runtime wrote them. */
-export function describeStreamGraph(stream: string): Effect.Effect<StreamGraphSummary, RuntimeControlFailure, RuntimeControl> {
-  return controlOperationReadWith("graph", { stream }, (answered) => streamGraphSummaryFromTheGraphToolResult(stream, prettyJsonTextKeepingTheWrittenNumbers(answered)));
+/** The graph of the stream `stream`, running or saved, the runtime's `graph` answer passed on as the contract types it; an answer of every stream's graph, which a call naming one never gets, fails as not the contract's. */
+export function describeStreamGraph(stream: string): Effect.Effect<StreamGraph, RuntimeControlFailure, RuntimeControl> {
+  return controlOperationReadWith("graph", { stream }, (answered) => ("streams" in answered ? failedWith("every loaded stream's graph answered for a call naming one") : succeeded(answered)));
 }
 
 /** Every node type the loaded stream `stream` can add, from `GET /api/registry?stream=`; refused in the runtime's own words. */

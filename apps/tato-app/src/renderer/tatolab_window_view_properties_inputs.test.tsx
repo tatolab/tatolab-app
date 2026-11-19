@@ -1,11 +1,10 @@
 // @vitest-environment happy-dom
 import { fireEvent, waitFor } from "@testing-library/react";
 import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
-import { nodeUiElementTag } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mockStudioNodeUiElements } from "../../mock/mock_node_ui_elements";
-import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PATTERN_MAIN_STREAM } from "./tatolab_window_view_test_support";
+import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PATTERN_MAIN_STREAM, tagOfTheStudiosFloatControl } from "./tatolab_window_view_test_support";
 import type { TatolabBackend } from "./backend/tatolab_backend";
+import { inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 vi.mock("@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_monaco", () => {
   throw new Error("Monaco is not loaded in the window's tests.");
@@ -24,10 +23,11 @@ class StandInFloatControl extends HTMLElement implements InputControlElement<"fl
   }
 }
 
-// A frame imports each listed script from the dev server, which no test serves, so the stand-in is defined under the tag
-// the mock's listing mints, as loading the Studio's own control in a frame defines it.
-const [MOCK_FLOAT_CONTROL_LISTED] = mockStudioNodeUiElements(window.location.origin, false);
-customElements.define(nodeUiElementTag(MOCK_FLOAT_CONTROL_LISTED ?? expect.unreachable("the mock lists the Studio's Float control")), StandInFloatControl);
+/** The same stand-in under the tag of the Studio's Float slider, which draws a Float input whose range has both ends. */
+class StandInFloatSlider extends StandInFloatControl {}
+
+customElements.define(tagOfTheStudiosFloatControl(null), StandInFloatControl);
+customElements.define(tagOfTheStudiosFloatControl("slider"), StandInFloatSlider);
 
 afterEach(cleanUpTheWindowsOfEarlierTests);
 
@@ -77,13 +77,14 @@ async function operationsRecorded(backend: TatolabBackend): Promise<string[]> {
 /** What the main stream's node `nodeName` reads on its input `input`, as the mock's graph renders it. */
 async function valueTheGraphReads(backend: TatolabBackend, nodeName: string, input: string): Promise<unknown> {
   const graph = await backend.describeStreamGraph(PATTERN_MAIN_STREAM);
-  return graph.nodes.find((node) => node.name === nodeName)?.input_ports.find((port) => port.name === input)?.value_read;
+  const port = graph.nodes.find((node) => node.name === nodeName)?.ports.inputs.find((candidate) => candidate.name === input);
+  return port === undefined ? undefined : inputValueReadOfThePort(port);
 }
 
 /** The links of the main stream's graph into the node `nodeName`, as `source.port -> input`. */
 async function linksInto(backend: TatolabBackend, nodeName: string): Promise<string[]> {
   const graph = await backend.describeStreamGraph(PATTERN_MAIN_STREAM);
-  return graph.links.filter((link) => link.target_node === nodeName).map((link) => `${link.source_node}.${link.source_port} -> ${link.target_port}`);
+  return graph.links.filter((link) => link.target.node === nodeName).map((link) => `${link.source.node}.${link.source.port} -> ${link.target.port}`);
 }
 
 describe("Properties' Inputs", () => {
@@ -92,7 +93,7 @@ describe("Properties' Inputs", () => {
     await selectInTheStreamGraph("warmth");
     const control = await waitFor(() => controlOnTheRow("base") ?? expect.unreachable("no control on Properties' base row"), AS_LONG_AS_A_FRAME_BINDS);
     expect(control.getAttribute("data-surface")).toBe("properties");
-    expect(inputRow("base").querySelector("[data-properties-input-description]")).toBeNull();
+    expect(inputRow("base").querySelector("[data-properties-input-description]")?.textContent).toBe("How warm the picture is on the first beat of a bar.");
     expect(inputRow("base").querySelector("[data-properties-input-comes-from]")?.textContent).toBe("Default");
     expect(inputRow("base").querySelector("[data-properties-input-reset]")).toBeNull();
 

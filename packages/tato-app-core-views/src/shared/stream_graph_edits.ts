@@ -3,15 +3,21 @@
 // The canvas names a card by its node's name, which a link end names it by too.
 
 import {
+  familyOfThePort,
+  fragmentKindOfTheNode,
+  fragmentOfTheNode,
+  isAJsonValue,
+  jsonObjectMembersOf,
   NODE_STUDIO_FIELDS_NONE_SET,
-  streamGraphNodeStudioFieldsSchema,
+  studioFieldsOfTheNode,
   type JsonValue,
   type NodeCatalogEntry,
   type NodeCatalogPort,
   type StreamGraphAction,
   type StreamGraphNode,
   type StreamGraphNodeStudioFields,
-  type StreamGraphSummary,
+  type StudioCanvasPair,
+  type StreamGraph,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { castAsTheRuntimeNamesAnUnnamedNode, nodeTypeClassName } from "./node_words";
 
@@ -39,21 +45,22 @@ const toTheCanvasPixel = (position: StreamGraphCanvasPosition): [number, number]
 /** One stream's graph as the edits read it: its stream asset, each node's UUID by its name, and the studio fields sent for a node that the graph doesn't show yet, by node UUID. */
 export interface EditedStreamGraph {
   streamAsset: string;
-  graph: StreamGraphSummary;
+  graph: StreamGraph;
   nodeIdByName: ReadonlyMap<string, string>;
   studioSentAheadByNodeId: ReadonlyMap<string, StreamGraphNodeStudioFields>;
 }
 
 /** `graph` read for edits; why not when the runtime renders it without its stream asset or a node without its UUID. */
-export function editedStreamGraphOf(graph: StreamGraphSummary, studioSentAheadByNodeId: ReadonlyMap<string, StreamGraphNodeStudioFields> = new Map()): EditedStreamGraph | { because: string } {
-  if (graph.stream_asset === null) return { because: "The runtime's graph names no stream asset, so an edit has no stream to name." };
+export function editedStreamGraphOf(graph: StreamGraph, studioSentAheadByNodeId: ReadonlyMap<string, StreamGraphNodeStudioFields> = new Map()): EditedStreamGraph | { because: string } {
+  const streamAsset = graph.asset ?? null;
+  if (streamAsset === null) return { because: "The runtime's graph names no stream asset, so an edit has no stream to name." };
   const nodeWithoutAnId = graph.nodes.find((node) => node.id === "");
   if (nodeWithoutAnId !== undefined) return { because: `The runtime's graph gives ${nodeWithoutAnId.name} no UUID, so an edit cannot name it.` };
-  return { streamAsset: graph.stream_asset, graph, nodeIdByName: new Map(graph.nodes.map((node) => [node.name, node.id])), studioSentAheadByNodeId };
+  return { streamAsset, graph, nodeIdByName: new Map(graph.nodes.map((node) => [node.name, node.id])), studioSentAheadByNodeId };
 }
 
 /** A node's studio fields as the `studio` object `set_studio_fields` replaces whole: each field the node has kept, and its metadata. */
-function studioObjectOf(studio: StreamGraphNodeStudioFields): Record<string, JsonValue> {
+function studioObjectOf(studio: Readonly<StreamGraphNodeStudioFields>): Record<string, JsonValue> {
   return {
     ...(studio.position === null ? {} : { position: studio.position }),
     ...(studio.group === null ? {} : { group: studio.group }),
@@ -65,8 +72,32 @@ function studioObjectOf(studio: StreamGraphNodeStudioFields): Record<string, Jso
 }
 
 /** A node's studio fields as the next `set_studio_fields` builds on: those sent ahead of the graph, else the graph's. */
-function studioToBuildOn(edited: EditedStreamGraph, node: StreamGraphNode): StreamGraphNodeStudioFields {
-  return edited.studioSentAheadByNodeId.get(node.id) ?? node.studio;
+function studioToBuildOn(edited: EditedStreamGraph, node: StreamGraphNode): Readonly<StreamGraphNodeStudioFields> {
+  return edited.studioSentAheadByNodeId.get(node.id) ?? studioFieldsOfTheNode(node);
+}
+
+/** Whether `value` is a point or a size on the canvas. */
+function isACanvasPair(value: unknown): value is StudioCanvasPair {
+  return Array.isArray(value) && value.length === 2 && value.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate));
+}
+
+/** A field that is unset or of the type `isOfItsType` names. */
+function unsetOr<FieldType>(value: unknown, isOfItsType: (value: unknown) => value is FieldType): value is FieldType | null {
+  return value === null || isOfItsType(value);
+}
+
+const isText = (value: unknown): value is string => typeof value === "string";
+const isTrueOrFalse = (value: unknown): value is boolean => typeof value === "boolean";
+
+/** The studio fields a `set_studio_fields` action's `studio` sets, a field it leaves out unset; `null` when one it sets is not of its field's type. */
+function studioFieldsOfTheAction(studio: { readonly [field: string]: unknown }): StreamGraphNodeStudioFields | null {
+  const { position, group, comment, colour, collapsed, metadata } = { ...NODE_STUDIO_FIELDS_NONE_SET, ...studio };
+  if (!unsetOr(position, isACanvasPair) || !unsetOr(group, isText) || !unsetOr(comment, isText) || !unsetOr(colour, isText) || !unsetOr(collapsed, isTrueOrFalse)) return null;
+  if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) return null;
+  const metadataEntries = Object.entries(metadata);
+  const jsonMetadataEntries = metadataEntries.filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]));
+  if (jsonMetadataEntries.length !== metadataEntries.length) return null;
+  return { position, group, comment, colour, collapsed, metadata: Object.fromEntries(jsonMetadataEntries) };
 }
 
 /** Each node's studio fields that `actions` set, by node UUID, so a second edit sent before the graph shows the first builds on it. */
@@ -74,8 +105,8 @@ export function studioFieldsSetBy(actions: readonly StreamGraphAction[]): Map<st
   const studioByNodeId = new Map<string, StreamGraphNodeStudioFields>();
   for (const action of actions) {
     if (action.operation !== "set_studio_fields") continue;
-    const studio = streamGraphNodeStudioFieldsSchema.safeParse({ ...NODE_STUDIO_FIELDS_NONE_SET, ...action.studio });
-    if (studio.success) studioByNodeId.set(action.node, studio.data);
+    const studio = studioFieldsOfTheAction(action.studio);
+    if (studio !== null) studioByNodeId.set(action.node, studio);
   }
   return studioByNodeId;
 }
@@ -84,17 +115,18 @@ export function studioFieldsSetBy(actions: readonly StreamGraphAction[]): Map<st
 function nodeAtAnyLevel(nodes: readonly StreamGraphNode[], nodeId: string): StreamGraphNode | undefined {
   for (const node of nodes) {
     if (node.id === nodeId) return node;
-    const inside = node.fragment === null ? undefined : nodeAtAnyLevel(node.fragment.nodes, nodeId);
+    const fragment = fragmentOfTheNode(node);
+    const inside = fragment === null ? undefined : nodeAtAnyLevel(fragment.nodes, nodeId);
     if (inside !== undefined) return inside;
   }
   return undefined;
 }
 
 /** Whether the graph now shows each studio field set ahead for its node, at whatever level of its subgraphs the node is, whatever else another edit set beside them. */
-export function doesTheGraphShowTheStudioSentAhead(graph: StreamGraphSummary, nodeId: string, studioSentAhead: StreamGraphNodeStudioFields): boolean {
+export function doesTheGraphShowTheStudioSentAhead(graph: StreamGraph, nodeId: string, studioSentAhead: StreamGraphNodeStudioFields): boolean {
   const node = nodeAtAnyLevel(graph.nodes, nodeId);
   if (node === undefined) return true;
-  const shown = studioObjectOf(node.studio);
+  const shown = studioObjectOf(studioFieldsOfTheNode(node));
   return Object.entries(studioObjectOf(studioSentAhead)).every(([field, value]) => JSON.stringify(shown[field]) === JSON.stringify(value));
 }
 
@@ -177,8 +209,8 @@ export function canANodeTypeTakeTheLooseWire(nodeType: NodeCatalogEntry, looseWi
 export function deletedEdits(edited: EditedStreamGraph, deleted: { node_ids: readonly string[]; link_ids: readonly string[]; note_ids: readonly string[] }): StreamGraphAction[] {
   const removedNodeNames = new Set(deleted.node_ids);
   const disconnected: StreamGraphAction[] = edited.graph.links
-    .filter((link) => deleted.link_ids.includes(linkIdAsTheCanvasKeysIt(link)) && !removedNodeNames.has(link.source_node) && !removedNodeNames.has(link.target_node))
-    .flatMap((link) => linkDisconnectedEdits(edited, { from_node: link.source_node, from_port: link.source_port, to_node: link.target_node, to_port: link.target_port }));
+    .filter((link) => deleted.link_ids.includes(linkIdAsTheCanvasKeysIt(link)) && !removedNodeNames.has(link.source.node) && !removedNodeNames.has(link.target.node))
+    .flatMap((link) => linkDisconnectedEdits(edited, { from_node: link.source.node, from_port: link.source.port, to_node: link.target.node, to_port: link.target.port }));
   const removedNodes: StreamGraphAction[] = edited.graph.nodes.filter((node) => removedNodeNames.has(node.name)).map((node) => ({ operation: "remove_node", stream: edited.streamAsset, node: node.id }));
   const removedNotes: StreamGraphAction[] = deleted.note_ids.map((note) => ({ operation: "remove_note", stream: edited.streamAsset, note }));
   return [...disconnected, ...removedNodes, ...removedNotes];
@@ -193,8 +225,8 @@ export function linkDisconnectedEdits(edited: EditedStreamGraph, link: { from_no
 }
 
 /** A link's id as the canvas keys it: the runtime's id, or its ends while the runtime gives it none. */
-export function linkIdAsTheCanvasKeysIt(link: StreamGraphSummary["links"][number]): string {
-  return link.id === "" ? `${link.source_node}.${link.source_port}->${link.target_node}.${link.target_port}` : link.id;
+export function linkIdAsTheCanvasKeysIt(link: StreamGraph["links"][number]): string {
+  return link.id === "" ? `${link.source.node}.${link.source.port}->${link.target.node}.${link.target.port}` : link.id;
 }
 
 /** `nodeName`'s node spliced into the link `linkId`: the link's source feeds its first input of that family, its first output of that family feeds the link's target, and the link goes; nothing when it has no such ports. */
@@ -202,14 +234,16 @@ export function cardLetGoOverALinkEdits(edited: EditedStreamGraph, nodeName: str
   const node = edited.graph.nodes.find((graphNode) => graphNode.name === nodeName);
   const link = edited.graph.links.find((graphLink) => linkIdAsTheCanvasKeysIt(graphLink) === linkId);
   if (node === undefined || link === undefined) return [];
-  const family = edited.graph.nodes.find((graphNode) => graphNode.name === link.source_node)?.output_ports.find((port) => port.name === link.source_port)?.family ?? null;
-  const input = firstPortOfTheFamily(node.input_ports, family);
-  const output = firstPortOfTheFamily(node.output_ports, family);
-  const linkSourceNode = nodeIdOf(edited, link.source_node);
-  const linkTargetNode = nodeIdOf(edited, link.target_node);
+  const sourcePort = edited.graph.nodes.find((graphNode) => graphNode.name === link.source.node)?.ports.outputs.find((port) => port.name === link.source.port);
+  const family = sourcePort === undefined ? null : familyOfThePort(sourcePort);
+  const familyOfEach = (ports: StreamGraphNode["ports"]["inputs"]) => ports.map((port) => ({ name: port.name, family: familyOfThePort(port) }));
+  const input = firstPortOfTheFamily(familyOfEach(node.ports.inputs), family);
+  const output = firstPortOfTheFamily(familyOfEach(node.ports.outputs), family);
+  const linkSourceNode = nodeIdOf(edited, link.source.node);
+  const linkTargetNode = nodeIdOf(edited, link.target.node);
   if (input === null || output === null || linkSourceNode === null || linkTargetNode === null) return [];
-  const linkSource = { node: linkSourceNode, port: link.source_port };
-  const linkTarget = { node: linkTargetNode, port: link.target_port };
+  const linkSource = { node: linkSourceNode, port: link.source.port };
+  const linkTarget = { node: linkTargetNode, port: link.target.port };
   return [
     { operation: "disconnect", stream: edited.streamAsset, source: linkSource, target: linkTarget },
     { operation: "connect", stream: edited.streamAsset, source: linkSource, target: { node: node.id, port: input } },
@@ -228,7 +262,7 @@ export function selectionFramedEdits(edited: EditedStreamGraph, nodeNames: reado
 
 /** A frame's new title, description or colour, each one that differs from the frame's; a blank title is no edit, since the runtime refuses a group with no title. */
 export function frameChangedEdits(edited: EditedStreamGraph, group: string, change: { title?: string; description?: string; colour?: string }): StreamGraphAction[] {
-  const frame = edited.graph.groups.find((graphGroup) => graphGroup.id === group);
+  const frame = (edited.graph.groups ?? []).find((graphGroup) => graphGroup.id === group);
   if (frame === undefined) return [];
   const title = change.title?.trim();
   const description = change.description?.trim();
@@ -242,7 +276,7 @@ export function frameChangedEdits(edited: EditedStreamGraph, group: string, chan
 
 /** A frame taken out, its nodes left where they are, ungrouped. */
 export function frameRemovedEdits(edited: EditedStreamGraph, group: string): StreamGraphAction[] {
-  return edited.graph.groups.some((graphGroup) => graphGroup.id === group) ? [{ operation: "remove_group", stream: edited.streamAsset, group }] : [];
+  return (edited.graph.groups ?? []).some((graphGroup) => graphGroup.id === group) ? [{ operation: "remove_group", stream: edited.streamAsset, group }] : [];
 }
 
 /** A card collapsed to its header, or opened again: its node's studio fields as they are, with `collapsed`. */
@@ -278,7 +312,7 @@ export function noteChangedEdits(
 }
 
 /** What a collapsed selection's subgraph is named: `subgraph`, or the first of `subgraph-2`, `subgraph-3` … no node of the graph has. */
-export function nameOfTheNewSubgraph(graph: Pick<StreamGraphSummary, "nodes">): string {
+export function nameOfTheNewSubgraph(graph: Pick<StreamGraph, "nodes">): string {
   const takenNames = new Set(graph.nodes.map((node) => node.name));
   let name = "subgraph";
   for (let suffix = 2; takenNames.has(name); suffix += 1) name = `subgraph-${suffix}`;
@@ -301,7 +335,7 @@ export function subgraphUnlockedEdits(edited: EditedStreamGraph, subgraphName: s
 }
 
 /** The name a newly placed generator's subgraph takes: the generator function's name as the runtime casts it, with the next free `-2`, `-3` … so it never refreshes a subgraph the graph holds already. */
-export function nameOfTheNewGeneratorSubgraph(graph: Pick<StreamGraphSummary, "nodes">, generator: string): string {
+export function nameOfTheNewGeneratorSubgraph(graph: Pick<StreamGraph, "nodes">, generator: string): string {
   const takenNames = new Set(graph.nodes.map((node) => node.name));
   const functionName = castAsTheRuntimeNamesAnUnnamedNode(nodeTypeClassName(generator));
   let name = functionName;
@@ -320,8 +354,8 @@ export function generatorSubgraphPlacedEdits(edited: EditedStreamGraph, generato
 /** A graph generator's subgraph run again from its code with the settings it holds, which the runtime replaces in place under its name. */
 export function subgraphRefreshedEdits(edited: EditedStreamGraph, subgraphName: string): StreamGraphAction[] {
   const subgraph = edited.graph.nodes.find((node) => node.name === subgraphName);
-  if (subgraph === undefined || subgraph.fragment?.kind !== "generated") return [];
-  return [{ operation: "import_graph_generator", stream: edited.streamAsset, generator: subgraph.type, name: subgraph.name, config: subgraph.config }];
+  if (subgraph === undefined || fragmentOfTheNode(subgraph) === null || fragmentKindOfTheNode(subgraph) !== "generated") return [];
+  return [{ operation: "import_graph_generator", stream: edited.streamAsset, generator: subgraph.type, name: subgraph.name, config: jsonObjectMembersOf(subgraph.config) }];
 }
 
 /** `actions` sent inside the subgraph `level` names, the path of subgraph node UUIDs from the stream's own level inward; why not when one of them is an edit the runtime makes only on the stream's own level. */

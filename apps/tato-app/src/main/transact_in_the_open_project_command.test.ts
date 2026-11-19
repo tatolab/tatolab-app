@@ -148,7 +148,7 @@ test("a graph transaction in the open project reaches the runtime's transact hel
   });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [{ ...setTheSize, force: true }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
-    refusal: 'transact_in_the_open_project: not a graph action the runtime takes: Unrecognized key: "force"\n  at ["operations"][0]',
+    refusal: 'transact_in_the_open_project: not a StreamGraphAction the runtime takes: the contract names no such field\n  at ["operations"][0]["force"]',
   });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
@@ -156,7 +156,7 @@ test("a graph transaction in the open project reaches the runtime's transact hel
   });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "kept", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
-    refusal: 'transact_in_the_open_project: not a graph edit mode, commit or live: Invalid option: expected one of "commit"|"live"\n  at ["mode"]',
+    refusal: 'transact_in_the_open_project: not a GraphEditMode the runtime takes: matches none of the 2 alternatives the contract allows here\n  at ["mode"]',
   });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });

@@ -2,7 +2,7 @@ import { InputControlBinderContext } from "@tatolab/tato-app-view-sdk/design_sys
 import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import { createInputControlBinder } from "@tatolab/tato-app-view-sdk/pin_services/input_control_binding";
 import { createInputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
-import type { GraphEditMode, JsonValue, ProjectGraphTransactionApplying, StreamGraphInputValueRead } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { GraphEditMode, ProjectGraphTransactionApplying, StreamGraphInputValueRead } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, test } from "vitest";
@@ -16,10 +16,10 @@ const STREAM_ASSET = "0df4a7aa-1111-2222-3333-444444444444";
 
 const valueOf = (nodeId: string): InputAddress => ({ graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: nodeId, input: "value" });
 
-const BRIGHTNESS: GraphInputOfTheStream = { node_id: "3fd9fe1a", port_name: "brightness", family: "channels", value_address: valueOf("3fd9fe1a"), value_pin: null, lifetime: "kept", range: { lowest: 0, highest: 1 }, control: "slider" };
-const CUE: GraphInputOfTheStream = { node_id: "3067457b", port_name: "cue", family: "records", value_address: valueOf("3067457b"), value_pin: null, lifetime: "kept", range: null, control: "json" };
-const STROBE: GraphInputOfTheStream = { node_id: "5b1c0e2a", port_name: "strobe", family: "channels", value_address: valueOf("5b1c0e2a"), value_pin: null, lifetime: "reset", range: null, control: "toggle" };
-const VIDEO: GraphInputOfTheStream = { node_id: "9a0b1c2d", port_name: "video_in", family: "image", value_address: null, value_pin: null, lifetime: "kept", range: null, control: "not_written" };
+const BRIGHTNESS: GraphInputOfTheStream = { node_id: "3fd9fe1a", port_name: "brightness", family: "channels", value_address: valueOf("3fd9fe1a"), value_pin: null, value_annotations: {}, lifetime: "kept", range: { lowest: 0, highest: 1 }, control: "slider" };
+const CUE: GraphInputOfTheStream = { node_id: "3067457b", port_name: "cue", family: "records", value_address: valueOf("3067457b"), value_pin: null, value_annotations: {}, lifetime: "kept", range: null, control: "json" };
+const STROBE: GraphInputOfTheStream = { node_id: "5b1c0e2a", port_name: "strobe", family: "channels", value_address: valueOf("5b1c0e2a"), value_pin: null, value_annotations: {}, lifetime: "reset", range: null, control: "toggle" };
+const VIDEO: GraphInputOfTheStream = { node_id: "9a0b1c2d", port_name: "video_in", family: "image", value_address: null, value_pin: null, value_annotations: {}, lifetime: "kept", range: null, control: "not_written" };
 
 const APPLIED = (mode: GraphEditMode): ProjectGraphTransactionApplying => ({ kind: "applied", transaction: { mode, transaction: null, commit: null, operations: [], added_nodes: [], connected_links: [], added_groups: [], added_notes: [] } });
 
@@ -29,7 +29,7 @@ afterEach(() => {
 
 /** The row of `graphInput` drawn in a frame whose store reads its value as `valueRead` and answers each write with `answerOf`, recording each one it sends. */
 function drawTheRow(graphInput: GraphInputOfTheStream, valueRead: StreamGraphInputValueRead, answerOf: (mode: GraphEditMode) => ProjectGraphTransactionApplying = APPLIED) {
-  const sent: { node: string; input: string; value: JsonValue | null; mode: GraphEditMode }[] = [];
+  const sent: { node: string; input: string; value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: async (_projectFolder, operations, sending) => {
       for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ node: operation.node, input: operation.input, value: operation.value ?? null, mode: sending.mode });

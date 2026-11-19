@@ -1,4 +1,10 @@
 {
   "contract": "1.1",
-  "controls": [{ "type": "float", "script": "float_number.ts" }]
+  "controls": [
+    { "type": "boolean", "script": "boolean_switch.ts" },
+    { "type": "integer", "script": "integer_stepper.ts" },
+    { "type": "float", "script": "float_number.ts" },
+    { "type": "integer", "control": "slider", "script": "integer_slider.ts" },
+    { "type": "float", "control": "slider", "script": "float_slider.ts" }
+  ]
 }

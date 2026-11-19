@@ -8,11 +8,14 @@
     ".": "./src/index.ts",
     "./studio_readings": "./src/studio_readings.ts",
     "./port_families": "./src/port_families.ts",
+    "./stream_graph_builders": "./src/stream_graph_builders.ts",
     "./pin_type_readings": "./src/pin_type_readings.ts",
     "./pin_types": "./src/pin_types.ts",
     "./node_ui": "./src/node_ui.ts",
     "./node_ui/input_control.css": "./src/node_ui/input_control.css",
     "./node_ui_host": "./src/node_ui_host.ts",
+    "./studio_host": "./src/studio_host.ts",
+    "./studio_host/*": "./src/studio_host/*.ts",
     "./pin_model/*": "./src/pin_model/*.ts",
     "./pin_services/*": "./src/pin_services/*.ts",
     "./supplied_modules": "./src/supplied_modules.ts",
@@ -29,13 +32,14 @@
     "lint": "eslint . && oxlint src scripts && stylelint \"src/design_system/styles/**/*.css\" \"src/node_ui/**/*.css\""
   },
   "dependencies": {
-    "react-colorful": "^5.8.1",
-    "zod": "4.6.7"
+    "effect": "4.1.4",
+    "react-colorful": "^5.8.1"
   },
   "devDependencies": {
     "@base-ui/react": "^1.9.0",
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource-variable/inter": "^5.3.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^24.19.2",
@@ -44,6 +48,7 @@
     "@xyflow/react": "^12.12.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.0",
+    "effect": "4.1.4",
     "eslint": "^10.13.0",
     "happy-dom": "^21.0.1",
     "lucide-react": "^1.61.0",

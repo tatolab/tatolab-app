@@ -1,30 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { NODE_STUDIO_FIELDS_NONE_SET, type StreamGraphNode, type StreamGraphSummary } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { StreamGraph, StreamGraphNode, StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { aGraphLink, aGraphNode, aGraphPort, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 import { nodeVisualizerSubjectOf, stateKeepingThePlayedNodeFromWriting } from "./node_visualizer_subject";
 
 const STREAM = "show-main-0a1b2c";
 
-function nodeWithOutputs(name: string, outputPorts: StreamGraphNode["output_ports"]): StreamGraphNode {
-  return { id: `id-${name}`, name, type: "Processor", kind: "process", state: "Running", failed_because: null, process_raising_because: null, not_ready_because: null, config: {}, input_ports: [], output_ports: outputPorts, dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null, live: true };
+function nodeWithOutputs(name: string, outputs: StreamGraphPort[]): StreamGraphNode {
+  return aGraphNode(name, { id: `id-${name}`, type: "Processor", kind: "process", config: {}, outputs, components: { state: "Running" } });
 }
 
-const CAMERA = nodeWithOutputs("camera", [{ name: "video", family: "image", stream_facts: null, values_checked: null, pin: null, value_read: null }]);
-const METER = nodeWithOutputs("brightnessmeter", [
-  { name: "readings", family: "records", stream_facts: null, values_checked: false, pin: null, value_read: null },
-  { name: "preview", family: "image", stream_facts: null, values_checked: null, pin: null, value_read: null },
-]);
-const LFO = nodeWithOutputs("lfo", [{ name: "result", family: "array", stream_facts: null, values_checked: null, pin: null, value_read: null }]);
+const CAMERA = nodeWithOutputs("camera", [aGraphPort("video", "image")]);
+const METER = nodeWithOutputs("brightnessmeter", [aGraphPort("readings", "records", { values_checked: false }), aGraphPort("preview", "image")]);
+const LFO = nodeWithOutputs("lfo", [aGraphPort("result", "array")]);
 const DISPLAY = nodeWithOutputs("displaywindow", []);
 
-const GRAPH: StreamGraphSummary = {
-  stream: STREAM,
-  nodes: [CAMERA, METER, LFO, DISPLAY],
-  links: [{ id: "camera-to-display", source_node: "camera", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired", live: true }],
-  stream_asset: null,
-  groups: [],
-  notes: [],
-  graph_document_text: "",
-};
+const GRAPH: StreamGraph = aStreamGraph([CAMERA, METER, LFO, DISPLAY], [aGraphLink("camera-to-display", ["camera", "video"], ["displaywindow", "video"])], { stream: STREAM });
 
 describe("what the Node visualizer shows", () => {
   it("is nothing while no node of the stream is selected", () => {
@@ -48,10 +38,12 @@ describe("the state keeping a played node from writing", () => {
 
   it("is none while the node runs, or while the graph names no state", () => {
     expect(stateKeepingThePlayedNodeFromWriting(GRAPH, cameraPort)).toBeNull();
-    expect(stateKeepingThePlayedNodeFromWriting({ ...GRAPH, nodes: [{ ...CAMERA, state: null }] }, cameraPort)).toBeNull();
+    expect(stateKeepingThePlayedNodeFromWriting({ ...GRAPH, nodes: [{ ...CAMERA, components: { ...CAMERA.components, state: null } }] }, cameraPort)).toBeNull();
   });
 
   it("is the runtime's state for a node stopped, failed or not started yet", () => {
-    for (const state of ["Stopped", "Error", "Pending", "Idle", "Paused"]) expect(stateKeepingThePlayedNodeFromWriting({ ...GRAPH, nodes: [{ ...CAMERA, state }] }, cameraPort)).toBe(state);
+    for (const state of ["Stopped", "Error", "Pending", "Idle", "Paused"] satisfies NonNullable<StreamGraphNode["components"]["state"]>[]) {
+      expect(stateKeepingThePlayedNodeFromWriting({ ...GRAPH, nodes: [{ ...CAMERA, components: { ...CAMERA.components, state } }] }, cameraPort)).toBe(state);
+    }
   });
 });

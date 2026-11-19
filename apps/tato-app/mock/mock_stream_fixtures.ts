@@ -1,7 +1,21 @@
 import { largeMockStreamGraph } from "./mock_large_stream_graph";
 import { mockRecordedGraphOfTheEveryPinKindSample } from "./mock_recordings";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
-import type { JsonValue, ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphFragmentKind, StreamGraphGroup, StreamGraphLink, StreamGraphNodeKind, StreamGraphNodeStudioFields, StreamGraphNote, StreamGraphPortPin, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
+import type {
+  JsonValue,
+  ListedStream,
+  PortFamily,
+  PortStreamFacts,
+  ProjectLogRecord,
+  StreamGraphGroup,
+  StreamGraphInputValueRead,
+  StreamGraphNodeKind,
+  StreamGraphNodeStudioFields,
+  StreamGraphNote,
+  StreamGraphPortPin,
+  StreamLocation,
+  TatolabPlatform,
+} from "../src/shared/tatolab_backend_contract";
 
 function fnv1aHashOf(text: string): number {
   let hash = 2166136261;
@@ -87,6 +101,31 @@ export interface MockLogRecordDraft {
 /** What a mock stream writes on one tick of the live log, given how long it has been loaded. */
 export type MockLiveLogWriter = (millisecondsSinceLoad: number) => MockLogRecordDraft[];
 
+/** A port of a mock node as the mock holds it, which it renders as the runtime renders a port of `graph`. */
+export interface MockGraphPort {
+  name: string;
+  /** The family it carries; `null` for one the runtime serves none for. */
+  family: PortFamily | null;
+  /** What an output states about its stream; `null` for none. */
+  stream_facts: PortStreamFacts | null;
+  /** `false` on a Records port; `null` on every other. */
+  values_checked: boolean | null;
+  /** Its pin type and flow; `null` on a port whose code does not state its type exactly. */
+  pin: StreamGraphPortPin | null;
+  /** On an input, what it reads while unlinked and where that comes from; `null` on one that takes no stored value, and on every output. */
+  value_read: StreamGraphInputValueRead | null;
+}
+
+/** A link of a mock stream's graph: its id, the node and port at each end by name, and its state as the runtime spells it. */
+export interface MockGraphLink {
+  id: string;
+  source_node: string;
+  source_port: string;
+  target_node: string;
+  target_port: string;
+  state: "pending" | "wired" | "disconnecting" | "disconnected" | "error";
+}
+
 /** A node of a mock stream's graph, as the runtime's `graph` names it, with the config and ports it renders. */
 export interface MockGraphNode {
   name: string;
@@ -110,8 +149,8 @@ export interface MockGraphNode {
   input_defaults?: Record<string, JsonValue>;
   /** The config fields it takes as inputs, each also one of `input_ports`. */
   exposed_config_fields?: string[];
-  input_ports: StreamGraphDeclaredPort[];
-  output_ports: StreamGraphDeclaredPort[];
+  input_ports: MockGraphPort[];
+  output_ports: MockGraphPort[];
   /** Its studio fields; none set when absent. */
   studio?: StreamGraphNodeStudioFields;
   /** What it holds when it is a subgraph; absent on every other node. */
@@ -122,21 +161,20 @@ export interface MockGraphNode {
 
 /** The graph a mock subgraph node holds, as the runtime renders a node's `fragment`. */
 export interface MockGraphFragment {
-  kind: StreamGraphFragmentKind;
   nodes: MockGraphNode[];
-  links: StreamGraphLink[];
+  links: MockGraphLink[];
   groups: StreamGraphGroup[];
 }
 
 /** Ports of `family` stating no stream facts, as every input and most outputs do; a Records port carries the runtime's unchecked mark. */
-const portsStatingNoStreamFacts = (family: PortFamily, ...portNames: string[]): StreamGraphDeclaredPort[] =>
+const portsStatingNoStreamFacts = (family: PortFamily, ...portNames: string[]): MockGraphPort[] =>
   portNames.map((name) => ({ name, family, stream_facts: null, values_checked: family === "records" ? false : null, pin: null, value_read: null }));
 
 /** The pin type and flow the runtime serves on a built-in's Image port, whose code states its type exactly. */
 const TEXTURE_STREAM: StreamGraphPortPin = { pin_type: { type: "texture" }, flow: "stream" };
 
 /** An Image output stating its frame rate, as a built-in source declaring `rate=` does, typed as a built-in's Image port is. */
-const imageOutputAtFramesPerSecond = (name: string, framesPerSecond: number): StreamGraphDeclaredPort => ({
+const imageOutputAtFramesPerSecond = (name: string, framesPerSecond: number): MockGraphPort => ({
   name,
   family: "image",
   stream_facts: { family: "image", frame_rate: { numerator: framesPerSecond, denominator: 1 }, content_light_level: null, mastering_display_colour_volume: null },
@@ -146,10 +184,10 @@ const imageOutputAtFramesPerSecond = (name: string, framesPerSecond: number): St
 });
 
 /** A built-in's Image input, typed as its code states it. */
-const textureInput = (name: string): StreamGraphDeclaredPort => ({ name, family: "image", stream_facts: null, values_checked: null, pin: TEXTURE_STREAM, value_read: null });
+const textureInput = (name: string): MockGraphPort => ({ name, family: "image", stream_facts: null, values_checked: null, pin: TEXTURE_STREAM, value_read: null });
 
 /** A Float input read one value at a time, as the runtime types a node's `float` parameter, reading `defaultValue` while unwired and unset. */
-const floatValueInput = (name: string, defaultValue: number): StreamGraphDeclaredPort => ({
+const floatValueInput = (name: string, defaultValue: number): MockGraphPort => ({
   name,
   family: "channels",
   stream_facts: null,
@@ -167,7 +205,7 @@ export interface MockCounterRates {
 /** A mock stream's graph as the runtime holds it; the mock renders the `graph` document and its summary from it. */
 export interface MockStreamGraph {
   nodes: MockGraphNode[];
-  links: StreamGraphLink[];
+  links: MockGraphLink[];
   counterRates: MockCounterRates;
   /** Its labelled groups; none when absent. */
   groups?: StreamGraphGroup[];
@@ -323,7 +361,7 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
  * The `value` input of a top-level `GraphInput` of `family`, a setting that takes no wire, as the runtime renders it: no pin
  * type, since it carries any value of its family, reading `defaultValue`, the Input's `default`, while nothing sets it.
  */
-const graphInputValueInput = (family: PortFamily, defaultValue: JsonValue): StreamGraphDeclaredPort => ({
+const graphInputValueInput = (family: PortFamily, defaultValue: JsonValue): MockGraphPort => ({
   name: "value",
   family,
   stream_facts: null,
@@ -361,24 +399,23 @@ const HALFTONE_LOOK_GENERATED_SUBGRAPH: MockGraphNode = {
   output_ports: portsStatingNoStreamFacts("image", "video_out"),
   studio: { position: [520, 380], group: null, comment: null, colour: null, collapsed: null, metadata: {} },
   fragment: {
-    kind: "generated",
     nodes: [
       { name: "video_in", type: "tatolab.stream:GraphInput", state: null, config: { port: "video_in", family: "image" }, input_ports: [], output_ports: portsStatingNoStreamFacts("image", "value"), studio: { position: [0, 40], group: null, comment: null, colour: null, collapsed: null, metadata: {} } },
       { name: "halftone", type: "nodes.halftone:HalftoneEffect", state: "Running", config: { dot_size: 6 }, input_ports: portsStatingNoStreamFacts("image", "video_in"), output_ports: portsStatingNoStreamFacts("image", "video_out"), studio: { position: [260, 20], group: null, comment: null, colour: null, collapsed: null, metadata: {} } },
       { name: "video_out", type: "tatolab.stream:GraphOutput", state: null, config: { port: "video_out", family: "image" }, input_ports: portsStatingNoStreamFacts("image", "value"), output_ports: [], studio: { position: [540, 40], group: null, comment: null, colour: null, collapsed: null, metadata: {} } },
     ],
     links: [
-      { id: "Lhalftonelookin00000000001", source_node: "video_in", source_port: "value", target_node: "halftone", target_port: "video_in", state: "wired", live: true },
-      { id: "Lhalftonelookout0000000001", source_node: "halftone", source_port: "video_out", target_node: "video_out", target_port: "value", state: "wired", live: true },
+      { id: "Lhalftonelookin00000000001", source_node: "video_in", source_port: "value", target_node: "halftone", target_port: "video_in", state: "wired" },
+      { id: "Lhalftonelookout0000000001", source_node: "halftone", source_port: "video_out", target_node: "video_out", target_port: "value", state: "wired" },
     ],
     groups: [],
   },
 };
 
 /** The pattern feeding the generated halftone look. */
-const HALFTONE_LOOK_LINK: StreamGraphLink = { id: "Lhalftonelookfeed000000001", source_node: "testpatternsource", source_port: "video", target_node: "halftone-look", target_port: "video_in", state: "wired", live: true };
+const HALFTONE_LOOK_LINK: MockGraphLink = { id: "Lhalftonelookfeed000000001", source_node: "testpatternsource", source_port: "video", target_node: "halftone-look", target_port: "video_in", state: "wired" };
 
-const TEST_PATTERN_LINKS: StreamGraphLink[] = [
+const TEST_PATTERN_LINKS: MockGraphLink[] = [
   {
     id: "Lj17fu4mdczivji99oua37i06",
     source_node: "testpatternsource",
@@ -386,9 +423,8 @@ const TEST_PATTERN_LINKS: StreamGraphLink[] = [
     target_node: "invertingeffect",
     target_port: "video_from_upstream",
     state: "wired",
-    live: true,
   },
-  { id: "Lv5ujotcx5rnh9f4s6xewjot9", source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "wired", live: true },
+  { id: "Lv5ujotcx5rnh9f4s6xewjot9", source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "wired" },
   {
     id: "Lizkqmkmmu5ldam8dbymcc4bc",
     source_node: "invertingeffect",
@@ -396,7 +432,6 @@ const TEST_PATTERN_LINKS: StreamGraphLink[] = [
     target_node: "brightnessmeter",
     target_port: "video_from_upstream",
     state: "wired",
-    live: true,
   },
 ];
 
@@ -435,24 +470,22 @@ const FADER_METER_NODE: MockGraphNode = {
   output_ports: [],
 };
 
-const FADER_METER_LINK: StreamGraphLink = {
+const FADER_METER_LINK: MockGraphLink = {
   id: "Lf4d3rm3t3rr34d5th3f4d3r0",
   source_node: "pictureandfader",
   source_port: "fader",
   target_node: "fadermeter",
   target_port: "level",
   state: "wired",
-  live: true,
 };
 
-const PICTURE_AND_FADER_VIEW_LINK: StreamGraphLink = {
+const PICTURE_AND_FADER_VIEW_LINK: MockGraphLink = {
   id: "Lp1ctur3f4d3rv13wn0d3k8q2",
   source_node: "invertingeffect",
   source_port: "video_to_downstream",
   target_node: "pictureandfader",
   target_port: "picture",
   state: "wired",
-  live: true,
 };
 
 /** An alpha-over compositor of two layers over the effect's output, the second offset and half transparent. */
@@ -465,14 +498,13 @@ const ALPHA_OVER_COMPOSITOR_NODE: MockGraphNode = {
   output_ports: portsStatingNoStreamFacts("image", "composite"),
 };
 
-const ALPHA_OVER_COMPOSITOR_LINK: StreamGraphLink = {
+const ALPHA_OVER_COMPOSITOR_LINK: MockGraphLink = {
   id: "La1ph4ov3rc0mp0s1t0rl1nk0",
   source_node: "invertingeffect",
   source_port: "video_to_downstream",
   target_node: "alphaovercompositor",
   target_port: "layer_0",
   state: "wired",
-  live: true,
 };
 
 /** An MP4 recorder of `main`'s effect output, read across streams. */
@@ -486,7 +518,7 @@ const RECORDER_OF_MAIN_NODE: MockGraphNode = {
 };
 
 /** The recorder's link from `main`'s effect, its source named `<stream id>/<node>` as a link from another stream is. */
-function recorderOfMainLink(mainStreamId: string): StreamGraphLink {
+function recorderOfMainLink(mainStreamId: string): MockGraphLink {
   return {
     id: "Lr3c0rd3rm41nx7q2w9e5t1y8u",
     source_node: `${mainStreamId}/invertingeffect`,
@@ -494,7 +526,6 @@ function recorderOfMainLink(mainStreamId: string): StreamGraphLink {
     target_node: "mp4writer",
     target_port: "video",
     state: "wired",
-    live: true,
   };
 }
 
@@ -549,7 +580,7 @@ function createTestPatternStream(
         ...(options.withAnImageFileNotReady ? [IMAGE_FILE_NOT_READY_NODE] : []),
       ],
       links: [
-        ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link)),
+        ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" as const } : link)),
         ...(recordsTheStream === null ? [] : [recorderOfMainLink(recordsTheStream)]),
         ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_LINK, FADER_METER_LINK] : []),
         ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_LINK] : []),
@@ -679,8 +710,8 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
         },
       ],
       links: [
-        { id: "Lc8m2w0d1k4q9s7f3x5v6b2nr", source_node: "camerasource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired", live: true },
-        { id: "Le2n8c0d3r5h6k1q4w7y9z2tb", source_node: "camerasource", source_port: "video", target_node: "h264encoder", target_port: "video", state: "wired", live: true },
+        { id: "Lc8m2w0d1k4q9s7f3x5v6b2nr", source_node: "camerasource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired" },
+        { id: "Le2n8c0d3r5h6k1q4w7y9z2tb", source_node: "camerasource", source_port: "video", target_node: "h264encoder", target_port: "video", state: "wired" },
         {
           id: "Lm4t7y1u3i9o0p2a5s8d6f1gh",
           source_node: "microphonesource",
@@ -688,7 +719,6 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           target_node: "levelmeter",
           target_port: "audio_from_upstream",
           state: "wired",
-          live: true,
         },
       ],
       counterRates: NO_COUNTERS_CLIMB,

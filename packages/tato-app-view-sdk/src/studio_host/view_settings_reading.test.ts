@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { readTatolabViewManifest, type TatolabViewManifest } from "./tatolab_view_manifest.js";
-import { defaultViewSettingsOf, readViewSettings, viewSettingsForAnArea } from "./view_settings.js";
+import type { TatolabViewManifest } from "../tatolab_view_manifest.js";
+import { defaultViewSettingsOf } from "../view_settings.js";
+import { readTatolabViewManifest } from "./tatolab_view_manifest_reading.js";
+import { readViewSettings, viewSettingsForAnArea } from "./view_settings_reading.js";
 
 function manifestWithSettings(settings: unknown): TatolabViewManifest {
-  const reading = readTatolabViewManifest({ contract: "1.0", title: "Code", entry: "index.html", placement: "area", settings });
+  const reading = readTatolabViewManifest({ contract: "1.0", title: "Code", entry: "index.html", placement: "area", ...(settings === undefined ? {} : { settings }) });
   if (reading.kind === "not_read") throw new Error(reading.because);
   return reading.manifest;
 }

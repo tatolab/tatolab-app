@@ -35,7 +35,7 @@ import type {
   ProjectLogRecordsPage,
   ProjectLogRecordsPushed,
   RuntimeDescription,
-  StreamGraphSummary,
+  StreamGraph,
   StreamGraphInputValueChange,
   ProjectCreationQueued,
   ProjectStreamActionQueued,
@@ -74,7 +74,7 @@ export interface TatolabBackend {
   stopFollowingProjectLogRecords(projectDirectory: string): Promise<void>;
   /** Calls `listener` with the directory of each followed project whose log has new records and the records the runtime pushed, or `null` to read on from the cursor; the returned function stops it. */
   onProjectLogRecordsWritten(listener: (projectDirectory: string, pushed: ProjectLogRecordsPushed | null) => void): () => void;
-  describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
+  describeStreamGraph(streamId: string): Promise<StreamGraph>;
   /** Follow the graph of the stream `streamId`, each change the runtime pushes arriving through `onStreamGraphChanged`; a stream not loaded yet is followed once it is. */
   followStreamGraphChanges(streamId: string): Promise<void>;
   stopFollowingStreamGraphChanges(streamId: string): Promise<void>;

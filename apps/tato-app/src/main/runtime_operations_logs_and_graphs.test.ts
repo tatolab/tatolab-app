@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
 import { answerOf, cleanUpWhatTheTestStarted, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./runtime_operations_test_support.js";
 import { describeStreamGraph, readProjectLogRecords } from "./runtime_operations.js";
+import { bagsDroppedOnTheLink, bagsRefusedOnTheOutputPort, familyOfThePort, pinOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -57,100 +58,66 @@ test("a_log_read_the_runtime_refuses_carries_its_own_words", async () => {
   });
 });
 
-test("describing_a_stream_graph_calls_the_graph_tool_and_keeps_its_text_as_the_runtime_wrote_it", async () => {
-  const graphText = await recordedResponseBody("local-api-graph-of-the-stream-main.json");
-  const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheResultText(graphText)]);
+test("describing_a_stream_graph_calls_the_graph_tool_and_passes_on_the_answer_the_contract_types", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-result-of-the-stream-test-pattern-halftone-lens-main.json")),
+  ]);
 
-  const summary = answerOf(await server.run(describeStreamGraph("main")));
+  const graph = answerOf(await server.run(describeStreamGraph("test-pattern-halftone-lens-main-66e784")));
 
-  expect(summary.stream).toBe("main");
-  expect(summary.graph_document_text).toBe(graphText.trimEnd());
-  expect(summary.graph_document_text).toContain('"config_checksum": 15071898633716066277');
+  expect([graph.stream, graph.asset, graph.machine]).toEqual(["test-pattern-halftone-lens-main-66e784", "0eaf9ee2-0f73-4154-a3f6-a99c261b850d", "vm"]);
+  expect(graph.nodes.map((node) => [node.name, node.type, node.kind, node.components.state])).toEqual([
+    ["testpatternsource", "tatolab.testpattern:TestPatternSource", "process", "Running"],
+    ["halftonelenseffect", "nodes.halftone_lens_effect:HalftoneLensEffect", "process", "Running"],
+    ["brightnessmeter", "nodes.brightness_meter:BrightnessMeter", "process", "Running"],
+  ]);
+  expect(graph.nodes.map((node) => [node.name, node.ports.inputs.map(familyOfThePort), node.ports.outputs.map(familyOfThePort)])).toEqual([
+    ["testpatternsource", [], ["image"]],
+    ["halftonelenseffect", ["image"], ["image"]],
+    ["brightnessmeter", ["image"], []],
+  ]);
+  expect(graph.links.map((link) => [link.id, link.source, link.target, link.state])).toEqual([
+    ["Lftoljv5iob8nwq68jpemlbwg", { node: "testpatternsource", port: "video" }, { node: "halftonelenseffect", port: "video_from_upstream" }, "wired"],
+    ["Lxvoutn39b17g931qj9pzs6ui", { node: "halftonelenseffect", port: "video_to_downstream" }, { node: "brightnessmeter", port: "video_from_upstream" }, "wired"],
+  ]);
+  const [source, halftone] = graph.nodes;
+  if (source === undefined || halftone === undefined) return expect.unreachable("the stream holds its source and its halftone");
+  expect(bagsDroppedOnTheLink(halftone, "Lftoljv5iob8nwq68jpemlbwg")).toBe(0);
+  expect(bagsRefusedOnTheOutputPort(source, "video")).toBe(0);
   const [, body] = headAndBodyOf(server.receivedRequests()[0]);
   expect(JSON.parse(body).method).toBe("graph");
-  expect(JSON.parse(body).params).toEqual({ stream: "main" });
+  expect(JSON.parse(body).params).toEqual({ stream: "test-pattern-halftone-lens-main-66e784" });
 });
 
-test("a_real_graph_tool_result_reads_with_its_counters_and_verbatim_text", async () => {
+test("a_graph_keeps_a_whole_number_past_the_exact_doubles_as_the_runtime_wrote_it", async () => {
   const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-tool-result-of-the-stream-front-door.json")),
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-result-of-the-stream-test-pattern-halftone-lens-main.json")),
   ]);
 
-  const summary = answerOf(await server.run(describeStreamGraph("front-door")));
+  const graph = answerOf(await server.run(describeStreamGraph("test-pattern-halftone-lens-main-66e784")));
 
-  expect(summary.nodes.map((node) => [node.name, node.type, node.state])).toEqual([
-    ["testpatternsource", "tatolab.stream:TestPatternSource", "Running"],
-    ["halftonelenseffect", "nodes.halftone_lens_effect:HalftoneLensEffect", "Running"],
-    ["brightnessmeter", "nodes.brightness_meter:BrightnessMeter", "Running"],
-    ["h264encoder", "tatolab.stream:H264Encoder", "Running"],
-  ]);
-  expect(summary.nodes.map((node) => [node.name, node.input_ports, node.output_ports])).toEqual([
-    ["testpatternsource", [], [{ name: "video", family: null, stream_facts: null, values_checked: null, pin: null, value_read: null }]],
-    ["halftonelenseffect", [{ name: "video_from_upstream", family: null, stream_facts: null, values_checked: null, pin: null, value_read: null }], [{ name: "video_to_downstream", family: null, stream_facts: null, values_checked: null, pin: null, value_read: null }]],
-    ["brightnessmeter", [{ name: "video_from_upstream", family: null, stream_facts: null, values_checked: null, pin: null, value_read: null }], []],
-    ["h264encoder", [{ name: "video", family: null, stream_facts: null, values_checked: null, pin: null, value_read: null }], [{ name: "encoded_video", family: null, stream_facts: null, values_checked: null, pin: null, value_read: null }]],
-  ]);
-  expect(summary.nodes[1]?.dropped_bags_by_link).toEqual({ Lt12wev5nhhd2ankv0rrz1w3v: 0 });
-  expect(summary.nodes[3]?.refused_bags_by_output_port).toEqual({ encoded_video: 0 });
-  expect(summary.links.map((link) => link.id)).toContain("Lt12wev5nhhd2ankv0rrz1w3v");
-  expect(JSON.parse(summary.graph_document_text).stream).toBe("front-door");
+  expect(graph.nodes[0]?.["config_checksum"]).toBe(6086514543335466803n);
 });
 
-test("a_real_graph_tool_result_reads_each_outputs_stream_facts_and_the_records_unchecked_mark", async () => {
-  const stream = "suite-stream-project-1-a_declaring_source_and_a_replacin-98bc63";
-  const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-tool-result-of-a-stream-stating-stream-facts.json")),
-  ]);
+test("a_graph_answer_the_contract_does_not_type_fails_as_not_the_contracts_answer", async () => {
+  const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheResultText('{"stream":"main","nodes":[],"links":[]}')]);
 
-  const summary = answerOf(await server.run(describeStreamGraph(stream)));
-
-  expect(summary.nodes.map((node) => [node.name, node.input_ports, node.output_ports])).toEqual([
-    [
-      "declarer",
-      [],
-      [
-        {
-          name: "video",
-          family: "image",
-          stream_facts: { family: "image", frame_rate: { numerator: 30, denominator: 1 }, content_light_level: null, mastering_display_colour_volume: null },
-          values_checked: null,
-          pin: null,
-          value_read: null,
-        },
-        { name: "records", family: "records", stream_facts: null, values_checked: false, pin: null, value_read: null },
-      ],
-    ],
-    [
-      "replacer",
-      [],
-      [
-        {
-          name: "encoded",
-          family: "packets",
-          stream_facts: { family: "packets", rfc6381_codec: "avc1.64001f", coded_width: 1280, coded_height: 720, sample_rate: null, channel_count: null, codec_configuration_byte_length: null },
-          values_checked: null,
-          pin: null,
-          value_read: null,
-        },
-      ],
-    ],
-    ["reportsitsupstreamsstreamfacts", [{ name: "encoded_from_upstream", family: "packets", stream_facts: null, values_checked: null, pin: null, value_read: null }], []],
-  ]);
+  expect(failureOf(await server.run(describeStreamGraph("main")))).toMatchObject({ _tag: "ContractMismatch", direction: "answer" });
 });
 
-test("a_real_graph_reads_the_pin_type_and_flow_each_typed_port_carries_and_an_untyped_port_as_before", async () => {
+test("a_real_graph_reads_the_pin_type_and_flow_each_typed_port_carries_and_an_untyped_port_as_untyped", async () => {
   const server = await fakeLocalApiServerAnswering([
     controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-result-of-pins-linking-a-texture-output-to-a-texture-input.json")),
   ]);
 
-  const summary = answerOf(await server.run(describeStreamGraph("pins-main-cbc98f")));
+  const graph = answerOf(await server.run(describeStreamGraph("pins-main-cbc98f")));
 
   const aTexture = { pin_type: { type: "texture" }, flow: "stream" };
-  expect(summary.nodes.map((node) => [node.name, node.input_ports, node.output_ports])).toEqual([
-    ["arraytoimage", [{ name: "array", family: "array", stream_facts: null, values_checked: null, pin: null, value_read: null }], [{ name: "image", family: "image", stream_facts: null, values_checked: null, pin: aTexture, value_read: null }]],
-    ["imagetoarray", [{ name: "image", family: "image", stream_facts: null, values_checked: null, pin: aTexture, value_read: null }], [{ name: "array", family: "array", stream_facts: null, values_checked: null, pin: null, value_read: null }]],
+  expect(graph.nodes.map((node) => [node.name, node.ports.inputs.map(pinOfThePort), node.ports.outputs.map(pinOfThePort)])).toEqual([
+    ["arraytoimage", [null], [aTexture]],
+    ["imagetoarray", [aTexture], [null]],
   ]);
-  expect(summary.links.map((link) => [link.source_node, link.source_port, link.target_node, link.target_port])).toEqual([["arraytoimage", "image", "imagetoarray", "image"]]);
+  expect(graph.links.map((link) => [link.source.node, link.source.port, link.target.node, link.target.port])).toEqual([["arraytoimage", "image", "imagetoarray", "image"]]);
 });
 
 test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", async () => {

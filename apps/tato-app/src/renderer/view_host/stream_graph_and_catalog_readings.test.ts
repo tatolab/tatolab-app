@@ -1,25 +1,21 @@
 import { afterEach, expect, test, vi } from "vitest";
-import type { ListedStream, NodeCatalog, StreamGraphInputValueChange, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, NodeCatalog, StreamGraphInputValueChange, StreamGraph } from "../../shared/tatolab_backend_contract";
 import { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { NodeCatalogReading, ProjectTransactionsReading, StreamGraphReading, StreamInputValuesReading } from "./studio_view_contract";
-import { NODE_STUDIO_FIELDS_NONE_SET } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { aGraphNode, aGraphPort, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
 /** A graph of one node of each type, each with a `gain` input reading `gain`, saved. */
-function graphOfTheTypes(stream: string, nodeTypes: string[], gain: number): StreamGraphSummary {
-  const gainInput = { name: "gain", family: "channels" as const, stream_facts: null, values_checked: null, pin: null, value_read: { value: gain, comes_from: "saved" as const } };
-  return {
-    stream,
-    nodes: nodeTypes.map((type, index) => ({ id: `P${index}`, name: `n${index}`, type, kind: "process", state: null, failed_because: null, process_raising_because: null, not_ready_because: null, config: {}, input_ports: [gainInput], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, pins: {}, exposed_config_fields: [], studio: NODE_STUDIO_FIELDS_NONE_SET, fragment: null, graph_interface: null, live: true })),
-    links: [],
-    stream_asset: "STREAM-ASSET",
-    groups: [],
-    notes: [],
-    graph_document_text: "{}",
-  };
+function graphOfTheTypes(stream: string, nodeTypes: string[], gain: number): StreamGraph {
+  const gainInput = aGraphPort("gain", "channels", { value: gain, value_comes_from: "saved" });
+  return aStreamGraph(
+    nodeTypes.map((type, index) => aGraphNode(`n${index}`, { id: `P${index}`, type, kind: "process", config: {}, inputs: [gainInput] })),
+    [],
+    { stream, asset: "STREAM-ASSET" },
+  );
 }
 
 /** A backend whose graph names `served.graphTypes`, each node's gain reading `served.gain`, and whose catalog lists `served.catalogTypes`, or refuses in `served.catalogRefusal`, counting each read, recording the streams followed, and pushing a graph change with `pushTheStreamGraphChanged`. */
@@ -52,7 +48,7 @@ function countingBackend() {
       projectTransactionsListeners.add(listener);
       return () => projectTransactionsListeners.delete(listener);
     },
-    describeStreamGraph: (stream: string): Promise<StreamGraphSummary> => {
+    describeStreamGraph: (stream: string): Promise<StreamGraph> => {
       reads.graph += 1;
       return Promise.resolve(graphOfTheTypes(stream, served.graphTypes, served.gain));
     },

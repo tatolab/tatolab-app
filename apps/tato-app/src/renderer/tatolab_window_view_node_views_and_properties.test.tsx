@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { JsonValue, NodeCatalog, PoppedOutView } from "../shared/tatolab_backend_contract";
+import type { NodeCatalog, PoppedOutView } from "../shared/tatolab_backend_contract";
 import { connectToTatoAppOverPort } from "@tatolab/tato-app-view-sdk";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
@@ -31,7 +31,7 @@ async function theCatalogListingImageFile(backend: Pick<TatolabBackend, "describ
         category: null,
         config_schema: { type: "object", properties: { asset: { type: "string", default: "", "x-tatolab-project-asset": { media: ["image"] } } }, additionalProperties: false },
         inputs: [],
-        outputs: [{ name: "image", description: "", family: "image", pin: null, input_mode: null }],
+        outputs: [{ name: "image", description: "", family: "image", pin: null, input_mode: null, annotations: {} }],
       },
     ],
   };
@@ -228,7 +228,7 @@ describe("the studio", () => {
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
     const socket = (nodeName: string, handleId: string) => streamGraph.querySelector<HTMLElement>(`[data-node-graph-card="${nodeName}"] .node-graph-pin[data-handleid="${handleId}"]`) ?? expect.unreachable(`no socket ${handleId} on ${nodeName}`);
     const look = (element: HTMLElement) => [element.getAttribute("data-pin-type"), element.getAttribute("data-pin-flow"), element.getAttribute("title")];
-    await waitFor(() => expect(look(socket("warmth", "input:base"))).toEqual(["float", "value", "base · Float, one value at a time"]));
+    await waitFor(() => expect(look(socket("warmth", "input:base"))).toEqual(["float", "value", "base · Float, one value at a time\nHow warm the picture is on the first beat of a bar."]));
     expect(look(socket("beat", "output:count"))).toEqual(["integer", "value", "count · Integer, one value at a time"]);
     expect(look(socket("beat", "output:accented"))).toEqual(["boolean", "value", "accented · Boolean, one value at a time"]);
     expect(look(socket("testpattern", "output:video"))).toEqual(["texture", "stream", "video · Texture, a stream\nTest-pattern video frames"]);
@@ -316,7 +316,7 @@ describe("the studio", () => {
 
   it("chooses an image for Image File's asset field in the asset picker over the window, sends its UUID, undoes it with one ⌘Z, imports one that is chosen at once, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
-    const assetsSent: JsonValue[] = [];
+    const assetsSent: unknown[] = [];
     const mediaTheImportOffered: (readonly string[] | null)[] = [];
     let refusesTheNextAssetSet = false;
     await mountedWindowOverTheMock("state=node-not-ready", {
@@ -570,8 +570,8 @@ describe("the studio", () => {
     panel.close();
     const graph = await backend.describeStreamGraph(PATTERN_MAIN_STREAM);
     const viewNode = graph.nodes.find((node) => node.name === "pictureandfader") ?? expect.unreachable("no view node");
-    expect(transactionsSent.mock.calls).toEqual([[[{ operation: "set_node_input_value", stream: graph.stream_asset, node: viewNode.id, input: "fader", value: 0.6 }], "live", null]]);
-    expect(viewNode.input_ports.find((port) => port.name === "fader")?.value_read).toEqual({ value: 0.6, comes_from: "live" });
+    expect(transactionsSent.mock.calls).toEqual([[[{ operation: "set_node_input_value", stream: graph.asset, node: viewNode.id, input: "fader", value: 0.6 }], "live", null]]);
+    expect(viewNode.ports.inputs.find((port) => port.name === "fader")).toMatchObject({ value: 0.6, value_comes_from: "live" });
   });
 
   it("says in the view-type menu why a project's views are not listed", async () => {

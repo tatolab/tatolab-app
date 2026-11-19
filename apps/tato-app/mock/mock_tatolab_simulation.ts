@@ -10,7 +10,7 @@ import {
   type MockStreamFixture,
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
-import { mockStreamGraphSummary } from "./mock_stream_graph_document";
+import { mockStreamGraphOf } from "./mock_stream_graph_document";
 import { mockConditionOf } from "./mock_stream_conditions";
 import type { MockInputValueChanged } from "./mock_input_value_changes";
 import { mockFoldersInDocumentsTatoStudio, mockOpenProjectReading, mockRecentProjects } from "./mock_open_project";
@@ -30,7 +30,7 @@ import {
   type ProjectLogRecord,
   type ProjectLogRecordsPage,
   type ProjectLogRecordsPushed,
-  type StreamGraphSummary,
+  type StreamGraph,
   type StreamGraphInputValueChange,
   type ProjectVenvSyncOfAStreamAction,
   type FailedProjectStreamAction,
@@ -831,11 +831,11 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
   };
 
   /** `fixture`'s graph as the runtime renders it `millisecondsSinceSettled` after its nodes settled, or with its nodes not started while that is `null`. */
-  const graphOfTheFixture = (fixture: MockStreamFixture, millisecondsSinceSettled: number | null): StreamGraphSummary =>
-    mockStreamGraphSummary(fixture.listing, fixtures.machine.name, fixture.graph, { hasSettled: (millisecondsSinceSettled ?? -1) >= 0, secondsSinceSettled: Math.max(0, millisecondsSinceSettled ?? 0) / 1000 }, mockTatolabOptions.arePortFamiliesServed);
-  const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraphSummary => graphOfTheFixture(loadedStream.fixture, Date.now() - loadedStream.loadedAtMilliseconds - MOCK_STREAM_SETTLE_MILLISECONDS);
+  const graphOfTheFixture = (fixture: MockStreamFixture, millisecondsSinceSettled: number | null): StreamGraph =>
+    mockStreamGraphOf(fixture.listing, fixtures.machine.name, fixture.graph, { hasSettled: (millisecondsSinceSettled ?? -1) >= 0, secondsSinceSettled: Math.max(0, millisecondsSinceSettled ?? 0) / 1000 }, mockTatolabOptions.arePortFamiliesServed);
+  const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraph => graphOfTheFixture(loadedStream.fixture, Date.now() - loadedStream.loadedAtMilliseconds - MOCK_STREAM_SETTLE_MILLISECONDS);
   /** The graph of the stream `streamId` as the runtime answers it: a loaded one's running graph, or the saved graph of one it holds not loaded. */
-  const graphOfTheStream = (streamId: string): StreamGraphSummary => {
+  const graphOfTheStream = (streamId: string): StreamGraph => {
     const fixtureNotLoaded = loadedStreams.has(streamId) || mockStatus.runtime_state !== "running" ? undefined : recordedFixturesNotLoaded.get(streamId);
     return fixtureNotLoaded === undefined ? graphOfLoadedStream(loadedStreamOfTheId(streamId)) : graphOfTheFixture(fixtureNotLoaded, null);
   };
