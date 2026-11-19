@@ -14,7 +14,6 @@ import {
   type ModuleCardRow,
   moduleCopyStateOf,
   moduleCoverNumberOf,
-  moduleFolderNameOf,
   moduleRowAndItsNeighboursOf,
   workByIdWithoutTheAddsNowListed,
   workByIdWithTheRowsMade,
@@ -237,13 +236,6 @@ describe("what the Marketplace window lists", () => {
       whyTheModuleHasNoUpdateToTake({ ...camera, newer_version_exists: true }),
       whyTheModuleHasNoUpdateToTake({ ...camera, check_refused_because: "No such file or directory (os error 2)" }),
     ]).toEqual(["Check for updates first.", "It is up to date.", null, "Where it was copied from could not be checked."]);
-  });
-
-  it("names a module's folder as the runtime does", () => {
-    expect(moduleFolderNameOf("Camera Tools!")).toBe("camera-tools");
-    expect(moduleFolderNameOf("Tatolab_Camera")).toBe("tatolab_camera");
-    expect(moduleFolderNameOf("a - b")).toBe("a--b");
-    expect(moduleFolderNameOf(" !! ")).toBe("module");
   });
 
   it("gives a Marketplace download to its catalog entry, though its project names itself by its title", () => {

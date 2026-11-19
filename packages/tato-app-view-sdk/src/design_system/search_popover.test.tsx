@@ -83,6 +83,23 @@ describe("the search popover", () => {
     expect(optionsListed()).toEqual(["HalftoneNight Show"]);
   });
 
+  it("lists what comes from beyond what it browses only while text is searched for when narrowed too", () => {
+    const fromBeyond: SearchPopoverItem = {
+      item_id: "marketplace_node:tatolab-camera/CameraSource",
+      title: "Camera Source",
+      summary: "Frames from one camera",
+      origin_words: "In the Camera module",
+      category_path: null,
+      listed_above_the_categories: null,
+      listed_after_the_categories: { heading: "Not in night-show", aside: "Marketplace" },
+      end_words: { kind: "refused", words: "Not added" },
+    };
+    const { searchInput } = openedPopover({ items: [...ITEMS, fromBeyond], narrowedTo: { heading: "Takes Image", footnote: "Placing one links video to it." } });
+    expect(optionsListed()).not.toContain("Camera SourceIn the Camera moduleNot added");
+    fireEvent.change(searchInput, { target: { value: "camera" } });
+    expect(optionsListed()).toContain("Camera SourceIn the Camera moduleNot added");
+  });
+
   it("the arrows move the highlight, shift enter chooses and stays open, and nothing is chosen with no match", () => {
     const { onItemChosen, searchInput } = openedPopover();
     fireEvent.change(searchInput, { target: { value: "a" } });
@@ -97,13 +114,49 @@ describe("the search popover", () => {
 
   it("a row is its title over where it comes from, with nothing at its end, and the popover has no details, key footer or foot link", () => {
     openedPopover();
-    const [halftoneRow] = screen.getAllByRole("option");
-    expect([...(halftoneRow?.children ?? [])].map((part) => part.textContent)).toEqual(["Halftone", "Night Show"]);
+    const partsOfTheRow = (row: Element | undefined) => [...(row?.children ?? [])].map((part) => [...part.children].map((line) => line.textContent));
+    expect(partsOfTheRow(screen.getAllByRole("option")[0])).toEqual([["Halftone", "Night Show"]]);
     fireEvent.click(entryButton("category:Math"));
-    expect([...(screen.getAllByRole("option")[0]?.children ?? [])].map((part) => part.textContent)).toEqual(["Add"]);
+    expect(partsOfTheRow(screen.getAllByRole("option")[0])).toEqual([["Add"]]);
     expect(document.querySelector("[data-search-popover-details]")).toBeNull();
     expect(document.querySelector("[data-search-popover-foot-link]")).toBeNull();
     expect(screen.queryByText("Esc")).toBeNull();
+  });
+
+  it("lists what comes from beyond what it browses only while text is searched for, after every category, with what choosing it does at the highlighted row's end", () => {
+    const marketplaceItems: SearchPopoverItem[] = [
+      {
+        item_id: "marketplace_node:tatolab-camera/CameraSource",
+        title: "Camera Source",
+        summary: "Frames from one camera",
+        origin_words: "In the Camera module",
+        category_path: null,
+        listed_above_the_categories: null,
+        listed_after_the_categories: { heading: "Not in night-show", aside: "Marketplace" },
+        end_words: { kind: "what_choosing_does", words: "Add module" },
+      },
+      {
+        item_id: "marketplace_node:tatolab-microphone/MicrophoneSource",
+        title: "Microphone Source",
+        summary: "Channels from one input device",
+        origin_words: "In the Microphone module",
+        category_path: null,
+        listed_above_the_categories: null,
+        listed_after_the_categories: { heading: "Not in night-show", aside: "Marketplace" },
+        end_words: { kind: "under_way", words: "Adding module…" },
+      },
+    ];
+    const { searchInput, onItemChosen } = openedPopover({ items: [...ITEMS, ...marketplaceItems] });
+    expect(optionsListed()).toEqual(["HalftoneNight Show"]);
+    fireEvent.change(searchInput, { target: { value: "source" } });
+    expect(headingsListed()).toEqual(["Ungrouped", "Not in night-showMarketplace"]);
+    expect(optionsListed()).toEqual(["Camera Source", "Camera SourceIn the Camera module", "Microphone SourceIn the Microphone moduleAdding module…"]);
+    fireEvent.keyDown(searchInput, { key: "ArrowDown" });
+    expect(optionsListed()[1]).toBe("Camera SourceIn the Camera moduleAdd module↵");
+    fireEvent.keyDown(searchInput, { key: "Enter" });
+    expect(onItemChosen).toHaveBeenLastCalledWith("marketplace_node:tatolab-camera/CameraSource", false);
+    fireEvent.change(searchInput, { target: { value: "" } });
+    expect(optionsListed()).toEqual(["HalftoneNight Show"]);
   });
 
   it("draws the highlighted item's preview beside it, following the arrows and the pointer, and none for an item with nothing to show", () => {

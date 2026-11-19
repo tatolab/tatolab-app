@@ -23,7 +23,7 @@ import { MockProjectTransactions } from "./mock_project_transactions";
 import { mockProjectAssetsUnchanged } from "./mock_project_assets";
 import type { JsonValue, ProjectGraphTransaction, ProjectTransaction, StreamAssetCreated, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { streamDocumentNameNumberedPast, streamDocumentNameOfTheDisplayName } from "../src/shared/stream_document_name";
-import { MockNodeTypesMadeFromTheTemplate } from "./mock_node_types";
+import { MockNodeTypesTheProjectGains } from "./mock_node_types";
 import { applyMockGraphTransaction, isAJsonObject, isAHistoryOperationTheMockMakesAgainFromTheEditInside, graphActionApplyingTheHistoryOperation, thePlacementsOfTheStream, type MockGraphEditGrounds, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import {
   type ListedStream,
@@ -188,7 +188,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     );
   /** Commit `operations`: applied to the saved graphs, which answer, then to the running ones. */
   const graphEditGrounds: MockGraphEditGrounds = { nodeTypesDescribed: MOCK_RECORDED_NODE_TYPES_DESCRIBED.node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [nodeType])), portsOfTheNodesRemoved: new Map() };
-  const nodeTypesMadeFromTheTemplate = new MockNodeTypesMadeFromTheTemplate(graphEditGrounds);
+  const nodeTypesTheProjectGains = new MockNodeTypesTheProjectGains(graphEditGrounds);
   const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo", historyOperationsReplayed: readonly JsonValue[] = []) => {
     const applied = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), graphEditGrounds, operations, applying, historyOperationsReplayed);
     applyMockGraphTransaction(graphTargetsOfTheOpenProject(), graphEditGrounds, operations, applying, applied.history_operations);
@@ -910,7 +910,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     savedGraphTargetsOfTheOpenProject,
     commitGraphActions,
     graphEditGrounds,
-    nodeTypesMadeFromTheTemplate,
+    nodeTypesTheProjectGains,
     whyTheUndoIsRefused,
     applyingItsGraphOperations,
     streamsWhoseGraphsAreFollowed,

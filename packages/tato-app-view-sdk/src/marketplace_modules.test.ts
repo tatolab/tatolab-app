@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { isAMarketplaceDownloadOf, marketplaceDownloadFileNameOf } from "./marketplace_module_download_file.js";
+import { isAMarketplaceDownloadOf, isTheDistributionOfTheMarketplaceEntry, isTheModuleNamedLikeTheMarketplaceEntry, marketplaceDownloadFileNameOf, moduleFolderNameOf } from "./marketplace_modules.js";
+
+describe("a Marketplace entry among a project's modules", () => {
+  it("names a module's folder as the runtime does", () => {
+    expect(moduleFolderNameOf("Camera Tools!")).toBe("camera-tools");
+    expect(moduleFolderNameOf("Tatolab_Camera")).toBe("tatolab_camera");
+    expect(moduleFolderNameOf("a - b")).toBe("a--b");
+    expect(moduleFolderNameOf(" !! ")).toBe("module");
+  });
+
+  it("tells the entry's module by its folder, or by the name its project file holds", () => {
+    expect(isTheModuleNamedLikeTheMarketplaceEntry("tatolab-camera", { folder: "tatolab-camera", name: null })).toBe(true);
+    expect(isTheModuleNamedLikeTheMarketplaceEntry("tatolab-camera", { folder: "camera", name: "Tatolab Camera" })).toBe(true);
+    expect(isTheModuleNamedLikeTheMarketplaceEntry("tatolab-camera", { folder: "camera", name: "Camera" })).toBe(false);
+  });
+
+  it("tells the entry's wheel by its distribution's name, compared as packaging compares names", () => {
+    expect(isTheDistributionOfTheMarketplaceEntry("tatolab-camera", "Tatolab_Camera")).toBe(true);
+    expect(isTheDistributionOfTheMarketplaceEntry("tatolab-camera", "tatolab.camera")).toBe(true);
+    expect(isTheDistributionOfTheMarketplaceEntry("tatolab-camera", "tatolab-camera-extras")).toBe(false);
+  });
+});
 
 describe("the file a Marketplace entry is downloaded as", () => {
   it("is named by the entry's name and version", () => {

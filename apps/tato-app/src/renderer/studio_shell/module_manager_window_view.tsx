@@ -49,6 +49,7 @@ import {
   workKeptForTheRow,
   moduleRowCountsOf,
   moduleSourceWordsOf,
+  rowIdOfTheCatalogEntryNamed,
   projectModuleRowsShownOf,
   type MarketplaceKindShown,
   type ModuleCardRow,
@@ -198,7 +199,13 @@ export function ModuleManagerWindowView({
     setRowIdOfThePageOpen(null);
   }, []);
   useEffect(() => {
-    if (sectionAsked !== null) showTheTab(sectionAsked.shows);
+    if (sectionAsked === null) return;
+    showTheTab(sectionAsked.shows);
+    if (sectionAsked.page === null) return;
+    // A page asked for opens over the whole list, so no filter left from before hides the entry it names.
+    setSearchText("");
+    setMarketplaceKindShown("all");
+    setRowIdOfThePageOpen(rowIdOfTheCatalogEntryNamed(sectionAsked.page));
   }, [sectionAsked, showTheTab]);
   const [catalog, setCatalog] = useState<PackageCatalogReading | null>(null);
   const [modulesOfTheProject, setModulesOfTheProject] = useState<ModulesOfTheProjectListing>({ kind: "listing" });
@@ -359,9 +366,11 @@ export function ModuleManagerWindowView({
   };
 
   const rowIdOfThePageShown = pageOpen?.row.row_id ?? null;
+  // A page asked for before its tab's list is read waits for that list; once read, a page it does not hold closes.
+  const isTheListOfTheTabShownRead = modulesShown === "marketplace" ? catalog !== null : modulesOfTheProject.kind !== "listing";
   useEffect(() => {
-    if (rowIdOfThePageShown === null && rowIdOfThePageOpen !== null) setRowIdOfThePageOpen(null);
-  }, [rowIdOfThePageShown, rowIdOfThePageOpen]);
+    if (isTheListOfTheTabShownRead && rowIdOfThePageShown === null && rowIdOfThePageOpen !== null) setRowIdOfThePageOpen(null);
+  }, [isTheListOfTheTabShownRead, rowIdOfThePageShown, rowIdOfThePageOpen]);
   const windowElement = useRef<HTMLDivElement>(null);
   const rowIdOfThePageShownLast = useRef<string | null>(null);
   useEffect(() => {

@@ -33,6 +33,7 @@ const STAGE_LIGHTS_IMPORTED: ImportedProject = {
   project: "lights-uuid",
   name: "Stage Lights",
   folder: "stage-lights",
+  copied_from: "/home/sam/sources/stage-lights",
   source: { kind: "folder", project: { folder: "/w/paint-pulse/imports/stage-lights", project: "lights-uuid", name: "Stage Lights" } },
 };
 

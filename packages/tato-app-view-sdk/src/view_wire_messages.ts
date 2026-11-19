@@ -11,6 +11,7 @@ import type {
   GraphEditMode,
   JsonValue,
   ListedStreamsReading,
+  MarketplaceEntry,
   OpenProjectReading,
   PortViewerMessageReading,
   PortViewerRecovery,
@@ -162,8 +163,12 @@ export type ViewAsk =
   | { kind: "recover_the_projects_streams"; project_folder: string; recovery: ProjectStreamsRecovery }
   /** Show the view type `view_type_id` in area `area_id` of the layout, in place of what it shows. */
   | { kind: "show_view_type_in_area"; view_type_id: string; area_id: string }
-  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it. */
-  | { kind: "open_modules_and_marketplace"; shows: ModulesAndMarketplaceSection }
+  /** Open the open project's Modules and Marketplace window on `shows`, or bring it forward on it, on the page of the Marketplace entry `page` names by the catalog's name for it when given. */
+  | { kind: "open_modules_and_marketplace"; shows: ModulesAndMarketplaceSection; page?: string }
+  /** The Marketplace's packages and samples, as its catalog lists them now. */
+  | { kind: "read_the_marketplace" }
+  /** Download the Marketplace's package `name`, by the catalog's name for it, and add it to the open project as a module. */
+  | { kind: "add_from_the_marketplace"; name: string }
   /** Have the person choose a project asset in Studio's asset picker over the window, ending any asset pick held; answered once the picker closes. */
   | { kind: "pick_a_project_asset"; pick: ProjectAssetPick }
   /** End the asset pick held with the asset `asset` chosen, by its UUID. */
@@ -212,6 +217,8 @@ export type ViewAskAnswer =
   | { kind: "project_file_read"; file_read: ProjectFileRead }
   | { kind: "project_file_saved"; version: string }
   | { kind: "node_file_created"; file: string; node_type: string }
+  | { kind: "marketplace_read"; entries: MarketplaceEntry[] }
+  | { kind: "marketplace_module_added"; folder: string }
   | { kind: "project_files_listed"; project_files: ProjectFiles }
   | { kind: "project_transaction_applied"; transaction: ProjectTransaction }
   | { kind: "project_graph_transaction_applied"; transaction: ProjectGraphTransaction }

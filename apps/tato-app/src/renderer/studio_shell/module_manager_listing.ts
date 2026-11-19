@@ -1,9 +1,9 @@
 // What the Marketplace window lists: the catalog's packages and samples in its order, each package saying
 // whether the project has it, then the project's modules the catalog does not list.
 
+import { isAMarketplaceDownloadOf, isTheModuleNamedLikeTheMarketplaceEntry } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 import type { ModuleCardMark } from "@tatolab/tato-app-view-sdk/design_system/module_card";
 import type { ProjectCoverNumber } from "@tatolab/tato-app-view-sdk/design_system/project_card";
-import { isAMarketplaceDownloadOf } from "../../shared/marketplace_module_download_file";
 import { catalogOperatingSystemsOnlyWords, whyTheModuleBringsNothingOnThisMachine } from "../../shared/package_catalog_machine_words";
 import type { PackageCatalogEntry, PackageCatalogMember, PackageCatalogReading, ViewsOfAWorkspaceDependency, WorkspaceDependency } from "../../shared/tatolab_backend_contract";
 import { projectCoverNumberOfTheName } from "../presentation/projects_presentation";
@@ -19,17 +19,6 @@ export interface ModuleCardRow {
   catalog_entry: PackageCatalogEntry | null;
   /** The project's module of it, or `null` where the project has not added it. */
   module_of_the_project: WorkspaceDependency | null;
-}
-
-/** The folder the runtime's `add_dependency` copies a project named `name` into under `imports/`: lowercased, each run of characters other than ASCII letters, digits, `-` and `_` made one `-`, trimmed of `-`, or `module` when nothing is left. */
-export function moduleFolderNameOf(name: string): string {
-  let folder = "";
-  for (const character of name.trim()) {
-    if (/^[A-Za-z0-9_-]$/.test(character)) folder += character.toLowerCase();
-    else if (!folder.endsWith("-")) folder += "-";
-  }
-  const trimmed = folder.replace(/^-+|-+$/g, "");
-  return trimmed === "" ? "module" : trimmed;
 }
 
 /** The row id of the catalog's entry `name`. */
@@ -51,15 +40,10 @@ function namesOf(members: readonly PackageCatalogMember[]): string[] {
   return members.map((member) => member.name);
 }
 
-function isNamedLikeTheEntry(entry: PackageCatalogEntry, dependency: WorkspaceDependency): boolean {
-  const entryFolderName = moduleFolderNameOf(entry.name);
-  return dependency.folder === entryFolderName || (dependency.name !== null && moduleFolderNameOf(dependency.name) === entryFolderName);
-}
-
 function moduleOfTheProjectFor(entry: PackageCatalogEntry, dependencies: readonly WorkspaceDependency[], foldersAnotherEntryClaimed: ReadonlySet<string>): WorkspaceDependency | null {
   if (entry.kind === "sample") return null;
   const unclaimed = dependencies.filter((dependency) => !foldersAnotherEntryClaimed.has(dependency.folder));
-  return unclaimed.find((dependency) => isAMarketplaceDownloadOf(entry.name, dependency.source)) ?? unclaimed.find((dependency) => isNamedLikeTheEntry(entry, dependency)) ?? null;
+  return unclaimed.find((dependency) => isAMarketplaceDownloadOf(entry.name, dependency.source)) ?? unclaimed.find((dependency) => isTheModuleNamedLikeTheMarketplaceEntry(entry.name, dependency)) ?? null;
 }
 
 /**

@@ -28,6 +28,7 @@ const OPEN_PROJECT: OpenProjectReading = {
         project: "dde5a62f-b0a8-45d2-a741-79140871f978",
         name: "hall-of-light",
         folder: "hall-of-light",
+        copied_from: "/home/sam/sources/hall-of-light",
         source: { kind: "folder", project: { folder: IMPORT_FOLDER, project: "dde5a62f-b0a8-45d2-a741-79140871f978", name: "hall-of-light" } },
       },
     ],

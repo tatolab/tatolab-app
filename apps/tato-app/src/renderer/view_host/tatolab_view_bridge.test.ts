@@ -230,6 +230,11 @@ function recordingHostServices() {
       modulesAndMarketplaceSectionsOpened.push(shows);
       return modulesAndMarketplaceSectionsOpened.length === 1 ? { kind: "opened" } : { kind: "not_opened", because: "Only a project's studio window opens its Modules and Marketplace window." };
     },
+    readTheMarketplace: async () => ({
+      kind: "read",
+      entries: [{ kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames from a camera.", nodes: [{ name: "CameraSource", summary: "Frames from one camera." }], runs_on_this_machine: true }],
+    }),
+    addFromTheMarketplace: async (name) => (name === "tatolab-camera" ? { kind: "added", folder: "tatolab-camera" } : { kind: "not_added", because: `The catalog lists nothing named ${name}.` }),
     watchProjectTransactions: (projectFolder, listener) => {
       listener({ kind: "not_read", because: `No runtime follows ${projectFolder}.` });
       return () => undefined;
@@ -489,6 +494,16 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(await connection.openModulesAndMarketplace("marketplace")).toEqual({ kind: "done" });
     expect(await connection.openModulesAndMarketplace("added_to_this_project")).toEqual({ kind: "refused", because: "Only a project's studio window opens its Modules and Marketplace window." });
     expect(modulesAndMarketplaceSectionsOpened).toEqual(["marketplace", "added_to_this_project"]);
+  });
+
+  it("reads the Marketplace and adds one of its packages to the open project, and says why when it can't", async () => {
+    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await connection.readTheMarketplace()).toEqual({
+      kind: "read",
+      entries: [{ kind: "package", name: "tatolab-camera", title: "Camera", summary: "Captures frames from a camera.", nodes: [{ name: "CameraSource", summary: "Frames from one camera." }], runs_on_this_machine: true }],
+    });
+    expect(await connection.addFromTheMarketplace("tatolab-camera")).toEqual({ kind: "added", folder: "tatolab-camera" });
+    expect(await connection.addFromTheMarketplace("tatolab-lens")).toEqual({ kind: "not_added", because: "The catalog lists nothing named tatolab-lens." });
   });
 
   it("reads the project's history and undoes through it", async () => {

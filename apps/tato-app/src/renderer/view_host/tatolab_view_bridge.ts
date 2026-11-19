@@ -398,8 +398,16 @@ export class TatolabViewBridge {
         return expanding.kind === "done" ? { kind: "done" } : { kind: "refused", because: expanding.because };
       }
       case "open_modules_and_marketplace": {
-        const opening = await this.hostServices.openModulesAndMarketplace(ask.shows);
+        const opening = await this.hostServices.openModulesAndMarketplace(ask.shows, ask.page ?? null);
         return opening.kind === "opened" ? { kind: "done" } : { kind: "refused", because: opening.because };
+      }
+      case "read_the_marketplace": {
+        const marketplaceReading = await this.hostServices.readTheMarketplace();
+        return marketplaceReading.kind === "read" ? { kind: "marketplace_read", entries: marketplaceReading.entries } : { kind: "refused", because: marketplaceReading.because };
+      }
+      case "add_from_the_marketplace": {
+        const adding = await this.hostServices.addFromTheMarketplace(ask.name);
+        return adding.kind === "added" ? { kind: "marketplace_module_added", folder: adding.folder } : { kind: "refused", because: adding.because };
       }
       case "undo_in_the_project":
       case "redo_in_the_project": {

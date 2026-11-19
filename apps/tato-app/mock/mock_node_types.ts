@@ -34,12 +34,42 @@ export function mockNodeTypeFromTheTemplate(nodeType: string, pathInTheProject: 
   };
 }
 
+/** One node a module added from the Marketplace brings, as its catalog entry names it: its `<module>:<class>` and one line on what it does. */
+export interface MockNodeOfAModuleAdded {
+  import_path: string;
+  summary: string;
+}
+
+/** The node types a module added from the Marketplace brings, as the runtime lists its installed distribution once its wheel is in the project's environment. */
+interface MockModuleAdded {
+  source: Extract<ListNodeTypesToolResult["sources"][number], { source: "installed_distribution" }>;
+  described: NodeTypeDescription[];
+}
+
+/** `node`, brought by the distribution `distribution` at `version`: a source handing one Image frame on at a time on `video`. */
+function mockDescriptionOfTheNodeAdded(node: MockNodeOfAModuleAdded, distribution: string, version: string): NodeTypeDescription {
+  return {
+    node_type: node.import_path,
+    source: "installed_distribution",
+    distribution,
+    distribution_version: version,
+    described_from: "interpreter",
+    documentation: node.summary,
+    category: null,
+    kind: "process",
+    inputs: [],
+    outputs: [{ name: "video", documentation: "The frames it hands on.", pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" }],
+  };
+}
+
 /**
- * The node types the node files made from the runtime's node template declare, each taken as the project's own as the
- * runtime takes it once it reads the file: listed, described, and placed by `graphEditGrounds`.
+ * The node types the project gains while the mock runs, each taken as the runtime takes it once it reads them: those the node
+ * files made from the runtime's node template declare, as the project's own, and those each module added from the Marketplace
+ * brings, as its installed distribution; listed, described, and placed by `graphEditGrounds`.
  */
-export class MockNodeTypesMadeFromTheTemplate {
+export class MockNodeTypesTheProjectGains {
   private readonly nodeTypesMade: MockNodeTypeFromTheTemplate[] = [];
+  private readonly modulesAdded: MockModuleAdded[] = [];
   private readonly changedListeners = new Set<() => void>();
 
   constructor(private readonly graphEditGrounds: { nodeTypesDescribed: readonly NodeTypeDescription[] }) {}
@@ -48,11 +78,42 @@ export class MockNodeTypesMadeFromTheTemplate {
     return this.nodeTypesMade;
   }
 
+  /** The sources the modules added bring, in the order they were added. */
+  get sourcesOfTheModulesAdded(): ListNodeTypesToolResult["sources"] {
+    return this.modulesAdded.map(({ source }) => source);
+  }
+
+  /** Every node type the project gained, described. */
+  get described(): readonly NodeTypeDescription[] {
+    return [...this.nodeTypesMade.map(({ described }) => described), ...this.modulesAdded.flatMap(({ described }) => described)];
+  }
+
   /** Take `nodeType`, which a new node file at `pathInTheProject` declares, and tell each listener the project's node types changed. */
   take(nodeType: string, pathInTheProject: string): void {
     const madeFromTheTemplate = mockNodeTypeFromTheTemplate(nodeType, pathInTheProject);
     this.nodeTypesMade.push(madeFromTheTemplate);
-    this.graphEditGrounds.nodeTypesDescribed = [...this.graphEditGrounds.nodeTypesDescribed, madeFromTheTemplate.described];
+    this.gain([madeFromTheTemplate.described]);
+  }
+
+  /** Take each of `nodes`, which the distribution `distribution` at `version` brings once its module is added, and tell each listener the project's node types changed. */
+  takeTheModule(distribution: string, version: string, nodes: readonly MockNodeOfAModuleAdded[]): void {
+    const described = nodes.map((node) => mockDescriptionOfTheNodeAdded(node, distribution, version));
+    this.modulesAdded.push({
+      source: {
+        source: "installed_distribution",
+        distribution,
+        distribution_version: version,
+        node_types: described.map(({ node_type, documentation, category, kind }) => ({ node_type, documentation, category, kind, described_from: "interpreter" })),
+        graph_generators: [],
+        unreadable_modules: [],
+      },
+      described,
+    });
+    this.gain(described);
+  }
+
+  private gain(described: readonly NodeTypeDescription[]): void {
+    this.graphEditGrounds.nodeTypesDescribed = [...this.graphEditGrounds.nodeTypesDescribed, ...described];
     for (const listener of this.changedListeners) listener();
   }
 
@@ -68,11 +129,14 @@ function projectFolderTheRecordingsAnswerFor(streamsFolder: string): string {
 }
 
 /** The node types the project in `projectDirectory` lists, as the runtime's `list_node_types` listed them; `null` for a folder holding no project. */
-export function mockNodeTypesListed(projectDirectory: string, streamsFolder: string, madeFromTheTemplate: readonly MockNodeTypeFromTheTemplate[]): ListNodeTypesToolResult | null {
+export function mockNodeTypesListed(projectDirectory: string, streamsFolder: string, gained: MockNodeTypesTheProjectGains): ListNodeTypesToolResult | null {
   if (projectDirectory !== projectFolderTheRecordingsAnswerFor(streamsFolder)) return null;
   const recorded = structuredClone(MOCK_RECORDED_NODE_TYPES_LISTED);
-  const sources = recorded.sources.map((source) => (source.source === "project" ? { ...source, node_types: [...source.node_types, ...madeFromTheTemplate.map(({ listed }) => structuredClone(listed))] } : source));
-  return { ...recorded, sources, project_directory: projectDirectory };
+  const sources = recorded.sources.map((source) => (source.source === "project" ? { ...source, node_types: [...source.node_types, ...gained.made.map(({ listed }) => structuredClone(listed))] } : source));
+  const builtInSourceIndex = sources.findIndex((source) => source.source === "built_in");
+  const sourcesBeforeTheBuiltIns = builtInSourceIndex === -1 ? sources : sources.slice(0, builtInSourceIndex);
+  const builtInSources = builtInSourceIndex === -1 ? [] : sources.slice(builtInSourceIndex);
+  return { ...recorded, sources: [...sourcesBeforeTheBuiltIns, ...structuredClone(gained.sourcesOfTheModulesAdded), ...builtInSources], project_directory: projectDirectory };
 }
 
 function withoutPortFamilies(nodeType: NodeTypeDescribedOrWhyNot): NodeTypeDescribedOrWhyNot {
@@ -90,12 +154,12 @@ export function mockNodeTypesDescribed(
   streamsFolder: string,
   nodeTypes: readonly string[],
   arePortFamiliesServed: boolean,
-  madeFromTheTemplate: readonly MockNodeTypeFromTheTemplate[],
+  gained: MockNodeTypesTheProjectGains,
 ): DescribeNodeTypesToolResult | null {
   if (projectDirectory !== projectFolderTheRecordingsAnswerFor(streamsFolder)) return null;
   const recordedByType = new Map<string, NodeTypeDescribedOrWhyNot>([
     ...MOCK_RECORDED_NODE_TYPES_DESCRIBED.node_types.map((nodeType) => [nodeType.node_type, nodeType] as const),
-    ...madeFromTheTemplate.map(({ described }) => [described.node_type, described] as const),
+    ...gained.described.map((described) => [described.node_type, described] as const),
   ]);
   return {
     node_types: nodeTypes.map((nodeType) => {

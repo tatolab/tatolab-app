@@ -121,8 +121,8 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("pop_out_view", { ...target });
     },
     readPoppedOutView: () => invokeTatolabCommand("read_popped_out_view", undefined),
-    openModuleManagerWindow: async (shows) => {
-      await invokeTatolabCommand("open_module_manager_window", { shows });
+    openModuleManagerWindow: async (asked) => {
+      await invokeTatolabCommand("open_module_manager_window", asked);
     },
     readModuleManagerWorkspace: () => invokeTatolabCommand("read_module_manager_workspace", undefined),
     readModuleManagerSectionLastAsked: () => invokeTatolabCommand("read_module_manager_section_last_asked", undefined),

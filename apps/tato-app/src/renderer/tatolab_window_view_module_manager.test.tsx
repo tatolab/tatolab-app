@@ -3,7 +3,7 @@ import { act, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
 import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
-import type { ModulesShown } from "../shared/tatolab_electron_bridge_contract";
+import type { ModuleManagerSectionAsked } from "../shared/tatolab_electron_bridge_contract";
 import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
@@ -66,7 +66,7 @@ describe("Module manager", () => {
   });
 
   it("opens on the tab File › Modules… asked for, and shows each tab asked of it once open", async () => {
-    let askTheOpenWindowToShow: ((shows: ModulesShown) => void) | null = null;
+    let askTheOpenWindowToShow: ((asked: ModuleManagerSectionAsked) => void) | null = null;
     await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=added_to_this_project", {
       onModuleManagerSectionAsked: (listener) => {
         askTheOpenWindowToShow = listener;
@@ -77,16 +77,30 @@ describe("Module manager", () => {
     await waitFor(() => expect(shownTab()).toBe("added_to_this_project"));
     pressed('[data-module-manager-show="marketplace"]');
     expect(shownTab()).toBe("marketplace");
-    act(() => askTheOpenWindowToShow?.("added_to_this_project"));
+    act(() => askTheOpenWindowToShow?.({ shows: "added_to_this_project", page: null }));
     expect(shownTab()).toBe("added_to_this_project");
     pressed('[data-module-manager-show="marketplace"]');
-    act(() => askTheOpenWindowToShow?.("added_to_this_project"));
+    act(() => askTheOpenWindowToShow?.({ shows: "added_to_this_project", page: null }));
     expect(shownTab()).toBe("added_to_this_project");
   });
 
+  it("opens on the page of the Marketplace entry the node search's See it asked for, and on each page asked of it once open", async () => {
+    let askTheOpenWindowToShow: ((asked: ModuleManagerSectionAsked) => void) | null = null;
+    await mountedWindowOverTheMock("state=running&module_manager=open&module_manager_section=marketplace&module_manager_entry=camera-halftone", {
+      onModuleManagerSectionAsked: (listener) => {
+        askTheOpenWindowToShow = listener;
+        return () => undefined;
+      },
+    });
+
+    await shown('[data-module-manager-detail="catalog:camera-halftone"]');
+    act(() => askTheOpenWindowToShow?.({ shows: "marketplace", page: "tatolab-camera" }));
+    await shown('[data-module-manager-detail="catalog:tatolab-camera"]');
+  });
+
   it("keeps a tab asked of it while it was still reading the one it opened on", async () => {
-    let askTheOpenWindowToShow: ((shows: ModulesShown) => void) | null = null;
-    let answerTheSectionLastAsked: ((shows: ModulesShown) => void) | null = null;
+    let askTheOpenWindowToShow: ((asked: ModuleManagerSectionAsked) => void) | null = null;
+    let answerTheSectionLastAsked: ((asked: ModuleManagerSectionAsked) => void) | null = null;
     await mountedWindowOverTheMock("state=running&module_manager=open", {
       onModuleManagerSectionAsked: (listener) => {
         askTheOpenWindowToShow = listener;
@@ -98,8 +112,8 @@ describe("Module manager", () => {
         }),
     });
 
-    act(() => askTheOpenWindowToShow?.("marketplace"));
-    await act(async () => answerTheSectionLastAsked?.("added_to_this_project"));
+    act(() => askTheOpenWindowToShow?.({ shows: "marketplace", page: null }));
+    await act(async () => answerTheSectionLastAsked?.({ shows: "added_to_this_project", page: null }));
 
     await waitFor(() => expect(shownTab()).toBe("marketplace"));
   });

@@ -6,7 +6,7 @@
 
 import path from "node:path";
 import type { OpenProjectReading, PoppedOutView, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
-import type { ModulesShown } from "../shared/tatolab_electron_bridge_contract.js";
+import type { ModuleManagerSectionAsked } from "../shared/tatolab_electron_bridge_contract.js";
 import { OpenProjectOfAStudioWindow, type FolderEntriesWatch, type ProjectReadingsOfTheRuntime, type StudioWindowOfTheProjectShown } from "./open_project.js";
 import { ProjectTransactionsFeedOfAStudioWindow, type ProjectTransactionsFeedOfAStudioWindowSources } from "./project_transactions_feed.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
@@ -41,10 +41,10 @@ export interface PoppedOutViewWindow {
   readonly languageServerOfTheWindow: LanguageServerOfAWindow;
 }
 
-/** A studio window's Module manager window and the section it was last asked to show. */
+/** A studio window's Module manager window and the section, and page, it was last asked to show. */
 interface ModuleManagerWindowOfAStudioWindow {
   readonly tatolabMainWindow: TatolabMainWindow;
-  sectionLastAsked: ModulesShown;
+  sectionLastAsked: ModuleManagerSectionAsked;
 }
 
 /** What the windows reach: how a window is made, the platform's window chrome and Dock, a folder watch and a timer for each project, and what a closed window stops. */
@@ -212,13 +212,13 @@ export class TatolabAppWindows {
     if (this.lastStatusSent !== null) tatolabMainWindow.sendTheWindowTheStatus(this.lastStatusSent);
   }
 
-  /** Open `studioWindow`'s Module manager window on the section `shows`, its project the workspace imports go into, or bring it forward and have it show `shows` when it is open. */
-  openTheModuleManagerWindowOf(studioWindow: StudioWindowOfAProject, shows: ModulesShown): void {
+  /** Open `studioWindow`'s Module manager window on the section, and page, `asked` names, its project the workspace imports go into, or bring it forward and have it show them when it is open. */
+  openTheModuleManagerWindowOf(studioWindow: StudioWindowOfAProject, asked: ModuleManagerSectionAsked): void {
     const moduleManagerWindowOpen = this.moduleManagerWindowsByStudioWindow.get(studioWindow);
     if (moduleManagerWindowOpen !== undefined) {
-      moduleManagerWindowOpen.sectionLastAsked = shows;
+      moduleManagerWindowOpen.sectionLastAsked = asked;
       moduleManagerWindowOpen.tatolabMainWindow.show();
-      moduleManagerWindowOpen.tatolabMainWindow.askTheWindowToShowTheModuleManagerSection(shows);
+      moduleManagerWindowOpen.tatolabMainWindow.askTheWindowToShowTheModuleManagerSection(asked);
       return;
     }
     let moduleManagerWindowOnceMade: TatolabMainWindow | null = null;
@@ -237,13 +237,13 @@ export class TatolabAppWindows {
       this.sources.tatolabAppLog,
     );
     moduleManagerWindowOnceMade = moduleManagerWindow;
-    this.moduleManagerWindowsByStudioWindow.set(studioWindow, { tatolabMainWindow: moduleManagerWindow, sectionLastAsked: shows });
+    this.moduleManagerWindowsByStudioWindow.set(studioWindow, { tatolabMainWindow: moduleManagerWindow, sectionLastAsked: asked });
     moduleManagerWindow.show();
     if (this.lastStatusSent !== null) moduleManagerWindow.sendTheWindowTheStatus(this.lastStatusSent);
   }
 
-  /** The section the Module manager window whose page is `windowContentsId` was last asked to show; `null` for any other window. */
-  moduleManagerSectionLastAskedOfTheWindowWithContents(windowContentsId: number): ModulesShown | null {
+  /** The section, and page, the Module manager window whose page is `windowContentsId` was last asked to show; `null` for any other window. */
+  moduleManagerSectionLastAskedOfTheWindowWithContents(windowContentsId: number): ModuleManagerSectionAsked | null {
     for (const moduleManagerWindow of this.moduleManagerWindowsByStudioWindow.values()) {
       if (moduleManagerWindow.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return moduleManagerWindow.sectionLastAsked;
     }

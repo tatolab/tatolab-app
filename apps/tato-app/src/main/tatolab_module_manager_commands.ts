@@ -6,7 +6,7 @@ import { addDependency, listDependencies, listProjectViews, nameTheProject, remo
 import { makeAProjectOfItsOwnFromTheArchive } from "./open_project.js";
 import { ModuleManagerWindows, PackageCatalog, StatusRounds, type StudioServices } from "./studio_runtime.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
-import type { TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
+import type { TatolabCommandFromWindow, TatolabWindowCommandHandlers } from "./tatolab_command_answers.js";
 import { workspaceDependenciesOf } from "./workspace_dependencies.js";
 import { CommandRefused, windowCommand } from "./window_command.js";
 
@@ -111,28 +111,36 @@ export function moduleManagerCommandHandlersOf(
   sharedState: TatolabAppSharedState,
   studioRuntime: ManagedRuntime.ManagedRuntime<StudioServices, never>,
 ): Pick<TatolabWindowCommandHandlers, ModuleManagerCommandName> {
-  /** The handler of the Module manager window's command `commandName`, its arguments decoded with `commandArguments`, `handler` given the folder of the project the asking window imports into; refused in any other window. */
-  function moduleManagerWindowCommand<CommandName extends ModuleManagerCommandName>(
+  /** The handler of the command `commandName`, its arguments decoded with `commandArguments`, `handler` given the folder of the project `folderOfTheWindow` finds for the asking window, which refuses any other window. */
+  function projectFolderCommand<CommandName extends ModuleManagerCommandName>(
     commandName: CommandName,
     commandArguments: Schema.Decoder<TatolabCommandSignatures[CommandName]["commandArguments"]>,
+    folderOfTheWindow: (moduleManagerWindows: ModuleManagerWindows["Service"], commandFromWindow: TatolabCommandFromWindow) => Effect.Effect<string, CommandRefused>,
     handler: (
       decoded: TatolabCommandSignatures[CommandName]["commandArguments"],
-      workspaceFolder: string,
+      projectFolder: string,
     ) => Effect.Effect<TatolabCommandSignatures[CommandName]["answer"], { readonly words: string }, StudioServices>,
   ) {
     return windowCommand(studioRuntime, commandName, commandArguments, (decoded, commandFromWindow) =>
-      ModuleManagerWindows.use((moduleManagerWindows) => moduleManagerWindows.workspaceFolderOfTheWindow(commandFromWindow)).pipe(
-        Effect.flatMap((workspaceFolder) => handler(decoded, workspaceFolder)),
-      ),
+      ModuleManagerWindows.use((moduleManagerWindows) => folderOfTheWindow(moduleManagerWindows, commandFromWindow)).pipe(Effect.flatMap((projectFolder) => handler(decoded, projectFolder))),
     );
+  }
+
+  /** The handler of the Module manager window's command `commandName`, `handler` given the folder of the project the asking window imports into; refused in any other window. */
+  function moduleManagerWindowCommand<CommandName extends ModuleManagerCommandName>(
+    commandName: CommandName,
+    commandArguments: Schema.Decoder<TatolabCommandSignatures[CommandName]["commandArguments"]>,
+    handler: Parameters<typeof projectFolderCommand<CommandName>>[3],
+  ) {
+    return projectFolderCommand(commandName, commandArguments, (moduleManagerWindows, commandFromWindow) => moduleManagerWindows.workspaceFolderOfTheWindow(commandFromWindow), handler);
   }
 
   return {
     open_module_manager_window: async (commandArguments, commandFromWindow) => {
-      if (!isAModuleManagerSectionAsked(commandArguments)) return { ok: false, refusal: `open_module_manager_window needs \`shows\`, one of ${MODULES_SHOWN.join(", ")}.` };
-      const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
-      if (studioWindow === null) return { ok: false, refusal: "Only a project's studio window opens Module manager." };
-      sharedState.appWindows.openTheModuleManagerWindowOf(studioWindow, commandArguments.shows);
+      if (!isAModuleManagerSectionAsked(commandArguments)) return { ok: false, refusal: `open_module_manager_window needs \`shows\`, one of ${MODULES_SHOWN.join(", ")}, and \`page\`, a catalog entry's name or null.` };
+      const studioWindow = sharedState.appWindows.studioWindowServingTheContents(commandFromWindow.windowContentsId);
+      if (studioWindow === null) return { ok: false, refusal: "Only a project's studio window, or a view popped out of it, opens Module manager." };
+      sharedState.appWindows.openTheModuleManagerWindowOf(studioWindow, commandArguments);
       return { ok: true, value: null };
     },
     read_module_manager_workspace: async (_commandArguments, commandFromWindow) => ({
@@ -156,7 +164,12 @@ export function moduleManagerCommandHandlersOf(
     update_workspace_dependency: moduleManagerWindowCommand("update_workspace_dependency", UpdateDependencyArguments, ({ project, overwrite_edited_files }, workspaceFolder) =>
       dependencyUpdated(workspaceFolder, project, overwrite_edited_files),
     ),
-    import_from_the_marketplace: moduleManagerWindowCommand("import_from_the_marketplace", CatalogEntryArguments, ({ name }, workspaceFolder) => marketplaceModuleImported(workspaceFolder, name)),
+    import_from_the_marketplace: projectFolderCommand(
+      "import_from_the_marketplace",
+      CatalogEntryArguments,
+      (moduleManagerWindows, commandFromWindow) => moduleManagerWindows.projectFolderOfAWindowOfTheProject(commandFromWindow),
+      ({ name }, projectFolder) => marketplaceModuleImported(projectFolder, name),
+    ),
     remove_workspace_dependency: moduleManagerWindowCommand("remove_workspace_dependency", DependencyArguments, ({ project }, workspaceFolder) => dependencyRemoved(workspaceFolder, project)),
     clone_marketplace_sample: moduleManagerWindowCommand("clone_marketplace_sample", CatalogEntryArguments, ({ name }) => marketplaceSampleCloned(name)),
   };

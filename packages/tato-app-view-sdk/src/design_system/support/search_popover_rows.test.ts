@@ -75,36 +75,56 @@ test("it_opens_on_the_first_entry_above_that_lists_anything_else_on_the_first_ca
 
 test("an_entry_above_the_categories_lists_its_items_under_their_headings_there", () => {
   expect(searchPopoverSectionsShown(ITEMS, "above:This project", "Ungrouped")).toEqual([
-    { section_id: "above:This project", heading: "This project", items: [HALFTONE] },
-    { section_id: "above:Subgraphs from code", heading: "Subgraphs from code", items: [MIC_LEVELS] },
+    { section_id: "above:This project", heading: "This project", aside: null, items: [HALFTONE] },
+    { section_id: "above:Subgraphs from code", heading: "Subgraphs from code", aside: null, items: [MIC_LEVELS] },
   ]);
 });
 
 test("a_category_lists_everything_filed_inside_it_each_under_its_path", () => {
   expect(searchPopoverSectionsShown(ITEMS, searchPopoverCategoryEntryId(["Effects"]), "Ungrouped")).toEqual([
-    { section_id: "category:Effects/Blur", heading: "Effects / Blur", items: [GAUSSIAN_BLUR] },
-    { section_id: "category:Effects/Stylize", heading: "Effects / Stylize", items: [POSTERIZE, HALFTONE] },
+    { section_id: "category:Effects/Blur", heading: "Effects / Blur", aside: null, items: [GAUSSIAN_BLUR] },
+    { section_id: "category:Effects/Stylize", heading: "Effects / Stylize", aside: null, items: [POSTERIZE, HALFTONE] },
   ]);
-  expect(searchPopoverSectionsShown(ITEMS, searchPopoverCategoryEntryId(["Effects", "Stylize"]), "Ungrouped")).toEqual([{ section_id: "category:Effects/Stylize", heading: "Effects / Stylize", items: [POSTERIZE, HALFTONE] }]);
-  expect(searchPopoverSectionsShown(ITEMS, "uncategorised", "Ungrouped")).toEqual([{ section_id: "uncategorised", heading: "Ungrouped", items: [CAMERA] }]);
+  expect(searchPopoverSectionsShown(ITEMS, searchPopoverCategoryEntryId(["Effects", "Stylize"]), "Ungrouped")).toEqual([{ section_id: "category:Effects/Stylize", heading: "Effects / Stylize", aside: null, items: [POSTERIZE, HALFTONE] }]);
+  expect(searchPopoverSectionsShown(ITEMS, "uncategorised", "Ungrouped")).toEqual([{ section_id: "uncategorised", heading: "Ungrouped", aside: null, items: [CAMERA] }]);
   expect(searchPopoverSectionsShown(ITEMS, searchPopoverCategoryEntryId(["Lighting"]), "Ungrouped")).toEqual([]);
 });
 
 test("no_entry_chosen_lists_every_item_once_the_uncategorised_last", () => {
   expect(searchPopoverSectionsShown(ITEMS, null, "Ungrouped")).toEqual([
-    { section_id: "above:Subgraphs from code", heading: "Subgraphs from code", items: [MIC_LEVELS] },
-    { section_id: "category:Effects/Blur", heading: "Effects / Blur", items: [GAUSSIAN_BLUR] },
-    { section_id: "category:Effects/Stylize", heading: "Effects / Stylize", items: [POSTERIZE, HALFTONE] },
-    { section_id: "category:Math", heading: "Math", items: [ADD] },
-    { section_id: "uncategorised", heading: "Ungrouped", items: [CAMERA] },
+    { section_id: "above:Subgraphs from code", heading: "Subgraphs from code", aside: null, items: [MIC_LEVELS] },
+    { section_id: "category:Effects/Blur", heading: "Effects / Blur", aside: null, items: [GAUSSIAN_BLUR] },
+    { section_id: "category:Effects/Stylize", heading: "Effects / Stylize", aside: null, items: [POSTERIZE, HALFTONE] },
+    { section_id: "category:Math", heading: "Math", aside: null, items: [ADD] },
+    { section_id: "uncategorised", heading: "Ungrouped", aside: null, items: [CAMERA] },
   ]);
+});
+
+test("an_item_from_beyond_what_the_search_browses_is_listed_after_every_category_and_only_while_text_is_searched_for", () => {
+  const notInTheProject = { heading: "Not in night-show", aside: "Marketplace" };
+  const lowerThird = { ...item("marketplace_node:tatolab-compositor/LowerThird", "Lower Third", null), listed_after_the_categories: notInTheProject };
+  const sample = { ...item("marketplace_sample:lower-third", "Lower third", null), listed_after_the_categories: { heading: "Sample projects", aside: "Marketplace" } };
+  const items = [lowerThird, ...ITEMS, sample];
+  expect(searchPopoverSectionsShown(items, null, "Ungrouped").map(({ section_id, aside, items: sectionItems }) => [section_id, aside, sectionItems.map((sectionItem) => sectionItem.item_id)])).toEqual([
+    ["above:Subgraphs from code", null, ["graph_generator:mics"]],
+    ["category:Effects/Blur", null, ["ops:GaussianBlur"]],
+    ["category:Effects/Stylize", null, ["ops:Posterize", "nodes.halftone:Halftone"]],
+    ["category:Math", null, ["ops:Add"]],
+    ["uncategorised", null, ["tatolab.stream:CameraSource"]],
+    ["after:Not in night-show", "Marketplace", ["marketplace_node:tatolab-compositor/LowerThird"]],
+    ["after:Sample projects", "Marketplace", ["marketplace_sample:lower-third"]],
+  ]);
+  expect(searchPopoverEntries(items, items, "Ungrouped")).toEqual(searchPopoverEntries(ITEMS, ITEMS, "Ungrouped"));
+  for (const entry of searchPopoverEntries(items, items, "Ungrouped")) {
+    expect(searchPopoverSectionsShown(items, entry.entry_id, "Ungrouped").flatMap((section) => section.items)).not.toContain(lowerThird);
+  }
 });
 
 test("a_category_named_as_the_uncategorised_are_keeps_a_section_of_its_own", () => {
   const filedUnderACategoryNamedUngrouped = item("ops:Stray", "Stray", ["Ungrouped"]);
   expect(searchPopoverSectionsShown([CAMERA, filedUnderACategoryNamedUngrouped], null, "Ungrouped")).toEqual([
-    { section_id: "category:Ungrouped", heading: "Ungrouped", items: [filedUnderACategoryNamedUngrouped] },
-    { section_id: "uncategorised", heading: "Ungrouped", items: [CAMERA] },
+    { section_id: "category:Ungrouped", heading: "Ungrouped", aside: null, items: [filedUnderACategoryNamedUngrouped] },
+    { section_id: "uncategorised", heading: "Ungrouped", aside: null, items: [CAMERA] },
   ]);
 });
 

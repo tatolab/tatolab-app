@@ -520,6 +520,8 @@ export type ImportedProject = {
   name: string;
   /** Its folder under `imports/`. */
   folder: string;
+  /** The folder or `.zip` the runtime copied it from, as `list_dependencies` lists it; a Marketplace download's names its catalog entry. */
+  copied_from: string;
   source: ImportedProjectSource;
 };
 
@@ -819,6 +821,18 @@ export type ProjectFileSaving = { kind: "saved"; version: string } | { kind: "no
 
 /** A new node file from the runtime's node template, with the node type it declares as `<module>:<class>`, or why it was not created, in the runtime's own words. */
 export type NodeFileCreating = { kind: "created"; file: string; node_type: string } | { kind: "not_created"; because: string };
+
+/** A `@node` a Marketplace entry brings, as its catalog names it: its class name, as `CameraSource`, and one line on what it does. */
+export type MarketplaceNode = { name: string; summary: string };
+
+/** One package or sample project the Marketplace lists: the catalog's name for it, its title, one line on what it is, the nodes it brings, and whether it brings anything on this machine. */
+export type MarketplaceEntry = { kind: "package" | "sample"; name: string; title: string; summary: string; nodes: MarketplaceNode[]; runs_on_this_machine: boolean };
+
+/** The Marketplace's entries in its catalog's order, as the catalog lists them now, or why the catalog was not read, in the words of what refused. */
+export type MarketplaceReading = { kind: "read"; entries: MarketplaceEntry[] } | { kind: "not_read"; because: string };
+
+/** A Marketplace module added to the open project, by its folder under `imports/`, or why it was not, in the words of what refused. */
+export type MarketplaceModuleAdding = { kind: "added"; folder: string } | { kind: "not_added"; because: string };
 
 /** A project's files, or why they were not listed. */
 export type ProjectFilesListing = { kind: "listed"; project_files: ProjectFiles } | { kind: "not_listed"; because: string };
