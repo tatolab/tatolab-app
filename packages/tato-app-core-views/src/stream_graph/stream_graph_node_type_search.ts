@@ -126,6 +126,7 @@ function nodePinOfTheDescribedPort(port: NodeTypePortDescribed): NodePin {
     annotations: port.annotations ?? {},
     stream_facts_words: [],
     value_address: null,
+    setting: null,
   };
 }
 

@@ -11,6 +11,7 @@ import { NO_PROJECT } from "../node_ui/test_fixtures/node_ui_listing_fixtures";
 const COUNT: ControlledInput = {
   address: { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "LOOP-ID", input: "count" },
   declaration: { input_name: "count", label: "count", pin_type: { type: "integer" }, annotations: {}, may_be_unset: false },
+  rebuilds_its_node: false,
 };
 
 /** A binder that shows what the test tells it, and counts each bind. */

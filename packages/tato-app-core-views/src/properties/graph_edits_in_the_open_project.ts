@@ -1,56 +1,37 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { newGestureIdempotencyKey, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import { jsonTextOf, type GraphEditMode, type JsonValue, type StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { StreamGraphAction } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { streamGraphActionsAtTheLevel } from "../shared/stream_graph_edits";
 
-/** Where on a node's panel an edit was made, which its refusal shows under: the name, a config field, or a port. */
-export type PlaceOfAnEdit = "name" | `config:${string}` | `input:${string}` | `output:${string}`;
+/** Where on a node's panel an edit was made, which its refusal shows under: the name, or a port or setting. */
+export type PlaceOfAnEdit = "name" | `input:${string}` | `output:${string}`;
 
-/** A node's config as the graph reading gives it. */
-type NodeConfig = Record<string, JsonValue>;
-
-/** One edit sent as one transaction under its gesture's key. */
+/** One edit sent as one commit under its gesture's key. */
 interface GraphEditSent {
   nodeId: string;
   place: PlaceOfAnEdit;
   operations: StreamGraphAction[];
-  mode: GraphEditMode;
   idempotencyKey: string;
-}
-
-/** The config last sent for a node, and the config the graph reading showed when it was sent. */
-interface ConfigSentAheadOfTheReading {
-  readingWhenSent: string;
-  configSent: NodeConfig;
 }
 
 /** The edits of one node: sent in the panel's one order, its refusals kept by place. */
 export interface GraphEditsOfTheNode {
   refusalsByPlace: ReadonlyMap<PlaceOfAnEdit, string>;
   commit: (place: PlaceOfAnEdit, operations: StreamGraphAction[], idempotencyKey?: string) => Promise<boolean>;
-  sendLive: (place: PlaceOfAnEdit, operations: StreamGraphAction[], idempotencyKey: string) => void;
   keepTheRefusal: (place: PlaceOfAnEdit, refusal: string | null) => void;
-  /** The config a new config edit starts from: the one last sent while the reading has not caught up with it, else the reading's. */
-  configToEditFrom: (configTheReadingShows: NodeConfig) => NodeConfig;
-  /** Remembers `configSent` as sent while the reading still shows `configTheReadingShows`. */
-  rememberTheConfigSent: (configTheReadingShows: NodeConfig, configSent: NodeConfig) => void;
 }
 
 const NO_REFUSALS: ReadonlyMap<PlaceOfAnEdit, string> = new Map();
 
 /**
- * Sends the panel's edits to the open project in the order they were made, across every node it shows, each refusal
- * kept under its node and place in the runtime's words until a later commit on that node applies. A drag's live edits wait for the one before to be answered,
- * the newest replacing any not sent yet, so the runtime is never sent more than it can apply; its commit drops a
- * live edit not sent yet. A node's edits at a level, inside a subgraph, carry that level, and only its commits are sent.
+ * Sends the panel's edits to the open project in the order they were made, across every node it shows, each as one
+ * commit, each refusal kept under its node and place in the runtime's words until a later commit on that node applies. A
+ * node's edits at a level, inside a subgraph, carry that level.
  */
 export function useGraphEditsInTheOpenProject(connection: Pick<TatoAppViewConnection, "transactInTheProject">, projectFolder: string | null) {
   const [refusalsByNode, setRefusalsByNode] = useState<ReadonlyMap<string, ReadonlyMap<PlaceOfAnEdit, string>>>(new Map());
   const editsInOrder = useRef<Promise<void>>(Promise.resolve());
-  const liveEditWaiting = useRef<GraphEditSent | null>(null);
-  const configsSentAheadOfTheReading = useRef(new Map<string, ConfigSentAheadOfTheReading>());
   const keepTheRefusal = useCallback((nodeId: string, place: PlaceOfAnEdit, refusal: string | null) => {
-    if (refusal !== null && place.startsWith("config:")) configsSentAheadOfTheReading.current.delete(nodeId);
     setRefusalsByNode((refusalsOfEveryNode) => {
       const refusals = refusalsOfEveryNode.get(nodeId) ?? NO_REFUSALS;
       if (refusal === null && !refusals.has(place)) return refusalsOfEveryNode;
@@ -74,9 +55,9 @@ export function useGraphEditsInTheOpenProject(connection: Pick<TatoAppViewConnec
         keepTheRefusal(edit.nodeId, edit.place, "No project is open, so nothing can be edited.");
         return false;
       }
-      const applying = await connection.transactInTheProject(projectFolder, edit.operations, { mode: edit.mode, idempotencyKey: edit.idempotencyKey });
+      const applying = await connection.transactInTheProject(projectFolder, edit.operations, { mode: "commit", idempotencyKey: edit.idempotencyKey });
       if (applying.kind === "applied") {
-        if (edit.mode === "commit") clearEveryRefusalOfTheNode(edit.nodeId);
+        clearEveryRefusalOfTheNode(edit.nodeId);
         return true;
       }
       keepTheRefusal(edit.nodeId, edit.place, applying.kind === "refused" ? applying.refusal.runtime_words : applying.because);
@@ -86,23 +67,9 @@ export function useGraphEditsInTheOpenProject(connection: Pick<TatoAppViewConnec
   );
   const commit = useCallback(
     (nodeId: string, place: PlaceOfAnEdit, operations: StreamGraphAction[], idempotencyKey = newGestureIdempotencyKey()): Promise<boolean> => {
-      liveEditWaiting.current = null;
-      const sending = editsInOrder.current.then(() => sendNow({ nodeId, place, operations, mode: "commit", idempotencyKey }));
+      const sending = editsInOrder.current.then(() => sendNow({ nodeId, place, operations, idempotencyKey }));
       editsInOrder.current = sending.then(() => undefined);
       return sending;
-    },
-    [sendNow],
-  );
-  const sendLive = useCallback(
-    (nodeId: string, place: PlaceOfAnEdit, operations: StreamGraphAction[], idempotencyKey: string) => {
-      const isOneAlreadyWaiting = liveEditWaiting.current !== null;
-      liveEditWaiting.current = { nodeId, place, operations, mode: "live", idempotencyKey };
-      if (isOneAlreadyWaiting) return;
-      editsInOrder.current = editsInOrder.current.then(async () => {
-        const waiting = liveEditWaiting.current;
-        liveEditWaiting.current = null;
-        if (waiting !== null) await sendNow(waiting);
-      });
     },
     [sendNow],
   );
@@ -117,20 +84,9 @@ export function useGraphEditsInTheOpenProject(connection: Pick<TatoAppViewConnec
         }
         return commit(nodeId, place, operationsAtTheLevel, idempotencyKey);
       },
-      sendLive: (place, operations, idempotencyKey) => {
-        // The runtime makes an edit inside a placed stream on the project's documents only, so a drag at a level is sent once, as its commit.
-        if (level.length === 0) sendLive(nodeId, place, operations, idempotencyKey);
-      },
       keepTheRefusal: (place, refusal) => keepTheRefusal(nodeId, place, refusal),
-      configToEditFrom: (configTheReadingShows) => {
-        const sentAhead = configsSentAheadOfTheReading.current.get(nodeId);
-        return sentAhead !== undefined && sentAhead.readingWhenSent === jsonTextOf(configTheReadingShows) ? sentAhead.configSent : configTheReadingShows;
-      },
-      rememberTheConfigSent: (configTheReadingShows, configSent) => {
-        configsSentAheadOfTheReading.current.set(nodeId, { readingWhenSent: jsonTextOf(configTheReadingShows), configSent });
-      },
     }),
-    [refusalsByNode, commit, sendLive, keepTheRefusal],
+    [refusalsByNode, commit, keepTheRefusal],
   );
   return useMemo(() => ({ ofTheNode }), [ofTheNode]);
 }

@@ -36,15 +36,15 @@ const GRAPH: StreamGraph = aStreamGraph(
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_types_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
+    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
     {
       node_id: "invert",
       title: "invert",
       type_name: "Effect",
       description: null,
       condition: { look: "healthy" },
-      inputs: [{ name: "video_in", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null }],
-      outputs: [{ name: "video_out", pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null }],
+      inputs: [{ name: "video_in", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null }],
+      outputs: [{ name: "video_out", pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null }],
       saved_position: null,
       frame_id: null,
       is_collapsed: false,
@@ -205,6 +205,41 @@ test("an_input_that_holds_a_value_is_addressed_by_its_nodes_id_at_the_level_draw
     nodes: GRAPH.nodes.map((node) => (node.name === "invert" ? { ...node, ports: { ...node.ports, inputs: node.ports.inputs.map((port) => ({ ...port, value_comes_from: "wire" as const })) } } : node)),
   };
   expect(streamGraphCanvasContents(linked, NONE_DESCRIBED, null, level).nodes.find((node) => node.node_id === "invert")?.inputs.map((input) => input.value_address)).toEqual([null]);
+});
+
+test("a_cards_settings_come_first_among_its_inputs_a_typed_ones_port_and_then_each_one_of_a_node_type_not_yet_typed_addressed_where_its_value_is_kept_and_one_the_node_takes_as_an_input_is_none", () => {
+  const described: NodeTypeDescription = {
+    node_type: "nodes.invert:Effect",
+    described_from: "interpreter",
+    documentation: "",
+    source: "project",
+    inputs: [
+      { name: "video_in", documentation: "", mode: "wire_only" },
+      { name: "gain", documentation: "", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", mode: "setting_only", read: "each_run" },
+      { name: "width", documentation: "Canvas width.", mode: "setting_only", read: "at_setup", default_value: 1280 },
+    ],
+    outputs: [],
+  };
+  const withGain: StreamGraph = {
+    ...GRAPH,
+    nodes: GRAPH.nodes.map((node) =>
+      node.name === "invert" ? { ...node, ports: { ...node.ports, inputs: [...node.ports.inputs, aGraphPort("gain", "channels", { pin_type: { type: "float" }, flow: "value", value: 1, value_comes_from: "default" })] } } : node,
+    ),
+  };
+  const level = { project_folder: "/projects/demo", stream_asset: "stream-asset", level: [] };
+  const invert = streamGraphCanvasContents(withGain, new Map([[described.node_type, described]]), null, level).nodes.find((node) => node.node_id === "invert");
+  expect(invert?.inputs.map((input) => [input.name, input.setting, input.pin, input.description, input.value_address?.input ?? null])).toEqual([
+    ["gain", { read: "each_run" }, { pin_type: { type: "float" }, flow: "value" }, null, "gain"],
+    ["width", { read: "at_setup" }, null, "Canvas width.", "width"],
+    ["video_in", null, null, null, null],
+  ]);
+  const gainExposed: StreamGraph = { ...withGain, nodes: withGain.nodes.map((node) => (node.name === "invert" ? { ...node, exposed_config_fields: ["gain"] } : node)) };
+  const invertTakingGainAsAnInput = streamGraphCanvasContents(gainExposed, new Map([[described.node_type, described]]), null, level).nodes.find((node) => node.node_id === "invert");
+  expect(invertTakingGainAsAnInput?.inputs.map((input) => [input.name, input.setting])).toEqual([
+    ["width", { read: "at_setup" }],
+    ["video_in", null],
+    ["gain", null],
+  ]);
 });
 
 test("a_node_or_link_the_running_stream_does_not_hold_yet_is_drawn_not_live_and_each_diagnostic_shows_on_what_it_names", () => {

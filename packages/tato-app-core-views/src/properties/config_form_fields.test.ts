@@ -1,11 +1,8 @@
 import { expect, test } from "vitest";
-import type { NodeTypeDescription } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { aGraphNode, aGraphPort } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
-import { configFormFieldValueWords, configFormOf, configFormOfAListEntry, configSchemaOfTheSettings, recordsOfAListField } from "./config_form_fields";
+import { configFormFieldValueWords, doesTheSettingTakeNull, fieldsOfAListEntry, listOfRecordsOfTheSetting, recordsOfAListField, type JsonObject } from "./config_form_fields";
 
-const RUST_SPELLED_SCHEMA = {
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  title: "DisplayWindowConfig",
+/** The schema of one record of a list, as the runtime's Rust spells one: a nullable, a default and a choice named by a `$ref`. */
+const RUST_SPELLED_RECORD: JsonObject = {
   type: "object",
   properties: {
     title: { description: "The window's title.", type: ["string", "null"] },
@@ -16,48 +13,26 @@ const RUST_SPELLED_SCHEMA = {
   $defs: { Scaling: { type: "string", enum: ["fit", "fill", "stretch"] } },
 };
 
-test("a_rust_spelled_schema_reads_its_nullable_its_default_and_its_referenced_choices", () => {
-  const form = configFormOf(RUST_SPELLED_SCHEMA, { scaling: "fill" });
-  expect(form).toEqual({
-    kind: "fields",
-    fields: [
-      { key: "title", description: "The window's title.", control: { kind: "text" }, value: null, value_source: "unset", is_required: false, is_nullable: true },
-      { key: "width", description: null, control: { kind: "number", is_whole_number: true, minimum: 0, maximum: null }, value: 1280, value_source: "default", is_required: true, is_nullable: false },
-      { key: "scaling", description: "How a frame fits the window.", control: { kind: "choice", choices: ["fit", "fill", "stretch"] }, value: "fill", value_source: "config", is_required: false, is_nullable: false },
-    ],
-  });
+test("an_entrys_rust_spelled_schema_reads_its_nullable_its_default_and_its_referenced_choices", () => {
+  expect(fieldsOfAListEntry(RUST_SPELLED_RECORD, { scaling: "fill" })).toEqual([
+    { key: "title", description: "The window's title.", control: { kind: "text" }, value: null, value_source: "unset", is_required: false, is_nullable: true },
+    { key: "width", description: null, control: { kind: "number", is_whole_number: true, minimum: 0, maximum: null }, value: 1280, value_source: "default", is_required: true, is_nullable: false },
+    { key: "scaling", description: "How a frame fits the window.", control: { kind: "choice", choices: ["fit", "fill", "stretch"] }, value: "fill", value_source: "config", is_required: false, is_nullable: false },
+  ]);
 });
 
-test("a_python_spelled_nullable_reads_as_its_one_other_branch", () => {
-  const form = configFormOf(
-    { type: "object", properties: { fps: { anyOf: [{ type: "number" }, { type: "null" }], default: null, description: "Frames a second." } } },
-    { fps: 30 },
-  );
-  expect(form).toEqual({
-    kind: "fields",
-    fields: [{ key: "fps", description: "Frames a second.", control: { kind: "number", is_whole_number: false, minimum: null, maximum: null }, value: 30, value_source: "config", is_required: false, is_nullable: true }],
-  });
+test("an_entrys_python_spelled_nullable_reads_as_its_one_other_branch", () => {
+  expect(fieldsOfAListEntry({ type: "object", properties: { fps: { anyOf: [{ type: "number" }, { type: "null" }], default: null, description: "Frames a second." } } }, { fps: 30 })).toEqual([
+    { key: "fps", description: "Frames a second.", control: { kind: "number", is_whole_number: false, minimum: null, maximum: null }, value: 30, value_source: "config", is_required: false, is_nullable: true },
+  ]);
 });
 
-test("a_config_key_the_schema_does_not_name_is_shown_after_the_ones_it_does", () => {
-  const form = configFormOf({ type: "object", properties: { on: { type: "boolean" } } }, { on: true, extra: { nested: [1] } });
-  expect(form.kind === "fields" && form.fields.map((field) => [field.key, field.control.kind, field.value_source])).toEqual([
+test("an_entrys_key_the_schema_does_not_name_is_shown_after_the_ones_it_does_and_a_key_with_no_type_takes_its_control_from_its_value", () => {
+  expect(fieldsOfAListEntry({ type: "object", properties: { on: { type: "boolean" }, every: { default: 30 } } }, { on: true, extra: { nested: [1] } }).map((field) => [field.key, field.control.kind, field.value_source])).toEqual([
     ["on", "toggle", "config"],
+    ["every", "number", "default"],
     ["extra", "json", "config"],
   ]);
-});
-
-test("a_node_type_with_no_schema_shows_its_config_as_the_graph_renders_it", () => {
-  const form = configFormOf(null, { path: "/tmp/out.mp4", frames: 12 });
-  expect(form.kind === "fields" && form.fields.map((field) => [field.key, field.control])).toEqual([
-    ["path", { kind: "text" }],
-    ["frames", { kind: "number", is_whole_number: true, minimum: null, maximum: null }],
-  ]);
-});
-
-test("a_schema_that_closes_an_object_with_no_properties_takes_no_config", () => {
-  expect(configFormOf({ type: "object", additionalProperties: false }, {})).toEqual({ kind: "takes_no_config" });
-  expect(configFormOf({ type: "object" }, {})).toEqual({ kind: "fields", fields: [] });
 });
 
 test("a_value_is_shown_in_words", () => {
@@ -67,87 +42,59 @@ test("a_value_is_shown_in_words", () => {
   expect(configFormFieldValueWords({ a: [true] })).toBe('{"a":[true]}');
 });
 
-const PYTHON_DERIVED_ALPHA_OVER_SCHEMA = {
-  type: "object",
-  properties: {
-    width: { type: "integer", default: 1920 },
-    layers: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: { x: { type: "integer", default: 0 }, y: { type: "integer", default: 0 }, opacity: { type: "number", default: 1.0 } },
-        additionalProperties: false,
-      },
-    },
+/** The schema a value set on Alpha Over's `layers` satisfies, as the runtime's Python derives it. */
+const PYTHON_DERIVED_LAYERS = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: { x: { type: "integer", default: 0 }, y: { type: "integer", default: 0 }, opacity: { type: "number", default: 1.0 } },
+    additionalProperties: false,
   },
-  additionalProperties: false,
 };
 
-test("a_list_of_records_reads_as_its_entries_each_with_its_own_fields_and_a_new_entry_at_the_item_defaults", () => {
-  const form = configFormOf(PYTHON_DERIVED_ALPHA_OVER_SCHEMA, { layers: [{}, { x: 640, y: 360, opacity: 0.5 }] });
-  const layers = form.kind === "fields" ? form.fields.find((field) => field.key === "layers") : undefined;
-  if (layers?.control.kind !== "list_of_records") return expect.unreachable("layers is not a list of records");
-  expect(layers.control.new_item).toEqual({});
-  expect(recordsOfAListField(layers.value)).toEqual([{}, { x: 640, y: 360, opacity: 0.5 }]);
-
-  const secondEntry = configFormOf(layers.control.item_schema, { x: 640, y: 360, opacity: 0.5 });
-  expect(secondEntry.kind === "fields" && secondEntry.fields.map((field) => [field.key, field.control.kind, field.value, field.value_source])).toEqual([
+test("a_setting_holding_a_list_of_records_reads_as_its_entries_each_with_its_own_fields_and_a_new_entry_at_the_item_defaults", () => {
+  const layers = listOfRecordsOfTheSetting(PYTHON_DERIVED_LAYERS);
+  if (layers === null) return expect.unreachable("layers is not a list of records");
+  expect(layers.new_item).toEqual({});
+  expect(recordsOfAListField([{}, { x: 640, y: 360, opacity: 0.5 }, 3])).toEqual([{}, { x: 640, y: 360, opacity: 0.5 }, {}]);
+  expect(fieldsOfAListEntry(layers.item_schema, { x: 640, y: 360, opacity: 0.5 }).map((field) => [field.key, field.control.kind, field.value, field.value_source])).toEqual([
     ["x", "number", 640, "config"],
     ["y", "number", 360, "config"],
     ["opacity", "number", 0.5, "config"],
   ]);
-  const firstEntry = configFormOf(layers.control.item_schema, {});
-  expect(firstEntry.kind === "fields" && firstEntry.fields.map((field) => [field.key, field.value, field.value_source])).toEqual([
+  expect(fieldsOfAListEntry(layers.item_schema, {}).map((field) => [field.key, field.value, field.value_source])).toEqual([
     ["x", 0, "default"],
     ["y", 0, "default"],
     ["opacity", 1.0, "default"],
   ]);
 });
 
-test("a_list_item_named_by_a_ref_keeps_the_documents_defs_and_a_list_of_plain_values_stays_json", () => {
-  const form = configFormOf(
-    {
-      type: "object",
-      properties: { cues: { type: "array", items: { $ref: "#/$defs/Cue" } }, tags: { type: "array", items: { type: "string" } } },
-      $defs: { Cue: { type: "object", properties: { fade: { $ref: "#/$defs/Fade" } } }, Fade: { type: "string", enum: ["cut", "dissolve"] } },
-    },
-    { cues: [{ fade: "cut" }] },
-  );
-  const [cues, tags] = form.kind === "fields" ? form.fields : [];
-  expect(tags?.control.kind).toBe("json");
-  if (cues?.control.kind !== "list_of_records") return expect.unreachable("cues is not a list of records");
-  const cueForm = configFormOf(cues.control.item_schema, { fade: "cut" });
-  expect(cueForm.kind === "fields" && cueForm.fields[0]?.control).toEqual({ kind: "choice", choices: ["cut", "dissolve"] });
+test("a_list_item_named_by_a_ref_keeps_the_documents_defs_and_a_setting_holding_anything_else_is_no_list_of_records", () => {
+  const cues = listOfRecordsOfTheSetting({ type: "array", items: { $ref: "#/$defs/Cue" }, $defs: { Cue: { type: "object", properties: { fade: { $ref: "#/$defs/Fade" } } }, Fade: { type: "string", enum: ["cut", "dissolve"] } } });
+  if (cues === null) return expect.unreachable("cues is not a list of records");
+  expect(fieldsOfAListEntry(cues.item_schema, { fade: "cut" })[0]?.control).toEqual({ kind: "choice", choices: ["cut", "dissolve"] });
+  expect(listOfRecordsOfTheSetting({ type: "array", items: { type: "string" } })).toBeNull();
+  expect(listOfRecordsOfTheSetting({ type: "integer" })).toBeNull();
+  expect(listOfRecordsOfTheSetting(undefined)).toBeNull();
   expect(recordsOfAListField(null)).toEqual([]);
 });
 
 test("a_new_entry_holds_only_the_required_keys_defaults_and_a_list_nested_in_an_entry_shows_as_json", () => {
-  const form = configFormOf(
-    {
-      type: "object",
-      properties: {
-        cues: {
-          type: "array",
-          items: { type: "object", properties: { at: { type: "number", default: 0 }, fade: { type: "string", default: "cut" }, points: { type: "array", items: { type: "object", properties: { x: { type: "number" } } } } }, required: ["fade"] },
-        },
-      },
-    },
-    {},
-  );
-  const cues = form.kind === "fields" ? form.fields[0] : undefined;
-  if (cues?.control.kind !== "list_of_records") return expect.unreachable("cues is not a list of records");
-  expect(cues.control.new_item).toEqual({ fade: "cut" });
-  expect(configFormOf(cues.control.item_schema, {}).kind === "fields" && configFormOf(cues.control.item_schema, {})).toMatchObject({ fields: [{}, {}, { key: "points", control: { kind: "list_of_records" } }] });
-  const entryForm = configFormOfAListEntry(cues.control.item_schema, { fade: "cut" });
-  expect(entryForm.kind === "fields" && entryForm.fields.map((field) => [field.key, field.control.kind])).toEqual([
+  const cues = listOfRecordsOfTheSetting({
+    type: "array",
+    items: { type: "object", properties: { at: { type: "number", default: 0 }, fade: { type: "string", default: "cut" }, points: { type: "array", items: { type: "object", properties: { x: { type: "number" } } } } }, required: ["fade"] },
+  });
+  if (cues === null) return expect.unreachable("cues is not a list of records");
+  expect(cues.new_item).toEqual({ fade: "cut" });
+  expect(fieldsOfAListEntry(cues.item_schema, { fade: "cut" }).map((field) => [field.key, field.control.kind])).toEqual([
     ["at", "number"],
     ["fade", "text"],
     ["points", "json"],
   ]);
 });
 
-test("a_string_key_the_runtime_marks_as_a_project_asset_reads_as_an_asset_picker_of_the_media_it_takes", () => {
-  const form = configFormOf(
+test("an_entrys_string_key_the_runtime_marks_as_a_project_asset_reads_as_an_asset_picker_of_the_media_it_takes", () => {
+  const fields = fieldsOfAListEntry(
     {
       type: "object",
       properties: {
@@ -159,54 +106,16 @@ test("a_string_key_the_runtime_marks_as_a_project_asset_reads_as_an_asset_picker
     },
     { asset: "38ab4435-5f49-4cd1-b60e-f03acf54db34" },
   );
-  expect(form.kind === "fields" && form.fields.map((field) => [field.key, field.control, field.is_nullable])).toEqual([
+  expect(fields.map((field) => [field.key, field.control, field.is_nullable])).toEqual([
     ["asset", { kind: "project_asset", media_it_takes: ["image"] }, false],
     ["backdrop", { kind: "project_asset", media_it_takes: null }, true],
     ["label", { kind: "text" }, false],
   ]);
 });
 
-/** A node type described with a stream input, a setting the graph shows as an input, and settings it does not: one typed, one holding a project image, and one whose type no pin type holds. */
-const TALLY_DESCRIBED: NodeTypeDescription = {
-  node_type: "nodes.frame_tally:FrameTally",
-  described_from: "interpreter",
-  documentation: "",
-  inputs: [
-    { name: "picture", documentation: "", pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream", mode: "wire_only" },
-    { name: "gain", documentation: "", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", mode: "setting_only", default_value: 1, value_json_schema: { type: "number" } },
-    { name: "report_every", documentation: "How many pictures between reports.", pin_type: { kind: "is", pin_type: { type: "integer" } }, flow: "value", mode: "setting_only", default_value: 30, value_json_schema: { type: "integer", minimum: 1 } },
-    { name: "backdrop", documentation: "", pin_type: { kind: "is", pin_type: { type: "string" } }, flow: "value", annotations: { project_asset: { media: ["image"] } }, mode: "setting_only", default_value: "", value_json_schema: { type: "string" } },
-    { name: "labels", documentation: "", mode: "setting_only", default_value: ["value"] },
-  ],
-  outputs: [],
-  source: "project",
-};
-
-test("the_config_form_of_a_described_node_holds_each_setting_the_graph_does_not_show_as_an_input_with_its_schema_documentation_and_default", () => {
-  const tally = aGraphNode("tally", { inputs: [aGraphPort("picture", null), aGraphPort("gain", null)] });
-  const schema = configSchemaOfTheSettings(TALLY_DESCRIBED, tally);
-  expect(schema).toEqual({
-    type: "object",
-    properties: {
-      report_every: { type: "integer", minimum: 1, description: "How many pictures between reports.", default: 30 },
-      backdrop: { "x-tatolab-project-asset": { media: ["image"] }, type: "string", default: "" },
-      labels: { default: ["value"] },
-    },
-    additionalProperties: false,
-  });
-  const form = configFormOf(schema, { report_every: 60 });
-  expect(form.kind === "fields" && form.fields.map((field) => [field.key, field.control, field.value, field.value_source])).toEqual([
-    ["report_every", { kind: "number", is_whole_number: true, minimum: 1, maximum: null }, 60, "config"],
-    ["backdrop", { kind: "project_asset", media_it_takes: ["image"] }, "", "default"],
-    ["labels", { kind: "json" }, ["value"], "default"],
-  ]);
-});
-
-test("a_setting_whose_schema_states_no_type_takes_its_control_from_its_value_and_a_node_type_with_no_description_has_no_config_schema", () => {
-  const form = configFormOf({ type: "object", properties: { every: { default: 30 }, name: { default: "tally" } }, additionalProperties: false }, {});
-  expect(form.kind === "fields" && form.fields.map((field) => field.control)).toEqual([
-    { kind: "number", is_whole_number: true, minimum: null, maximum: null },
-    { kind: "text" },
-  ]);
-  expect(configSchemaOfTheSettings(undefined, aGraphNode("tally", {}))).toBeNull();
+test("a_setting_takes_null_where_its_schema_spells_a_nullable_either_way", () => {
+  expect(doesTheSettingTakeNull({ type: ["string", "null"] })).toBe(true);
+  expect(doesTheSettingTakeNull({ anyOf: [{ type: "string" }, { type: "null" }] })).toBe(true);
+  expect(doesTheSettingTakeNull({ type: "string" })).toBe(false);
+  expect(doesTheSettingTakeNull(undefined)).toBe(false);
 });

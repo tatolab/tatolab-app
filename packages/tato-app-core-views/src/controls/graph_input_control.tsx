@@ -14,7 +14,7 @@ import { GRAPH_INPUT_VALUE_INPUT, LIFETIME_WORDS, whyNoControlWritesTheInput, wh
 
 /** The control Perform draws for `graphInput`'s value, the one its Graph Input node draws; `null` where it takes none, so Perform draws its own field. */
 function controlledValueOf(graphInput: GraphInputOfTheStream, address: InputAddress): ControlledInput | null {
-  const controlled = takesAControl({ name: GRAPH_INPUT_VALUE_INPUT, pin: graphInput.value_pin, annotations: graphInput.value_annotations, value_address: address });
+  const controlled = takesAControl({ name: GRAPH_INPUT_VALUE_INPUT, pin: graphInput.value_pin, annotations: graphInput.value_annotations, value_address: address, setting: null });
   return controlled === null ? null : { ...controlled, declaration: { ...controlled.declaration, label: graphInput.port_name } };
 }
 

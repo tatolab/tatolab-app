@@ -2,7 +2,6 @@ import type { JsonValue, StreamGraphLink, StreamGraphNode, StreamGraphPort } fro
 import type { PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
 import { aGraphLink, aGraphNode, aGraphPort } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 import { expect, test } from "vitest";
-import type { ConfigFormField } from "./config_form_fields";
 import {
   configFieldsToExposeAsGraphInputs,
   configValueFromTheWordsTyped,
@@ -15,8 +14,6 @@ import {
   nodeIdInShort,
   pinValueFromTheWordsTyped,
   promoteToGraphInput,
-  resetTheConfigField,
-  setTheConfigField,
 } from "./properties_graph_edits";
 
 function aPort(name: string, family: PortFamily | null): StreamGraphPort {
@@ -55,13 +52,6 @@ test("an unlinked input's value reads as JSON where the words are JSON, else as 
   expect(pinValueFromTheWordsTyped("0.5")).toBe(0.5);
   expect(pinValueFromTheWordsTyped("true")).toBe(true);
   expect(pinValueFromTheWordsTyped("hello")).toBe("hello");
-});
-
-test("setting a config field sends the whole config with the field changed, and a reset sends it without the field", () => {
-  const configEditedFrom = { width: 1280, height: 720 };
-  expect(setTheConfigField("stream-asset", "node-id", configEditedFrom, "height", 360)).toEqual({ operation: "set_node_config", stream: "stream-asset", node: "node-id", config: { width: 1280, height: 360 } });
-  expect(resetTheConfigField("stream-asset", "node-id", configEditedFrom, "width")).toEqual({ operation: "set_node_config", stream: "stream-asset", node: "node-id", config: { height: 720 } });
-  expect(configEditedFrom).toEqual({ width: 1280, height: 720 });
 });
 
 test("a port's linked ends name the node and port on the other side", () => {
@@ -106,28 +96,22 @@ test("an edit of an entry the list has moved on from changes nothing", () => {
   expect(listWithTheRecordFieldSet(layersAfterTheFirstWasRemoved, 1, { x: 640, y: 360, opacity: 0.5 }, "x", 0)).toBeNull();
 });
 
-function aConfigFormField(key: string, control: ConfigFormField["control"]): ConfigFormField {
-  return { key, description: null, control, value: null, value_source: "default", is_required: false, is_nullable: false };
-}
-
-test("a node offers each number and on-off config field it does not yet take as an input to expose as a Graph Input", () => {
-  const strength = aConfigFormField("strength", { kind: "number", is_whole_number: false, minimum: 0, maximum: 1 });
-  const enabled = aConfigFormField("enabled", { kind: "toggle" });
-  const label = aConfigFormField("label", { kind: "text" });
-  const blend = aConfigFormField("blend", { kind: "choice", choices: ["over", "add"] });
-  expect(configFieldsToExposeAsGraphInputs({ exposed_config_fields: [] }, [strength, enabled, label, blend]).map((field) => field.key)).toEqual(["strength", "enabled"]);
-  expect(configFieldsToExposeAsGraphInputs({ exposed_config_fields: ["strength"] }, [strength, enabled, label]).map((field) => field.key)).toEqual(["enabled"]);
+test("a node offers each setting its node type says it can take as an input, and it does not yet, to expose as a Graph Input", () => {
+  const described = { exposable_config_fields: ["strength", "enabled"] };
+  expect([...configFieldsToExposeAsGraphInputs({ exposed_config_fields: [] }, described)]).toEqual(["strength", "enabled"]);
+  expect([...configFieldsToExposeAsGraphInputs({ exposed_config_fields: ["strength"] }, described)]).toEqual(["enabled"]);
+  expect(configFieldsToExposeAsGraphInputs({}, undefined).size).toBe(0);
 });
 
-test("exposing a config field is one transaction: the node takes it as an input, fed by a new Channels Graph Input moving in the field's range", () => {
+test("exposing a setting is one transaction: the node takes it as an input, fed by a new Channels Graph Input moving in the range its node type annotates", () => {
   const glow = { id: "id-glow", name: "glow", exposed_config_fields: ["enabled"] };
-  expect(exposeTheConfigFieldAsAGraphInput("asset", glow, aConfigFormField("strength", { kind: "number", is_whole_number: false, minimum: 0, maximum: 1 }))).toEqual([
+  expect(exposeTheConfigFieldAsAGraphInput("asset", glow, { name: "strength", annotations: { range: { minimum: 0, maximum: 1 } } })).toEqual([
     { operation: "set_exposed_config_fields", stream: "asset", node: "id-glow", exposed_config_fields: ["enabled", "strength"] },
     { operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "glow_strength", config: { port: "glow_strength", family: "channels", range: [0, 1] }, as: "graph_input" },
     { operation: "connect", stream: "asset", source: { node: "graph_input", port: "value" }, target: { node: "id-glow", port: "strength" } },
   ]);
-  expect(exposeTheConfigFieldAsAGraphInput("asset", glow, aConfigFormField("gain", { kind: "number", is_whole_number: false, minimum: null, maximum: 4 }))[1]).toMatchObject({ config: { port: "glow_gain", family: "channels" } });
-  expect(exposeTheConfigFieldAsAGraphInput("asset", glow, aConfigFormField("gain", { kind: "number", is_whole_number: false, minimum: null, maximum: 4 }))[1]).not.toHaveProperty("config.range");
+  expect(exposeTheConfigFieldAsAGraphInput("asset", glow, { name: "gain", annotations: { range: { maximum: 4 } } })[1]).toMatchObject({ config: { port: "glow_gain", family: "channels" } });
+  expect(exposeTheConfigFieldAsAGraphInput("asset", glow, { name: "gain", annotations: {} })[1]).not.toHaveProperty("config.range");
 });
 
 test("promoting an input is one transaction: a new Graph Input named for the node and input, of the input's family, carrying the number it shows now as its default, wired into it", () => {

@@ -41,13 +41,16 @@ export interface InputControlBinding {
 }
 
 /**
- * How a gesture on an input ends: in one commit, recorded in the project's history, or in its last live value, recorded
- * nowhere. Perform plays a show, so a gesture there ends live; on every other surface it ends in a commit.
+ * How a gesture on an input ends: in one commit, recorded in the project's history, its moves each sent live; in one commit
+ * alone, its moves shown and sent nowhere; or in its last live value, recorded nowhere. Perform plays a show, so a gesture
+ * there ends live; on every other surface it ends in a commit. A setting its node reads as it is set up is rebuilt by each
+ * value it takes, so a gesture on it ends in a commit alone, on every surface.
  */
-export type InputValueRelease = "commit" | "live";
+export type InputValueRelease = "commit" | "commit_alone" | "live";
 
-/** How a gesture ends on `surface`. */
-export function releaseOfAGestureOn(surface: NodeUiSurface): InputValueRelease {
+/** How a gesture on `input` ends on `surface`. */
+export function releaseOfAGestureOn(surface: NodeUiSurface, input: Pick<ControlledInput, "rebuilds_its_node">): InputValueRelease {
+  if (input.rebuilds_its_node) return "commit_alone";
   return surface === "perform" ? "live" : "commit";
 }
 
@@ -340,7 +343,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
 
     #openGesture(): InputValueGesture {
       if (this.#gesture !== null) return this.#gesture;
-      const gesture = inputValues.beginGesture(this.#input.address, releaseOfAGestureOn(this.#place.surface));
+      const gesture = inputValues.beginGesture(this.#input.address, releaseOfAGestureOn(this.#place.surface, this.#input));
       this.#gesture = gesture;
       this.#host.ownerDocument.addEventListener("keydown", this.#keyPressedInTheGesture, { capture: true });
       return gesture;
@@ -444,7 +447,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       watchValue: (listener) => inputValues.watchValue(address, listener),
       watchRefusal: (listener) => inputValues.watchRefusal(address, listener),
       beginGesture: () => inputValues.beginGesture(address, release),
-      clear: () => inputValues.clear(address, release),
+      clear: () => inputValues.clear(address, release === "live" ? "live" : "commit"),
     }),
   };
 }

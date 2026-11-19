@@ -31,3 +31,9 @@ export function valueWords(pinType: PinType | null, value: JsonValue | null): st
       return null;
   }
 }
+
+/** A value of an input with no exact type in words, as JSON is written compactly, a string as itself; `null` for no value. */
+export function wordsOfAValueOfNoType(value: JsonValue | null): string | null {
+  if (value === null) return null;
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
