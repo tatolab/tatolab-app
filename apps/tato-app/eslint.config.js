@@ -106,11 +106,13 @@ function mainProcessConfigs() {
   ]);
 }
 
-// A frame meets no Effect: the frame lane, from the runtime's viewer to the window's port viewers, imports none of it.
+// A frame meets no Effect: the code each frame runs through, from reading it off the runtime's channel to handing it to
+// the window to draw, imports none of it. Opening, closing and reopening a viewer are not on the lane.
 const FRAME_LANE_FILES = [
   "src/preload/**/*.{ts,cts}",
-  "src/main/runtime_port_viewers.ts",
-  "src/main/runtime_viewer_*.ts",
+  "src/main/runtime_port_viewer_reads.ts",
+  "src/main/runtime_viewer_image_frame_import.ts",
+  "src/main/runtime_viewer_frame_import_addon.ts",
   "src/main/port_viewer_message_reading.ts",
   "src/main/platform/**/viewer_image_frame_reading*.ts",
   "src/renderer/view_host/port_viewer_connections.ts",

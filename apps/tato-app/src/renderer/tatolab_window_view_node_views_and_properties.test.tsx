@@ -53,6 +53,10 @@ describe("the studio", () => {
     expect(playing.querySelector("canvas")?.getAttribute("aria-label")).toBe("Live picture of Inverting Effect › video_to_downstream");
     await waitFor(() => expect(playing.getAttribute("data-viewer-port-state")).toBe("ended"));
     expect(playing.textContent).toContain("This page has no WebCodecs VideoFrame to play the mock's frames.");
+    expect(playing.querySelector("[data-viewer-ended]")?.getAttribute("data-viewer-ended")).toBe("open_the_port_again");
+    fireEvent.click(within(playing).getByRole("button", { name: "Open again" }));
+    expect(playing.getAttribute("data-viewer-port-state")).toBe("waiting");
+    await waitFor(() => expect(playing.getAttribute("data-viewer-port-state")).toBe("ended"));
 
     fireEvent.click(outlinerRow(`node:${PATTERN_MAIN_STREAM}/displaywindow`));
     const withoutOutput = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="node_without_output"]') ?? expect.unreachable("no placeholder for a node with no output"));

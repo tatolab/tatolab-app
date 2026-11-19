@@ -73,7 +73,7 @@ test("an end ends the connection once, and closing a connection closes its port 
   await settled();
 
   portViewerConnection.close();
-  fake.sendAnEvent({ port_viewer: "port-viewer-1", kind: "ended", because: "stopped" });
+  fake.sendAnEvent({ port_viewer: "port-viewer-1", kind: "ended", because: "stopped", recovery: "shows_once_the_node_runs" });
   await settled();
 
   expect(eventsHeard).toEqual([]);
@@ -88,5 +88,5 @@ test("a refused open ends the connection in the runtime's words", async () => {
   connections.watchPortViewer({ ...CAMERA_VIDEO, node_id: "mic-id" }, (event) => eventsHeard.push(event));
   await settled();
 
-  expect(eventsHeard).toEqual([{ kind: "ended", because: "no node named `mic` in stream `studio`" }]);
+  expect(eventsHeard).toEqual([{ kind: "ended", because: "no node named `mic` in stream `studio`", recovery: "open_the_port_again" }]);
 });

@@ -141,7 +141,7 @@ export class MockPortViewers {
   private playATestPattern(portViewer: string, portWords: string, isTheNodeNotReady: boolean): () => void {
     if (typeof OffscreenCanvas === "undefined" || typeof VideoFrame === "undefined") {
       const timer = window.setTimeout(() => {
-        for (const listener of this.eventListeners) listener({ port_viewer: portViewer, kind: "ended", because: "This page has no WebCodecs VideoFrame to play the mock's frames." });
+        for (const listener of this.eventListeners) listener({ port_viewer: portViewer, kind: "ended", because: "This page has no WebCodecs VideoFrame to play the mock's frames.", recovery: "open_the_port_again" });
       }, 0);
       return () => window.clearTimeout(timer);
     }

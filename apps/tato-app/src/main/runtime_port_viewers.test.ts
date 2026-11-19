@@ -1,7 +1,8 @@
 import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { Effect } from "effect";
 import { expect, test } from "vitest";
 import type { PortViewerEvent, PortViewerImageFrameFacts } from "../shared/tatolab_backend_contract.js";
-import type { OpenedRuntimeViewer, RuntimeViewerCallFailure, RuntimeViewerConnection, RuntimeViewerTarget } from "./runtime_viewer_control_connection.js";
+import { RuntimeViewerCallFailed, type OpenedRuntimeViewer, type RuntimeViewerConnection, type RuntimeViewerTarget } from "./runtime_viewer_control_connection.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { PORT_VIEWER_REOPEN_AFTER_MS, RuntimePortViewers, type WindowShowingPortViewers } from "./runtime_port_viewers.js";
 import type { RuntimeViewerChannelReaderOfTheAddon, RuntimeViewerImageFrame, RuntimeViewerMessageRead, SharedTextureImportOfARuntimeViewerFrame } from "./runtime_viewer_image_frame_import.js";
@@ -86,14 +87,14 @@ class FakeViewerConnection implements RuntimeViewerConnection {
   readonly openedTargets: RuntimeViewerTarget[] = [];
   readonly closedViewers: string[] = [];
   openRefusal: string | null = null;
-  private open = true;
+  private whyItClosedOnce: string | null = null;
   private readonly closedListeners: ((whyItClosed: string) => void)[] = [];
 
-  openViewer(target: RuntimeViewerTarget): Promise<Result<OpenedRuntimeViewer, RuntimeViewerCallFailure>> {
-    this.openedTargets.push(target);
-    if (this.openRefusal !== null) return Promise.resolve(failedWith({ words: this.openRefusal, theRuntimeRefusedIt: true }));
-    return Promise.resolve(
-      succeeded({
+  openViewer(target: RuntimeViewerTarget): Effect.Effect<OpenedRuntimeViewer, RuntimeViewerCallFailed> {
+    return Effect.suspend(() => {
+      this.openedTargets.push(target);
+      if (this.openRefusal !== null) return Effect.fail(new RuntimeViewerCallFailed({ words: this.openRefusal, theRuntimeRefusedIt: true }));
+      return Effect.succeed({
         viewer: `${target.stream}/${target.node_id}/${target.port}`,
         stream: target.stream,
         node_id: target.node_id,
@@ -104,30 +105,44 @@ class FakeViewerConnection implements RuntimeViewerConnection {
         wake_service: `${target.node_id}/notify`,
         viewer_reads: target.port === "audio" ? "every_message" : "latest_message",
         surface_share_address: "/tmp/tatolab/surface-share.sock",
-      }),
-    );
+      });
+    });
   }
 
-  closeViewer(viewer: string): Promise<Result<string, RuntimeViewerCallFailure>> {
-    this.closedViewers.push(viewer);
-    return Promise.resolve(succeeded(viewer));
+  closeViewer(viewer: string): Effect.Effect<string, RuntimeViewerCallFailed> {
+    return Effect.sync(() => {
+      this.closedViewers.push(viewer);
+      return viewer;
+    });
   }
 
-  onClosed(whenTheConnectionCloses: (whyItClosed: string) => void): void {
-    this.closedListeners.push(whenTheConnectionCloses);
+  get whyItClosed(): Effect.Effect<string> {
+    return Effect.callback<string>((resume) => {
+      if (this.whyItClosedOnce !== null) resume(Effect.succeed(this.whyItClosedOnce));
+      else this.closedListeners.push((why) => resume(Effect.succeed(why)));
+    });
   }
 
-  isOpen(): boolean {
-    return this.open;
+  get isOpen(): Effect.Effect<boolean> {
+    return Effect.sync(() => this.whyItClosedOnce === null);
   }
 
-  close(): void {
-    this.open = false;
+  get close(): Effect.Effect<void> {
+    return Effect.sync(() => this.closeBecause("closed by the app"));
+  }
+
+  isOpenNow(): boolean {
+    return this.whyItClosedOnce === null;
   }
 
   dropByTheRuntime(whyItClosed: string): void {
-    this.open = false;
-    for (const listener of this.closedListeners) listener(whyItClosed);
+    this.closeBecause(whyItClosed);
+  }
+
+  private closeBecause(why: string): void {
+    if (this.whyItClosedOnce !== null) return;
+    this.whyItClosedOnce = why;
+    for (const listener of this.closedListeners.splice(0)) listener(why);
   }
 }
 
@@ -153,11 +168,11 @@ function harness() {
   let followRefusal: Error | null = null;
   const streamStatesTheRuntimeLists = new Map([[CAMERA_VIDEO.stream, "running"]]);
   const runtimePortViewers = new RuntimePortViewers({
-    openTheViewerConnection: () => {
+    openTheViewerConnection: Effect.sync(() => {
       const connection = new FakeViewerConnection();
       connections.push(connection);
-      return Promise.resolve(succeeded(connection));
-    },
+      return connection;
+    }),
     openAChannelReader: () => {
       if (addonRefusal !== null) return failedWith(addonRefusal);
       const channelReader = new FakeChannelReader();
@@ -166,7 +181,9 @@ function harness() {
       return succeeded(channelReader);
     },
     viewerProcessId: 4242,
-    waitThen: (afterMs, then) => waits.push({ afterMs, then }),
+    waitBeforeReopening: Effect.callback<void>((resume) => {
+      waits.push({ afterMs: PORT_VIEWER_REOPEN_AFTER_MS, then: () => resume(Effect.void) });
+    }),
     streamStateTheRuntimeListsNow: (stream) => streamStatesTheRuntimeLists.get(stream) ?? null,
     tatolabAppLog: SILENT_TATOLAB_APP_LOG,
   });
@@ -240,7 +257,7 @@ test("a_viewer_that_stops_hearing_writes_ends_every_port_viewer_of_that_port", a
   channelReaders[0]?.tellAWriteCame?.(new Error("the viewer stopped hearing writes: the event service went away"));
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([
-    { port_viewer: "port-viewer-1", kind: "ended", because: "The viewer stopped reading camera › video: the viewer stopped hearing writes: the event service went away" },
+    { port_viewer: "port-viewer-1", kind: "ended", because: "The viewer stopped reading camera › video: the viewer stopped hearing writes: the event service went away", recovery: "shows_once_the_node_runs" },
   ]);
   expect(channelReaders[0]?.closed).toBe(true);
 });
@@ -308,7 +325,7 @@ test("a_frame_electron_cannot_import_and_that_has_no_pixels_ends_the_port_viewer
 
   await writeAndSettle();
 
-  expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "ended", because: "Electron cannot import a rgba64 frame as a shared texture" }]);
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "ended", because: "Electron cannot import a rgba64 frame as a shared texture", recovery: "open_the_port_again" }]);
   expect(channelReaders[0]?.closed).toBe(true);
 });
 
@@ -476,11 +493,12 @@ test("the_runtime_viewer_closes_when_its_last_window_closes", async () => {
 });
 
 test("a_dropped_connection_tells_the_windows_and_reopens_their_port_on_a_new_one", async () => {
-  const { runtimePortViewers, connections, channelReaders, waits } = harness();
+  const { runtimePortViewers, connections, channelReaders, waits, settle } = harness();
   const windowShowingPortViewers = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
 
   connections[0]?.dropByTheRuntime("the runtime stopped");
+  await settle();
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "reopening", because: "the runtime stopped" }]);
   expect(channelReaders[0]?.closed).toBe(true);
@@ -551,7 +569,7 @@ test("a_failed_read_ends_every_port_viewer_of_that_port", async () => {
   await writeAndSettle();
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([
-    { port_viewer: "port-viewer-1", kind: "ended", because: "The viewer stopped reading camera › video: the channel's publisher went away" },
+    { port_viewer: "port-viewer-1", kind: "ended", because: "The viewer stopped reading camera › video: the channel's publisher went away", recovery: "shows_once_the_node_runs" },
   ]);
 });
 
@@ -562,7 +580,7 @@ test("quitting_closes_every_port_viewer_and_the_connection", async () => {
   runtimePortViewers.closeEveryPortViewer();
 
   expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
-  expect(connections[0]?.isOpen()).toBe(false);
+  expect(connections[0]?.isOpenNow()).toBe(false);
 });
 
 test("a_window_closes_only_the_port_viewers_it_opened", async () => {
@@ -576,4 +594,37 @@ test("a_window_closes_only_the_port_viewers_it_opened", async () => {
   runtimePortViewers.closeAPortViewer("port-viewer-1", firstWindow);
 
   expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
+});
+
+test("two_windows_opening_one_port_at_once_share_one_opening_of_its_runtime_viewer", async () => {
+  const { runtimePortViewers, connections, channelReaders } = harness();
+
+  const [first, second] = await Promise.all([
+    runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers()),
+    runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers()),
+  ]);
+
+  expect([first, second]).toEqual([succeeded({ port_viewer: "port-viewer-1" }), succeeded({ port_viewer: "port-viewer-2" })]);
+  expect(connections).toHaveLength(1);
+  expect(connections[0]?.openedTargets).toHaveLength(1);
+  expect(channelReaders).toHaveLength(1);
+});
+
+test("a_port_the_addon_refuses_as_it_reopens_ends_saying_it_can_be_opened_again", async () => {
+  const { runtimePortViewers, connections, waits, settle, refuseInTheAddon } = harness();
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
+  connections[0]?.dropByTheRuntime("the runtime stopped");
+  await settle();
+  refuseInTheAddon("this build carries no viewer addon");
+
+  waits[0]?.then();
+  await settle();
+
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([
+    { port_viewer: "port-viewer-1", kind: "reopening", because: "the runtime stopped" },
+    { port_viewer: "port-viewer-1", kind: "ended", because: "this build carries no viewer addon", recovery: "open_the_port_again" },
+  ]);
+  expect(connections[1]?.closedViewers).toEqual(["studio/camera-id/video"]);
+  expect(waits).toHaveLength(1);
 });

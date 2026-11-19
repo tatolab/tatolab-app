@@ -1,9 +1,17 @@
-// Port viewers' connection to the runtime: one `/control/ws` connection, because the runtime ties a viewer to the
-// connection that opened it and closes every viewer a connection opened when it closes; what `open_viewer` and
-// `close_viewer` answer, read field for field.
+// Port viewers' connection to the runtime: one `/control/ws` connection opened over `RuntimeControl` in a scope of its
+// own, because the runtime ties a viewer to the connection that opened it and closes every viewer a connection opened
+// when it closes; and what `open_viewer` and `close_viewer` answer, read field for field.
 
+import { Data, Deferred, Effect, Exit, Scope } from "effect";
 import { jsonObject, optionalText, requiredText, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
-import { failedWith, succeeded, type Result } from "./result.js";
+import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import type { RuntimeControlFailure } from "./runtime_control_failures.js";
+import {
+  controlOperationOnTheConnectionReadWith,
+  RuntimeControl,
+  type ControlOperationParams,
+  type ControlOperationResult,
+} from "./tatolab_runtime_control_operation_call.js";
 
 /** What `open_viewer` answers (`OpenViewerToolResult`): where the viewer's own process subscribes to read the port. */
 export interface OpenedRuntimeViewer {
@@ -94,22 +102,74 @@ export function closedViewerFromTheCloseViewerToolResult(operationResult: unknow
   return viewer.ok ? viewer : failedWith(`the runtime's close_viewer result could not be read: ${viewer.failure}`);
 }
 
-/** Why a call over the port viewers' connection came back without an answer, and whether it was the operation's own refusal. */
-export interface RuntimeViewerCallFailure {
-  readonly words: string;
-  readonly theRuntimeRefusedIt: boolean;
-}
+/** Why a call over the port viewers' connection came back without an answer, in words, and whether it was the operation's own refusal. */
+export class RuntimeViewerCallFailed extends Data.TaggedError("RuntimeViewerCallFailed")<{ readonly words: string; readonly theRuntimeRefusedIt: boolean }> {}
 
 /** One `/control/ws` connection port viewers are opened over, held open while any of them is. */
 export interface RuntimeViewerConnection {
   /** Open a viewer of `target`'s output port, held open until `closeViewer` or this connection closes; refused in the runtime's own words. */
-  readonly openViewer: (target: RuntimeViewerTarget) => Promise<Result<OpenedRuntimeViewer, RuntimeViewerCallFailure>>;
+  readonly openViewer: (target: RuntimeViewerTarget) => Effect.Effect<OpenedRuntimeViewer, RuntimeViewerCallFailed>;
   /** Close the viewer `viewer` this connection opened, answering the id the runtime closed; refused in the runtime's own words. */
-  readonly closeViewer: (viewer: string) => Promise<Result<string, RuntimeViewerCallFailure>>;
-  /** Call `whenTheConnectionCloses` once, with why, when the connection closes from either end; at once if it already has. */
-  readonly onClosed: (whenTheConnectionCloses: (whyItClosed: string) => void) => void;
+  readonly closeViewer: (viewer: string) => Effect.Effect<string, RuntimeViewerCallFailed>;
+  /** Why the connection closed, from either end, once it has. */
+  readonly whyItClosed: Effect.Effect<string>;
   /** Whether the connection is still open. */
-  readonly isOpen: () => boolean;
+  readonly isOpen: Effect.Effect<boolean>;
   /** Close the connection, which closes every viewer it opened. */
-  readonly close: () => void;
+  readonly close: Effect.Effect<void>;
+}
+
+/** Why the connection closed when the app closed it, or the scope it was opened in closed. */
+const CLOSED_BY_THE_APP = "the port viewers' /control/ws connection was closed";
+
+/**
+ * A connection port viewers are opened over, opened with `RuntimeControl.connect` in a scope of its own forked from
+ * `outerScope`: closed by `close`, by the runtime, or as `outerScope` closes. Its calls run on the services this effect runs
+ * on, so a call that breaks is logged through their logger.
+ */
+export function runtimeViewerConnectionOpenedIn(outerScope: Scope.Scope): Effect.Effect<RuntimeViewerConnection, RuntimeControlFailure, RuntimeControl> {
+  return Effect.gen(function* () {
+    const runtimeControl = yield* RuntimeControl;
+    const connectionScope = yield* Scope.fork(outerScope);
+    const connection = yield* runtimeControl.connect.pipe(
+      Scope.provide(connectionScope),
+      Effect.onError(() => Scope.close(connectionScope, Exit.void)),
+    );
+    const services = yield* Effect.context<never>();
+    const closed = Deferred.makeUnsafe<string>();
+    yield* Scope.addFinalizer(connectionScope, Deferred.succeed(closed, CLOSED_BY_THE_APP));
+    yield* connection.closedByTheRuntime.pipe(
+      Effect.flatMap((why) => Deferred.succeed(closed, why)),
+      // Detached, as closing the scope interrupts this fiber, which runs in it.
+      Effect.andThen(Effect.forkDetach(Scope.close(connectionScope, Exit.void))),
+      Effect.forkIn(connectionScope),
+    );
+
+    /** `method`'s answer read with `readTheAnswer`: a failure in its words, a call that breaks logged and failed as one. */
+    const answerOf = <Method extends "open_viewer" | "close_viewer", Value>(
+      method: Method,
+      params: ControlOperationParams<Method>,
+      readTheAnswer: (answered: ControlOperationResult<Method>) => Result<Value, string>,
+    ): Effect.Effect<Value, RuntimeViewerCallFailed> =>
+      controlOperationOnTheConnectionReadWith(connection, method, params, readTheAnswer).pipe(
+        Effect.mapError((failure) => new RuntimeViewerCallFailed({ words: failure.words, theRuntimeRefusedIt: failure._tag === "RuntimeRefused" && failure.byTheOperation })),
+        Effect.catchDefect((defect) =>
+          Effect.logError(`a port viewer's ${method} broke`, defect).pipe(Effect.andThen(Effect.fail(new RuntimeViewerCallFailed({ words: `\`${method}\` broke: ${describeCaughtFailure(defect)}`, theRuntimeRefusedIt: false })))),
+        ),
+        Effect.provideContext(services),
+      );
+
+    return {
+      openViewer: (target) =>
+        answerOf(
+          "open_viewer",
+          { stream: target.stream, node_id: target.node_id, port: target.port, viewer_process_id: target.viewer_process_id },
+          openedRuntimeViewerFromTheOpenViewerToolResult,
+        ),
+      closeViewer: (viewer) => answerOf("close_viewer", { viewer }, closedViewerFromTheCloseViewerToolResult),
+      whyItClosed: Deferred.await(closed),
+      isOpen: Effect.map(Deferred.isDone(closed), (isDone) => !isDone),
+      close: Deferred.succeed(closed, CLOSED_BY_THE_APP).pipe(Effect.andThen(Effect.forkDetach(Scope.close(connectionScope, Exit.void))), Effect.asVoid),
+    };
+  });
 }
