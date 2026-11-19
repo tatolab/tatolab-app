@@ -24,6 +24,9 @@ import {
   type ModuleCardRow,
 } from "./module_manager_listing";
 import { marketplaceAddShownOf, type MarketplaceAddFollowed } from "../presentation/marketplace_add_presentation";
+import { presentTatolabAppUpdate } from "../presentation/app_update_presentation";
+import { useTatolabAppUpdateAction } from "../setup_and_settings/action_through_the_backend";
+import { useTatolabStatus, useTatolabWindowEnvironment } from "../setup_and_settings/tatolab_window_context";
 
 /**
  * Where the last thing asked of one module stands: under way, refused in the words of what refused it, or done in a way its page tells of
@@ -130,8 +133,30 @@ export interface ModuleAsks {
   showTheClonedProject: (row: ModuleCardRow, folder: string) => void;
   /** Stop the download of the row's Marketplace add; an add past its download runs to its end. */
   cancelTheAdd: (row: ModuleCardRow) => void;
-  /** Check for a newer Tato Studio, whose runtime the row's module needs; a refusal of the check shows as the row's add refused. */
-  checkForTatoStudioUpdates: (row: ModuleCardRow) => void;
+}
+
+/**
+ * Tato Studio's own updates control, offered where a module needs the newer runtime a newer Tato Studio carries: Check for Updates…, then
+ * Download Update or Restart to Update as the updater moves on, disabled while it works, its refusal shown under it; in an app that cannot
+ * update itself, the updater's reason in its place.
+ */
+function TatoStudioUpdateOffer({ moduleName, appearance }: { moduleName: string; appearance: "primary" | "secondary" }) {
+  const { backend } = useTatolabWindowEnvironment();
+  const status = useTatolabStatus();
+  const updates = presentTatolabAppUpdate(status.app_update);
+  const runTheUpdateAction = useTatolabAppUpdateAction(backend, status.app_update);
+  const { action } = runTheUpdateAction;
+  if (action === null) return <p className="text-xs text-fg-3">{updates.description}</p>;
+  const isUnderWay = !action.isEnabled || runTheUpdateAction.isPending;
+  return (
+    <>
+      <PageAction appearance={appearance} icon={RefreshCw} disabledReason={isUnderWay ? updates.description : undefined} onPressed={runTheUpdateAction.run} data-module-manager-update-tato-studio={moduleName}>
+        {action.label}
+      </PageAction>
+      {runTheUpdateAction.refusal !== null && <RefusalLine {...runTheUpdateAction.refusal} />}
+      {runTheUpdateAction.refusal === null && updates.failure !== null && <RefusalLine lead="The last check failed:" words={updates.failure} />}
+    </>
+  );
 }
 
 /** A Marketplace add under way as told so far: its meter, filled by its bytes once their total is known, its stages, and Cancel while it downloads. */
@@ -231,9 +256,7 @@ function ModulePageActions({
         return (
           <div className="flex flex-col gap-3">
             <RefusalLine tone="warning" words={whyItNeedsANewerTatoStudio} data-module-manager-needs-a-newer-runtime={entry.name} />
-            <PageAction appearance="primary" icon={RefreshCw} onPressed={() => asks.checkForTatoStudioUpdates(row)} data-module-manager-check-for-updates={entry.name}>
-              Check for Updates…
-            </PageAction>
+            <TatoStudioUpdateOffer moduleName={entry.name} appearance="primary" />
           </div>
         );
       }
@@ -260,7 +283,14 @@ function ModulePageActions({
             {updateWords.updateAvailable}
           </p>
         )}
-        {copyState.kind === "check_refused" && <RefusalLine tone="warning" lead={updateWords.checkRefusedLead} words={copyState.because} />}
+        {whyItNeedsANewerTatoStudio !== null ? (
+          <>
+            <RefusalLine tone="warning" words={whyItNeedsANewerTatoStudio} data-module-manager-needs-a-newer-runtime={dependency.folder} />
+            <TatoStudioUpdateOffer moduleName={dependency.folder} appearance="secondary" />
+          </>
+        ) : (
+          copyState.kind === "check_refused" && <RefusalLine tone="warning" lead={updateWords.checkRefusedLead} words={copyState.because} />
+        )}
         <PageAction
           appearance={copyState.kind === "update_available" ? "primary" : "secondary"}
           icon={RefreshCw}

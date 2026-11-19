@@ -2,12 +2,12 @@ import path from "node:path";
 import { Effect, Schema, type ManagedRuntime } from "effect";
 import { isAModuleManagerSectionAsked, MODULES_SHOWN, type TatolabCommandSignatures } from "../shared/tatolab_electron_bridge_contract.js";
 import { whyTheModuleBringsNothingOnThisMachine } from "../shared/package_catalog_machine_words.js";
-import { whyTheModuleNeedsANewerRuntime } from "../shared/package_catalog_runtime_words.js";
+import { whyTheModuleNeedsANewerRuntime, type AskNeedingANewerRuntime } from "../shared/package_catalog_runtime_words.js";
 import { isAMarketplaceDownload } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 import { addDependency, describeRuntime, listDependencies, listProjectViews, nameTheProject, removeDependency, updateDependency } from "./runtime_operations.js";
 import { packageCatalogForTheRuntime } from "./package_catalog.js";
 import { makeAProjectOfItsOwnFromTheArchive } from "./open_project.js";
-import type { MarketplaceImport } from "../shared/tatolab_backend_contract.js";
+import type { MarketplaceImport, PackageCatalogEntry } from "../shared/tatolab_backend_contract.js";
 import { MarketplaceImports } from "./marketplace_imports_followed.js";
 import { checkedAgainstTheMarketplace, marketplacePackageToUpdateTo } from "./marketplace_module_updates.js";
 import { ModuleManagerWindows, PackageCatalog, StatusRounds, type StudioServices } from "./studio_runtime.js";
@@ -44,24 +44,34 @@ const workspaceDependenciesListed = Effect.fn("workspaceDependenciesListed")(fun
     { concurrency: "unbounded" },
   );
   const checked = checkForNewer && listed.some((dependency) => isAMarketplaceDownload(dependency.dependency.source))
-    ? yield* PackageCatalog.use((packageCatalog) => packageCatalog.readTheCatalog).pipe(Effect.map((catalog) => listed.map((dependency) => checkedAgainstTheMarketplace(dependency, catalog))))
+    ? yield* catalogForTheRuntime().pipe(Effect.map((catalog) => listed.map((dependency) => checkedAgainstTheMarketplace(dependency, catalog))))
     : listed;
   return yield* workspaceDependenciesOf(workspaceFolder, checked, workspaceViews, nameTheProject);
 });
 
-/** The catalog read afresh, each entry judged against the release of the runtime answering, or against none when no runtime answers. */
+/** The catalog read afresh, each entry judged against the release of the runtime answering, or the one a runtime of another contract names as it refuses, or none when no runtime names its release. */
 const catalogForTheRuntime = Effect.fn("catalogForTheRuntime")(function* () {
   const [catalog, runtimeVersion] = yield* Effect.all(
     [
       PackageCatalog.use((packageCatalog) => packageCatalog.readTheCatalog),
       describeRuntime().pipe(
         Effect.map((runtimeDescription): string | null => runtimeDescription.version),
-        Effect.catch(() => Effect.succeed(null)),
+        Effect.catch((failure) =>
+          Effect.logDebug("judged the package catalog against the release the runtime's refusal names, or none").pipe(
+            Effect.annotateLogs({ because: failure.words }),
+            Effect.as(failure._tag === "RuntimeOfAnotherContract" ? failure.mismatch.runtime_version : null),
+          ),
+        ),
       ),
     ],
     { concurrency: "unbounded" },
   );
   return packageCatalogForTheRuntime(catalog, runtimeVersion);
+});
+
+/** Refused where `entry` needs a newer runtime than the one its catalog was judged against, in words naming the `ask` it stops. */
+const refusedWhereItNeedsANewerRuntime = Effect.fn("refusedWhereItNeedsANewerRuntime")(function* (entry: PackageCatalogEntry, ask: AskNeedingANewerRuntime) {
+  if (entry.newer_runtime_it_needs !== null) return yield* new CommandRefused({ words: whyTheModuleNeedsANewerRuntime(entry.title, entry.newer_runtime_it_needs, ask) });
 });
 
 /** The catalog entry `name`, the catalog read afresh for the runtime answering; refused when the catalog does not read or lists nothing by that name. */
@@ -82,7 +92,7 @@ const marketplaceModuleImported = Effect.fn("marketplaceModuleImported")(functio
   const entry = yield* catalogEntryNamed(name);
   if (entry.kind === "sample") return yield* new CommandRefused({ words: `${entry.title} is a sample project; clone it into a project of its own instead.` });
   if (!entry.runs_on_this_machine && entry.platforms !== null) return yield* new CommandRefused({ words: whyTheModuleBringsNothingOnThisMachine(entry.title, entry.platforms) });
-  if (entry.newer_runtime_it_needs !== null) return yield* new CommandRefused({ words: whyTheModuleNeedsANewerRuntime(entry.title, entry.newer_runtime_it_needs) });
+  yield* refusedWhereItNeedsANewerRuntime(entry, "add");
   return yield* Effect.scoped(
     Effect.gen(function* () {
       const followed = yield* MarketplaceImports.use((marketplaceImports) => marketplaceImports.followed(commandFromWindow, name));
@@ -126,7 +136,7 @@ const sourceToUpdateFrom = Effect.fn("sourceToUpdateFrom")(function* (workspaceF
   if (!overwriteEditedFiles && listed.edited_files.length > 0) return null;
   const entry = marketplacePackageToUpdateTo(yield* catalogForTheRuntime(), listed.dependency.source);
   if (entry === null) return null;
-  if (entry.newer_runtime_it_needs !== null) return yield* new CommandRefused({ words: whyTheModuleNeedsANewerRuntime(entry.title, entry.newer_runtime_it_needs) });
+  yield* refusedWhereItNeedsANewerRuntime(entry, "update");
   return yield* PackageCatalog.use((packageCatalog) => packageCatalog.downloadTheZipOf(entry, null));
 });
 

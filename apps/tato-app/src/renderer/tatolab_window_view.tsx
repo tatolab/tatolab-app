@@ -346,7 +346,6 @@ export function mountTatolabWindow(
     onMarketplaceImportProgressed: (listener) => backend.onMarketplaceImportProgressed(listener),
     removeWorkspaceDependency: (project) => backend.removeWorkspaceDependency(project),
     cloneMarketplaceSample: (name) => backend.cloneMarketplaceSample(name),
-    checkForTatoStudioUpdates: () => backend.checkForTatolabAppUpdates(),
     showTheClonedProject: (folder) => backend.openRecentProject(folder),
     pathOfADroppedFile: (droppedFile) => backend.pathOfADroppedFile(droppedFile),
     describeRejection: describeBackendRejection,

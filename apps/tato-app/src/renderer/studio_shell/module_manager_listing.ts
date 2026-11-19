@@ -1,7 +1,7 @@
 // What the Marketplace window lists: the catalog's packages and samples in its order, each package saying
 // whether the project has it, then the project's modules the catalog does not list.
 
-import { isAMarketplaceDownload, isAMarketplaceDownloadOf, isTheModuleNamedLikeTheMarketplaceEntry } from "@tatolab/tato-app-view-sdk/marketplace_modules";
+import { isAMarketplaceDownload, isAMarketplaceDownloadOf, isTheModuleNamedLikeTheMarketplaceEntry, marketplaceDownloadVersionOf } from "@tatolab/tato-app-view-sdk/marketplace_modules";
 import type { ModuleCardMark } from "@tatolab/tato-app-view-sdk/design_system/module_card";
 import type { ProjectCoverNumber } from "@tatolab/tato-app-view-sdk/design_system/project_card";
 import { catalogOperatingSystemsOnlyWords, whyTheModuleBringsNothingOnThisMachine } from "../../shared/package_catalog_machine_words";
@@ -185,13 +185,20 @@ export function moduleNotOnThisMachineMarkOf(row: ModuleCardRow): ModuleCardMark
   return entry === null || entry.runs_on_this_machine || entry.platforms === null ? null : { words: catalogOperatingSystemsOnlyWords(entry.platforms), tone: "refused" };
 }
 
-/** Why the row's module is not added to the project: it needs a newer runtime than the one answering, which a newer Tato Studio carries; `null` where the project has it already or the runtime can resolve it. */
+/**
+ * Why the row's module is not added to the project, or the project's Marketplace download of it not updated to the catalog's version: that
+ * version needs a newer runtime than the one answering, which a newer Tato Studio carries; `null` where the runtime can resolve it, or the
+ * project's copy is that version already or came from elsewhere.
+ */
 export function whyTheRowNeedsANewerTatoStudio(row: ModuleCardRow): string | null {
-  const entry = row.catalog_entry;
-  return entry === null || entry.newer_runtime_it_needs === null || row.module_of_the_project !== null ? null : whyTheModuleNeedsANewerRuntime(row.title, entry.newer_runtime_it_needs);
+  const { catalog_entry: entry, module_of_the_project: dependency } = row;
+  if (entry === null || entry.newer_runtime_it_needs === null) return null;
+  if (dependency === null) return whyTheModuleNeedsANewerRuntime(row.title, entry.newer_runtime_it_needs, "add");
+  const versionDownloaded = marketplaceDownloadVersionOf(entry.name, dependency.source);
+  return versionDownloaded === null || versionDownloaded === entry.version ? null : whyTheModuleNeedsANewerRuntime(row.title, entry.newer_runtime_it_needs, "update");
 }
 
-/** What a card says in its corner: the ask last refused of it, else that it brings nothing on this machine, else that adding it needs a newer Tato Studio, else an update at the source the project's module was copied from, else that the project has it, as it does once an add of it ended; `null` for none of these. */
+/** What a card says in its corner: the ask last refused of it, else that it brings nothing on this machine, else that adding or updating it needs a newer Tato Studio, else an update at the source the project's module was copied from, else that the project has it, as it does once an add of it ended; `null` for none of these. */
 export function moduleCardMarkOf(row: ModuleCardRow, askLastRefused: ModuleAsk | null, wasJustAdded: boolean): ModuleCardMark | null {
   if (askLastRefused !== null) return { words: `Not ${MODULE_ASK_WORDS_ONCE_DONE[askLastRefused]}`, tone: "refused" };
   const notOnThisMachineMark = moduleNotOnThisMachineMarkOf(row);

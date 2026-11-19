@@ -199,7 +199,7 @@ describe("what the Marketplace window lists", () => {
     expect([moduleNotOnThisMachineMarkOf(cameraCard), whyTheRowBringsNothingOnThisMachine(cameraCard)]).toEqual([null, null]);
   });
 
-  it("offers no Add for a package needing a newer runtime than the one answering, and marks it as needing a newer Tato Studio until the project has it", () => {
+  it("offers no Add for a package needing a newer runtime than the one answering, nor an Update of the project's download of an older version, and marks either as needing a newer Tato Studio", () => {
     const microphone = { ...CATALOG.entries[1], name: "tatolab-microphone", title: "Microphone", lowest_runtime_version: "0.69.44", newer_runtime_it_needs: "0.69.44" };
     const catalogWithTheMicrophone: PackageCatalogReading = { ...CATALOG, entries: [microphone] };
     const [microphoneCard] = everyModuleCardRowOf(catalogWithTheMicrophone, []);
@@ -208,7 +208,12 @@ describe("what the Marketplace window lists", () => {
     expect(moduleCardMarkOf(microphoneCard, "add", false)).toEqual({ words: "Not added", tone: "refused" });
     expect(whyTheRowNeedsANewerTatoStudio(microphoneCard)).toBe("Microphone runs on runtime 0.69.44 or later, which a newer Tato Studio carries. Update Tato Studio to add it.");
     const [microphoneInTheProject] = everyModuleCardRowOf(catalogWithTheMicrophone, [{ ...aModule("microphone", "Microphone"), source: "/config/module-downloads/tatolab-microphone-0.69.1.zip" }]);
-    expect([whyTheRowNeedsANewerTatoStudio(microphoneInTheProject), moduleCardMarkOf(microphoneInTheProject, null, false)]).toEqual([null, { words: "In project", tone: "quiet" }]);
+    expect([whyTheRowNeedsANewerTatoStudio(microphoneInTheProject), moduleCardMarkOf(microphoneInTheProject, null, false)]).toEqual([
+      "Microphone runs on runtime 0.69.44 or later, which a newer Tato Studio carries. Update Tato Studio to update it.",
+      { words: "Needs a newer Tato Studio", tone: "refused" },
+    ]);
+    const [microphoneAtTheCatalogsVersion] = everyModuleCardRowOf(catalogWithTheMicrophone, [{ ...aModule("microphone", "Microphone"), source: `/config/module-downloads/tatolab-microphone-${microphone.version}.zip` }]);
+    expect([whyTheRowNeedsANewerTatoStudio(microphoneAtTheCatalogsVersion), moduleCardMarkOf(microphoneAtTheCatalogsVersion, null, false)]).toEqual([null, { words: "In project", tone: "quiet" }]);
     const [cameraCard] = everyModuleCardRowOf({ ...CATALOG, entries: [{ ...CATALOG.entries[1], lowest_runtime_version: "0.69.37" }] }, []);
     expect([cardOffersAdd(cameraCard, false), whyTheRowNeedsANewerTatoStudio(cameraCard)]).toEqual([true, null]);
   });

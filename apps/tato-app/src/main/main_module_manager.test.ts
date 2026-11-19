@@ -333,6 +333,28 @@ describe("Module manager", () => {
       expect(await readdir(downloadsFolder)).toEqual(["tatolab-camera-0.68.29.zip"]);
     });
 
+    test("an import downloaded from the Marketplace whose catalog version needs a newer runtime shows no update, says why, and its Update is refused before anything downloads", async () => {
+      const { fakeShell, nightShowFolder } = await aStudioWindowOfNightShowImportingLobbyWall();
+      fakeShell.packageCatalogTextServed = JSON.stringify({
+        catalog_version: 1,
+        entries: [{ kind: "package", name: "tatolab-camera", title: "Camera", summary: "", version: "0.69.44", download_url: CAMERA_PACKAGE_ZIP_URL, download_sha256: createHash("sha256").update(HALFTONE_SAMPLE_ZIP_BYTES).digest("hex"), lowest_runtime_version: "0.69.44" }],
+      });
+      const downloadsFolder = path.join(fakeShell.tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME);
+      await writeFile(
+        path.join(nightShowFolder, "tatolab-project.json"),
+        JSON.stringify({
+          project: "uuid-of-night-show",
+          name: "night-show",
+          dependencies: [{ project: "uuid-of-lobby-wall", folder: "lobby-wall", source: path.join(downloadsFolder, "tatolab-camera-0.68.12.zip"), version: FAKE_IMPORT_VERSION }],
+        } satisfies FakeProjectFile),
+      );
+      const whyNot = "Camera runs on runtime 0.69.44 or later, which a newer Tato Studio carries. Update Tato Studio to update it.";
+
+      expect(await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: true }, 3)).toMatchObject({ ok: true, value: [{ folder: "lobby-wall", newer_version_exists: null, check_refused_because: whyNot }] });
+      expect(await fakeShell.invokeTheCommand("update_workspace_dependency", { project: "uuid-of-lobby-wall", overwrite_edited_files: true }, 3)).toEqual({ ok: false, refusal: whyNot });
+      expect(fakeShell.urlsFetched).not.toContain(CAMERA_PACKAGE_ZIP_URL);
+    });
+
     test("an import downloaded from the Marketplace says why it was not checked when the catalog does not read or no longer lists it", async () => {
       const { fakeShell, nightShowFolder } = await aStudioWindowOfNightShowImportingLobbyWall();
       const downloadsFolder = path.join(fakeShell.tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME);

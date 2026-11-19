@@ -638,7 +638,7 @@ describe("Module manager", () => {
     await shown('[data-module-manager-needs-a-newer-runtime="tatolab-microphone"]');
     expect(textOf('[data-module-manager-needs-a-newer-runtime="tatolab-microphone"]')).toBe("Microphone runs on runtime 0.69.44 or later, which a newer Tato Studio carries. Update Tato Studio to add it.");
     expect(document.querySelector("[data-module-manager-import]")).toBeNull();
-    pressed('[data-module-manager-check-for-updates="tatolab-microphone"]');
+    pressed('[data-module-manager-update-tato-studio="tatolab-microphone"]');
     await waitFor(() => expect(timesChecked).toBe(1));
   });
 

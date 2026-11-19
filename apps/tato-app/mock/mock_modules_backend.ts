@@ -100,7 +100,7 @@ export function mockModulesBackendOf(simulation: MockTatolabSimulation): Pick<Ta
       if (entry === undefined) throw `The catalog lists nothing named ${name}.`;
       if (entry.kind === "sample") throw `${entry.title} is a sample project; clone it into a project of its own instead.`;
       if (!entry.runs_on_this_machine && entry.platforms !== null) throw whyTheModuleBringsNothingOnThisMachine(entry.title, entry.platforms);
-      if (entry.newer_runtime_it_needs !== null) throw whyTheModuleNeedsANewerRuntime(entry.title, entry.newer_runtime_it_needs);
+      if (entry.newer_runtime_it_needs !== null) throw whyTheModuleNeedsANewerRuntime(entry.title, entry.newer_runtime_it_needs, "add");
       if (marketplaceDownloadsByName.has(name)) throw `${name} is being added from this window already.`;
       const download: MockMarketplaceDownload = { stage: { kind: "downloading", bytes_read: 0, bytes_total: null }, stopper: new AbortController() };
       marketplaceDownloadsByName.set(name, download);
