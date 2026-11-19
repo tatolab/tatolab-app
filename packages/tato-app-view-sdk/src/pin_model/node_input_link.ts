@@ -54,8 +54,14 @@ export function wordsOfTheLinkWarning(warning: StreamGraphLinkWarning): string {
   }
 }
 
+/** The warnings `warnings` gives, each in the runtime's words; none where it gives none. */
+export function wordsOfTheLinkWarnings(warnings: readonly StreamGraphLinkWarning[] | undefined): string[] {
+  return (warnings ?? []).map(wordsOfTheLinkWarning);
+}
+
 /** What an input's hint says of a link the runtime converts for free, naming both types, as "Reads Integer as Float, for free"; `null` on any other link, and on an input with no exact type. */
 export function freeConversionWords(link: NodeInputLink | null, inputPin: StreamGraphPortPin | null): string | null {
-  if (link?.converts_for_free_from === undefined || link.converts_for_free_from === null || inputPin === null) return null;
-  return `Reads ${pinTypeWords(link.converts_for_free_from.pin_type)} as ${pinTypeWords(inputPin.pin_type)}, for free`;
+  const convertedFrom = link?.converts_for_free_from ?? null;
+  if (convertedFrom === null || inputPin === null) return null;
+  return `Reads ${pinTypeWords(convertedFrom.pin_type)} as ${pinTypeWords(inputPin.pin_type)}, for free`;
 }

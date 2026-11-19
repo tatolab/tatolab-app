@@ -166,11 +166,15 @@ describe("a card's settings", () => {
 });
 
 describe("what the runtime marks on a link into an input", () => {
-  it("rings the socket of a link converted for free in the wire's type, names both types in its hint, and marks a warned input in the runtime's words", async () => {
+  it("rings the socket of a link converted for free in the wire's type, never a Trigger's arrow, names both types in its hint and to a screen reader, and marks a warned input in the runtime's words", async () => {
     const pattern = card("pattern", false);
     const meaningsDiffer = { warning: "meanings_differ", output_meaning: "seconds", input_meaning: "frames" } as const;
     const inputs = pattern.inputs.map((input): NodePin =>
-      input.name === "gain" ? { ...input, link: { converts_for_free_from: { pin_type: { type: "integer" }, flow: "value" }, warnings: [meaningsDiffer] } } : input,
+      input.name === "gain"
+        ? { ...input, link: { converts_for_free_from: { pin_type: { type: "integer" }, flow: "value" }, warnings: [meaningsDiffer] } }
+        : input.name === "reset"
+          ? { ...input, link: { converts_for_free_from: { pin_type: { type: "trigger" }, flow: "trigger" }, warnings: [] } }
+          : input,
     );
     const { container } = render(
       <NodeGraphCanvas
@@ -188,6 +192,11 @@ describe("what the runtime marks on a link into an input", () => {
     expect([gainSocket.getAttribute("data-pin-type"), gainSocket.getAttribute("data-converts-for-free-from"), gainSocket.querySelector(".node-graph-pin-wire-ring")?.getAttribute("data-pin-type")]).toEqual(["float", "integer", "integer"]);
     expect(gainSocket.getAttribute("title")).toBe("gain · Float, one value at a time\nReads Integer as Float, for free\nThe output carries `seconds` and the input takes `frames`");
     expect([...drawnCard.querySelectorAll("[data-converts-for-free-from]")].map((socket) => socket.getAttribute("data-handleid"))).toEqual(["input:gain"]);
+    expect([...drawnCard.querySelectorAll(".node-graph-pin-wire-ring")]).toHaveLength(1);
+    expect([...drawnCard.querySelectorAll("[data-node-graph-free-conversion]")].map((words) => [words.getAttribute("data-node-graph-free-conversion"), words.className, words.textContent])).toEqual([
+      ["gain", "sr-only", "Reads Integer as Float, for free"],
+      ["reset", "sr-only", "Reads Trigger as Trigger, for free"],
+    ]);
     expect([...drawnCard.querySelectorAll("[data-node-graph-link-warning]")].map((mark) => [mark.getAttribute("data-node-graph-link-warning"), mark.getAttribute("title")])).toEqual([["gain", "The output carries `seconds` and the input takes `frames`"]]);
   });
 

@@ -137,12 +137,14 @@ g[data-pin-type="untyped"] { --node-graph-pin-colour: var(--studio-graph-link); 
   content: "";
 }
 /* A socket whose link the runtime converts for free is two-toned: the wire's type in its ring, laid over the socket's own
-   edge, and the input's own type inside, as the socket fills while linked. It takes no width the socket does not. */
+   edge, and the input's own type inside, as the socket fills while linked, with a 1px gap of the card's colour between
+   them, so the two read as two even where the types' colours are near. It takes no width the socket does not. */
 .node-graph-pin-wire-ring {
   position: absolute;
   inset: -2px;
   border: 2px solid var(--node-graph-pin-colour);
   border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--studio-graph-card);
   pointer-events: none;
 }
 /* While a wire is dragged and the runtime has answered how it fits, a socket it connects to lights with a ring in the

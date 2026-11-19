@@ -13,7 +13,7 @@ import type {
   NodeGraphCardKind,
   NodeGraphLinkLook,
 } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
-import { wordsOfTheLinkWarning } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
+import { wordsOfTheLinkWarnings } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
 import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import {
   canvasNotesOfTheGraph,
@@ -95,7 +95,7 @@ function linkLookAndWordsOf(link: StreamGraphLink, condition: StreamCondition | 
 /** How `link` is drawn and what it says: by its state or what `condition` says of it, with the warnings the runtime gives it in its words, which a pointer resting on it reads after its state. */
 function canvasLinkOf(link: StreamGraphLink, condition: StreamCondition | null): NodeGraphCanvasLink {
   const { look, words } = linkLookAndWordsOf(link, condition);
-  const warningWords = (link.warnings ?? []).map(wordsOfTheLinkWarning);
+  const warningWords = wordsOfTheLinkWarnings(link.warnings);
   return {
     link_id: linkIdAsTheCanvasKeysIt(link),
     source_node_id: link.source.node,
