@@ -1,5 +1,5 @@
 import { useViewReading, useViewReadingSoFar } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX, NodeGraphCardPreview } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
@@ -435,125 +435,125 @@ function StreamGraphOfTheTab({
       <RefusalOfTheLatestAskBar refusal={recoveryRefusal} />
     </>
   );
-  if (graphReading === null) return conditionOfTheStream;
-  if (graphReading.kind === "not_read") {
-    const preparingWords = streamPreparingWords(listedStream, streamTab.display_name);
-    return (
-      <>
-        {conditionOfTheStream}
-        {preparingWords !== null ? (
+  const graphOfTheLevelShown = (): ReactNode => {
+    if (graphReading === null) return null;
+    if (graphReading.kind === "not_read") {
+      const preparingWords = streamPreparingWords(listedStream, streamTab.display_name);
+      return (
+        preparingWords !== null ? (
           <WaitingState title={preparingWords.title} explanation={preparingWords.explanation} data-stream-graph-state="preparing" />
         ) : (
           <WaitingState isFailure title={`${streamTab.display_name}'s graph can't be read`} explanation={graphReading.because} data-stream-graph-state="not_read" />
-        )}
-      </>
-    );
-  }
-  if (areaSettings.kind !== "read") return null;
-  if (canvasContents === null || (canvasContents.nodes.length === 0 && editing === null && innermostSubgraph === null)) {
+        )
+      );
+    }
+    if (areaSettings.kind !== "read") return null;
+    if (canvasContents === null || (canvasContents.nodes.length === 0 && editing === null && innermostSubgraph === null)) {
+      return <WaitingState title={`${streamTab.display_name} has no nodes`} explanation="Its graph document holds none." data-stream-graph-state="empty" />;
+    }
     return (
       <>
-        {conditionOfTheStream}
-        <WaitingState title={`${streamTab.display_name} has no nodes`} explanation="Its graph document holds none." data-stream-graph-state="empty" />
+        {editedGraph !== null && "because" in editedGraph && importedProjectName === null && (
+          <RefusalLine layout="bar" tone="warning" lead="Read only:" words={editedGraph.because} />
+        )}
+        {refusalOfTheLatestEdit !== null && <RefusalLine layout="bar" lead={refusalOfTheLatestEdit.lead} words={refusalOfTheLatestEdit.words} />}
+        <RefusalOfTheLatestAskBar refusal={modulesAndMarketplaceRefusal} />
+        {innermostSubgraph !== null && (
+          <StreamGraphSubgraphTrail
+            streamDisplayName={streamTab.display_name}
+            subgraphsSteppedThrough={subgraphsSteppedThrough}
+            onLevelChosen={stepToTheLevel}
+            unlockOfTheSubgraphShown={
+              subgraphKeepingTheLevelReadOnly === null
+                ? { onUnlocked: () => sendTheSubgraphGesture(subgraphDepth - 1, subgraphUnlockedEdits, true), disabledReason: whyNoEditCanBeSent }
+                : null
+            }
+          />
+        )}
+        <NodeGraphCanvas
+          key={subgraphsSteppedThrough.map((subgraph) => subgraph.name).join("/")}
+          label={innermostSubgraph === null ? `Graph of ${streamTab.display_name}` : `Graph inside ${innermostSubgraph.name}`}
+          nodes={canvasContents.nodes}
+          links={canvasContents.links}
+          frames={canvasContents.frames}
+          notes={canvasContents.notes}
+          selectedNodeIds={nodesSelectedAtTheLevelShown}
+          onNodesSelected={onNodesSelected}
+          editing={editingOfTheLevelShown}
+          viewportWhereItWasLeft={innermostSubgraph === null ? viewportWhereTheStreamWasLeft : null}
+          onViewportLeft={innermostSubgraph === null ? onViewportLeft : null}
+          onSubgraphOpened={stepInsideTheSubgraph}
+          inputValues={inputValues}
+          overlay={
+            <>
+              {canvasContents.nodes.length === 0 && nodeTypeSearchAsked === null && innermostSubgraph === null && (
+                <p className="pointer-events-none absolute inset-x-0 top-1/3 z-10 text-center text-xs text-fg-3" data-stream-graph-state="empty">
+                  {streamTab.display_name} has no nodes yet. Click the graph and press Tab to add one.
+                </p>
+              )}
+              {nodeTypeSearchAsked !== null && (
+                <SearchPopover
+                  label="Add a node"
+                  placeholder={nodeTypeSearchAsked.looseWire === null ? "Search node types and generators" : "Search node types"}
+                  items={nodeTypeSearchItemsOffered}
+                  narrowedTo={nodeTypeSearchAsked.looseWire === null ? null : nodeTypeSearchNarrowing(nodeTypeSearchAsked.looseWire)}
+                  emptyWords={catalogReading?.kind === "not_listed" ? catalogReading.because : "No node type matches."}
+                  uncategorisedWords={NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS}
+                  categoriesWords={NODE_TYPE_CATEGORIES_WORDS}
+                  at={nodeTypeSearchAsked.at.in_the_element}
+                  onItemChosen={placeTheChosenNodeType}
+                  onClosed={closeTheNodeTypeSearch}
+                  actionsBesideTheField={nodeTypeSearchActions}
+                  previewOfTheItem={previewOfTheNodeTypeSearched}
+                  previewNarrowestWidthPx={NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX}
+                  data-stream-graph-node-type-search={streamTab.stream}
+                />
+              )}
+              {subgraphKeepingTheLevelReadOnly !== null && (
+                <div className="absolute top-2 right-2 z-10 max-w-[calc(100%-4rem)]">
+                  <StreamGraphSubgraphReadOnlyBanner
+                    subgraph={subgraphKeepingTheLevelReadOnly.subgraph}
+                    isOnTheStreamsOwnLevel={subgraphKeepingTheLevelReadOnly.depth === 0}
+                    editsRefusedBecause={whyNoEditCanBeSent}
+                    onRefreshed={() => sendTheSubgraphGesture(subgraphKeepingTheLevelReadOnly.depth, subgraphRefreshedEdits, false)}
+                    onUnlocked={() => sendTheSubgraphGesture(subgraphKeepingTheLevelReadOnly.depth, subgraphUnlockedEdits, true)}
+                  />
+                </div>
+              )}
+              {importedProjectName !== null && innermostSubgraph === null && (
+                <div className="absolute top-2 right-2 z-10">
+                  <ReadOnlyBanner
+                    words={
+                      <>
+                        Read only · <span className="font-mono">{importedProjectName}</span> is an import
+                      </>
+                    }
+                    action={
+                      <ActionButton
+                        size="small"
+                        disabledReason={`Opening an import as its own project arrives with ${OPENING_AN_IMPORT_TO_EDIT_ARRIVES_WITH}`}
+                        onPressed={() => undefined}
+                        data-stream-graph-action="open_to_edit"
+                      >
+                        Open to edit
+                      </ActionButton>
+                    }
+                    data-stream-graph-read-only={importedProjectName}
+                  />
+                </div>
+              )}
+            </>
+          }
+          data-stream-graph={streamTab.stream}
+        />
       </>
     );
-  }
+  };
+  // The stream's condition stays where it is whatever the graph shows under it, so its bars, and the focus on one of their actions, are not drawn again as the graph is read.
   return (
     <>
       {conditionOfTheStream}
-      {editedGraph !== null && "because" in editedGraph && importedProjectName === null && (
-        <RefusalLine layout="bar" tone="warning" lead="Read only:" words={editedGraph.because} />
-      )}
-      {refusalOfTheLatestEdit !== null && <RefusalLine layout="bar" lead={refusalOfTheLatestEdit.lead} words={refusalOfTheLatestEdit.words} />}
-      <RefusalOfTheLatestAskBar refusal={modulesAndMarketplaceRefusal} />
-      {innermostSubgraph !== null && (
-        <StreamGraphSubgraphTrail
-          streamDisplayName={streamTab.display_name}
-          subgraphsSteppedThrough={subgraphsSteppedThrough}
-          onLevelChosen={stepToTheLevel}
-          unlockOfTheSubgraphShown={
-            subgraphKeepingTheLevelReadOnly === null
-              ? { onUnlocked: () => sendTheSubgraphGesture(subgraphDepth - 1, subgraphUnlockedEdits, true), disabledReason: whyNoEditCanBeSent }
-              : null
-          }
-        />
-      )}
-      <NodeGraphCanvas
-        key={subgraphsSteppedThrough.map((subgraph) => subgraph.name).join("/")}
-        label={innermostSubgraph === null ? `Graph of ${streamTab.display_name}` : `Graph inside ${innermostSubgraph.name}`}
-        nodes={canvasContents.nodes}
-        links={canvasContents.links}
-        frames={canvasContents.frames}
-        notes={canvasContents.notes}
-        selectedNodeIds={nodesSelectedAtTheLevelShown}
-        onNodesSelected={onNodesSelected}
-        editing={editingOfTheLevelShown}
-        viewportWhereItWasLeft={innermostSubgraph === null ? viewportWhereTheStreamWasLeft : null}
-        onViewportLeft={innermostSubgraph === null ? onViewportLeft : null}
-        onSubgraphOpened={stepInsideTheSubgraph}
-        inputValues={inputValues}
-        overlay={
-          <>
-            {canvasContents.nodes.length === 0 && nodeTypeSearchAsked === null && innermostSubgraph === null && (
-              <p className="pointer-events-none absolute inset-x-0 top-1/3 z-10 text-center text-xs text-fg-3" data-stream-graph-state="empty">
-                {streamTab.display_name} has no nodes yet. Click the graph and press Tab to add one.
-              </p>
-            )}
-            {nodeTypeSearchAsked !== null && (
-              <SearchPopover
-                label="Add a node"
-                placeholder={nodeTypeSearchAsked.looseWire === null ? "Search node types and generators" : "Search node types"}
-                items={nodeTypeSearchItemsOffered}
-                narrowedTo={nodeTypeSearchAsked.looseWire === null ? null : nodeTypeSearchNarrowing(nodeTypeSearchAsked.looseWire)}
-                emptyWords={catalogReading?.kind === "not_listed" ? catalogReading.because : "No node type matches."}
-                uncategorisedWords={NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS}
-                categoriesWords={NODE_TYPE_CATEGORIES_WORDS}
-                at={nodeTypeSearchAsked.at.in_the_element}
-                onItemChosen={placeTheChosenNodeType}
-                onClosed={closeTheNodeTypeSearch}
-                actionsBesideTheField={nodeTypeSearchActions}
-                previewOfTheItem={previewOfTheNodeTypeSearched}
-                previewNarrowestWidthPx={NODE_GRAPH_CARD_PREVIEW_NARROWEST_WIDTH_PX}
-                data-stream-graph-node-type-search={streamTab.stream}
-              />
-            )}
-            {subgraphKeepingTheLevelReadOnly !== null && (
-              <div className="absolute top-2 right-2 z-10 max-w-[calc(100%-4rem)]">
-                <StreamGraphSubgraphReadOnlyBanner
-                  subgraph={subgraphKeepingTheLevelReadOnly.subgraph}
-                  isOnTheStreamsOwnLevel={subgraphKeepingTheLevelReadOnly.depth === 0}
-                  editsRefusedBecause={whyNoEditCanBeSent}
-                  onRefreshed={() => sendTheSubgraphGesture(subgraphKeepingTheLevelReadOnly.depth, subgraphRefreshedEdits, false)}
-                  onUnlocked={() => sendTheSubgraphGesture(subgraphKeepingTheLevelReadOnly.depth, subgraphUnlockedEdits, true)}
-                />
-              </div>
-            )}
-            {importedProjectName !== null && innermostSubgraph === null && (
-              <div className="absolute top-2 right-2 z-10">
-                <ReadOnlyBanner
-                  words={
-                    <>
-                      Read only · <span className="font-mono">{importedProjectName}</span> is an import
-                    </>
-                  }
-                  action={
-                    <ActionButton
-                      size="small"
-                      disabledReason={`Opening an import as its own project arrives with ${OPENING_AN_IMPORT_TO_EDIT_ARRIVES_WITH}`}
-                      onPressed={() => undefined}
-                      data-stream-graph-action="open_to_edit"
-                    >
-                      Open to edit
-                    </ActionButton>
-                  }
-                  data-stream-graph-read-only={importedProjectName}
-                />
-              </div>
-            )}
-          </>
-        }
-        data-stream-graph={streamTab.stream}
-      />
+      {graphOfTheLevelShown()}
     </>
   );
 }

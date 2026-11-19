@@ -520,6 +520,17 @@ describe("the studio", () => {
     expect(coreViewPage("stream_graph", "stream-graph").textContent).not.toContain("Restart playback was refused");
   });
 
+  it("keeps a stream's diagnostic bar, and the focus on its action, as the graph is read under it", async () => {
+    await mountedWindowOverTheMock("state=refused-at-play");
+    const startRefused = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-stream-diagnostic="start_refused"]') ?? expect.unreachable("no start refused bar"));
+    const restart = within(startRefused).getByRole("button", { name: "Restart playback" });
+    restart.focus();
+
+    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[aria-label="Graph of main"]')).not.toBeNull());
+    expect(startRefused.isConnected).toBe(true);
+    expect(restart.ownerDocument.activeElement).toBe(restart);
+  });
+
   it("draws a stopped stream's saved graph with its condition in the Stream graph's frame, and says no stream is open once its tab closes", async () => {
     await mountedWindowOverTheMock("state=running");
     const patternTwoStream = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" });
