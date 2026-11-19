@@ -6,3 +6,4 @@ export * from "./tatolab_view_manifest.js";
 export * from "./view_settings.js";
 export * from "./view_wire_messages.js";
 export * from "./tato_app_view_connection.js";
+export * from "./port_viewer_pictures.js";

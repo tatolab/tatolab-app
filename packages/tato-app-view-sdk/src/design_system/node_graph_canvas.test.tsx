@@ -28,12 +28,12 @@ function card(nodeId: string, isCollapsed: boolean): NodeGraphCanvasNode {
     description: "Passes each frame through.",
     condition: { look: "healthy" },
     inputs: [
-      { name: "video_in", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: "The frames to pass.", annotations: {}, stream_facts_words: [], value_address: null, setting: null },
-      { name: "gain", pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null },
-      { name: "boxes", pin: { pin_type: { type: "list_of", element_type: { type: "rectangle" } }, flow: "value" }, family: "array", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null },
-      { name: "reset", pin: { pin_type: { type: "trigger" }, flow: "trigger" }, family: "records", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null },
+      { name: "video_in", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: "The frames to pass.", annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null },
+      { name: "gain", pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null },
+      { name: "boxes", pin: { pin_type: { type: "list_of", element_type: { type: "rectangle" } }, flow: "value" }, family: "array", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null },
+      { name: "reset", pin: { pin_type: { type: "trigger" }, flow: "trigger" }, family: "records", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null },
     ],
-    outputs: [{ name: "video_out", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null }],
+    outputs: [{ name: "video_out", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null }],
     saved_position: { x: 0, y: 0 },
     frame_id: FRAME_ID,
     is_collapsed: isCollapsed,
@@ -107,7 +107,7 @@ describe("the node graph canvas", () => {
 describe("a card's settings", () => {
   it("draws each setting as a row with no socket, one read at setup marked as rebuilding the node, before the other inputs", async () => {
     const pattern = card("pattern", false);
-    const setting = (name: string, read: "at_setup" | "each_run"): NodeGraphCanvasNode["inputs"][number] => ({ name, pin: { pin_type: { type: "integer" }, flow: "value" }, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: { read } });
+    const setting = (name: string, read: "at_setup" | "each_run"): NodeGraphCanvasNode["inputs"][number] => ({ name, pin: { pin_type: { type: "integer" }, flow: "value" }, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: { read }, wire: null });
     const { container } = render(
       <NodeGraphCanvas
         label="Stream graph"
@@ -445,7 +445,7 @@ describe("finding nodes in the graph", () => {
 
 describe("a node's card previewed outside a canvas", () => {
   it("draws the card's own header and pin rows, outputs first, with a socket per pin in its type's look", () => {
-    const previewPin = (name: string, pin: NodePin["pin"]): NodePin => ({ name, pin, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null });
+    const previewPin = (name: string, pin: NodePin["pin"]): NodePin => ({ name, pin, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null });
     const texture = { pin_type: { type: "texture" }, flow: "stream" } as const;
     const { container } = render(<NodeGraphCardPreview title="Halftone" inputs={[previewPin("frames", texture), previewPin("level", null)]} outputs={[previewPin("image", texture)]} />);
     const preview = container.querySelector<HTMLElement>('[data-node-graph-card-preview="Halftone"]') ?? expect.unreachable("no preview");

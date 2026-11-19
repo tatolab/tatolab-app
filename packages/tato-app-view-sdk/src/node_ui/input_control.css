@@ -453,3 +453,79 @@
 :host([data-surface="node"]) .list-add {
   height: 20px;
 }
+
+/* A preview or a meter of what is wired into an input: the picture or the level, or the words saying why there is none. */
+.wire-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 20px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--studio-graph-card-line);
+}
+
+.wire-picture {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.wire-picture[hidden],
+.wire-words[hidden],
+.meter-track[hidden] {
+  display: none;
+}
+
+.wire-words {
+  display: -webkit-box;
+  min-width: 0;
+  padding: 2px 6px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--fg-3);
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 10.5px;
+  line-height: 14px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.wire-meter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 20px;
+}
+
+.meter-track {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--studio-graph-card-line);
+}
+
+.meter-fill {
+  width: 0;
+  height: 100%;
+  background: var(--brand);
+}
+
+.wire-meter .wire-words {
+  flex-shrink: 0;
+  padding: 0;
+  -webkit-line-clamp: 1;
+}
+
+.wire-meter:has(.meter-track[hidden]) .wire-words {
+  flex: 1;
+  flex-shrink: 1;
+  text-align: left;
+}

@@ -1,9 +1,11 @@
 // The browser mock's `list_node_types` and `describe_node_types`: the runtime's answers for streamlib's
 // sample that declares each kind of pin, replayed for the mock's pattern project, whose stream `main`
 // is that sample's graph. With `?port_families=unserved` no described port names a family, as a
-// runtime from before strict-port-families serves none.
+// runtime from before strict-port-families serves none. With `?wire_controls=named` each described
+// Texture input names the Studio's `preview` control, as a node type annotating it would.
 
 import { MOCK_RECORDED_NODE_TYPES_DESCRIBED, MOCK_RECORDED_NODE_TYPES_LISTED } from "./mock_recordings";
+import type { MockTatolabOptions } from "./mock_tatolab_options";
 import type { DescribeNodeTypesToolResult, JsonValue, ListNodeTypesToolResult, NodeTypeDescribedOrWhyNot, NodeTypeDescription } from "../src/shared/tatolab_backend_contract";
 
 /** One node type as `list_node_types` lists it under a source. */
@@ -214,15 +216,24 @@ function withoutPortFamilies(nodeType: NodeTypeDescribedOrWhyNot): NodeTypeDescr
   return { ...nodeType, inputs: nodeType.inputs.map(withoutFamily), outputs: nodeType.outputs.map(withoutFamily) };
 }
 
+/** `nodeType` with each Texture input naming the Studio's `preview` control, as its author's annotation would. */
+function withEachTextureInputPreviewed(nodeType: NodeTypeDescribedOrWhyNot): NodeTypeDescribedOrWhyNot {
+  if ("not_described_because" in nodeType) return nodeType;
+  return {
+    ...nodeType,
+    inputs: nodeType.inputs.map((input) => (input.pin_type?.kind === "is" && input.pin_type.pin_type.type === "texture" ? { ...input, annotations: { ...input.annotations, control: "preview" } } : input)),
+  };
+}
+
 /**
- * Each of `nodeTypes` the project in `projectDirectory` lists, as the runtime's `describe_node_types` described it; `null` for a
- * folder holding no project. A node type the recording does not describe is refused in the runtime's words, the whole call with it.
+ * Each of `nodeTypes` the project in `projectDirectory` lists, as the runtime's `describe_node_types` described it, its ports'
+ * families and its wire controls as `served` asks; `null` for a folder holding no project. A node type the recording does not describe is refused in the runtime's words, the whole call with it.
  */
 export function mockNodeTypesDescribed(
   projectDirectory: string,
   streamsFolder: string,
   nodeTypes: readonly string[],
-  arePortFamiliesServed: boolean,
+  served: Pick<MockTatolabOptions, "arePortFamiliesServed" | "areWireControlsNamed">,
   gained: MockNodeTypesTheProjectGains,
 ): DescribeNodeTypesToolResult | null {
   if (projectDirectory !== projectFolderTheRecordingsAnswerFor(streamsFolder)) return null;
@@ -236,7 +247,8 @@ export function mockNodeTypesDescribed(
       if (recorded === undefined) {
         throw `describe_node_types failed: neither the project \`${MOCK_RECORDED_NODE_TYPES_LISTED.project_name}\` nor the runtime offers a node type \`${nodeType}\`; \`list_node_types\` lists the ones they do`;
       }
-      return arePortFamiliesServed ? structuredClone(recorded) : withoutPortFamilies(recorded);
+      const withTheFamiliesServed = served.arePortFamiliesServed ? structuredClone(recorded) : withoutPortFamilies(recorded);
+      return served.areWireControlsNamed ? withEachTextureInputPreviewed(withTheFamiliesServed) : withTheFamiliesServed;
     }),
   };
 }

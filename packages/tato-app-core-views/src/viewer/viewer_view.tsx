@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { PortFamilyPlaceholder } from "@tatolab/tato-app-view-sdk/design_system/port_family_placeholder";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import type { PortViewerEvent, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import { drawThePortViewerFrame, drawThePortViewerPixels, type PortViewerEvent, type StopWatching, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import {
   familyOfThePort,
   type PortViewerMessageReading,
@@ -31,32 +31,6 @@ import {
   type NodeVisualizerPortAddress,
   type NodeVisualizerSubject,
 } from "./node_visualizer_subject";
-
-const BGRA_BYTE_ORDER_FORMAT_WIRE_NAMES = new Set(["bgra32", "bgra8_unorm", "bgra8_unorm_srgb"]);
-const RGBA_BYTE_ORDER_FORMAT_WIRE_NAMES = new Set(["rgba32", "rgba8_unorm", "rgba8_unorm_srgb"]);
-
-/** Draw `pixels`, rows of `bytesPerRow` in a four-byte BGRA or RGBA format, onto `canvas`; `false` for any other format. */
-function drawCpuReadPixels(canvas: HTMLCanvasElement, width: number, height: number, formatWireName: string, bytesPerRow: number, pixels: Uint8Array): boolean {
-  const isBgra = BGRA_BYTE_ORDER_FORMAT_WIRE_NAMES.has(formatWireName);
-  if (!isBgra && !RGBA_BYTE_ORDER_FORMAT_WIRE_NAMES.has(formatWireName)) return false;
-  const drawing = canvas.getContext("2d");
-  if (drawing === null) return false;
-  const imageData = new ImageData(width, height);
-  for (let row = 0; row < height; row += 1) {
-    for (let column = 0; column < width; column += 1) {
-      const from = row * bytesPerRow + column * 4;
-      const to = (row * width + column) * 4;
-      imageData.data[to] = pixels[from + (isBgra ? 2 : 0)] ?? 0;
-      imageData.data[to + 1] = pixels[from + 1] ?? 0;
-      imageData.data[to + 2] = pixels[from + (isBgra ? 0 : 2)] ?? 0;
-      imageData.data[to + 3] = pixels[from + 3] ?? 255;
-    }
-  }
-  canvas.width = width;
-  canvas.height = height;
-  drawing.putImageData(imageData, 0, 0);
-  return true;
-}
 
 /** What a port's visualizer shows besides its picture: waiting for the first message, another family's latest message read by its family, a format it cannot draw, or why it is reopening or has ended. */
 type PortViewerShown =
@@ -113,18 +87,11 @@ function PortViewerPicture({
     const handleTheEvent = (event: PortViewerEvent) => {
       const canvas = canvasRef.current;
       if (event.kind === "image_frame") {
-        const drawing = canvas?.getContext("2d") ?? null;
-        if (canvas !== null && drawing !== null) {
-          if (canvas.width !== event.video_frame.displayWidth) canvas.width = event.video_frame.displayWidth;
-          if (canvas.height !== event.video_frame.displayHeight) canvas.height = event.video_frame.displayHeight;
-          // drawImage composites over what the canvas holds, so a transparent frame would leave the last picture showing.
-          drawing.clearRect(0, 0, canvas.width, canvas.height);
-          drawing.drawImage(event.video_frame, 0, 0);
-        }
+        if (canvas !== null) drawThePortViewerFrame(canvas, event.video_frame);
         event.video_frame.close();
         showThePicture(event.format_wire_name);
       } else if (event.kind === "image_pixels") {
-        const drawn = canvas !== null && drawCpuReadPixels(canvas, event.width, event.height, event.format_wire_name, event.bytes_per_row, event.pixels);
+        const drawn = canvas !== null && drawThePortViewerPixels(canvas, event.width, event.height, event.format_wire_name, event.bytes_per_row, event.pixels);
         if (drawn) showThePicture(event.format_wire_name);
         else if (shownKind !== "undrawable") show({ kind: "undrawable", format_wire_name: event.format_wire_name });
       } else if (event.kind === "message") {

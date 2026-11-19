@@ -64,7 +64,7 @@ export function graphInputsOfTheStream(graph: StreamGraph, valuesAt: GraphAddres
       const declared = graphInterfacePortOfTheNode(node);
       const familyDeclared = declared?.family ?? (typeof family === "string" ? family : null);
       const rangeDeclared = graphInputRangeFrom(range);
-      const valueInput = nodeInputs(graph, node, undefined, valuesAt).find((input) => input.name === GRAPH_INPUT_VALUE_INPUT);
+      const valueInput = nodeInputs(graph, node, undefined, valuesAt, null).find((input) => input.name === GRAPH_INPUT_VALUE_INPUT);
       return {
         node_id: node.id,
         port_name: declared?.port ?? (typeof port === "string" && port !== "" ? port : node.name),

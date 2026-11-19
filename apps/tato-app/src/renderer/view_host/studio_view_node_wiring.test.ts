@@ -35,7 +35,7 @@ describe("a view node's wiring", () => {
     ).toEqual({
       deck_a: { kind: "wired", target: { stream: "set", node_id: "id-player", port: "audio" }, wired_from_words: "player › audio" },
       deck_b: { kind: "unwired", because: "camera › video carries image, and deck_b takes channels." },
-      booth: { kind: "unwired", because: "booth is wired from lobby-a1b2c3/player, in another stream, which a view does not read." },
+      booth: { kind: "unwired", because: "booth is wired from lobby-a1b2c3/player, in another stream, which Studio does not read." },
       cue: { kind: "unwired", because: "Nothing is wired into cue." },
     });
   });

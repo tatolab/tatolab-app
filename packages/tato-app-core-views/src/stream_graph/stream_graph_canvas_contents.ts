@@ -25,7 +25,7 @@ import {
   type StreamGraphLink,
   type StreamGraphNode,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { descriptionWords, nodeInputs, nodeOutputs } from "../shared/node_pins_of_the_graph";
+import { descriptionWords, nodeInputs, nodeOutputs, type WiresReadAt } from "../shared/node_pins_of_the_graph";
 import { isANameTheCodeGave, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { linkIdAsTheCanvasKeysIt } from "../shared/stream_graph_edits";
 import { diagnosticsAtTheLink, diagnosticsAtTheNode, doesTheDiagnosticWarn } from "../shared/stream_condition_words";
@@ -141,7 +141,8 @@ function holdTheSameValues(a: unknown, b: unknown): boolean {
  * graph it is; `null` addresses none. A link renders on every input it feeds, one that takes no stored value too, so a
  * linked input is addressed by none. A node that `previous` draws the same is drawn by the very object `previous` holds, so its
  * card is not drawn again; a value is not part of it. Each diagnostic of `condition`, the stream's as the runtime lists it, shows
- * on the node or link it names; a level inside a subgraph is handed none.
+ * on the node or link it names; a level inside a subgraph is handed none. Each input that takes a wire reads it at `wiresAt`,
+ * `null` reading none.
  */
 export function streamGraphCanvasContents(
   graph: StreamGraph,
@@ -149,6 +150,7 @@ export function streamGraphCanvasContents(
   previous: StreamGraphCanvasContents | null = null,
   valuesAt: GraphAddress | null = null,
   condition: StreamCondition | null = null,
+  wiresAt: WiresReadAt | null = null,
 ): StreamGraphCanvasContents {
   const groups = graph.groups ?? [];
   const groupIds = new Set(groups.map((group) => group.id));
@@ -177,6 +179,7 @@ export function streamGraphCanvasContents(
           node,
           describedByType.get(node.type),
           valuesAt,
+          wiresAt,
         ),
         outputs: nodeOutputs(node, describedByType.get(node.type)),
         saved_position:

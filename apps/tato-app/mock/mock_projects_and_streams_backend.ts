@@ -39,7 +39,7 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
     describeNodeTypes: async (projectDirectory, nodeTypes) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (simulation.mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const described = mockNodeTypesDescribed(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, nodeTypes, mockTatolabOptions.arePortFamiliesServed, nodeTypesTheProjectGains);
+      const described = mockNodeTypesDescribed(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, nodeTypes, mockTatolabOptions, nodeTypesTheProjectGains);
       if (described === null) throw `describe_node_types failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
       return described;
     },

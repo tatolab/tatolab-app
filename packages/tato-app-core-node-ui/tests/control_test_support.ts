@@ -6,6 +6,7 @@ export const NO_STUDIO_CALLS: NodeUiElementHost = {
   pickAProjectAsset: () => Promise.resolve({ kind: "not_started", because: "no Studio in this test" }),
   readAssetPreview: () => Promise.resolve({ kind: "not_read", because: "no Studio in this test" }),
   watchProjectAssets: () => () => undefined,
+  watchWhatIsWiredInto: () => () => undefined,
   inputControlFor: () => Promise.reject(new Error("no Studio in this test")),
 };
 
@@ -14,7 +15,16 @@ export const NO_PROJECT: ProjectAControlReaches = {
   pickAProjectAsset: () => Promise.resolve({ kind: "not_started", because: "no project in this test" }),
   readAssetPreviewInTheProject: () => Promise.resolve({ kind: "not_read", because: "no project in this test" }),
   watchProjectAssets: () => () => undefined,
+  watchPortViewer: () => () => undefined,
 };
+
+/** A frame a port viewer delivers, `width` by `height`, which counts how often it is closed. */
+export function aVideoFrameThatCountsItsCloses(width = 64, height = 36): { videoFrame: VideoFrame; closes: () => number } {
+  let closes = 0;
+  const facts: Record<PropertyKey, unknown> = { displayWidth: width, displayHeight: height, close: () => (closes += 1) };
+  const videoFrame: VideoFrame = new Proxy(Object.create(null), { get: (_target, property) => facts[property] });
+  return { videoFrame, closes: () => closes };
+}
 
 /** Each `input` and `change` `control` fires, with the value its detail carries. */
 export function eventsFiredBy(control: HTMLElement): { name: string; value: unknown }[] {

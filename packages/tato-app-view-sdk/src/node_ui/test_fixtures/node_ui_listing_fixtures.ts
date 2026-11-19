@@ -50,6 +50,7 @@ export const NO_PROJECT: ProjectAControlReaches = {
   pickAProjectAsset: () => Promise.resolve({ kind: "not_started", because: "no project in this test" }),
   readAssetPreviewInTheProject: () => Promise.resolve({ kind: "not_read", because: "no project in this test" }),
   watchProjectAssets: () => () => undefined,
+  watchPortViewer: () => () => undefined,
 };
 
 /** The Studio a control under test is handed: it answers no call. */
@@ -57,5 +58,6 @@ export const NO_STUDIO_CALLS: NodeUiElementHost = {
   pickAProjectAsset: () => Promise.resolve({ kind: "not_started", because: "no Studio in this test" }),
   readAssetPreview: () => Promise.resolve({ kind: "not_read", because: "no Studio in this test" }),
   watchProjectAssets: () => () => undefined,
+  watchWhatIsWiredInto: () => () => undefined,
   inputControlFor: () => Promise.reject(new Error("no Studio in this test")),
 };

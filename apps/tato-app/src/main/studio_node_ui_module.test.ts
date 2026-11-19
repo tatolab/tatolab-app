@@ -41,7 +41,7 @@ test("the Studio's own manifest reads as the contract's node UI manifest, each c
   }
 });
 
-test("the Studio lists its own controls, a default for each of Boolean, Integer, Float, Color, Vector, Rectangle and Transform and a slider for each ranged number, brought by the Studio and served beside the window", async () => {
+test("the Studio lists its own controls, a default for each of Boolean, Integer, Float, Color, Vector, Rectangle and Transform a slider for each ranged number, and a preview of a Texture and a meter of Audio its annotation names, brought by the Studio and served beside the window", async () => {
   expect(await Effect.runPromise(theStudiosOwnNodeUiElements("0.45.0"))).toEqual([
     {
       module: "studio",
@@ -162,6 +162,22 @@ test("the Studio lists its own controls, a default for each of Boolean, Integer,
       folder_version: "0.45.0",
       registration: { kind: "control", type: "float", control: "slider" },
       script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/float_slider.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "wire_preview.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "texture", control: "preview" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/wire_preview.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
+      script: "wire_meter.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "audio", control: "meter" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/wire_meter.ts" },
     },
   ]);
 });
