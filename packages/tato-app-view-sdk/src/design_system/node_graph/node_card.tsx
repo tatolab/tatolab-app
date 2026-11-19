@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Hammer, SquareX, TriangleAlert } from "lucid
 import { Fragment, memo, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { inputAddressKey, type InputAddress } from "../../pin_model/node_inputs";
 import { takesAControl } from "../../pin_model/controlled_inputs";
+import { freeConversionWords, wordsOfTheLinkWarning } from "../../pin_model/node_input_link";
 import { doesAChangeRebuildTheNode, nodePinRows, type NodePin } from "../../pin_model/node_pins";
 import { valueWords, wordsOfAValueOfNoType } from "../../pin_model/value_words";
 import type { PinFlow, PinType } from "../../pin_type_readings";
@@ -18,10 +19,16 @@ import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkF
 import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "../support/node_graph_layout";
 import { isAPinSocketOfTheCardUnmeasured } from "../support/node_graph_pin_socket_measurement";
 
-/** What a pin shows while the pointer rests on it: its name, its type and flow in words and the facts of its stream, then its description. */
+/** What a pin shows while the pointer rests on it: its name, its type and flow in words and the facts of its stream, then its description, then what the runtime marks on the link that feeds it: a conversion it makes for free, naming both types, and each warning in the runtime's words. */
 function nodeGraphPinTooltip(pin: NodePin): string {
   const facts = [pin.name, pinWords(pin.pin), ...pin.stream_facts_words].join(" · ");
-  return pin.description === null ? facts : `${facts}\n${pin.description}`;
+  const freeConversion = freeConversionWords(pin.link, pin.pin);
+  return [facts, pin.description, freeConversion, ...linkWarningWordsOfThePin(pin)].filter((line) => line !== null).join("\n");
+}
+
+/** The warnings the runtime gives the link into `pin`, in its words; none on a pin no warned link feeds. */
+function linkWarningWordsOfThePin(pin: Pick<NodePin, "link">): string[] {
+  return (pin.link?.warnings ?? []).map(wordsOfTheLinkWarning);
 }
 
 /** The attributes a socket's shape and colour are picked by: its flow (round while it has none) and its type's key. */
@@ -40,7 +47,7 @@ const NODE_GRAPH_CARD_WIDTHS_PX = { narrowest: 180, widest: 360 } as const;
 /** The box every card is drawn in, in the canvas and in a preview outside it. */
 const NODE_GRAPH_CARD_CLASS_NAMES = "node-graph-card relative";
 
-/** A pin's socket at the card's edge, shaped by its flow and coloured by its type, filled while a link joins it. */
+/** A pin's socket at the card's edge, shaped by its flow and coloured by its type, filled while a link joins it, and ringed in the wire's type where the runtime converts that link for free. */
 function NodeGraphPinSocket({
   nodeId,
   side,
@@ -60,6 +67,8 @@ function NodeGraphPinSocket({
   // A socket is drawn again only when it gains its first link or loses its last; `useNodeConnections` would draw it
   // again for every link it gains or loses.
   const isLinked = useStore((state) => state.connectionLookup.has(connectionLookupKeyOfTheHandle(nodeId, handleType, handleId)));
+  const wireConvertedForFree = pin.link?.converts_for_free_from ?? null;
+  const wireTypeKeyOfAFreeConversion = wireConvertedForFree === null ? null : pinTypeKey(wireConvertedForFree);
   return (
     <Handle
       type={handleType}
@@ -72,7 +81,10 @@ function NodeGraphPinSocket({
       data-wire-fit={wireFit?.outcome}
       data-stream-facts={pin.stream_facts_words.length === 0 ? undefined : pin.stream_facts_words.join(" · ")}
       data-linked={isLinked || undefined}
-    />
+      data-converts-for-free-from={wireTypeKeyOfAFreeConversion ?? undefined}
+    >
+      {wireTypeKeyOfAFreeConversion !== null && <span aria-hidden className="node-graph-pin-wire-ring" data-pin-type={wireTypeKeyOfAFreeConversion} />}
+    </Handle>
   );
 }
 
@@ -126,6 +138,18 @@ export function NodeGraphRebuildsTheNodeMark({ pin }: { pin: NodePin }) {
   return (
     <span className="ml-1 flex shrink-0 text-fg-3" title={REBUILDS_THE_NODE_WORDS} data-node-graph-rebuilds-the-node={pin.name}>
       <Hammer className="size-2.5" strokeWidth={2} aria-label={REBUILDS_THE_NODE_WORDS} />
+    </span>
+  );
+}
+
+/** The amber triangle beside the name of an input whose link the runtime warns of, saying each warning in its words while the pointer rests on it; none on any other pin. */
+function NodeGraphLinkWarningMark({ pin }: { pin: NodePin }) {
+  const warningWords = linkWarningWordsOfThePin(pin);
+  if (warningWords.length === 0) return null;
+  const words = warningWords.join("\n");
+  return (
+    <span className="ml-1 flex shrink-0 text-warn-text" title={words} data-node-graph-link-warning={pin.name}>
+      <TriangleAlert className="size-2.5" strokeWidth={2} aria-label={words} />
     </span>
   );
 }
@@ -191,6 +215,7 @@ function NodeGraphCardHeaderAndPinRows({
                 {row.node_pin.name}
               </span>
               <NodeGraphRebuildsTheNodeMark pin={row.node_pin} />
+              <NodeGraphLinkWarningMark pin={row.node_pin} />
               {row.side === "input" && <NodeGraphInputValueOfTheRow pin={row.node_pin} />}
               {takesASocket(row.node_pin) && socketOfThePin(row.side, row.node_pin, true)}
             </div>

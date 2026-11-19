@@ -31,6 +31,7 @@ export type {
   StreamGraphFragment,
   StreamGraphInterfacePort,
   StreamGraphLink,
+  StreamGraphLinkWarning,
   ListNodeTypesToolResult,
   DescribeNodeTypesToolResult,
   NodeTypeDescribedOrWhyNot,

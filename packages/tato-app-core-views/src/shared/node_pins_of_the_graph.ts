@@ -4,6 +4,7 @@
 // graph lists among its ports or one of a node type not yet typed that it lists among none.
 
 import { wiringOfTheInput } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
+import { nodeInputLinkOfTheGraph } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
 import { valueAddressOfTheInput, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import { exactPinOfTheDeclaredPort, settingOfTheDescribedInput, type NodePin, type NodePinWire } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { settingsOfTheNodeNotAmongItsPorts } from "@tatolab/tato-app-view-sdk/pin_model/node_settings";
@@ -43,6 +44,7 @@ function nodePinOfTheSettingNotAmongThePorts(node: Pick<StreamGraphNode, "id">, 
     value_address: valuesAt === null ? null : { graph: valuesAt, node_id: node.id, input: setting.name },
     setting: settingOfTheDescribedInput(setting),
     wire: null,
+    link: null,
   };
 }
 
@@ -67,8 +69,8 @@ function wireIntoTheInput(graph: Pick<StreamGraph, "nodes" | "links">, node: Str
  * The inputs of `node` in `graph`, its settings first: each described and annotated as `described`, its node type's description,
  * describes it, with the stream facts it receives, and addressed at `valuesAt`, the level of the graph it is at, where it holds a
  * value of its own; a link renders on every input it feeds, so an input the runtime reads from a wire is addressed by none, and
- * `null` addresses none. Each input that takes a wire reads it at `wiresAt`, `null` reading none. A setting the graph lists
- * among no port of the node follows those it does.
+ * `null` addresses none. Each input that takes a wire reads it at `wiresAt`, `null` reading none, and carries what the runtime
+ * marks on the link that feeds it. A setting the graph lists among no port of the node follows those it does.
  */
 export function nodeInputs(
   graph: Pick<StreamGraph, "nodes" | "links">,
@@ -88,6 +90,7 @@ export function nodeInputs(
       value_address: valueAddressOfTheInput(valuesAt, node.id, port),
       setting,
       wire: wireIntoTheInput(graph, node, port, setting, wiresAt),
+      link: nodeInputLinkOfTheGraph(graph, node.name, port.name),
     };
   });
   const settingsNotAmongThePorts = settingsOfTheNodeNotAmongItsPorts(described, node).map((setting) => nodePinOfTheSettingNotAmongThePorts(node, setting, valuesAt));
@@ -105,5 +108,6 @@ export function nodeOutputs(node: StreamGraphNode, described: NodeTypeDescriptio
     value_address: null,
     setting: null,
     wire: null,
+    link: null,
   }));
 }

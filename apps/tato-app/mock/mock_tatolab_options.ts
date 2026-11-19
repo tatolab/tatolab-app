@@ -183,7 +183,7 @@ export interface MockTatolabOptions {
   doesTheMainStreamHoldAGeneratedSubgraph: boolean;
   /** `?node_states=stopped`: every node of `main` that has a state reads `Stopped` once the stream settles, so none of its ports writes. */
   areTheMainStreamsNodesStopped: boolean;
-  /** `?main_graph=every_pin_kind|large`: `main` holds the graph recorded from streamlib's sample project that declares each kind of pin, or 300 nodes of four inputs each and 450 links for the canvas measurements; either takes precedence over every other choice of `main`. */
+  /** `?main_graph=every_pin_kind|every_pin_kind_with_a_warned_link|large`: `main` holds the graph recorded from streamlib's sample project that declares each kind of pin, that graph with a stand-in warning on its link from `beat.count` into `warmth.count`, or 300 nodes of four inputs each and 450 links for the canvas measurements; either takes precedence over every other choice of `main`. */
   mainGraph: MockMainGraph | null;
 }
 

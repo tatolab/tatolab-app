@@ -135,6 +135,8 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
     target: { node: link.target_node, port: link.target_port },
     capacity: 4,
     state: linkState(link.state),
+    ...(link.free_conversion === undefined ? {} : { free_conversion: link.free_conversion }),
+    ...(link.warnings === undefined ? {} : { warnings: link.warnings }),
     components: { state: LINK_COMPONENT_STATE[linkState(link.state)] },
   });
   const nodesOfTheLevel = (levelNodes: MockGraphNode[], levelLinks: MockGraphLink[], isTopLevel: boolean): StreamGraphNode[] =>

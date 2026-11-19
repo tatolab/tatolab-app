@@ -1,5 +1,5 @@
 import { largeMockStreamGraph } from "./mock_large_stream_graph";
-import { mockRecordedGraphOfTheEveryPinKindSample } from "./mock_recordings";
+import { mockEveryPinKindGraphWithAStandInWarnedLink, mockRecordedGraphOfTheEveryPinKindSample } from "./mock_recordings";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
 import type {
   JsonValue,
@@ -9,6 +9,7 @@ import type {
   ProjectLogRecord,
   StreamGraphGroup,
   StreamGraphInputValueRead,
+  StreamGraphLinkWarning,
   StreamGraphNode,
   StreamGraphNodeKind,
   StreamGraphNodeStudioFields,
@@ -117,7 +118,7 @@ export interface MockGraphPort {
   value_read: StreamGraphInputValueRead | null;
 }
 
-/** A link of a mock stream's graph: its id, the node and port at each end by name, and its state as the runtime spells it. */
+/** A link of a mock stream's graph: its id, the node and port at each end by name, its state as the runtime spells it, and the marks a recording of the runtime gave it. */
 export interface MockGraphLink {
   id: string;
   source_node: string;
@@ -125,6 +126,10 @@ export interface MockGraphLink {
   target_node: string;
   target_port: string;
   state: "pending" | "wired" | "disconnecting" | "disconnected" | "error";
+  /** `true` where the runtime marked the link as one its input reads as its own type at no cost. */
+  free_conversion?: true;
+  /** The warnings the runtime gave the link. */
+  warnings?: StreamGraphLinkWarning[];
 }
 
 /** A node of a mock stream's graph, as the runtime's `graph` names it, with the config and ports it renders. */
@@ -790,11 +795,13 @@ function failedLobbyRecorderListing(machine: MockMachine): ListedStream {
 }
 
 /** What `?main_graph=` names `main` to hold in place of the pattern project's own graph. */
-export type MockMainGraph = "every_pin_kind" | "large";
+export type MockMainGraph = "every_pin_kind" | "every_pin_kind_with_a_warned_link" | "large";
+
+const MOCK_MAIN_GRAPHS: readonly MockMainGraph[] = ["every_pin_kind", "every_pin_kind_with_a_warned_link", "large"];
 
 /** The graph `?main_graph=` names, `null` when it names none. */
 export function mockMainGraphNamed(mainGraphInTheQuery: string | null): MockMainGraph | null {
-  return mainGraphInTheQuery === "every_pin_kind" || mainGraphInTheQuery === "large" ? mainGraphInTheQuery : null;
+  return MOCK_MAIN_GRAPHS.find((mainGraph) => mainGraph === mainGraphInTheQuery) ?? null;
 }
 
 /** Why the runtime failed `main` in the mock's `?state=refused-at-play`: a play that refused a link from a function node into a node in the app process, in the runtime's words. */
@@ -878,6 +885,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
   const mainStream = createTestPatternStream(machine, mainStreamOptions);
   const largeGraph = largeMockStreamGraph();
   const everyPinKindGraph = mockRecordedGraphOfTheEveryPinKindSample();
+  const everyPinKindGraphWithAWarnedLink = mockEveryPinKindGraphWithAStandInWarnedLink();
   const cameraStream = createCameraStream(machine);
   const recorderOfMainStream = createTestPatternStream(machine, {
     ...mainStreamOptions,
@@ -899,6 +907,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     mainStreamWithAnImageFileNotReady: createTestPatternStream(machine, { ...mainStreamOptions, withAnImageFileNotReady: true }),
     mainStreamHoldingTheGraph: {
       every_pin_kind: { ...mainStream, listing: { ...mainStream.listing, node_count: everyPinKindGraph.nodes.length }, graph: everyPinKindGraph },
+      every_pin_kind_with_a_warned_link: { ...mainStream, listing: { ...mainStream.listing, node_count: everyPinKindGraphWithAWarnedLink.nodes.length }, graph: everyPinKindGraphWithAWarnedLink },
       large: { ...mainStream, listing: { ...mainStream.listing, node_count: largeGraph.nodes.length }, graph: largeGraph },
     },
     cameraStream,

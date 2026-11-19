@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { NodePin } from "../../pin_model/node_pins";
 import { pinTypeKeyOfTheLink } from "./node_graph_link_colour";
 
-const pin = (name: string, typed: NodePin["pin"]): NodePin => ({ name, pin: typed, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null });
+const pin = (name: string, typed: NodePin["pin"]): NodePin => ({ name, pin: typed, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null });
 
 test("a_link_takes_the_type_key_of_the_output_it_starts_from_not_the_input_it_ends_on", () => {
   const nodeById = new Map([

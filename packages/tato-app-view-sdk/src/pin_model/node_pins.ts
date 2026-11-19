@@ -5,6 +5,7 @@ import type { PinAnnotations } from "../pin_type_readings.js";
 import type { NodeTypeInputDescribed, NodeTypePortDescribed, SettingReadTime, StreamGraphPortPin } from "../studio_readings.js";
 import type { PortFamily } from "../port_families.js";
 import type { InputWiring } from "./input_wiring.js";
+import type { NodeInputLink } from "./node_input_link.js";
 import type { InputAddress } from "./node_inputs.js";
 
 /** One pin of a node: its name, its exact type and flow (`null` for a pin with none), what its node type says and annotates of it, and what it states about its stream. */
@@ -24,6 +25,8 @@ export interface NodePin {
   readonly setting: NodeSetting | null;
   /** On an input that takes a wire, what it reads through it; `null` on every other pin, and where Studio reads no wire: outside a stream's graph and inside a subgraph. */
   readonly wire: NodePinWire | null;
+  /** On an input a link feeds in a stream's graph, what the runtime marks on that link; `null` on every other pin, and on a link it marks neither way. */
+  readonly link: NodeInputLink | null;
 }
 
 /** What an input reads through its wire: the input, where it is in its stream's graph, and the output wired into it, or why it reads none. */

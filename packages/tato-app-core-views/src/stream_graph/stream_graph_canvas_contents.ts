@@ -1,7 +1,8 @@
 // A stream's graph as the node graph canvas draws it: a card per node keyed by its name and titled as the
 // studio writes it, where it was left and the frame it sits in, its declared ports as pins of their types,
-// a link per link of the graph drawn by its state, a frame per labelled group and the graph's canvas notes. A
-// node or link the running stream does not hold yet, and one a diagnostic of the stream names, shows it.
+// a link per link of the graph drawn by its state and the warnings the runtime gives it, a frame per
+// labelled group and the graph's canvas notes. A node or link the running stream does not hold yet, and one
+// a diagnostic of the stream names, shows it.
 
 import type {
   NodeGraphCanvasFrame,
@@ -12,6 +13,7 @@ import type {
   NodeGraphCardKind,
   NodeGraphLinkLook,
 } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
+import { wordsOfTheLinkWarning } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
 import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import {
   canvasNotesOfTheGraph,
@@ -90,8 +92,10 @@ function linkLookAndWordsOf(link: StreamGraphLink, condition: StreamCondition | 
   return linkLookAndWords(link.state);
 }
 
+/** How `link` is drawn and what it says: by its state or what `condition` says of it, with the warnings the runtime gives it in its words, which a pointer resting on it reads after its state. */
 function canvasLinkOf(link: StreamGraphLink, condition: StreamCondition | null): NodeGraphCanvasLink {
   const { look, words } = linkLookAndWordsOf(link, condition);
+  const warningWords = (link.warnings ?? []).map(wordsOfTheLinkWarning);
   return {
     link_id: linkIdAsTheCanvasKeysIt(link),
     source_node_id: link.source.node,
@@ -99,7 +103,8 @@ function canvasLinkOf(link: StreamGraphLink, condition: StreamCondition | null):
     target_node_id: link.target.node,
     target_pin: link.target.port,
     look,
-    description: `${link.source.node}.${link.source.port} → ${link.target.node}.${link.target.port}, ${words}`,
+    description: [`${link.source.node}.${link.source.port} → ${link.target.node}.${link.target.port}, ${words}`, ...warningWords].join("\n"),
+    warning_words: warningWords,
   };
 }
 

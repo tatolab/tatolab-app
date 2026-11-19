@@ -129,6 +129,7 @@ function nodePinOfTheDescribedPort(port: NodeTypePortDescribed): NodePin {
     value_address: null,
     setting: null,
     wire: null,
+    link: null,
   };
 }
 

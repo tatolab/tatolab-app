@@ -99,6 +99,8 @@ export interface NodeGraphCanvasLink {
   look: NodeGraphLinkLook;
   /** What a pointer resting on the link reads, such as its state in words. */
   description: string;
+  /** What the runtime warns the link does that a person may not expect, in its words, which draw the link amber; empty where it warns of nothing. */
+  warning_words: readonly string[];
 }
 
 /** One end of a wire a person drew: a card's pin. */
