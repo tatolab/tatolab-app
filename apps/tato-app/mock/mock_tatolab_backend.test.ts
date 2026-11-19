@@ -529,6 +529,8 @@ describe("the mock backend's node types", () => {
       ["beat", true],
       ["warmth", true],
       ["spotlight", true],
+      ["caption", true],
+      ["flash", true],
       ["glow", true],
       ["tally", true],
     ]);

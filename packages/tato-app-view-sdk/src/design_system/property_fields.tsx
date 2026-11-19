@@ -361,11 +361,14 @@ export function PropertyHeadingNameField({
 export function PropertyChoiceField({
   fieldId,
   words,
+  label,
   isTheTypesDefault = false,
   choices,
 }: {
   fieldId: string;
   words: string;
+  /** The field's accessible name where no label points at it, as "Value of blend". */
+  label?: string;
   isTheTypesDefault?: boolean;
   /** Each value the menu offers, in words, with what choosing it does. */
   choices?: { words: string; onChosen: () => void }[];
@@ -374,14 +377,14 @@ export function PropertyChoiceField({
   if (choices === undefined) {
     return (
       <div className="relative min-w-0">
-        <input id={fieldId} readOnly value={words} className={cn(PROPERTY_FIELD_CLASS_NAMES, "pr-6 font-mono", valueToneClassName(isTheTypesDefault))} />
+        <input id={fieldId} aria-label={label} readOnly value={words} className={cn(PROPERTY_FIELD_CLASS_NAMES, "pr-6 font-mono", valueToneClassName(isTheTypesDefault))} />
         {chevron}
       </div>
     );
   }
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger id={fieldId} className={cn(PROPERTY_FIELD_CLASS_NAMES, "relative flex items-center pr-6 text-left font-mono", valueToneClassName(isTheTypesDefault))}>
+      <DropdownMenuTrigger id={fieldId} aria-label={label} className={cn(PROPERTY_FIELD_CLASS_NAMES, "relative flex items-center pr-6 text-left font-mono", valueToneClassName(isTheTypesDefault))}>
         <span className="truncate">{words}</span>
         {chevron}
       </DropdownMenuTrigger>
@@ -407,6 +410,7 @@ export interface PropertyAssetChoosing {
 export function PropertyAssetField({
   fieldId,
   words,
+  label,
   previewPictureUrl,
   isTheTypesDefault = false,
   choosing,
@@ -414,6 +418,8 @@ export function PropertyAssetField({
 }: {
   fieldId: string;
   words: string;
+  /** The field's accessible name where no label points at it, as "Value of footage". */
+  label?: string;
   /** A `data:` URL of the asset's preview picture, `null` while it has none or none is read yet. */
   previewPictureUrl: string | null;
   isTheTypesDefault?: boolean;
@@ -426,7 +432,7 @@ export function PropertyAssetField({
         {previewPictureUrl !== null && (
           <img src={previewPictureUrl} alt="" draggable={false} className="h-5 w-[30px] shrink-0 rounded-[3px] bg-well object-cover" data-property-asset-picture="" />
         )}
-        <input id={fieldId} readOnly value={words} title={words} className={cn("min-w-0 flex-1 bg-transparent font-mono outline-none", previewPictureUrl === null && "pl-1.5", valueToneClassName(isTheTypesDefault))} />
+        <input id={fieldId} aria-label={label} readOnly value={words} title={words} className={cn("min-w-0 flex-1 bg-transparent font-mono outline-none", previewPictureUrl === null && "pl-1.5", valueToneClassName(isTheTypesDefault))} />
       </div>
       {clearing !== undefined && <IconButton icon={X} label={clearing.label} size="compact" onPressed={clearing.onCleared} data-property-asset-clear="" />}
       {choosing !== undefined && <IconButton icon={FolderOpen} label={choosing.label} disabledReason={choosing.disabledReason} size="compact" onPressed={choosing.onChooseAsked} data-property-asset-choose="" />}

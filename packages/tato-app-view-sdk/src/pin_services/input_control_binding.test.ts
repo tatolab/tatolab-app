@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import type { ControlledInput } from "../pin_model/controlled_inputs.js";
 import type { InputAddress } from "../pin_model/node_inputs.js";
 import { fireInputControlCancel, fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState, type NodeUiSurface } from "../node_ui/input_control_element.js";
 import type { NodeUiElementLoading } from "../node_ui/load_node_ui_element.js";
 import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node_ui_elements_listing.js";
-import { listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
+import { NO_PROJECT, listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
 import type { GraphEditMode, JsonValue, StreamInputValuesReading } from "../studio_readings.js";
 import { createInputControlBinder, type InputControlShown } from "./input_control_binding.js";
 import { createInputValues } from "./input_values.js";
@@ -78,6 +78,7 @@ function binderUnderTest({ loading = { kind: "defined", tag: STAND_IN_TAG }, sur
       return () => listingListeners.delete(listener);
     },
     inputValues,
+    project: NO_PROJECT,
     loadElement: (listed) => {
       loadsAsked.push(listed);
       return Promise.resolve(loading);
@@ -307,7 +308,7 @@ test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and
     newGestureIdempotencyKey: () => "gesture",
   });
   inputValues.takeTheInputValues(PROJECT, valuesRead(0.5));
-  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues });
+  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues, project: NO_PROJECT });
   const field = binder.bindOwnField(GAIN, "commit");
   const valuesShown: JsonValue[] = [];
   field.watchValue((shown) => valuesShown.push(shown.value));
@@ -338,7 +339,7 @@ test("a_surfaces_own_field_bound_live_sends_its_gesture_and_its_clear_live_and_s
     newGestureIdempotencyKey: () => "gesture",
   });
   inputValues.takeTheInputValues(PROJECT, valuesRead(0.5));
-  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues });
+  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues, project: NO_PROJECT });
   const field = binder.bindOwnField(GAIN, "live");
   const refusals: (string | null)[] = [];
   field.watchRefusal((refusal) => refusals.push(refusal));
@@ -357,4 +358,58 @@ test("a_surfaces_own_field_bound_live_sends_its_gesture_and_its_clear_live_and_s
     { value: null, mode: "live" },
   ]);
   expect(refusals).toEqual([null, "the stream is stopped", null]);
+});
+
+/** A Trigger control as the binder meets one: each press is a `change` carrying no value. */
+class StandInTriggerControl extends HTMLElement implements InputControlElement<"trigger"> {
+  pinsHanded: ControlledPin<"trigger">[] = [];
+  set pin(pin: ControlledPin<"trigger">) {
+    this.pinsHanded.push(pin);
+  }
+  set value(_value: null) {}
+  set state(_state: InputControlState) {}
+  press(): void {
+    fireInputControlEvent(this, "change", null);
+  }
+}
+customElements.define("stand-in-trigger-control", StandInTriggerControl);
+
+test("each press of a Trigger's control fires it once, live on every surface and never as a commit, and the control reaches the input's project", async () => {
+  const sent: { operation: unknown; mode: GraphEditMode }[] = [];
+  const previewsAsked: [string, string][] = [];
+  const inputValues = createInputValues({
+    transactInTheProject: (_projectFolder, operations, sending) => {
+      sent.push(...operations.map((operation) => ({ operation, mode: sending.mode })));
+      return Promise.resolve({ kind: "applied", transaction: { mode: sending.mode, transaction: null, commit: null, operations: [], added_nodes: [], connected_links: [], added_groups: [], added_notes: [] } });
+    },
+    newGestureIdempotencyKey: () => "gesture",
+  });
+  const binder = createInputControlBinder({
+    watchNodeUiElements: (listener) => (listener({ elements: [listedElementOf("studio", { kind: "control", type: "trigger", control: null }, { script: "trigger_button.ts" })] }), () => undefined),
+    inputValues,
+    project: {
+      ...NO_PROJECT,
+      readAssetPreviewInTheProject: (projectFolder, asset) => {
+        previewsAsked.push([projectFolder, asset]);
+        return Promise.resolve({ kind: "not_read", because: "no preview here" });
+      },
+    },
+    loadElement: () => Promise.resolve({ kind: "defined", tag: "stand-in-trigger-control" }),
+    requestAFlush: (flush) => flush(),
+  });
+  const FLASH: ControlledInput = { address: { ...GAIN, node_id: "FLASH-ID", input: "flash" }, declaration: { input_name: "flash", label: "flash", pin_type: { type: "trigger" }, annotations: {}, may_be_unset: false } };
+  const host = document.createElement("div");
+  document.body.append(host);
+  binder.bindInputControl(host, FLASH, { surface: "properties", read_only: false });
+  const control = await vi.waitFor(() => (host.firstElementChild instanceof StandInTriggerControl ? host.firstElementChild : expect.unreachable("no control yet")));
+  control.press();
+  control.press();
+  fireInputControlEvent(control, "input", null);
+  for (let turn = 0; turn < 20; turn += 1) await Promise.resolve();
+  expect(sent).toEqual([
+    { operation: { operation: "set_node_input_value", stream: STREAM_ASSET, node: "FLASH-ID", input: "flash", value: null }, mode: "live" },
+    { operation: { operation: "set_node_input_value", stream: STREAM_ASSET, node: "FLASH-ID", input: "flash", value: null }, mode: "live" },
+  ]);
+  await control.pinsHanded[0]?.studio.readAssetPreview("an-asset");
+  expect(previewsAsked).toEqual([[PROJECT, "an-asset"]]);
 });

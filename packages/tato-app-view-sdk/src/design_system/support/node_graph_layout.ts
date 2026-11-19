@@ -6,7 +6,7 @@ import { nodePinRows } from "../../pin_model/node_pins";
 
 /** A node card's header, over its pin rows. */
 export const NODE_GRAPH_CARD_HEADER_HEIGHT = 26;
-/** One pin's row, the card's full width: an output's socket at the right edge, an input's at the left. A control taller than one row grows its row past this; the layout reads every row as this tall. */
+/** One pin's row, the card's full width: an output's socket at the right edge, an input's at the left. A control taller than one row grows its row past this, which a card's measured height counts. */
 export const NODE_GRAPH_PIN_ROW_HEIGHT = 24;
 /** The space above the first pin row and below the last. */
 export const NODE_GRAPH_CARD_PIN_ROWS_PADDING = 6;
@@ -16,7 +16,7 @@ const NODE_GRAPH_COLUMN_GAP = 72;
 const NODE_GRAPH_ROW_GAP = 28;
 const CROSSING_REDUCTION_SWEEPS = 4;
 
-/** What the layout reads of one node: its id, how many pins each side, whether its card shows why it failed or is collapsed to its header, and its card's width as drawn. */
+/** What the layout reads of one node: its id, how many pins each side, whether its card shows why it failed or is collapsed to its header, and its card's width and height as drawn, its height `null` until measured. */
 export interface NodeGraphLayoutNode {
   node_id: string;
   input_pin_names: readonly string[];
@@ -24,6 +24,7 @@ export interface NodeGraphLayoutNode {
   shows_failure_words: boolean;
   is_collapsed: boolean;
   card_width: number;
+  card_height: number | null;
 }
 
 /** What the layout reads of one link. */
@@ -191,7 +192,7 @@ export function layOutNodeGraph(nodes: readonly NodeGraphLayoutNode[], links: re
   let columnLeft = 0;
   columns.forEach((column, columnIndex) => {
     const columnNodes = column.flatMap((nodeId) => nodeById.get(nodeId) ?? []);
-    const cardHeights = columnNodes.map(nodeGraphCardHeight);
+    const cardHeights = columnNodes.map((node) => node.card_height ?? nodeGraphCardHeight(node));
     let wantedTops: number[];
     if (columnIndex === 0) {
       let top = -(cardHeights.reduce((sum, height) => sum + height, 0) + Math.max(0, cardHeights.length - 1) * NODE_GRAPH_ROW_GAP) / 2;

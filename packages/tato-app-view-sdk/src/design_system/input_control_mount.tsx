@@ -20,7 +20,7 @@ export function useInputControlsOfTheFrame(connection: TatoAppViewConnection): {
     () => createInputValues({ transactInTheProject: (projectFolder, operations, sending) => connection.transactInTheProject(projectFolder, operations, sending), newGestureIdempotencyKey }),
     [connection],
   );
-  const inputControls = useMemo(() => createInputControlBinder({ watchNodeUiElements: (listener) => connection.watchNodeUiElements(listener), inputValues }), [connection, inputValues]);
+  const inputControls = useMemo(() => createInputControlBinder({ watchNodeUiElements: (listener) => connection.watchNodeUiElements(listener), inputValues, project: connection }), [connection, inputValues]);
   return { inputValues, inputControls };
 }
 

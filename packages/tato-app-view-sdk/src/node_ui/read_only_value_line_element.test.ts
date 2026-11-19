@@ -1,13 +1,10 @@
 import { expect, test } from "vitest";
 import type { BuiltInPinTypeName } from "../pin_types.js";
 import type { StoredPinValue } from "./input_control_element.js";
-import type { NodeUiElementHost } from "./node_ui_element_host.js";
-import { ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME, inputDeclarationOf } from "./test_fixtures/node_ui_listing_fixtures.js";
+import { NO_STUDIO_CALLS, ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME, inputDeclarationOf } from "./test_fixtures/node_ui_listing_fixtures.js";
 import { ReadOnlyValueLineElement } from "./read_only_value_line_element.js";
 
 customElements.define("read-only-value-line-under-test", ReadOnlyValueLineElement);
-
-const NO_STUDIO: NodeUiElementHost = { inputControlFor: () => Promise.reject(new Error("no Studio in this test")) };
 
 /** The line's value and reason as a person reads them. */
 function wordsOnTheLine(line: ReadOnlyValueLineElement): { value: string | null | undefined; because: string | null | undefined } {
@@ -16,7 +13,7 @@ function wordsOnTheLine(line: ReadOnlyValueLineElement): { value: string | null 
 
 test("the read-only line shows the stored value in words, and why no control draws the input", () => {
   const line = new ReadOnlyValueLineElement();
-  line.pin = { declaration: inputDeclarationOf(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.color), surface: "properties", studio: NO_STUDIO };
+  line.pin = { declaration: inputDeclarationOf(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.color), surface: "properties", studio: NO_STUDIO_CALLS };
   line.state = "read_only";
   line.value = { red: 1, green: 0.5, blue: 0, alpha: 1 };
   line.because = "No control is registered for an input of type Color.";

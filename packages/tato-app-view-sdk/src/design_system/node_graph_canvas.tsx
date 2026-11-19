@@ -109,7 +109,7 @@ function NodeGraphFlow({
     [nodes],
   );
   const { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink } = useNodeGraphSelection(selectedNodeIds, nodeById, onNodesSelected);
-  const { cardSizeByNode, isLaidOutOnMeasuredWidths, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, releaseTheHeldNotePosition, keepTheResizedNote } = useNodeGraphCardLayout(nodes, links, notes, nodeById, editing, reactFlow, viewportWhereItWasLeft);
+  const { cardSizeByNode, isLaidOutOnMeasuredSizes, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, releaseTheHeldNotePosition, keepTheResizedNote } = useNodeGraphCardLayout(nodes, links, notes, nodeById, editing, reactFlow, viewportWhereItWasLeft);
 
   // React Flow takes up again only the cards handed as new objects, and a card draws again for new data, so a card is
   // handed its object from before, or else its data from before, wherever they are unchanged.
@@ -487,7 +487,7 @@ function NodeGraphFlow({
                 className={cn(
                   "node-graph-canvas",
                   areTheInlineControlsHidden && "node-graph-canvas-zoomed-out",
-                  !isLaidOutOnMeasuredWidths && !hasBeenFramed && "opacity-0",
+                  !isLaidOutOnMeasuredSizes && !hasBeenFramed && "opacity-0",
                 )}
                 nodes={flowNodes}
                 edges={flowEdges}

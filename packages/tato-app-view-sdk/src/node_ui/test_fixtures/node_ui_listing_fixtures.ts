@@ -1,7 +1,9 @@
 // Test fixtures: pin types, declarations and listed elements the node UI tests build their cases from.
 
 import type { BuiltInPinTypeName, PinAnnotations, PinType } from "../../pin_types.js";
+import type { ProjectAControlReaches } from "../../pin_services/input_control_binding.js";
 import type { InputPinDeclaration } from "../input_control_element.js";
+import type { NodeUiElementHost } from "../node_ui_element_host.js";
 import type { ListedNodeUiElement, NodeUiElementRegistration, NodeUiElementScriptServing } from "../node_ui_elements_listing.js";
 
 /** One pin type of each built-in name, so a test that walks the names misses none. */
@@ -42,3 +44,18 @@ export function listedElementOf(
 ): ListedNodeUiElement {
   return { module, brought_by: module === "studio" ? "studio" : "project", script, folder_version, registration, script_serving };
 }
+
+/** A project a control under test reaches: it picks nothing, reads no preview and lists no asset. */
+export const NO_PROJECT: ProjectAControlReaches = {
+  pickAProjectAsset: () => Promise.resolve({ kind: "not_started", because: "no project in this test" }),
+  readAssetPreviewInTheProject: () => Promise.resolve({ kind: "not_read", because: "no project in this test" }),
+  watchProjectAssets: () => () => undefined,
+};
+
+/** The Studio a control under test is handed: it answers no call. */
+export const NO_STUDIO_CALLS: NodeUiElementHost = {
+  pickAProjectAsset: () => Promise.resolve({ kind: "not_started", because: "no Studio in this test" }),
+  readAssetPreview: () => Promise.resolve({ kind: "not_read", because: "no Studio in this test" }),
+  watchProjectAssets: () => () => undefined,
+  inputControlFor: () => Promise.reject(new Error("no Studio in this test")),
+};

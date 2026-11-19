@@ -1,6 +1,6 @@
 import { InputControlBinderContext } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import { createInputControlBinder } from "@tatolab/tato-app-view-sdk/pin_services/input_control_binding";
+import { createInputControlBinder, type ProjectAControlReaches } from "@tatolab/tato-app-view-sdk/pin_services/input_control_binding";
 import { createInputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
 import type { GraphEditMode, ProjectGraphTransactionApplying, StreamGraphInputValueRead } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { act } from "react";
@@ -12,6 +12,13 @@ import type { GraphInputOfTheStream } from "./graph_inputs_of_the_stream";
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
 const PROJECT = "/projects/s06-perform";
+
+/** The project the binder reaches: no control here asks it anything. */
+const NO_PROJECT: ProjectAControlReaches = {
+  pickAProjectAsset: () => Promise.resolve({ kind: "not_started", because: "no project in this test" }),
+  readAssetPreviewInTheProject: () => Promise.resolve({ kind: "not_read", because: "no project in this test" }),
+  watchProjectAssets: () => () => undefined,
+};
 const STREAM_ASSET = "0df4a7aa-1111-2222-3333-444444444444";
 
 const valueOf = (nodeId: string): InputAddress => ({ graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: nodeId, input: "value" });
@@ -40,7 +47,7 @@ function drawTheRow(graphInput: GraphInputOfTheStream, valueRead: StreamGraphInp
   const valuesRead = (read: StreamGraphInputValueRead) => ({ kind: "values" as const, stream_asset: STREAM_ASSET, values: [{ level: [], node_id: graphInput.node_id, input: "value", value_read: read }] });
   const takeTheValue = (read: StreamGraphInputValueRead) => act(async () => inputValues.takeTheInputValues(PROJECT, valuesRead(read)));
   inputValues.takeTheInputValues(PROJECT, valuesRead(valueRead));
-  const binder = createInputControlBinder({ watchNodeUiElements: (listener) => (listener({ elements: [] }), () => undefined), inputValues });
+  const binder = createInputControlBinder({ watchNodeUiElements: (listener) => (listener({ elements: [] }), () => undefined), inputValues, project: NO_PROJECT });
   const rowHolder = document.createElement("ul");
   document.body.append(rowHolder);
   act(() =>

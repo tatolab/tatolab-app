@@ -41,6 +41,11 @@ export interface InputValues {
    */
   clear(address: InputAddress, mode: "commit" | "live"): void;
   /**
+   * Fire the Trigger input at `address` once: one live set with no value, sent after the fires before it are answered, so each
+   * press is one fire, in order, and never merged with another. It is recorded nowhere, and its refusal is kept as a write's.
+   */
+  fire(address: InputAddress): void;
+  /**
    * Take `reading` of the values of a stream of the project in `projectFolder`: what every input reads, at every level,
    * forgetting an input of that stream it no longer holds that nothing watches or sends; or what one input reads now.
    */
@@ -80,6 +85,8 @@ interface InputValueState {
   refusal: string | null;
   shown_last: ShownValue;
   sender: InputValueSender | null;
+  /** The fires of a Trigger input sent and not yet answered, ending as the last is answered. */
+  fires_unanswered: Promise<void> | null;
   readonly value_listeners: Set<(shown: ShownValue) => void>;
   readonly refusal_listeners: Set<(refusal: string | null) => void>;
 }
@@ -104,7 +111,7 @@ export function createInputValues(sending: InputValuesSending): InputValues {
     const key = inputAddressKey(address);
     const known = statesByKey.get(key);
     if (known !== undefined) return known;
-    const state: InputValueState = { address, read: READS_NOTHING, gesture: null, sent_ahead: null, refusal: null, shown_last: READS_NOTHING, sender: null, value_listeners: new Set(), refusal_listeners: new Set() };
+    const state: InputValueState = { address, read: READS_NOTHING, gesture: null, sent_ahead: null, refusal: null, shown_last: READS_NOTHING, sender: null, fires_unanswered: null, value_listeners: new Set(), refusal_listeners: new Set() };
     statesByKey.set(key, state);
     return state;
   };
@@ -171,7 +178,11 @@ export function createInputValues(sending: InputValuesSending): InputValues {
     return key;
   };
   const isForgettable = (state: InputValueState): boolean =>
-    state.value_listeners.size === 0 && state.refusal_listeners.size === 0 && state.gesture === null && (state.sender === null || state.sender.isSettled());
+    state.value_listeners.size === 0 &&
+    state.refusal_listeners.size === 0 &&
+    state.gesture === null &&
+    state.fires_unanswered === null &&
+    (state.sender === null || state.sender.isSettled());
   return {
     shownValue: (address) => shownBy(stateOf(address)),
     watchValue: (address, listener) => {
@@ -254,6 +265,16 @@ export function createInputValues(sending: InputValuesSending): InputValues {
       senderOf(state).sendCommit(null, sending.newGestureIdempotencyKey());
       state.sent_ahead = { shown: CLEARED, readings_since_settled: 0 };
       publishTheValue(state);
+    },
+    fire: (address) => {
+      const state = stateOf(address);
+      const fire = (state.fires_unanswered ?? Promise.resolve())
+        .then(() => sendTheWrite(address, { mode: "live", value: null }))
+        .then((answer) => {
+          keepTheRefusal(state, answer.kind === "refused" ? answer.because : null);
+          if (state.fires_unanswered === fire) state.fires_unanswered = null;
+        });
+      state.fires_unanswered = fire;
     },
     takeTheInputValues: (projectFolder, reading) => {
       const streamAsset = reading.stream_asset;

@@ -1,11 +1,11 @@
-import type { ControlledPin, InputControlElementClass, NodeUiElementHost } from "@tatolab/tato-app-view-sdk/node_ui";
+import type { ControlledPin, InputControlElementClass } from "@tatolab/tato-app-view-sdk/node_ui";
 import type { PinAnnotations } from "@tatolab/tato-app-view-sdk/pin_types";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import FloatNumber from "../node_ui/float_number.ts";
+import { NO_STUDIO_CALLS } from "./control_test_support.ts";
 
 vi.mock("@tatolab/tato-app-view-sdk/node_ui/input_control.css", () => ({ default: new CSSStyleSheet() }));
 
-const NO_STUDIO_CALLS: NodeUiElementHost = { inputControlFor: () => Promise.reject(new Error("no Studio in this test")) };
 customElements.define("tato-studio-float_number-test", FloatNumber);
 
 /** A Float input's control as the host mounts one: `pin`, then `state` and `value`, then connected. */

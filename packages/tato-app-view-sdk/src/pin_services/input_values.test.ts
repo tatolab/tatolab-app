@@ -341,3 +341,25 @@ test("a_dragged_control_does_not_jump_as_its_own_live_values_come_back_and_holds
   inputValues.takeTheInputValues(PROJECT, gainChanged({ value: 0.2, comes_from: "live" }));
   expect(inputValues.shownValue(GAIN)).toEqual({ value: 0.2, comes_from: "live" });
 });
+
+test("each_fire_of_a_trigger_is_one_live_set_of_no_value_sent_after_the_one_before_is_answered_never_merged_and_its_refusal_kept_until_one_applies", async () => {
+  const { inputValues, sent, answerTheNext } = storeOverAHeldConnection();
+  const FLASH: InputAddress = { ...GAIN, node_id: "FLASH-ID", input: "flash" };
+  const refusals: (string | null)[] = [];
+  inputValues.watchRefusal(FLASH, (refusal) => refusals.push(refusal));
+  inputValues.fire(FLASH);
+  inputValues.fire(FLASH);
+  inputValues.fire(FLASH);
+  await answerTheNext();
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toEqual({ project_folder: PROJECT, operations: [{ operation: "set_node_input_value", stream: STREAM_ASSET, node: "FLASH-ID", input: "flash", value: null }], mode: "live", idempotency_key: null });
+  await answerTheNext({ kind: "not_sent", because: "its project's playback is stopped" });
+  await answerTheNext();
+  expect(sent.map(({ mode, operations }) => [mode, operations[0]?.operation === "set_node_input_value" ? operations[0].value : "other"])).toEqual([
+    ["live", null],
+    ["live", null],
+    ["live", null],
+  ]);
+  expect(refusals).toEqual([null, "its project's playback is stopped", null]);
+  expect(inputValues.shownValue(FLASH)).toEqual({ value: null, comes_from: null });
+});
