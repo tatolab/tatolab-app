@@ -8,6 +8,8 @@ import { IconButton } from "./icon_button";
 import { MenuItem } from "./menus";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { MatchedWords } from "./matched_words";
+import type { PinType } from "../pin_type_readings";
+import { pinTypeKeyOfTheType } from "../pin_model/pin_type_words";
 
 /** A titled group of a details panel that folds away, as Blender's and Unreal's property panels do; open at first. */
 export function PropertySection({
@@ -357,46 +359,61 @@ export function PropertyHeadingNameField({
   );
 }
 
-/** One of a fixed set of values, drawn as the menu it chooses from; read only without `choices`. */
+/** The socket colour of the pin type `pinType` as a mark before its words, as a choice of a type shows each it offers. */
+function PinTypeMark({ pinType }: { pinType: PinType }) {
+  return <span aria-hidden className="node-graph-pin-mark shrink-0" data-pin-type={pinTypeKeyOfTheType(pinType)} data-property-pin-type-mark="" />;
+}
+
+/** One of a fixed set of values, drawn as the menu it chooses from; read only without `choices`. A choice of a pin type marks the type held and each type offered with its socket's colour. */
 export function PropertyChoiceField({
   fieldId,
   words,
+  pinType,
   label,
   isTheTypesDefault = false,
   choices,
 }: {
   fieldId: string;
   words: string;
+  /** The pin type the field holds, when it chooses one, whose socket colour marks its words. */
+  pinType?: PinType;
   /** The field's accessible name where no label points at it, as "Value of blend". */
   label?: string;
   isTheTypesDefault?: boolean;
-  /** Each value the menu offers, in words, with what choosing it does. */
-  choices?: { words: string; onChosen: () => void }[];
+  /** Each value the menu offers, in words, with the pin type it is when it is one, and what choosing it does. */
+  choices?: { words: string; pinType?: PinType; onChosen: () => void }[];
 }) {
   const chevron = <ChevronDown aria-hidden className="pointer-events-none absolute top-1/2 right-1.5 size-3.5 -translate-y-1/2 text-fg-3" strokeWidth={1.75} />;
   if (choices === undefined) {
     return (
-      <div className="relative min-w-0">
-        <input id={fieldId} aria-label={label} readOnly value={words} className={cn(PROPERTY_FIELD_CLASS_NAMES, "pr-6 font-mono", valueToneClassName(isTheTypesDefault))} />
+      <div className={cn(PROPERTY_FIELD_HOLDING_AN_INPUT_CLASS_NAMES, "relative flex items-center gap-1.5 pr-6")}>
+        {pinType !== undefined && <PinTypeMark pinType={pinType} />}
+        <input id={fieldId} aria-label={label} readOnly value={words} className={cn("min-w-0 flex-1 bg-transparent font-mono outline-none", valueToneClassName(isTheTypesDefault))} />
         {chevron}
       </div>
     );
   }
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger id={fieldId} aria-label={label} className={cn(PROPERTY_FIELD_CLASS_NAMES, "relative flex items-center pr-6 text-left font-mono", valueToneClassName(isTheTypesDefault))}>
+      <DropdownMenuTrigger id={fieldId} aria-label={label} className={cn(PROPERTY_FIELD_CLASS_NAMES, "relative flex items-center gap-1.5 pr-6 text-left font-mono", valueToneClassName(isTheTypesDefault))}>
+        {pinType !== undefined && <PinTypeMark pinType={pinType} />}
         <span className="truncate">{words}</span>
         {chevron}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-auto min-w-40">
         {choices.map((choice) => (
-          <MenuItem key={choice.words} onChosen={choice.onChosen}>
+          <MenuItem key={choice.words} onChosen={choice.onChosen} leading={choice.pinType === undefined ? undefined : <PinTypeMark pinType={choice.pinType} />}>
             <span className="font-mono text-xs">{choice.words}</span>
           </MenuItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/** Two fields that set one value, side by side and sharing the row's width, as a choice of a type and the narrowing beside it. */
+export function PropertyFieldsSideBySide({ children }: { children: ReactNode }) {
+  return <div className="flex min-w-0 gap-1 *:min-w-0 *:flex-1">{children}</div>;
 }
 
 /** How a field naming a project asset opens the asset picker: the button's name, why it cannot now, and what pressing it does. */

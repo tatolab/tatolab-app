@@ -13,6 +13,7 @@
     { "type": "asset", "script": "asset_field.ts" },
     { "type": "trigger", "script": "trigger_button.ts" },
     { "type": "list_of", "script": "list_rows.ts" },
+    { "type": "pin_type_choice", "script": "type_choice.ts" },
     { "type": "integer", "control": "slider", "script": "integer_slider.ts" },
     { "type": "float", "control": "slider", "script": "float_slider.ts" }
   ]

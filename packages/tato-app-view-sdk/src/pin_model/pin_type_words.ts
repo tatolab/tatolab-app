@@ -32,14 +32,14 @@ export const PIN_TYPE_KEYS = [
 /** The key a socket's colour is picked by. */
 export type PinTypeKey = (typeof PIN_TYPE_KEYS)[number];
 
-/** The key of `pinType`: its own tag, a List taking its element's. */
-function keyOfThePinType(pinType: PinType): Exclude<PinTypeKey, "untyped"> {
-  return pinType.type === "list_of" ? keyOfThePinType(pinType.element_type) : pinType.type;
+/** The key that picks the colour of a socket of type `pinType`: its own tag, a List taking its element's. */
+export function pinTypeKeyOfTheType(pinType: PinType): Exclude<PinTypeKey, "untyped"> {
+  return pinType.type === "list_of" ? pinTypeKeyOfTheType(pinType.element_type) : pinType.type;
 }
 
 /** The key that picks the colour of the socket of `pin`; `untyped` for a pin with no exact type. */
 export function pinTypeKey(pin: StreamGraphPortPin | null): PinTypeKey {
-  return pin === null ? "untyped" : keyOfThePinType(pin.pin_type);
+  return pin === null ? "untyped" : pinTypeKeyOfTheType(pin.pin_type);
 }
 
 const INTEGER_SIZE_WORDS: Record<NonNullable<Extract<PinType, { type: "integer" }>["exact_size"]>, string> = {

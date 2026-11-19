@@ -120,6 +120,14 @@ test("a studio window lists the Studio's own controls, named by this copy's vers
       {
         module: "studio",
         brought_by: "studio",
+        script: "type_choice.ts",
+        folder_version: "0.46.0",
+        registration: { kind: "control", type: "pin_type_choice", control: null },
+        script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/type_choice.ts" },
+      },
+      {
+        module: "studio",
+        brought_by: "studio",
         script: "integer_slider.ts",
         folder_version: "0.46.0",
         registration: { kind: "control", type: "integer", control: "slider" },
