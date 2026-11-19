@@ -11,8 +11,9 @@ import {
   NODE_STUDIO_FIELDS_NONE_SET,
   studioFieldsOfTheNode,
   type JsonValue,
-  type NodeCatalogEntry,
-  type NodeCatalogPort,
+  type NodeTypeDescription,
+  type NodeTypeInputDescribed,
+  type NodeTypePortDescribed,
   type StreamGraphAction,
   type StreamGraphNode,
   type StreamGraphNodeStudioFields,
@@ -157,14 +158,14 @@ export function pinsWiredEdits(edited: EditedStreamGraph, source: { node_id: str
   return [{ operation: "connect", stream: edited.streamAsset, source: { node: sourceNode, port: source.pin }, target: { node: targetNode, port: target.pin } }];
 }
 
-/** The first port of `ports` that can take or give `family`; any port when the family is unknown. */
-function firstPortOfTheFamily(ports: readonly Pick<NodeCatalogPort, "name" | "family">[], family: string | null): string | null {
-  return (family === null ? ports[0] : (ports.find((port) => port.family === family || port.family === null) ?? null))?.name ?? null;
+/** The first port of `ports` that can take or give `family`; any port when the family is unknown, or one the port does not state. */
+function firstPortOfTheFamily(ports: readonly Pick<NodeTypePortDescribed, "name" | "family">[], family: string | null): string | null {
+  return (family === null ? ports[0] : (ports.find((port) => { const portFamily = familyOfThePort(port); return portFamily === family || portFamily === null; }) ?? null))?.name ?? null;
 }
 
 /** The inputs of `nodeType` a wire can end at: every input but a setting, which takes a stored value and no wire. */
-export function inputsAWireReaches(nodeType: Pick<NodeCatalogEntry, "inputs">): readonly NodeCatalogPort[] {
-  return nodeType.inputs.filter((input) => input.input_mode?.mode !== "setting_only");
+export function inputsAWireReaches(nodeType: Pick<NodeTypeDescription, "inputs">): readonly NodeTypeInputDescribed[] {
+  return nodeType.inputs.filter((input) => input.mode !== "setting_only");
 }
 
 /** A pin a wire was dragged off and let go of over the canvas. */
@@ -175,33 +176,36 @@ export interface LooseWire {
   family: string | null;
 }
 
-/** A node of `nodeType` placed with its card at `position`, and, from a loose wire, linked to the wire's pin by its first port of the wire's family that takes a wire. */
-export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: NodeCatalogEntry, position: StreamGraphCanvasPosition, looseWire: LooseWire | null): StreamGraphAction[] {
+/**
+ * A node of `nodeType` placed with its card at `position`, and, from a loose wire, linked to the wire's pin by the first port of the
+ * wire's family that takes a wire, as `described`, its description, states its ports; linked by none where it has no description.
+ */
+export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: string, described: NodeTypeDescription | null, position: StreamGraphCanvasPosition, looseWire: LooseWire | null): StreamGraphAction[] {
   const placed: StreamGraphAction = {
     operation: "add_node",
     stream: edited.streamAsset,
-    type: nodeType.type,
+    type: nodeType,
     studio: { position: toTheCanvasPixel(position) },
     as: NODE_PLACED_IN_THIS_TRANSACTION,
   };
   const wiredNode = looseWire === null ? null : nodeIdOf(edited, looseWire.node_id);
-  if (looseWire === null || wiredNode === null) return [placed];
+  if (looseWire === null || wiredNode === null || described === null) return [placed];
   const wiredEnd = { node: wiredNode, port: looseWire.pin };
   if (looseWire.side === "output") {
-    const input = firstPortOfTheFamily(inputsAWireReaches(nodeType), looseWire.family);
+    const input = firstPortOfTheFamily(inputsAWireReaches(described), looseWire.family);
     return input === null ? [placed] : [placed, { operation: "connect", stream: edited.streamAsset, source: wiredEnd, target: { node: NODE_PLACED_IN_THIS_TRANSACTION, port: input } }];
   }
-  const output = firstPortOfTheFamily(nodeType.outputs, looseWire.family);
+  const output = firstPortOfTheFamily(described.outputs, looseWire.family);
   return output === null ? [placed] : [placed, { operation: "connect", stream: edited.streamAsset, source: { node: NODE_PLACED_IN_THIS_TRANSACTION, port: output }, target: wiredEnd }];
 }
 
 /** The port of `nodeType` a loose wire of `family` from `side` links to when a node of it is placed, or `null` when it has none. */
-export function portALooseWireLinksTo(nodeType: NodeCatalogEntry, looseWire: Pick<LooseWire, "side" | "family">): string | null {
+export function portALooseWireLinksTo(nodeType: NodeTypeDescription, looseWire: Pick<LooseWire, "side" | "family">): string | null {
   return firstPortOfTheFamily(looseWire.side === "output" ? inputsAWireReaches(nodeType) : nodeType.outputs, looseWire.family);
 }
 
 /** Whether `nodeType` has a port a loose wire of `family` from `side` could link to. */
-export function canANodeTypeTakeTheLooseWire(nodeType: NodeCatalogEntry, looseWire: Pick<LooseWire, "side" | "family">): boolean {
+export function canANodeTypeTakeTheLooseWire(nodeType: NodeTypeDescription, looseWire: Pick<LooseWire, "side" | "family">): boolean {
   return portALooseWireLinksTo(nodeType, looseWire) !== null;
 }
 

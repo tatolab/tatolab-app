@@ -6,11 +6,12 @@ import {
   cancelStreamAction,
   createStream,
   deleteStream,
-  describeNodeCatalog,
+  describeNodeTypes,
   describeStreamAction,
   describeStreamGraph,
   listProjectAssets,
   listProjectFiles,
+  listNodeTypes,
   listProjectNodeTypes,
   openProject,
   readProjectLogRecords,
@@ -50,6 +51,9 @@ const StreamArguments = Schema.Struct({ stream: Schema.String });
 
 /** The arguments of a command on one project: its folder. */
 const ProjectDirectoryArguments = Schema.Struct({ project_directory: Schema.String });
+
+/** `describe_node_types`' arguments: the project's folder and the node types to describe, each as `list_node_types` names it. */
+const DescribeNodeTypesArguments = Schema.Struct({ project_directory: Schema.String, node_types: Schema.Array(Schema.String) });
 
 /** The arguments of a command on one stream action: its id. */
 const StreamActionArguments = Schema.Struct({ action: Schema.String });
@@ -116,7 +120,8 @@ function streamProjectFolderCommand(
 type StreamAndRuntimeProjectCommandName =
   | "read_project_log_records"
   | "describe_stream_graph"
-  | "describe_node_catalog"
+  | "list_node_types"
+  | "describe_node_types"
   | "list_project_node_types"
   | "list_project_assets"
   | "remove_project"
@@ -148,7 +153,12 @@ export function streamAndRuntimeProjectCommandHandlersOf(
       ),
     ),
     describe_stream_graph: windowCommand(studioRuntime, "describe_stream_graph", StreamArguments, ({ stream }) => describeStreamGraph(stream)),
-    describe_node_catalog: windowCommand(studioRuntime, "describe_node_catalog", StreamArguments, ({ stream }) => describeNodeCatalog(stream)),
+    list_node_types: windowCommand(studioRuntime, "list_node_types", ProjectDirectoryArguments, ({ project_directory }, commandFromWindow) =>
+      projectFolderTheWindowMayAskTheRuntimeAbout(project_directory, commandFromWindow).pipe(Effect.flatMap(listNodeTypes)),
+    ),
+    describe_node_types: windowCommand(studioRuntime, "describe_node_types", DescribeNodeTypesArguments, ({ project_directory, node_types }, commandFromWindow) =>
+      projectFolderTheWindowMayAskTheRuntimeAbout(project_directory, commandFromWindow).pipe(Effect.flatMap((projectFolder) => describeNodeTypes(projectFolder, node_types))),
+    ),
     list_project_node_types: windowCommand(studioRuntime, "list_project_node_types", ProjectDirectoryArguments, ({ project_directory }, commandFromWindow) =>
       projectFolderTheWindowMayAskTheRuntimeAbout(project_directory, commandFromWindow).pipe(Effect.flatMap(listProjectNodeTypes)),
     ),

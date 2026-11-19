@@ -2,7 +2,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import { createInputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
-import { StreamGraphAndCatalogReadings } from "../src/renderer/view_host/stream_graph_and_catalog_readings";
+import { StreamGraphReadings } from "../src/renderer/view_host/stream_graph_readings";
 import { createMockTatolabBackend } from "./mock_tatolab_backend";
 import { readMockTatolabOptions } from "./mock_tatolab_options";
 
@@ -17,7 +17,7 @@ it("a drag on an input's value is live while it moves, reads no graph, and is on
   vi.useFakeTimers();
   const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("")));
   let graphReads = 0;
-  const host = new StreamGraphAndCatalogReadings({
+  const host = new StreamGraphReadings({
     ...backend,
     describeStreamGraph: (streamId) => {
       graphReads += 1;
@@ -69,7 +69,7 @@ it("a value set live from outside the window shows in every frame's store with n
   vi.useFakeTimers();
   const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("")));
   let graphReads = 0;
-  const host = new StreamGraphAndCatalogReadings({
+  const host = new StreamGraphReadings({
     ...backend,
     describeStreamGraph: (streamId) => {
       graphReads += 1;
@@ -100,7 +100,7 @@ it("a value set live from outside the window shows in every frame's store with n
 it("a drag on a Graph Input's value released live in Perform leaves no history entry, and Back to saved shows its default again", async () => {
   vi.useFakeTimers();
   const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("graph_inputs=declared")));
-  const host = new StreamGraphAndCatalogReadings(backend);
+  const host = new StreamGraphReadings(backend);
   const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
     await vi.advanceTimersByTimeAsync(100);
     return answering;

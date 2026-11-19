@@ -1,13 +1,24 @@
-// What the Add node search offers over a stream's graph: each node type its stream's catalog lists and each its
-// project's sources declare, titled in words, filed under the category the runtime serves and named for the project or
-// package it comes from, then each graph generator the project's own source declares, placed as a subgraph; for a wire
-// dragged off a pin, only the node types that can take it.
+// What the Add node search offers over a stream's graph: each node type its project's listing names, from the project,
+// its imports, its installed distributions and the runtime itself, titled in words, filed under the category the runtime
+// serves and named for the project or package it comes from, then each graph generator the project's own source declares,
+// placed as a subgraph; for a wire dragged off a pin, only the node types whose description has a port that can take it.
 
 import type { SearchPopoverNarrowing } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import type { SearchPopoverItem } from "@tatolab/tato-app-view-sdk/design_system/support/search_popover_rows";
 import { exactPinOfTheDeclaredPort, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
-import type { NodeCatalogEntry, NodeCatalogPort, OpenProject, ProjectNodeType, ProjectNodeTypeListing, ProjectNodeTypeSourceOrigin } from "@tatolab/tato-app-view-sdk/studio_readings";
+import {
+  familyOfThePort,
+  nodeTypeDescriptionsByType,
+  type ListNodeTypesToolResult,
+  type NodeTypeDescription,
+  type NodeTypeListed,
+  type NodeTypePortDescribed,
+  type NodeTypeSourceListed,
+  type OpenProject,
+  type ProjectNodeTypesDescribed,
+} from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeTypeCategoryPath } from "../shared/node_type_category_path";
+import { descriptionWords } from "../shared/node_pins_of_the_graph";
 import { nameInWords, nodeTypeClassName } from "../shared/node_words";
 import { inputsAWireReaches, portALooseWireLinksTo, type LooseWire } from "../shared/stream_graph_edits";
 
@@ -17,79 +28,64 @@ export const THIS_PROJECT_SEARCH_ENTRY = "This project";
 /** The heading the search lists the project's graph generators under. */
 export const GRAPH_GENERATORS_SEARCH_HEADING = "Subgraphs from code";
 
-/** The project or package a source's node code comes from, as the runtime names it: the open project, an import by the name its origin carries, or an installed distribution; `null` where the runtime names none, as for an import whose project file does not read or a kind of source this app does not know. */
-function nodeTypeSourceOriginWords(origin: ProjectNodeTypeSourceOrigin, openProject: OpenProject | null): string | null {
-  switch (origin.source) {
+/** One node type the search offers: as its source lists it, the source, and its description, `null` where the runtime has none. */
+export interface NodeTypeOffered {
+  readonly listed: NodeTypeListed;
+  readonly source: NodeTypeSourceListed;
+  readonly described: NodeTypeDescription | null;
+}
+
+/** Each node type `nodeTypes` lists, in the listing's order, with its description; a type two sources list is the first's, as the runtime orders its sources. */
+export function nodeTypesTheSearchOffers(nodeTypes: ProjectNodeTypesDescribed | null): NodeTypeOffered[] {
+  if (nodeTypes === null) return [];
+  const describedByType = nodeTypeDescriptionsByType(nodeTypes.described);
+  const offeredByType = new Map<string, NodeTypeOffered>();
+  for (const source of nodeTypes.listing.sources) {
+    for (const listed of source.node_types) {
+      if (!offeredByType.has(listed.node_type)) offeredByType.set(listed.node_type, { listed, source, described: describedByType.get(listed.node_type) ?? null });
+    }
+  }
+  return [...offeredByType.values()];
+}
+
+/** The project or package a source's node code comes from, as the runtime names it: the open project, an import by the name its project file holds, or an installed distribution; `null` for the runtime's own, and for an import whose project file does not read. */
+function nodeTypeSourceOriginWords(source: NodeTypeSourceListed, openProject: OpenProject | null): string | null {
+  switch (source.source) {
     case "project":
       return openProject?.project.name ?? null;
     case "dependency":
-      return origin.project_name;
+      return source.project_name ?? null;
     case "installed_distribution":
-      return origin.distribution;
-    case "newer_than_this_app":
+      return source.distribution;
+    case "built_in":
       return null;
   }
 }
 
-/** Where each node type the project's listing offers comes from, by its type, for those the runtime names an origin of. */
-export function nodeTypeOriginWordsByType(projectNodeTypes: ProjectNodeTypeListing | null, openProject: OpenProject | null): ReadonlyMap<string, string> {
-  const originWordsByType = new Map<string, string>();
-  for (const source of projectNodeTypes?.sources ?? []) {
-    const originWords = nodeTypeSourceOriginWords(source.origin, openProject);
-    if (originWords === null) continue;
-    for (const declared of source.node_types) originWordsByType.set(declared.type, originWords);
-  }
-  return originWordsByType;
-}
-
-/** Each node type of `catalog` the search offers, keyed by its type; with a loose wire, only those with a port of the wire's family on the other side. */
-export function nodeTypeSearchItems(
-  catalog: readonly NodeCatalogEntry[],
-  looseWire: Pick<LooseWire, "side" | "family"> | null,
-  typesTheProjectDeclares: ReadonlySet<string> = new Set(),
-  originWordsByType: ReadonlyMap<string, string> = new Map(),
-): SearchPopoverItem[] {
-  return catalog.flatMap((nodeType) => {
-    if (looseWire !== null && portALooseWireLinksTo(nodeType, looseWire) === null) return [];
+/** Each node type of `offered` the search offers, keyed by its type; with a loose wire, only those whose description has a port of the wire's family on the other side. */
+export function nodeTypeSearchItems(offered: readonly NodeTypeOffered[], looseWire: Pick<LooseWire, "side" | "family"> | null, openProject: OpenProject | null = null): SearchPopoverItem[] {
+  return offered.flatMap(({ listed, source, described }) => {
+    if (looseWire !== null && (described === null || portALooseWireLinksTo(described, looseWire) === null)) return [];
     return [
       {
-        item_id: nodeType.type,
-        title: nameInWords(nodeTypeClassName(nodeType.type)),
-        summary: nodeType.description,
-        origin_words: originWordsByType.get(nodeType.type) ?? null,
-        category_path: nodeTypeCategoryPath(nodeType.category),
-        listed_above_the_categories: typesTheProjectDeclares.has(nodeType.type) ? { entry: THIS_PROJECT_SEARCH_ENTRY, heading: THIS_PROJECT_SEARCH_ENTRY } : null,
+        item_id: listed.node_type,
+        title: nameInWords(nodeTypeClassName(listed.node_type)),
+        summary: listed.documentation,
+        origin_words: nodeTypeSourceOriginWords(source, openProject),
+        category_path: nodeTypeCategoryPath(listed.category ?? null),
+        listed_above_the_categories: source.source === "project" ? { entry: THIS_PROJECT_SEARCH_ENTRY, heading: THIS_PROJECT_SEARCH_ENTRY } : null,
       },
     ];
   });
 }
 
-/** The node types the open project's own source declares, which the search lists under This project. */
-export function nodeTypesTheProjectDeclares(projectNodeTypes: ProjectNodeTypeListing | null): ReadonlySet<string> {
-  return new Set((projectNodeTypes?.sources ?? []).filter(({ origin }) => origin.source === "project").flatMap((source) => source.node_types.map((declared) => declared.type)));
-}
-
-function catalogEntryOfTheDeclaration(declared: ProjectNodeType): NodeCatalogEntry {
-  const portsDeclared = (ports: ProjectNodeType["inputs"]) => (ports ?? []).map(({ name, description, family }) => ({ name, description, family, pin: null, input_mode: null, annotations: {} }));
-  return { type: declared.type, description: declared.description, category: declared.category, config_schema: null, inputs: portsDeclared(declared.inputs), outputs: portsDeclared(declared.outputs) };
-}
-
-/** The stream's catalog, then each node type the project's listing offers that the catalog does not list yet: the runtime lists the project's and its imports' types only once a node of them is in the graph, and a distribution installed after the stream loaded only once it loads again. */
-export function nodeTypesTheSearchOffers(catalog: readonly NodeCatalogEntry[], projectNodeTypes: ProjectNodeTypeListing | null): NodeCatalogEntry[] {
-  const offeredByType = new Map(catalog.map((entry) => [entry.type, entry]));
-  for (const declared of (projectNodeTypes?.sources ?? []).flatMap((source) => source.node_types)) {
-    if (!offeredByType.has(declared.type)) offeredByType.set(declared.type, catalogEntryOfTheDeclaration(declared));
-  }
-  return [...offeredByType.values()];
-}
-
 const GRAPH_GENERATOR_SEARCH_ITEM_PREFIX = "graph_generator:";
 
 /** Each graph generator the project's own source declares, offered under This project to place as a subgraph; none for a loose wire, since a generator's ports are known only once it runs. */
-export function graphGeneratorSearchItems(projectNodeTypes: ProjectNodeTypeListing | null, looseWire: Pick<LooseWire, "side" | "family"> | null, openProject: OpenProject | null = null): SearchPopoverItem[] {
+export function graphGeneratorSearchItems(listing: ListNodeTypesToolResult | null, looseWire: Pick<LooseWire, "side" | "family"> | null, openProject: OpenProject | null = null): SearchPopoverItem[] {
   if (looseWire !== null) return [];
-  return (projectNodeTypes?.sources ?? [])
-    .filter(({ origin }) => origin.source === "project")
+  return (listing?.sources ?? [])
+    .filter((source) => source.source === "project")
     .flatMap((source) => source.graph_generators)
     .map((graphGenerator) => ({
       item_id: `${GRAPH_GENERATOR_SEARCH_ITEM_PREFIX}${graphGenerator.generator}`,
@@ -122,14 +118,21 @@ export function nodeTypeSearchNarrowing(looseWire: LooseWire): SearchPopoverNarr
 }
 
 /** A node type's port as a card placed now draws its pin: the type it states exactly, or none, and no stream yet. */
-function nodePinOfTheCatalogPort(port: NodeCatalogPort): NodePin {
-  const description = port.description.trim();
-  return { name: port.name, pin: exactPinOfTheDeclaredPort(port.pin), family: port.family, description: description === "" ? null : description, annotations: port.annotations, stream_facts_words: [], value_address: null };
+function nodePinOfTheDescribedPort(port: NodeTypePortDescribed): NodePin {
+  return {
+    name: port.name,
+    pin: exactPinOfTheDeclaredPort(port),
+    family: familyOfThePort(port),
+    description: descriptionWords(port.documentation),
+    annotations: port.annotations ?? {},
+    stream_facts_words: [],
+    value_address: null,
+  };
 }
 
-/** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed, with a pin for each input a wire reaches and no setting; `null` for an item that is no node type of `catalog`, as a graph generator. */
-export function nodeTypeSearchPreviewCard(catalog: readonly NodeCatalogEntry[], searchItemId: string): { title: string; inputs: NodePin[]; outputs: NodePin[] } | null {
-  const nodeTypeSearched = catalog.find((entry) => entry.type === searchItemId);
-  if (nodeTypeSearched === undefined) return null;
-  return { title: nameInWords(nodeTypeClassName(nodeTypeSearched.type)), inputs: inputsAWireReaches(nodeTypeSearched).map(nodePinOfTheCatalogPort), outputs: nodeTypeSearched.outputs.map(nodePinOfTheCatalogPort) };
+/** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed, with a pin for each input a wire reaches and no setting; `null` for an item that is no node type `offered` describes, as a graph generator. */
+export function nodeTypeSearchPreviewCard(offered: readonly NodeTypeOffered[], searchItemId: string): { title: string; inputs: NodePin[]; outputs: NodePin[] } | null {
+  const described = offered.find((nodeType) => nodeType.listed.node_type === searchItemId)?.described ?? null;
+  if (described === null) return null;
+  return { title: nameInWords(nodeTypeClassName(described.node_type)), inputs: inputsAWireReaches(described).map(nodePinOfTheDescribedPort), outputs: described.outputs.map(nodePinOfTheDescribedPort) };
 }

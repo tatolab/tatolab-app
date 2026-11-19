@@ -1,4 +1,4 @@
-// Each stream's graph, node catalog and input values as the host serves them to its views: one
+// Each stream's graph and input values as the host serves them to its views: one
 // reading per stream, however many views watch it, kept only while one does and the window is shown.
 // The graph is read as a view starts watching it, and again at once on each change the runtime
 // pushes, and, for a stream the runtime does not list loaded, which it pushes no change of, on each
@@ -8,10 +8,10 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import { StreamInputValuesReadings } from "./stream_input_values_readings";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
-import type { NodeCatalogReading, StopWatching, StreamGraphReading, StreamInputValuesReading } from "./studio_view_contract";
+import type { StopWatching, StreamGraphReading, StreamInputValuesReading } from "./studio_view_contract";
 
-/** What the host reads a stream's graph and catalog through, and is told of its graph's changes by. */
-type StreamGraphAndCatalogBackend = Pick<TatolabBackend, "describeStreamGraph" | "describeNodeCatalog" | "followStreamGraphChanges" | "stopFollowingStreamGraphChanges" | "onStreamGraphChanged" | "onProjectTransactionsChanged">;
+/** What the host reads a stream's graph through, and is told of its graph's changes by. */
+type StreamGraphBackend = Pick<TatolabBackend, "describeStreamGraph" | "followStreamGraphChanges" | "stopFollowingStreamGraphChanges" | "onStreamGraphChanged" | "onProjectTransactionsChanged">;
 
 /** Whether the runtime holds `listed` loaded, and so pushes each change of its graph: by its condition's load, or, from a runtime that lists no condition, while it runs. */
 function doesTheRuntimePushTheChangesOf(listed: ListedStream): boolean {
@@ -53,16 +53,14 @@ class LatestReadingWatchers<Reading> {
 /** What the host reads of one stream. */
 class OneStreamsReadings {
   readonly graph = new LatestReadingWatchers<StreamGraphReading>();
-  readonly catalog = new LatestReadingWatchers<NodeCatalogReading>();
   readonly inputValues = new StreamInputValuesReadings();
   private isGraphReadInFlight = false;
   private isAnotherGraphReadWanted = false;
-  private isCatalogReadInFlight = false;
   private isFollowingTheGraphChanges = false;
 
   constructor(
     private readonly stream: string,
-    private readonly backend: StreamGraphAndCatalogBackend,
+    private readonly backend: StreamGraphBackend,
   ) {}
 
   /** Read the graph and follow its pushed changes while `isWatched`. */
@@ -94,28 +92,6 @@ class OneStreamsReadings {
     });
   }
 
-  /** Read the catalog when nobody has, after a refusal, or when the graph names a type it lacks; one read at a time. */
-  readTheCatalogIfItFallsShort(): void {
-    if (this.isCatalogReadInFlight || this.catalog.watcherCount === 0) return;
-    const catalogReading = this.catalog.latest;
-    const graphReading = this.graph.latest;
-    const isListed = catalogReading?.kind === "listed";
-    const typesListed = new Set(isListed ? catalogReading.catalog.node_types.map((nodeType) => nodeType.type) : []);
-    const graphNamesAnUnlistedType = graphReading?.kind === "read" && graphReading.graph.nodes.some((node) => !typesListed.has(node.type));
-    if (isListed && !graphNamesAnUnlistedType) return;
-    this.isCatalogReadInFlight = true;
-    this.backend.describeNodeCatalog(this.stream).then(
-      (catalog) => {
-        this.isCatalogReadInFlight = false;
-        this.catalog.publish({ kind: "listed", catalog });
-      },
-      (rejection: unknown) => {
-        this.isCatalogReadInFlight = false;
-        this.catalog.publish({ kind: "not_listed", because: describeBackendRejection(rejection) });
-      },
-    );
-  }
-
   /** Each reading's values reach the views before the graph does, so a node drawn from it shows its values at once. */
   private async readTheGraph(): Promise<void> {
     this.inputValues.readStarting();
@@ -127,17 +103,16 @@ class OneStreamsReadings {
       this.inputValues.readLanded(null);
       this.graph.publish({ kind: "not_read", because: describeBackendRejection(rejection) });
     }
-    this.readTheCatalogIfItFallsShort();
   }
 }
 
-/** Every watched stream's graph and node catalog, read through `backend`. */
-export class StreamGraphAndCatalogReadings {
+/** Every watched stream's graph and input values, read through `backend`. */
+export class StreamGraphReadings {
   private readonly readingsByStream = new Map<string, OneStreamsReadings>();
   private readonly streamsWhoseChangesThePushesCarry = new Set<string>();
   private isReadingAllowed = true;
 
-  constructor(private readonly backend: StreamGraphAndCatalogBackend) {
+  constructor(private readonly backend: StreamGraphBackend) {
     backend.onStreamGraphChanged((stream, inputValueChange) => {
       const readings = this.readingsByStream.get(stream);
       if (inputValueChange === null) readings?.readTheGraphAgain();
@@ -170,13 +145,6 @@ export class StreamGraphAndCatalogReadings {
     return this.stopWatchingOnce(readings, readings.graph.watch(listener));
   };
 
-  readonly watchNodeCatalog = (stream: string, listener: (reading: NodeCatalogReading) => void): StopWatching => {
-    const readings = this.readingsOf(stream);
-    const stopWatchingTheCatalog = this.stopWatchingOnce(readings, readings.catalog.watch(listener));
-    readings.readTheCatalogIfItFallsShort();
-    return stopWatchingTheCatalog;
-  };
-
   readonly watchStreamInputValues = (stream: string, listener: (reading: StreamInputValuesReading) => void): StopWatching => {
     const readings = this.readingsOf(stream);
     return this.stopWatchingOnce(readings, readings.inputValues.watch(listener));
@@ -190,9 +158,9 @@ export class StreamGraphAndCatalogReadings {
     return readings;
   }
 
-  /** The graph is read for a catalog's and the values' watchers as well, so a reload that brings a new type reads the catalog again, and the values follow the graph. */
+  /** The graph is read for the values' watchers as well, so the values follow the graph. */
   private updateWhetherItIsRead(readings: OneStreamsReadings): void {
-    readings.setWatched(this.isReadingAllowed && readings.graph.watcherCount + readings.catalog.watcherCount + readings.inputValues.watcherCount > 0);
+    readings.setWatched(this.isReadingAllowed && readings.graph.watcherCount + readings.inputValues.watcherCount > 0);
   }
 
   private stopWatchingOnce(readings: OneStreamsReadings, stopTheListener: () => void): StopWatching {

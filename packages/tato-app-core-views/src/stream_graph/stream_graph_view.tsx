@@ -14,16 +14,16 @@ import type { StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings
 import { graphAddressOfTheStreamsOwnLevel, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
 import { InputControlBinderContext, useInputControlsOfTheFrame, useInputValuesOfTheStream } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
-import type {
-  ListedStreamsReading,
-  NodeCatalogReading,
-  ProjectNodeTypesReading,
-  OpenProjectReading,
-  StreamGraphAction,
-  StreamGraphNode,
-  StreamGraphNodeStudioFields,
-  StreamGraphReading,
-  StreamTabAddress,
+import {
+  nodeTypeDescriptionsByType,
+  type ListedStreamsReading,
+  type ProjectNodeTypesDescribedReading,
+  type OpenProjectReading,
+  type StreamGraphAction,
+  type StreamGraphNode,
+  type StreamGraphNodeStudioFields,
+  type StreamGraphReading,
+  type StreamTabAddress,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
@@ -58,7 +58,7 @@ import {
 } from "../shared/stream_graph_edits";
 import { nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 import { levelOfTheSubgraphsSteppedThrough, selectionOfTheSubgraphSteppedOutOf, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly } from "./stream_graph_levels";
-import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeOriginWordsByType, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypeSearchPreviewCard, nodeTypesTheProjectDeclares, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
+import { graphGeneratorOfTheSearchItem, graphGeneratorSearchItems, nodeTypeSearchItems, nodeTypeSearchNarrowing, nodeTypeSearchPreviewCard, nodeTypesTheSearchOffers } from "./stream_graph_node_type_search";
 import { NODE_TYPE_CATEGORIES_WORDS, NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS } from "../shared/node_type_category_path";
 import { StreamGraphSubgraphReadOnlyBanner, StreamGraphSubgraphTrail } from "./stream_graph_subgraph_strip";
 import { isTheSamePlaceLeft, settingsWithTheStreamLeft, whereTheStreamWasLeft, type WhereAStreamWasLeft } from "./stream_graph_where_left";
@@ -118,11 +118,6 @@ function StreamGraphOfTheTab({
   const selection = useViewReading(connection.watchSelection);
   const openProject = useViewReading(connection.watchOpenProject);
   const listedStreams = useViewReading(connection.watchListedStreams);
-  const watchTheTabsCatalog = useCallback(
-    (listener: (reading: NodeCatalogReading) => void): StopWatching => connection.watchNodeCatalog(streamTab.stream, listener),
-    [connection, streamTab.stream],
-  );
-  const catalogReading = useViewReading(watchTheTabsCatalog);
   const [subgraphNamesSteppedThrough, setSubgraphNamesSteppedThrough] = useState<readonly string[]>([]);
   const levelShown = useMemo(() => (graphReading?.kind === "read" ? streamGraphLevelReached(graphReading.graph, subgraphNamesSteppedThrough) : null), [graphReading, subgraphNamesSteppedThrough]);
   const subgraphsSteppedThrough = levelShown?.subgraphs_stepped_through ?? NO_SUBGRAPHS_STEPPED_THROUGH;
@@ -133,6 +128,13 @@ function StreamGraphOfTheTab({
   const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
   const projectFolder = listedStream?.location?.project_directory ?? null;
   const streamCondition = listedStream?.condition ?? null;
+  const watchTheProjectsNodeTypes = useCallback(
+    (listener: (reading: ProjectNodeTypesDescribedReading) => void): StopWatching => (projectFolder === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchNodeTypes(projectFolder, listener)),
+    [connection, projectFolder],
+  );
+  const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
+  const nodeTypesOfTheProject = nodeTypesReading?.kind === "listed" ? nodeTypesReading.node_types : null;
+  const describedByType = useMemo(() => nodeTypeDescriptionsByType(nodeTypesOfTheProject?.described ?? []), [nodeTypesOfTheProject]);
   useInputValuesOfTheStream(connection, inputValues, streamTab.stream, projectFolder);
   const streamAsset = graphReading?.kind === "read" ? (graphReading.graph.asset ?? null) : null;
   const valuesOfTheLevelShown = useMemo(
@@ -150,12 +152,12 @@ function StreamGraphOfTheTab({
         ? null
         : streamGraphCanvasContents(
             levelShown.graph,
-            catalogReading?.kind === "listed" ? catalogReading.catalog : null,
+            describedByType,
             canvasContentsBefore.current,
             valuesOfTheLevelShown,
             levelShown.subgraphs_stepped_through.length === 0 ? streamCondition : null,
           ),
-    [levelShown, catalogReading, valuesOfTheLevelShown, streamCondition],
+    [levelShown, describedByType, valuesOfTheLevelShown, streamCondition],
   );
   useLayoutEffect(() => {
     canvasContentsBefore.current = canvasContents;
@@ -330,32 +332,22 @@ function StreamGraphOfTheTab({
     },
     [connection, projectFolder, disconnectedEditsOf, sendTheGesture, showTheRefusalOfTheRecovery],
   );
-  const watchTheProjectsNodeTypes = useCallback(
-    (listener: (reading: ProjectNodeTypesReading) => void): StopWatching =>
-      projectFolder === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchProjectNodeTypes(projectFolder, listener),
-    [connection, projectFolder],
-  );
-  const projectNodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
-  const projectNodeTypeListing = projectNodeTypesReading?.kind === "listed" ? projectNodeTypesReading.listing : null;
-  const catalog = useMemo(
-    () => nodeTypesTheSearchOffers(catalogReading?.kind === "listed" ? catalogReading.catalog.node_types : [], projectNodeTypeListing),
-    [catalogReading, projectNodeTypeListing],
-  );
+  const nodeTypesOffered = useMemo(() => nodeTypesTheSearchOffers(nodeTypesOfTheProject), [nodeTypesOfTheProject]);
   const looseWireOfTheSearch = nodeTypeSearchAsked?.looseWire ?? null;
   const openProjectOfTheStream = openProject?.kind === "read" && openProject.open_project.project.folder === projectFolder ? openProject.open_project : null;
   const nodeTypeSearchItemsOffered = useMemo(
     () => [
-      ...nodeTypeSearchItems(catalog, looseWireOfTheSearch, nodeTypesTheProjectDeclares(projectNodeTypeListing), nodeTypeOriginWordsByType(projectNodeTypeListing, openProjectOfTheStream)),
-      ...(subgraphDepth === 0 ? graphGeneratorSearchItems(projectNodeTypeListing, looseWireOfTheSearch, openProjectOfTheStream) : []),
+      ...nodeTypeSearchItems(nodeTypesOffered, looseWireOfTheSearch, openProjectOfTheStream),
+      ...(subgraphDepth === 0 ? graphGeneratorSearchItems(nodeTypesOfTheProject?.listing ?? null, looseWireOfTheSearch, openProjectOfTheStream) : []),
     ],
-    [catalog, projectNodeTypeListing, looseWireOfTheSearch, subgraphDepth, openProjectOfTheStream],
+    [nodeTypesOffered, nodeTypesOfTheProject, looseWireOfTheSearch, subgraphDepth, openProjectOfTheStream],
   );
   const previewOfTheNodeTypeSearched = useCallback(
     (searchItemId: string) => {
-      const previewCard = nodeTypeSearchPreviewCard(catalog, searchItemId);
+      const previewCard = nodeTypeSearchPreviewCard(nodeTypesOffered, searchItemId);
       return previewCard === null ? null : <NodeGraphCardPreview {...previewCard} />;
     },
-    [catalog],
+    [nodeTypesOffered],
   );
   const nodeTypeSearchActions = useMemo(
     () => [
@@ -371,13 +363,13 @@ function StreamGraphOfTheTab({
     (searchItemId: string, staysOpen: boolean) => {
       if (nodeTypeSearchAsked === null || editedGraph === null || "because" in editedGraph) return;
       const chosenGenerator = graphGeneratorOfTheSearchItem(searchItemId);
-      const chosenNodeType = catalog.find((entry) => entry.type === searchItemId);
+      const chosenNodeType = nodeTypesOffered.find((offered) => offered.listed.node_type === searchItemId);
       const placedEdits =
         chosenGenerator !== null
           ? generatorSubgraphPlacedEdits(editedGraph, chosenGenerator, nodeTypeSearchAsked.at.on_the_canvas)
           : chosenNodeType === undefined
             ? null
-            : nodePlacedEdits(editedGraph, chosenNodeType, nodeTypeSearchAsked.at.on_the_canvas, nodeTypeSearchAsked.looseWire);
+            : nodePlacedEdits(editedGraph, chosenNodeType.listed.node_type, chosenNodeType.described, nodeTypeSearchAsked.at.on_the_canvas, nodeTypeSearchAsked.looseWire);
       if (placedEdits === null) return;
       void sendTheGestureAtTheLevelShown(placedEdits);
       // A second generator placed before the graph shows the first would take the first's name, which refreshes it.
@@ -397,7 +389,7 @@ function StreamGraphOfTheTab({
         looseWire: null,
       });
     },
-    [catalog, nodeTypeSearchAsked, editedGraph, sendTheGestureAtTheLevelShown],
+    [nodeTypesOffered, nodeTypeSearchAsked, editedGraph, sendTheGestureAtTheLevelShown],
   );
   const onNodesSelected = useCallback(
     (nodeNames: readonly string[]) => {
@@ -497,7 +489,7 @@ function StreamGraphOfTheTab({
                   placeholder={nodeTypeSearchAsked.looseWire === null ? "Search node types and generators" : "Search node types"}
                   items={nodeTypeSearchItemsOffered}
                   narrowedTo={nodeTypeSearchAsked.looseWire === null ? null : nodeTypeSearchNarrowing(nodeTypeSearchAsked.looseWire)}
-                  emptyWords={catalogReading?.kind === "not_listed" ? catalogReading.because : "No node type matches."}
+                  emptyWords={nodeTypesReading?.kind === "not_listed" ? nodeTypesReading.because : "No node type matches."}
                   uncategorisedWords={NODE_TYPES_SERVED_WITH_NO_CATEGORY_WORDS}
                   categoriesWords={NODE_TYPE_CATEGORIES_WORDS}
                   at={nodeTypeSearchAsked.at.in_the_element}

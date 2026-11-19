@@ -3,7 +3,7 @@
 import type { JsonValue, OpenProjectReading, PortViewerTarget } from "../../shared/tatolab_backend_contract";
 import type {
   ListedStreamsReading,
-  NodeCatalogReading,
+  ProjectNodeTypesDescribedReading,
   ProjectFileReading,
   ProjectFileSaving,
   NodeFileCreating,
@@ -44,7 +44,7 @@ export type {
 } from "../../shared/tatolab_backend_contract";
 export type {
   ListedStreamsReading,
-  NodeCatalogReading,
+  ProjectNodeTypesDescribedReading,
   ProjectFileReading,
   ProjectLogReading,
   ProjectNodeTypesReading,
@@ -125,8 +125,6 @@ export interface StudioViewHostServices {
   openStreamTab(streamTab: StreamTabAddress): void;
   /** The graph of `stream`, read while any view watches it and the window is shown; the first reading arrives once read. */
   watchStreamGraph(stream: string, listener: (reading: StreamGraphReading) => void): StopWatching;
-  /** The node types `stream` can add, read when first watched and again once its graph names a type the catalog lacks. */
-  watchNodeCatalog(stream: string, listener: (reading: NodeCatalogReading) => void): StopWatching;
   /** Every input's value in the graph of `stream`, once it is read, then each change the runtime announces; it keeps that graph followed as `watchStreamGraph` does. */
   watchStreamInputValues(stream: string, listener: (reading: StreamInputValuesReading) => void): StopWatching;
   /** Open a view of `viewTypeId` on `on`, in the area of the layout showing that type; refused while no area shows it. */
@@ -143,6 +141,8 @@ export interface StudioViewHostServices {
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void): StopWatching;
   /** What `projectFolder` and each source it draws node code from declares, listed while any view watches it and the window is shown; the first reading arrives once listed. */
   watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void): StopWatching;
+  /** The node types `projectFolder` offers, each described, listed and described while any view watches them and the window is shown, and again as they change or a stream of the project loads; the first reading arrives once described. */
+  watchNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesDescribedReading) => void): StopWatching;
   /** `projectFolder`'s assets, listed while any view watches it and the window is shown; the first reading arrives once listed. */
   watchProjectAssets(projectFolder: string, listener: (reading: ProjectAssetsReading) => void): StopWatching;
   /** The layout's areas for `viewTypeId`, at once and again as the layout or the view types change. */

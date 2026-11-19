@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { applyMockGraphTransaction, configHoldingTheDefaultNameOfAGraphPortOrVariable, graphActionApplyingTheHistoryOperation, isAHistoryOperationTheMockMakesAgainFromTheEditInside, isAJsonObject, MockGraphEditNotApplicable, thePlacementsOfTheStream, type MockStreamGraphTarget } from "./mock_graph_transactions";
-import { MOCK_RECORDED_NODE_CATALOG } from "./mock_recordings";
+import { MOCK_RECORDED_NODE_TYPES_DESCRIBED } from "./mock_recordings";
+import { nodeTypeDescriptionsByType } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { JsonValue, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { mockNodeIdOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
 
@@ -28,16 +29,19 @@ function targetsOf(graph: MockStreamGraph): ReadonlyMap<string, MockStreamGraphT
   return new Map([[STREAM_ASSET, { stream_id: STREAM_ID, graph }]]);
 }
 
+/** Every node type the sample's recording describes. */
+const NODE_TYPES_DESCRIBED = [...nodeTypeDescriptionsByType(MOCK_RECORDED_NODE_TYPES_DESCRIBED.node_types).values()];
+
 /** The ports of the nodes this file's edits removed, as one mock runtime keeps them. */
 const portsOfTheNodesRemoved = new Map<string, Pick<MockGraphNode, "input_ports" | "output_ports">>();
 
-/** `operations` applied to `graph`, each node added with the ports the recorded catalog lists for its type. */
+/** `operations` applied to `graph`, each node added with the ports the recorded description gives its type. */
 function apply(graph: MockStreamGraph, operations: readonly StreamGraphAction[], ...rest: [applying?: "a_transaction" | "a_live_transaction" | "undo_or_redo", historyOperationsReplayed?: readonly JsonValue[]]) {
-  return applyMockGraphTransaction(targetsOf(graph), { nodeCatalog: MOCK_RECORDED_NODE_CATALOG, portsOfTheNodesRemoved }, operations, ...rest);
+  return applyMockGraphTransaction(targetsOf(graph), { nodeTypesDescribed: NODE_TYPES_DESCRIBED, portsOfTheNodesRemoved }, operations, ...rest);
 }
 
 const TEST_PATTERN = mockNodeIdOf(STREAM_ID, "testpatternsource");
-/** The sample's `FrameTally`, which reads pictures on `picture`: a node type the recorded catalog lists. */
+/** The sample's `FrameTally`, which reads pictures on `picture`: a node type the recording describes. */
 const FRAME_TALLY = "nodes.frame_tally:FrameTally";
 
 test("a node added under `as` is wired by that label in the same transaction, and its config set by its id after", () => {
@@ -67,13 +71,13 @@ test("an edit the mock cannot apply is the sender's defect, thrown by name, and 
       { operation: "set_node_config", stream: STREAM_ASSET, node: TEST_PATTERN, config: { width: 640 } },
       { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:MicrophoneSource", as: "mic" },
     ]),
-  ).toThrow(new MockGraphEditNotApplicable("the recorded node catalog lists no node type `tatolab.stream:MicrophoneSource`"));
+  ).toThrow(new MockGraphEditNotApplicable("the recorded node types describe no node type `tatolab.stream:MicrophoneSource`"));
   expect(graph).toEqual(aTestPatternAlone());
   expect(() => apply(graph, [{ operation: "set_pin_value", stream: STREAM_ASSET, node: TEST_PATTERN, input: "level", value: 1 }])).toThrow(MockGraphEditNotApplicable);
   expect(() => apply(graph, [{ operation: "use_dependency_stream", stream: STREAM_ASSET, project: "p", dependency_stream: "d" }])).toThrow("the mock does not apply `use_dependency_stream`");
 });
 
-test("a link is made as asked, the mock judging no family or pin of its ends", () => {
+test("a link is made as asked, the mock judging no family or pin of its ends, a typed port added with the pin type its description states and no family", () => {
   const graph = aTestPatternAlone();
   apply(graph, [
     { operation: "add_node", stream: STREAM_ASSET, type: "nodes.beat:Warmth", as: "warmth" },
@@ -81,10 +85,10 @@ test("a link is made as asked, the mock judging no family or pin of its ends", (
   ]);
   expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "warmth", target_port: "base", state: "wired" }]);
   expect(graph.nodes[1]?.input_ports.map((port) => [port.name, port.family, port.pin])).toEqual([
-    ["count", "channels", { pin_type: { type: "integer" }, flow: "value" }],
-    ["accented", "channels", { pin_type: { type: "boolean" }, flow: "value" }],
-    ["beats_per_bar", "channels", { pin_type: { type: "integer" }, flow: "value" }],
-    ["base", "channels", { pin_type: { type: "float" }, flow: "value" }],
+    ["count", null, { pin_type: { type: "integer" }, flow: "value" }],
+    ["accented", null, { pin_type: { type: "boolean" }, flow: "value" }],
+    ["beats_per_bar", null, { pin_type: { type: "integer" }, flow: "value" }],
+    ["base", null, { pin_type: { type: "float" }, flow: "value" }],
   ]);
 });
 
@@ -110,14 +114,14 @@ test("an operation history records is turned back into the graph action that app
   expect(graphActionApplyingTheHistoryOperation({ operation: "import_asset", asset: {} })).toBeNull();
 });
 
-test("a node of a type the recorded catalog does not list, removed and added back by its undo, keeps the ports it had", () => {
+test("a node of a type the recording does not describe, removed and added back by its undo, keeps the ports it had", () => {
   const graph = aTestPatternAlone();
   const inverterPorts = { input_ports: [{ name: "video_from_upstream", family: "image" as const, stream_facts: null, values_checked: null, pin: null, value_read: null }], output_ports: [] };
   graph.nodes.push({ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {}, ...structuredClone(inverterPorts) });
   const inverter = mockNodeIdOf(STREAM_ID, "invertingeffect");
   const removed = apply(graph, [{ operation: "remove_node", stream: STREAM_ASSET, node: inverter }]);
   const restoring = removed.inverse_operations.map(graphActionApplyingTheHistoryOperation).flatMap((action) => (action === null ? [] : [action]));
-  expect(() => applyMockGraphTransaction(targetsOf(graph), { nodeCatalog: MOCK_RECORDED_NODE_CATALOG, portsOfTheNodesRemoved: new Map() }, restoring, "undo_or_redo")).toThrow(MockGraphEditNotApplicable);
+  expect(() => applyMockGraphTransaction(targetsOf(graph), { nodeTypesDescribed: NODE_TYPES_DESCRIBED, portsOfTheNodesRemoved: new Map() }, restoring, "undo_or_redo")).toThrow(MockGraphEditNotApplicable);
   apply(graph, restoring, "undo_or_redo");
   expect(graph.nodes.find((node) => node.name === "invertingeffect")).toMatchObject({ type: "nodes.inverting_effect:InvertingEffect", ...inverterPorts });
 });
@@ -187,7 +191,7 @@ test("a collapsed node is saved as a stream the subgraph places, wired through i
   expect(graph.links).toMatchObject([{ source_node: "testpatternsource", source_port: "video", target_node: "frametally", target_port: "picture" }]);
 });
 
-test("a node takes a setting as the input its catalog entry lists, fed by a Graph Input of the family asked, and its undo puts it back", () => {
+test("a node takes a setting as the input its description lists, fed by a Graph Input of the family asked, and its undo puts it back", () => {
   const graph = aTestPatternAlone();
   apply(graph, [{ operation: "add_node", stream: STREAM_ASSET, type: FRAME_TALLY, as: "tally" }]);
   const tally = mockNodeIdOf(STREAM_ID, "frametally");
