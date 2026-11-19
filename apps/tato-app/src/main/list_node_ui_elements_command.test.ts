@@ -141,6 +141,22 @@ test("a studio window lists the Studio's own controls, named by this copy's vers
         registration: { kind: "control", type: "float", control: "slider" },
         script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/float_slider.ts" },
       },
+      {
+        module: "studio",
+        brought_by: "studio",
+        script: "wire_preview.ts",
+        folder_version: "0.46.0",
+        registration: { kind: "control", type: "texture", control: "preview" },
+        script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/wire_preview.ts" },
+      },
+      {
+        module: "studio",
+        brought_by: "studio",
+        script: "wire_meter.ts",
+        folder_version: "0.46.0",
+        registration: { kind: "control", type: "audio", control: "meter" },
+        script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/wire_meter.ts" },
+      },
     ],
   });
 });

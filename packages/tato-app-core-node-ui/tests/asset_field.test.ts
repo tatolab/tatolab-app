@@ -52,6 +52,7 @@ function studioOfTheDemoProject(ending: ProjectAssetPickEnding): { studio: NodeU
       listener(LISTED);
       return () => undefined;
     },
+    watchWhatIsWiredInto: () => () => undefined,
     inputControlFor: () => Promise.reject(new Error("no control in this test")),
   };
   return { studio, picks, previewsRead };

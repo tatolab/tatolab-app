@@ -26,6 +26,7 @@ import {
   type StreamGraphReading,
   type StreamTabAddress,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { wiresReadAtTheLevel } from "../shared/node_pins_of_the_graph";
 import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
@@ -168,8 +169,9 @@ function StreamGraphOfTheTab({
             canvasContentsBefore.current,
             valuesOfTheLevelShown,
             levelShown.subgraphs_stepped_through.length === 0 ? streamCondition : null,
+            wiresReadAtTheLevel(streamTab.stream, valuesOfTheLevelShown),
           ),
-    [levelShown, describedByType, valuesOfTheLevelShown, streamCondition],
+    [levelShown, describedByType, valuesOfTheLevelShown, streamCondition, streamTab.stream],
   );
   useLayoutEffect(() => {
     canvasContentsBefore.current = canvasContents;

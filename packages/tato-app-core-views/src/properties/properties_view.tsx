@@ -498,7 +498,7 @@ function OwnFieldOfTheRowsInput({ fieldId, nodePin, describedInput, row }: { fie
  */
 function ValueOfTheUnwiredInput({ fieldId, nodePin, describedInput, row }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations" | "setting">; describedInput: NodeTypeInputDescribed | undefined; row: OwnFieldOfTheRow }) {
   const { address } = row;
-  const controlled = takesAControl({ name: address.input, pin: nodePin.pin, annotations: nodePin.annotations, value_address: address, setting: nodePin.setting });
+  const controlled = takesAControl({ name: address.input, pin: nodePin.pin, annotations: nodePin.annotations, value_address: address, setting: nodePin.setting, wire: null });
   const ownField = <OwnFieldOfTheRowsInput fieldId={fieldId} nodePin={nodePin} describedInput={describedInput} row={row} />;
   return (
     <div className="flex w-full min-w-0 flex-col gap-1">
@@ -659,7 +659,7 @@ function PropertiesOfTheSelectedNode({
   const streamName = listedStream?.display_name ?? stream;
   const typeClassName = nodeTypeClassName(node.type);
   const refusalOfTheName = graphEdits.refusalsByPlace.get("name");
-  const inputPins = nodeInputs(graph, node, described, valuesAt);
+  const inputPins = nodeInputs(graph, node, described, valuesAt, null);
   const outputPins = nodeOutputs(node, described);
   const matching = propertiesMatchingTheSearch(
     inputPins.map((pin) => pin.name),

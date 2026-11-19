@@ -5,14 +5,36 @@ import type { InputAddress } from "./node_inputs.js";
 const WIDTH: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "PATTERN-ID", input: "width" };
 
 test("a_settings_control_is_told_whether_a_change_rebuilds_its_node", () => {
-  const width = { name: "width", pin: { pin_type: { type: "integer" }, flow: "value" }, annotations: {}, value_address: WIDTH } as const;
+  const width = { name: "width", pin: { pin_type: { type: "integer" }, flow: "value" }, annotations: {}, value_address: WIDTH, wire: null } as const;
   expect(takesAControl({ ...width, setting: { read: "at_setup" } })?.rebuilds_its_node).toBe(true);
   expect(takesAControl({ ...width, setting: { read: "each_run" } })?.rebuilds_its_node).toBe(false);
   expect(takesAControl({ ...width, setting: null })?.rebuilds_its_node).toBe(false);
 });
 
 test("a_string_holding_a_project_assets_uuid_takes_no_control_so_the_panels_own_asset_field_picks_it", () => {
-  const asset = { name: "asset", pin: { pin_type: { type: "string" }, flow: "value" }, value_address: { ...WIDTH, input: "asset" }, setting: { read: "at_setup" } } as const;
+  const asset = { name: "asset", pin: { pin_type: { type: "string" }, flow: "value" }, value_address: { ...WIDTH, input: "asset" }, setting: { read: "at_setup" }, wire: null } as const;
   expect(takesAControl({ ...asset, annotations: { project_asset: { media: ["image"] } } })).toBeNull();
   expect(takesAControl({ ...asset, annotations: {} })).not.toBeNull();
+});
+
+const VIDEO_IN: InputAddress = { ...WIDTH, input: "video_in" };
+const WIRED_FROM_THE_CAMERA = { kind: "wired", target: { stream: "main-a1b2c3", node_id: "CAMERA-ID", port: "video" }, wired_from_words: "camera › video" } as const;
+
+test("a_texture_input_whose_annotation_names_a_control_takes_it_driven_by_what_its_wire_reads", () => {
+  const videoIn = { name: "video_in", pin: { pin_type: { type: "texture" }, flow: "stream" }, value_address: null, setting: null, wire: { into: VIDEO_IN, wiring: WIRED_FROM_THE_CAMERA } } as const;
+  expect(takesAControl({ ...videoIn, annotations: { control: "preview" } })).toEqual({
+    address: VIDEO_IN,
+    declaration: { input_name: "video_in", label: "video_in", pin_type: { type: "texture" }, annotations: { control: "preview" }, may_be_unset: false },
+    rebuilds_its_node: false,
+    driven_by: WIRED_FROM_THE_CAMERA,
+  });
+  expect(takesAControl({ ...videoIn, annotations: { control: "preview" }, wire: { into: VIDEO_IN, wiring: { kind: "unwired", because: "Nothing is wired into video_in." } } })?.driven_by).toEqual({ kind: "unwired", because: "Nothing is wired into video_in." });
+  expect(takesAControl({ ...videoIn, annotations: { control: "preview" }, value_address: VIDEO_IN })?.driven_by).toEqual(WIRED_FROM_THE_CAMERA);
+  expect(takesAControl({ ...videoIn, annotations: {} })).toBeNull();
+  expect(takesAControl({ ...videoIn, annotations: { control: "preview" }, wire: null })).toBeNull();
+});
+
+test("an_input_holding_a_value_that_a_link_feeds_takes_no_control_whatever_its_annotation_names", () => {
+  const gain = { name: "gain", pin: { pin_type: { type: "float" }, flow: "value" }, annotations: { control: "slider" }, value_address: null, setting: null, wire: { into: { ...WIDTH, input: "gain" }, wiring: WIRED_FROM_THE_CAMERA } } as const;
+  expect(takesAControl(gain)).toBeNull();
 });

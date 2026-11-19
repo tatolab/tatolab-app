@@ -99,12 +99,19 @@ function haveTheSameInputAndType(before: { address: InputAddress; pinType: PinTy
 /** The mark a card's control carries, so the canvas hides it while zoomed out past reading it. */
 const INLINE_CONTROL_HOST_ATTRIBUTES = { [NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE]: "" } as const;
 
-/** What an input's row shows of its value at its end: the control `takesAControl` gives it, or its value in words where the table has none; nothing for an input that holds no value of its own. */
+/**
+ * What an input's row shows of its value at its end: the control `takesAControl` gives it, or its value in words where the table
+ * has none, and nothing for one that holds no value of its own. An input of a type only a wire carries shows only a control its
+ * wire drives, such as a preview its node type names.
+ */
 function NodeGraphInputValueOfTheRow({ pin }: { pin: NodePin }) {
   const isEditable = useContext(NodeGraphEditableContext);
+  const controlled = takesAControl(pin);
+  if (controlled !== null && controlled.driven_by !== null) {
+    return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={null} className="ml-auto w-24 shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
+  }
   if (pin.value_address === null) return null;
   const wordsOfTheValue = <NodeGraphInputValueWords address={pin.value_address} pinType={pin.pin?.pin_type ?? null} />;
-  const controlled = takesAControl(pin);
   if (controlled === null) return wordsOfTheValue;
   return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={wordsOfTheValue} className="ml-auto w-24 shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
 }

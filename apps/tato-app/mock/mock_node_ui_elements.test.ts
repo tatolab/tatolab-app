@@ -18,6 +18,8 @@ it("lists each control the Studio's own node UI manifest registers, read from so
     { script: "type_choice.ts", registration: { kind: "control", type: "pin_type_choice", control: null }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/type_choice.ts" } },
     { script: "integer_slider.ts", registration: { kind: "control", type: "integer", control: "slider" }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/integer_slider.ts" } },
     { script: "float_slider.ts", registration: { kind: "control", type: "float", control: "slider" }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/float_slider.ts" } },
+    { script: "wire_preview.ts", registration: { kind: "control", type: "texture", control: "preview" }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/wire_preview.ts" } },
+    { script: "wire_meter.ts", registration: { kind: "control", type: "audio", control: "meter" }, script_serving: { kind: "served", script_url: "http://localhost:5173/core_node_ui/wire_meter.ts" } },
   ]);
   expect(mockStudioNodeUiElements("http://localhost:5173", true).map((listed) => listed.script_serving)).toEqual([
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/boolean_switch.ts" },
@@ -35,5 +37,7 @@ it("lists each control the Studio's own node UI manifest registers, read from so
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/type_choice.ts" },
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/integer_slider.ts" },
     { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/float_slider.ts" },
+    { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/wire_preview.ts" },
+    { kind: "served", script_url: "http://localhost:5173/unserved_node_ui/wire_meter.ts" },
   ]);
 });

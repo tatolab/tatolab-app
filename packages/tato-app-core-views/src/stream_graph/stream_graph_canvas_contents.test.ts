@@ -36,15 +36,15 @@ const GRAPH: StreamGraph = aStreamGraph(
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_types_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
+    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, wire: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null },
     {
       node_id: "invert",
       title: "invert",
       type_name: "Effect",
       description: null,
       condition: { look: "healthy" },
-      inputs: [{ name: "video_in", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null }],
-      outputs: [{ name: "video_out", pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null }],
+      inputs: [{ name: "video_in", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, wire: null }],
+      outputs: [{ name: "video_out", pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null }],
       saved_position: null,
       frame_id: null,
       is_collapsed: false,
@@ -269,4 +269,17 @@ test("a_node_or_link_the_running_stream_does_not_hold_yet_is_drawn_not_live_and_
     ["L2", "waiting", "invert.video_out → display.video, waiting to be wired"],
     ["L3", "waiting", "camera.video → display.video, Not live yet: the running stream hasn't taken this edit. Restart the playback to make it live."],
   ]);
+});
+
+test("an_input_that_takes_a_wire_reads_it_where_wires_are_read_through_the_port_viewer_of_the_output_wired_in_and_one_with_none_says_so", () => {
+  const level = { project_folder: "/projects/demo", stream_asset: "STREAM-ASSET", level: [] };
+  const wiresAt = { stream: "main-a1b2c3", graph: level };
+  const graph = aStreamGraph([...GRAPH.nodes, graphNode("mixer", ["video_a", "video_b"], [])], GRAPH.links);
+  const inputsOf = (contents: ReturnType<typeof streamGraphCanvasContents>, nodeName: string) => contents.nodes.find((node) => node.node_id === nodeName)?.inputs.map((input) => [input.name, input.wire]);
+  const read = streamGraphCanvasContents(graph, NONE_DESCRIBED, null, level, null, wiresAt);
+  expect(inputsOf(read, "invert")).toEqual([
+    ["video_in", { into: { graph: level, node_id: "INVERT", input: "video_in" }, wiring: { kind: "wired", target: { stream: "main-a1b2c3", node_id: "CAMERA", port: "video" }, wired_from_words: "camera › video" } }],
+  ]);
+  expect(inputsOf(read, "mixer")?.[0]).toEqual(["video_a", { into: { graph: level, node_id: "MIXER", input: "video_a" }, wiring: { kind: "unwired", because: "Nothing is wired into video_a." } }]);
+  expect(inputsOf(streamGraphCanvasContents(graph, NONE_DESCRIBED, null, level), "invert")).toEqual([["video_in", null]]);
 });
