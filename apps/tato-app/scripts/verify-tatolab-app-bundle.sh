@@ -328,6 +328,10 @@ verify_app_bundle() {
   [ -f "$helper_contents/Resources/core-projects/tatolab-core-nodes/tatolab-project.json" ] \
     && pass "the helper's Resources/core-projects carries the Core Nodes project beside the lend" \
     || fail "the helper's Resources/core-projects has no tatolab-core-nodes project, so no project gets the core nodes"
+  [ -f "$helper_contents/Resources/extension-sdk/package.json" ] && [ -f "$helper_contents/Resources/extension-sdk/tie_lines.json" ] \
+    && [ -f "$helper_contents/Resources/extension-sdk/oxlint.json" ] && [ -f "$helper_contents/Resources/extension-sdk/check_folder/tsconfig.json" ] \
+    && pass "the helper's Resources/extension-sdk carries the extension SDK kit beside the lend" \
+    || fail "the helper's Resources/extension-sdk carries no extension SDK kit, so its runtime checks no view or control"
   verify_the_carried_archives "$helper_contents/Resources"
   [ ! -e "$contents/Resources/python" ] && [ ! -e "$contents/Frameworks/tatolab-python" ] && [ ! -e "$contents/MacOS/uv" ] \
     && pass "the bundle carries no Python or uv of the app's own" || fail "the bundle carries a Python or uv of the app's own (Resources/python, Frameworks/tatolab-python or MacOS/uv)"
