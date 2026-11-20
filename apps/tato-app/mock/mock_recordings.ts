@@ -19,6 +19,7 @@ import everyPinKindDescribeNodeTypesResult from "./recordings/every-pin-kind-des
 import graphResultOfMain from "./recordings/every-pin-kind-graph-result-of-main.json?raw";
 import transactRefusalForALinkOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-a-records-output-into-a-float-input.json?raw";
 import transactRefusalForAValueOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-words-as-a-float-value.json?raw";
+import transactRefusalForASweepIntoAFloat from "./recordings/every-pin-kind-transact-refusal-for-a-sweep-output-into-a-float-input.json?raw";
 import pulseStageGraphResultOfMain from "./recordings/pulse-stage-graph-result-of-main.json?raw";
 import { projectActionRefusalOfTheContract } from "../src/main/project_transactions_on_the_wire";
 import { controlContractRefusalOf, describeTheContractIssues, readControlContractValue } from "../src/main/tatolab_runtime_control_operation_call";
@@ -337,44 +338,14 @@ export const MOCK_STAND_IN_SWEEP_POSITION_DESCRIBED: NodeTypeDescription = {
   outputs: [{ name: "result", documentation: "", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value" }],
 };
 
-/** The input of the sample's `beat` that the stand-in refusal of a `Sweep` into a Float names: a Float, unlinked in the sample's graph. */
-const RECORDED_BEAT_NODE = "2f44fe9c-94cb-4bf0-af2c-b91345adc7c9";
-
-/** The stream id the stand-in refusal of a `Sweep` into a Float names, as a runtime would list the sample's `main`; the mock names it apart. */
-const STAND_IN_STREAM_ID = "every-pin-kind-main-8c1d2e";
-
 /**
- * A stand-in, since no recording holds a refusal suggesting a call: the runtime's refusal of a `connect` from `sweep.result` into
- * `beat.beats_per_minute`, a link only the sample's `SweepPosition` bridges. Its `suggested_call` is the `transact` streamlib's engine test
- * `a_link_only_a_projects_conversion_bridges_is_refused_naming_it_with_the_call_placing_it` pins, the stream named by its id; its words are
- * `PinLinkRefusal`'s for that link. A recording of the runtime's refusal takes its place as `recordedRefusal(...)`.
+ * The runtime's refusal of a `connect` from `sweep.result` into `beat.beats_per_minute`, a link only the sample's `SweepPosition`
+ * bridges, its `suggested_call` the `transact` that places it, the stream named by its id.
  */
-const STAND_IN_REFUSAL_OF_A_SWEEP_INTO_A_FLOAT: ProjectActionRefusal = ((): ProjectActionRefusal => {
-  const source = { node: SAMPLE_SWEEP_NODE, port: "result" };
-  const target = { node: RECORDED_BEAT_NODE, port: "beats_per_minute" };
-  return {
-    refusal_code: "link_needs_a_module_conversion",
-    action: "transact",
-    refused_operation_index: 0,
-    refused_node: null,
-    refused_link: { source, target },
-    refused_field: null,
-    refused_params_pointer: null,
-    refused_file: null,
-    suggested_call: {
-      operation: "transact",
-      params: {
-        operations: [
-          { operation: "add_node", stream: STAND_IN_STREAM_ID, type: MOCK_STAND_IN_SWEEP_POSITION_DESCRIBED.node_type, as: "conversion" },
-          { operation: "connect", stream: STAND_IN_STREAM_ID, source, target: { node: "conversion", port: "sweep" } },
-          { operation: "connect", stream: STAND_IN_STREAM_ID, source: { node: "conversion", port: "result" }, target },
-        ],
-      },
-    },
-    runtime_words:
-      "cannot link `sweep.result` (Named type `nodes.sweep:Sweep`) to `beat.beats_per_minute` (Float): a Named type `nodes.sweep:Sweep` output does not connect to a Float input. To fix: place a `nodes.sweep:SweepPosition` node between them",
-  };
-})();
+const MOCK_RECORDED_REFUSAL_OF_A_SWEEP_INTO_A_FLOAT: ProjectActionRefusal = recordedRefusal(
+  "every-pin-kind-transact-refusal-for-a-sweep-output-into-a-float-input",
+  transactRefusalForASweepIntoAFloat,
+);
 
 /** `refusal` with each operation of its suggested `transact` on the stream the mock lists as `streamId`, wherever the runtime that gave it listed its own. */
 function withTheSuggestedTransactOnTheStream(refusal: ProjectActionRefusal, streamId: string): ProjectActionRefusal {
@@ -392,9 +363,9 @@ function withTheSuggestedTransactOnTheStream(refusal: ProjectActionRefusal, stre
   };
 }
 
-/** The refusal of a `connect` from `sweep.result` into `beat.beats_per_minute`, its suggested `transact` on the stream the mock lists as `streamId`. */
-export function mockStandInRefusalOfASweepIntoAFloat(streamId: string): ProjectActionRefusal {
-  return withTheSuggestedTransactOnTheStream(STAND_IN_REFUSAL_OF_A_SWEEP_INTO_A_FLOAT, streamId);
+/** The runtime's refusal of a `connect` from `sweep.result` into `beat.beats_per_minute`, its suggested `transact` on the stream the mock lists as `streamId`. */
+export function mockRecordedRefusalOfASweepIntoAFloat(streamId: string): ProjectActionRefusal {
+  return withTheSuggestedTransactOnTheStream(MOCK_RECORDED_REFUSAL_OF_A_SWEEP_INTO_A_FLOAT, streamId);
 }
 
 /** A stand-in's port of `pinType`, of a value read as `saved`, as the runtime serves an input whose value the graph document keeps. */

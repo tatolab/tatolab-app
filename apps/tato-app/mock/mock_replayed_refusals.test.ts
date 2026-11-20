@@ -29,7 +29,7 @@ test("no refusal is replayed while the page names none", () => {
   expect(new MockReplayedRefusals(null).refusalOf([valueSetOn(idOfTheRecordedNode("warmth"), "base")], "commit", () => STREAM_ID)).toBeNull();
 });
 
-test("the stand-in refusal of a Sweep into a Float answers that connect alone, suggesting the transact that places SweepPosition on the stream the connect names, by its id", () => {
+test("the recorded refusal of a Sweep into a Float answers that connect alone, suggesting the transact that places SweepPosition on the stream the connect names, by its id", () => {
   const replayed = new MockReplayedRefusals("link_needs_a_module_conversion");
   const sweep = "3e8b1c47-9d2a-4f60-b5e8-1a7c4d9f2e36";
   const connect = (port: string): StreamGraphAction => ({ operation: "connect", stream: STREAM_ASSET, source: { node: sweep, port: "result" }, target: { node: idOfTheRecordedNode("beat"), port } });

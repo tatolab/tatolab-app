@@ -254,7 +254,7 @@ describe("the mock backend's stream actions", () => {
     expect((await settled(backend.describeStreamGraph(MAIN))).links.filter((link) => link.target.node === "warmth" && link.target.port === "base").map((link) => link.source.node)).toEqual(["tally"]);
   });
 
-  it("replays the stand-in refusal of a Sweep into a Float with the transact placing SweepPosition, makes that edit as given, by the stream's id, and one undo takes it back", async () => {
+  it("answers the recorded check and refusal of a Sweep into a Float with the transact placing SweepPosition, makes that edit as given, by the stream's id, and one undo takes it back", async () => {
     const { backend } = await runningMockBackend("main_graph=every_pin_kind_with_a_named_type&refusal=link_needs_a_module_conversion");
     const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
       await vi.advanceTimersByTimeAsync(100);
@@ -264,6 +264,9 @@ describe("the mock backend's stream actions", () => {
     const graphBefore = await settled(backend.describeStreamGraph(MAIN));
     const idOf = (name: string) => graphBefore.nodes.find((node) => node.name === name)?.id ?? expect.unreachable(`no ${name} in the sample`);
     const sweepIntoTheBeat = { operation: "connect" as const, stream: streamAsset, source: { node: idOf("sweep"), port: "result" }, target: { node: idOf("beat"), port: "beats_per_minute" } };
+    const checked = await settled(backend.checkLinkCandidatesInTheOpenProject({ stream: streamAsset, from: { output: { node: idOf("sweep"), port: "result" } }, among: "placed_ports", include_refused: true }));
+    const checkOf = (port: string) => checked.candidates.find(({ end }) => end.kind === "placed_port" && end.node === idOf("beat") && end.port === port)?.check;
+    expect(checkOf("beats_per_minute")).toMatchObject({ outcome: "refused", refusal: { refusal_code: "link_needs_a_module_conversion", suggested_call: { operation: "transact" } } });
 
     const refused = await settled(backend.transactInTheOpenProject([sweepIntoTheBeat], "commit", null));
     if (refused.kind !== "refused") return expect.unreachable("the link is refused");
