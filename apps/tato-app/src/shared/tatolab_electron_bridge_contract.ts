@@ -313,6 +313,8 @@ function isAStreamGraphInputValueChange(change: unknown): change is StreamGraphI
     typeof change.node === "string" &&
     "input" in change &&
     typeof change.input === "string" &&
+    "member" in change &&
+    (change.member === null || typeof change.member === "string") &&
     "value_read" in change &&
     isAStreamGraphInputValueRead(change.value_read)
   );

@@ -22,7 +22,7 @@ const NO_PROJECT: ProjectAControlReaches = {
 };
 const STREAM_ASSET = "0df4a7aa-1111-2222-3333-444444444444";
 
-const valueOf = (nodeId: string): InputAddress => ({ graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: nodeId, input: "value" });
+const valueOf = (nodeId: string): InputAddress => ({ graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: nodeId, input: "value", member: null });
 
 const BRIGHTNESS: GraphInputOfTheStream = { node_id: "3fd9fe1a", port_name: "brightness", family: "channels", value_address: valueOf("3fd9fe1a"), value_pin: null, value_annotations: {}, lifetime: "kept", range: { lowest: 0, highest: 1 }, control: "slider" };
 const CUE: GraphInputOfTheStream = { node_id: "3067457b", port_name: "cue", family: "records", value_address: valueOf("3067457b"), value_pin: null, value_annotations: {}, lifetime: "kept", range: null, control: "json" };
@@ -45,7 +45,7 @@ function drawTheRow(graphInput: GraphInputOfTheStream, valueRead: StreamGraphInp
     },
     newGestureIdempotencyKey: () => "never-committed",
   });
-  const valuesRead = (read: StreamGraphInputValueRead) => ({ kind: "values" as const, stream_asset: STREAM_ASSET, values: [{ level: [], node_id: graphInput.node_id, input: "value", value_read: read }] });
+  const valuesRead = (read: StreamGraphInputValueRead) => ({ kind: "values" as const, stream_asset: STREAM_ASSET, values: [{ level: [], node_id: graphInput.node_id, input: "value", member: null, value_read: read }] });
   const takeTheValue = (read: StreamGraphInputValueRead) => act(async () => inputValues.takeTheInputValues(PROJECT, valuesRead(read)));
   inputValues.takeTheInputValues(PROJECT, valuesRead(valueRead));
   const binder = createInputControlBinder({ watchNodeUiElements: (listener) => (listener({ elements: [] }), () => undefined), inputValues, project: NO_PROJECT });

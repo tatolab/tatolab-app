@@ -9,7 +9,7 @@ import { InputControlBinderContext, InputControlMount, useOwnFieldOfTheInput } f
 import { NO_PROJECT } from "../node_ui/test_fixtures/node_ui_listing_fixtures";
 
 const COUNT: ControlledInput = {
-  address: { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "LOOP-ID", input: "count" },
+  address: { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "LOOP-ID", input: "count", member: null },
   declaration: { input_name: "count", label: "count", pin_type: { type: "integer" }, annotations: {}, may_be_unset: false },
   rebuilds_its_node: false,
   driven_by: null,
@@ -66,7 +66,7 @@ test("the slot draws its fallback while the control is pending, and draws a chan
 
 /** The host's values of the stream: the one node `LOOP-ID`, its `count` reading `count`. */
 function valuesRead(count: StreamGraphInputValueRead): StreamInputValuesReading {
-  return { kind: "values", stream_asset: COUNT.address.graph.stream_asset, values: [{ level: [], node_id: "LOOP-ID", input: "count", value_read: count }] };
+  return { kind: "values", stream_asset: COUNT.address.graph.stream_asset, values: [{ level: [], node_id: "LOOP-ID", input: "count", member: null, value_read: count }] };
 }
 
 function OwnFieldOfTheCount() {

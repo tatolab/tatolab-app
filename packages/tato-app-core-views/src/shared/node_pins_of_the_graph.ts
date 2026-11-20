@@ -4,11 +4,23 @@
 // graph lists among its ports or one of a node type not yet typed that it lists among none.
 
 import { wiringOfTheInput } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
-import { nodeInputLinkOfTheGraph } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
-import { valueAddressOfTheInput, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import { exactPinOfTheDeclaredPort, settingOfTheDescribedInput, type NodePin, type NodePinWire } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import { nodeInputLinkOfTheGraph, pinOfTheEnd } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
+import { valueAddressOfTheInput, valueAddressOfTheMember, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
+import { exactPinOfTheDeclaredPort, openBundlesOfTheMetadata, settingOfTheDescribedInput, type NodePin, type NodePinBundle, type NodePinWire } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { settingsOfTheNodeNotAmongItsPorts } from "@tatolab/tato-app-view-sdk/pin_model/node_settings";
-import { familyOfThePort, pinOfThePort, type NodeTypeDescription, type NodeTypeInputDescribed, type NodeTypePortDescribed, type StreamGraph, type StreamGraphNode, type StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import {
+  familyOfThePort,
+  memberValueReadsOfThePort,
+  pinOfThePort,
+  studioFieldsOfTheNode,
+  type NodeTypeDescription,
+  type NodeTypeInputDescribed,
+  type NodeTypePortDescribed,
+  type StreamGraph,
+  type StreamGraphNode,
+  type StreamGraphPort,
+  type StreamGraphPortPin,
+} from "@tatolab/tato-app-view-sdk/studio_readings";
 import { portStreamFactsWords, streamFactsAnInputReceives } from "./port_stream_facts_words";
 
 /** `description` trimmed, or `null` for none. */
@@ -36,16 +48,29 @@ function settingOfTheInput(node: Pick<StreamGraphNode, "exposed_config_fields">,
 function nodePinOfTheSettingNotAmongThePorts(node: Pick<StreamGraphNode, "id">, setting: NodeTypeInputDescribed, valuesAt: GraphAddress | null): NodePin {
   return {
     name: setting.name,
+    member: null,
     pin: exactPinOfTheDeclaredPort(setting),
     family: null,
     description: descriptionWords(setting.documentation),
     annotations: setting.annotations ?? {},
     stream_facts_words: [],
-    value_address: valuesAt === null ? null : { graph: valuesAt, node_id: node.id, input: setting.name },
+    value_address: valuesAt === null ? null : { graph: valuesAt, node_id: node.id, input: setting.name, member: null },
     setting: settingOfTheDescribedInput(setting),
     wire: null,
     link: null,
+    bundle: null,
   };
+}
+
+/** The members of the bundle `pin` carries, by name in the order it declares them; none for a pin that carries no bundle. */
+function membersOfTheBundle(pin: StreamGraphPortPin | null): readonly string[] {
+  return pin?.pin_type.type === "bundle" ? pin.pin_type.members.map((member) => member.name) : [];
+}
+
+/** The rows of the bundle `whole`, a pin carrying one, each member built by `memberRow`, open where `openNames` names its pin; `null` for a pin that carries no bundle. */
+function bundleOfThePin(whole: Pick<NodePin, "name" | "pin">, openNames: readonly string[], memberRow: (member: string) => NodePin): NodePinBundle | null {
+  const members = membersOfTheBundle(whole.pin);
+  return whole.pin?.pin_type.type === "bundle" ? { members: members.map(memberRow), is_open: openNames.includes(whole.name) } : null;
 }
 
 /** Where Studio reads the wires into a node's inputs: the stream whose port viewers it reads, and the level of its graph, its own; `null` where it reads none. */
@@ -62,7 +87,7 @@ export function wiresReadAtTheLevel(stream: string, valuesAt: GraphAddress | nul
 /** What the input `port` of `node` reads through its wire in `graph`, at `wiresAt`; `null` for a setting, which takes none, and where no wire is read. */
 function wireIntoTheInput(graph: Pick<StreamGraph, "nodes" | "links">, node: StreamGraphNode, port: StreamGraphPort, setting: NodePin["setting"], wiresAt: WiresReadAt | null): NodePinWire | null {
   if (wiresAt === null || setting !== null) return null;
-  return { into: { graph: wiresAt.graph, node_id: node.id, input: port.name }, wiring: wiringOfTheInput(wiresAt.stream, graph, node.name, port.name, familyOfThePort(port)) };
+  return { into: { graph: wiresAt.graph, node_id: node.id, input: port.name, member: null }, wiring: wiringOfTheInput(wiresAt.stream, graph, node.name, port.name, familyOfThePort(port)) };
 }
 
 /**
@@ -79,35 +104,74 @@ export function nodeInputs(
   valuesAt: GraphAddress | null,
   wiresAt: WiresReadAt | null,
 ): NodePin[] {
+  const openInputs = openBundlesOfTheMetadata(studioFieldsOfTheNode(node).metadata).inputs;
   const ofThePorts = node.ports.inputs.map((port): NodePin => {
     const setting = settingOfTheInput(node, described, port.name);
+    const pin = pinOfThePort(port);
+    const memberValueReads = memberValueReadsOfThePort(port);
+    const memberRow = (member: string): NodePin => ({
+      name: port.name,
+      member,
+      pin: pinOfTheEnd(pin, member),
+      family: null,
+      description: null,
+      annotations: {},
+      stream_facts_words: [],
+      value_address: valueAddressOfTheMember(valuesAt, node.id, port.name, member, memberValueReads.find((row) => row.member === member)?.value_read ?? null),
+      setting,
+      wire: null,
+      link: nodeInputLinkOfTheGraph(graph, node.name, port.name, member),
+      bundle: null,
+    });
     return {
       name: port.name,
-      pin: pinOfThePort(port),
+      member: null,
+      pin,
       family: familyOfThePort(port),
       ...describedWordsOfThePort(described?.inputs, port.name),
       stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)),
       value_address: valueAddressOfTheInput(valuesAt, node.id, port),
       setting,
       wire: wireIntoTheInput(graph, node, port, setting, wiresAt),
-      link: nodeInputLinkOfTheGraph(graph, node.name, port.name),
+      link: nodeInputLinkOfTheGraph(graph, node.name, port.name, null),
+      bundle: bundleOfThePin({ name: port.name, pin }, openInputs, memberRow),
     };
   });
   const settingsNotAmongThePorts = settingsOfTheNodeNotAmongItsPorts(described, node).map((setting) => nodePinOfTheSettingNotAmongThePorts(node, setting, valuesAt));
   return [...ofThePorts.filter((pin) => pin.setting !== null), ...settingsNotAmongThePorts, ...ofThePorts.filter((pin) => pin.setting === null)];
 }
 
-/** The outputs of `node`, each described and annotated as `described`, its node type's description, describes its port, with the stream facts it states. */
+/** The outputs of `node`, each described and annotated as `described`, its node type's description, describes its port, with the stream facts it states, and a row for each member of a bundle it carries, shown where the node keeps it open. */
 export function nodeOutputs(node: StreamGraphNode, described: NodeTypeDescription | undefined): NodePin[] {
-  return node.ports.outputs.map((port) => ({
-    name: port.name,
-    pin: pinOfThePort(port),
-    family: familyOfThePort(port),
-    ...describedWordsOfThePort(described?.outputs, port.name),
-    stream_facts_words: portStreamFactsWords(port),
-    value_address: null,
-    setting: null,
-    wire: null,
-    link: null,
-  }));
+  const openOutputs = openBundlesOfTheMetadata(studioFieldsOfTheNode(node).metadata).outputs;
+  return node.ports.outputs.map((port): NodePin => {
+    const pin = pinOfThePort(port);
+    const memberRow = (member: string): NodePin => ({
+      name: port.name,
+      member,
+      pin: pinOfTheEnd(pin, member),
+      family: null,
+      description: null,
+      annotations: {},
+      stream_facts_words: [],
+      value_address: null,
+      setting: null,
+      wire: null,
+      link: null,
+      bundle: null,
+    });
+    return {
+      name: port.name,
+      member: null,
+      pin,
+      family: familyOfThePort(port),
+      ...describedWordsOfThePort(described?.outputs, port.name),
+      stream_facts_words: portStreamFactsWords(port),
+      value_address: null,
+      setting: null,
+      wire: null,
+      link: null,
+      bundle: bundleOfThePin({ name: port.name, pin }, openOutputs, memberRow),
+    };
+  });
 }

@@ -5,7 +5,7 @@ import { expect, test } from "vitest";
 import { inputRowStateOf } from "./input_row_state";
 import type { LinkedEndOfAPort } from "./properties_graph_edits";
 
-const AMOUNT: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "asset", level: [] }, node_id: "id-glow", input: "amount" };
+const AMOUNT: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "asset", level: [] }, node_id: "id-glow", input: "amount", member: null };
 
 const camera: StreamGraphNode = aGraphNode("camera", { id: "id-camera", type: "tatolab.ops:Camera", kind: "process", components: { state: "Running" } });
 const FROM_THE_CAMERA: LinkedEndOfAPort = { link: aGraphLink("L1", ["camera", "frames"], ["glow", "video"]), node: camera, port: "frames" };

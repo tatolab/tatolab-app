@@ -4,6 +4,7 @@
 // A graph action and a graph edit mode are the control contract's own types.
 
 import type {
+  BundleMemberValueReadOnTheWire,
   CheckLinkCandidatesRequest,
   GraphEditMode,
   GraphFragmentOnTheWire,
@@ -193,8 +194,8 @@ export function pinOfThePort(port: Pick<GraphNodePortOnTheWire, "pin_type" | "fl
 /** The value an input reads while unlinked, `null` while a link feeds it or it reads none, and where it comes from, `null` while it reads none. */
 export type StreamGraphInputValueRead = { value: JsonValue | null; comes_from: InputValueComesFromOnTheWire | null };
 
-/** A change the runtime announced of what one input of a running graph reads, its node named by its graph `id`. */
-export type StreamGraphInputValueChange = { node: string; input: string; value_read: StreamGraphInputValueRead };
+/** A change the runtime announced of what one input of a running graph reads, or one member of a bundle input (`member` `null` for the whole input), its node named by its graph `id`. */
+export type StreamGraphInputValueChange = { node: string; input: string; member: string | null; value_read: StreamGraphInputValueRead };
 
 /**
  * What an input of a graph, or an `input_value_changed` naming one, says it reads while unlinked and where that comes from:
@@ -206,6 +207,14 @@ export function inputValueReadOfThePort(port: { readonly value?: unknown; readon
   if (comesFrom === undefined || comesFrom === null) return port.value === null ? { value: null, comes_from: null } : null;
   if (comesFrom === "wire") return { value: null, comes_from: "wire" };
   return isAJsonValue(port.value) ? { value: port.value, comes_from: comesFrom } : null;
+}
+
+/** What each member of a bundle input reads, by name in the order the bundle declares them, as its `member_values` serves them; empty on every other input, which serves none. */
+export function memberValueReadsOfThePort(port: { readonly member_values?: readonly BundleMemberValueReadOnTheWire[] | null | undefined }): readonly { member: string; value_read: StreamGraphInputValueRead }[] {
+  return (port.member_values ?? []).flatMap((row) => {
+    const valueRead = inputValueReadOfThePort(row);
+    return valueRead === null ? [] : [{ member: row.member, value_read: valueRead }];
+  });
 }
 
 /** The family a port names under its `family` key, or under that declaration's own `family`; `null` for none, or one this app does not know. */
@@ -639,8 +648,8 @@ export type ListedStreamsReading = { kind: "listed"; streams: ListedStream[] } |
 /** A stream's graph as the runtime renders it now, or why it renders none, in its own words. */
 export type StreamGraphReading = { kind: "read"; graph: StreamGraphOnTheWire } | { kind: "not_read"; because: string };
 
-/** What one input of a stream's graph reads, at the level of the subgraphs it is inside, by their node ids from the outermost, and its node by its graph `id`. */
-export type StreamInputValue = { level: string[]; node_id: string; input: string; value_read: StreamGraphInputValueRead };
+/** What one input of a stream's graph reads, or one member of a bundle input (`member` `null` for the whole input), at the level of the subgraphs it is inside, by their node ids from the outermost, and its node by its graph `id`. */
+export type StreamInputValue = { level: string[]; node_id: string; input: string; member: string | null; value_read: StreamGraphInputValueRead };
 
 /**
  * A stream's input values as the host keeps them: every input's value at every level, as its latest graph reading holds it with

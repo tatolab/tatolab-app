@@ -24,7 +24,7 @@ export function valueReadOfTheSetting(node: Pick<StreamGraphNode, "input_values"
 function settingValuesOfTheLevel(nodes: readonly StreamGraphNode[], level: string[], describedByType: ReadonlyMap<string, Pick<NodeTypeDescription, "inputs">>, kept: StreamInputValue[]): void {
   for (const node of nodes) {
     for (const setting of settingsOfTheNodeNotAmongItsPorts(describedByType.get(node.type), node)) {
-      kept.push({ level, node_id: node.id, input: setting.name, value_read: valueReadOfTheSetting(node, setting) });
+      kept.push({ level, node_id: node.id, input: setting.name, member: null, value_read: valueReadOfTheSetting(node, setting) });
     }
     const fragment = fragmentOfTheNode(node);
     if (fragment !== null) settingValuesOfTheLevel(fragment.nodes, [...level, node.id], describedByType, kept);

@@ -178,8 +178,8 @@ test("a_node_type_is_previewed_as_its_card_titled_in_words_with_its_pins_and_a_g
   expect(nodeTypeSearchPreviewCard(offered(BLUR, METER), "nodes.blur:GaussianBlur")).toEqual({
     title: "Gaussian Blur",
     kind: { look: "unknown" },
-    inputs: [{ name: "video_in", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null }],
-    outputs: [{ name: "video_out", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null }],
+    inputs: [{ name: "video_in", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null }],
+    outputs: [{ name: "video_out", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null }],
   });
   expect(nodeTypeSearchPreviewCard(offered(BLUR, METER), "graph_generator:generators.mics:mic_levels")).toBeNull();
 });
