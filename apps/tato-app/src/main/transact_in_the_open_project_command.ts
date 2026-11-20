@@ -53,9 +53,7 @@ export const transactInTheOpenProject = Effect.fn("transact_in_the_open_project"
   const studioWindows = yield* StudioWindows;
   const projectFolder = yield* studioWindows.projectFolderOfTheWindow(commandFromWindow);
   const listedStreams = yield* ListedStreams;
-  const streamAssetsOfTheProject = listedStreams.streamAssetsOfTheProject(projectFolder);
-  const streamIdsOfTheProject = listedStreams.streamIdsOfTheProject(projectFolder);
-  const foreignOperation = transacting.operations.find((operation) => !streamAssetsOfTheProject.has(operation.stream) && !streamIdsOfTheProject.has(operation.stream));
+  const foreignOperation = transacting.operations.find((operation) => !listedStreams.namesAStreamOfTheProject(projectFolder, operation.stream));
   if (foreignOperation !== undefined) {
     return yield* new CommandRefused({ words: `The stream ${foreignOperation.stream} is not one of the streams the runtime lists in ${projectFolder}, by its stream asset or its stream id.` });
   }

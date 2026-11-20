@@ -46,7 +46,7 @@ async function transactCommandAt(localApiSocketPath: string, streamAsset: string
       localApiTimeLimitMs: timeLimitMs,
       studioWindow: { windowContentsId: FROM_HALLWAYS_STUDIO_WINDOW.windowContentsId, projectFolder: HALLWAYS },
       streamAssetsOfTheProject: (projectFolder) => new Set(projectFolder === HALLWAYS ? [streamAsset] : []),
-      streamIdsOfTheProject: (projectFolder) => new Set(projectFolder === HALLWAYS ? [HALLWAYS_MAIN] : []),
+      namesAStreamOfTheProject: (projectFolder, stream) => projectFolder === HALLWAYS && (stream === streamAsset || stream === HALLWAYS_MAIN),
       author: SAM_EDITING_IN_STUDIO,
       tatolabAppLog: createTatolabAppLog("debug", (logLine) => loggedLines.push(logLine)),
     }),
