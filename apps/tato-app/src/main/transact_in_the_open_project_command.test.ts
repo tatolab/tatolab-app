@@ -15,6 +15,8 @@ afterEach(cleanUpTheFakesTheLastTestMade);
 
 const HALLWAYS = "/home/sam/projects/hallways";
 const STREAM_ASSET = "ab38b36d-ea2a-4948-bc01-f231ca4fa043";
+/** The stream id the runtime lists hallways' `main` under, which a suggested edit names it by. */
+const HALLWAYS_MAIN = "hallways-main-3990b7";
 const TEST_PATTERN = "ea646832-0f5f-45f4-bd5c-6b5b50a0b70a";
 const HOLD_FRAME = "d28273fd-8094-41f7-b832-a55f58d60f37";
 const SAM_EDITING_IN_STUDIO = { kind: "person", name: "sam" } as const;
@@ -44,6 +46,7 @@ async function transactCommandAt(localApiSocketPath: string, streamAsset: string
       localApiTimeLimitMs: timeLimitMs,
       studioWindow: { windowContentsId: FROM_HALLWAYS_STUDIO_WINDOW.windowContentsId, projectFolder: HALLWAYS },
       streamAssetsOfTheProject: (projectFolder) => new Set(projectFolder === HALLWAYS ? [streamAsset] : []),
+      streamIdsOfTheProject: (projectFolder) => new Set(projectFolder === HALLWAYS ? [HALLWAYS_MAIN] : []),
       author: SAM_EDITING_IN_STUDIO,
       tatolabAppLog: createTatolabAppLog("debug", (logLine) => loggedLines.push(logLine)),
     }),
@@ -113,7 +116,7 @@ test("a graph transaction in the open project reaches the runtime's transact hel
   const anotherProjectsStream = "0c4e2f9a-7b13-4d58-a6e1-3f9b2c7d8e10";
   expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize, { ...setTheSize, stream: anotherProjectsStream }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
-    refusal: `The stream asset ${anotherProjectsStream} is not one of the streams the runtime lists in ${projectFolder}.`,
+    refusal: `The stream ${anotherProjectsStream} is not one of the streams the runtime lists in ${projectFolder}, by its stream asset or its stream id.`,
   });
   expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: "5a8e1c3f-2d47-4b6a-9f01-8c7d6e5b4a32" }, fromTheStudioWindow)).toEqual({
     ok: true,
@@ -200,6 +203,24 @@ test("adding a node wired to the test pattern is sent as the runtime's transact 
     ["transact", { operations: addAConstantHoldingAHalf, mode: "commit", author: SAM_EDITING_IN_STUDIO }],
   ]);
   expect(loggedLines).toEqual([]);
+});
+
+test("an edit naming the project's stream by its stream id, as a refusal's suggested edit does, is sent to the runtime's transact as given; another project's stream id is refused", async () => {
+  const server = await serverReplaying("local-api-transact-tool-result-of-adding-hold-frame-wired-to-the-test-pattern-in-hallways.json");
+  const { transact } = await transactCommandOver(server);
+  const placingTheHoldFrame = [
+    { operation: "add_node", stream: HALLWAYS_MAIN, type: "tatolab.ops:HoldFrame", as: "hold" },
+    { operation: "connect", stream: HALLWAYS_MAIN, source: { node: TEST_PATTERN, port: "video" }, target: { node: "hold", port: "frame" } },
+  ];
+
+  expect(await transact({ operations: [{ ...placingTheHoldFrame[0], stream: "lobby-main-1a2b3c" }], mode: "commit", idempotency_key: null }, FROM_HALLWAYS_STUDIO_WINDOW)).toEqual({
+    ok: false,
+    refusal: `The stream lobby-main-1a2b3c is not one of the streams the runtime lists in ${HALLWAYS}, by its stream asset or its stream id.`,
+  });
+  expect(await transact({ operations: placingTheHoldFrame, mode: "commit", idempotency_key: "3f1e2d4c-5b6a-4789-8c0d-1e2f3a4b5c6d" }, FROM_HALLWAYS_STUDIO_WINDOW)).toMatchObject({ ok: true, value: { kind: "applied" } });
+  expect(controlOperationCallsReceivedBy(server)).toEqual([
+    ["transact", { operations: placingTheHoldFrame, mode: "commit", author: SAM_EDITING_IN_STUDIO, idempotency_key: "3f1e2d4c-5b6a-4789-8c0d-1e2f3a4b5c6d" }],
+  ]);
 });
 
 test("a drag's live edits answer no transaction and its commit under the same key answers the change from the saved value", async () => {
@@ -349,7 +370,7 @@ test("an edit naming another project's stream asset, or sent from the Projects w
 
   expect(await transact({ operations: [setTheSize(STREAM_ASSET), setTheSize(anotherProjectsStream)], mode: "commit", idempotency_key: null }, FROM_HALLWAYS_STUDIO_WINDOW)).toEqual({
     ok: false,
-    refusal: `The stream asset ${anotherProjectsStream} is not one of the streams the runtime lists in ${HALLWAYS}.`,
+    refusal: `The stream ${anotherProjectsStream} is not one of the streams the runtime lists in ${HALLWAYS}, by its stream asset or its stream id.`,
   });
   expect(await transact({ operations: [setTheSize(STREAM_ASSET)], mode: "commit", idempotency_key: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
   expect(await transact({ operations: [setTheSize(STREAM_ASSET)], mode: "commit", idempotency_key: 7 }, FROM_HALLWAYS_STUDIO_WINDOW)).toEqual({

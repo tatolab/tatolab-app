@@ -5,11 +5,11 @@ import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_fie
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { IconButtonMenu, MenuItem, MenuItemThatCannotBeChosen, RightClickMenuItem, RightClickMenuItemThatCannotBeChosen } from "@tatolab/tato-app-view-sdk/design_system/menus";
-import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { Code, Plus } from "lucide-react";
 import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
+import { StreamGraphEditRefusalBar } from "../shared/stream_graph_edit_refusal_bar";
 import type { TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import type { StreamGraphReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { codeOfTheNodeType, openTheCodeOfTheNodeType } from "../shared/code_of_the_node_type";
@@ -65,7 +65,7 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
   const settings = useViewReading(connection.watchSettings);
   const [expansionChoices, toggleTheRow]: [OutlinerRowExpansionChoices, (rowId: string, expand: boolean) => void] = useRowExpansionKeptInSettings(connection.rememberSettings, settings);
   const [askRefusal, showTheRefusalOf] = useRefusalOfTheLatestAsk();
-  const { sendTheGesture, refusalOfTheLatestEdit } = useStreamGraphEditsSentToTheRuntime(connection, openProject?.kind === "read" ? openProject.open_project.project.folder : null);
+  const { sendTheGesture, sendTheSuggestedEdit, refusalOfTheLatestEdit } = useStreamGraphEditsSentToTheRuntime(connection, openProject?.kind === "read" ? openProject.open_project.project.folder : null);
   const groupOfTheSelection = useMemo(() => groupOfTheSelectedNodes(selection, streamGraphs), [selection, streamGraphs]);
   const groupTheSelectedNodes = useCallback(() => {
     if (groupOfTheSelection.kind === "groups") void sendTheGesture(groupOfTheSelection.actions);
@@ -143,7 +143,7 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
         </IconButtonMenu>
       </StudioViewToolbarTools>
       <RefusalOfTheLatestAskBar refusal={askRefusal} />
-      {refusalOfTheLatestEdit !== null && <RefusalLine layout="bar" lead={refusalOfTheLatestEdit.lead} words={refusalOfTheLatestEdit.words} />}
+      <StreamGraphEditRefusalBar refusal={refusalOfTheLatestEdit} onSuggestedEditTaken={(suggested) => void sendTheSuggestedEdit(suggested)} />
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-outliner="" onKeyDown={groupTheSelectedNodesOnFOrCommandG}>
         {isSearching && outlinerRows.length === 0 ? (
           <WaitingState title={`Nothing matches “${searchWords.trim()}”`} data-outliner-state="no_row_matches" />

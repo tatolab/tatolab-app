@@ -30,6 +30,7 @@ import { wiresReadAtTheLevel } from "../shared/node_pins_of_the_graph";
 import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
+import { StreamGraphEditRefusalBar } from "../shared/stream_graph_edit_refusal_bar";
 import { codeOfTheNodeType, openTheCodeOfTheNodeType } from "../shared/code_of_the_node_type";
 import { CODE_VIEW_TYPE_ID } from "../shared/files_the_code_view_opens";
 import { NewNodeFileForm } from "../shared/new_node_file_form";
@@ -244,7 +245,7 @@ function StreamGraphOfTheTab({
     if (selectedNodeLeft === null || !isNothingElseSelected || !canvasContents.nodes.some((node) => node.node_id === selectedNodeLeft)) return;
     select({ kind: "node", stream: streamTab.stream, node: selectedNodeLeft });
   }, [areaSettingsRead, selection, select, streamTab.stream, canvasContents]);
-  const { sendTheGesture, refusalOfTheLatestEdit } = useStreamGraphEditsSentToTheRuntime(connection, projectFolder);
+  const { sendTheGesture, sendTheSuggestedEdit, refusalOfTheLatestEdit } = useStreamGraphEditsSentToTheRuntime(connection, projectFolder);
   const [studioSentAheadByNodeId, setStudioSentAheadByNodeId] = useState<ReadonlyMap<string, StreamGraphNodeStudioFields>>(new Map());
   useEffect(() => {
     if (graphReading?.kind !== "read") return;
@@ -536,7 +537,7 @@ function StreamGraphOfTheTab({
         {editedGraph !== null && "because" in editedGraph && importedProjectName === null && (
           <RefusalLine layout="bar" tone="warning" lead="Read only:" words={editedGraph.because} />
         )}
-        {refusalOfTheLatestEdit !== null && <RefusalLine layout="bar" lead={refusalOfTheLatestEdit.lead} words={refusalOfTheLatestEdit.words} />}
+        <StreamGraphEditRefusalBar refusal={refusalOfTheLatestEdit} onSuggestedEditTaken={(suggested) => void sendTheSuggestedEdit(suggested)} />
         <RefusalOfTheLatestAskBar refusal={modulesAndMarketplaceRefusal} />
         <RefusalOfTheLatestAskBar refusal={marketplaceAddRefusal} />
         <RefusalOfTheLatestAskBar refusal={codeOpeningRefusal} />

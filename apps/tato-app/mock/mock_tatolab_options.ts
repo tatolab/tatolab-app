@@ -182,7 +182,7 @@ export interface MockTatolabOptions {
   nodeUiElementsListing: MockNodeUiElementsListing;
   /** `?node_bodies=served`: the mock project brings Pulse Stage's body for its kaleidoscope, a drawing of its wedges and a fader for its spin, one for each stage of `?main_graph=large`, which the canvas measurements mount, and the default control of `nodes.sweep:Sweep`, which `?main_graph=every_pin_kind_with_a_named_type` draws; `?node_bodies=blocked`: it lists them with a finding of their folder's check, so each card draws its rows alone. None by default. */
   projectNodeBodies: MockProjectNodeBodies;
-  /** `?refusal=link_of_another_type|value_of_another_type`: the runtime's recorded refusal the mock replays for the first link made, or the first value set; none by default. */
+  /** `?refusal=link_of_another_type|link_needs_a_module_conversion|value_of_another_type`: the runtime's refusal the mock replays for the first link made, or the first value set, the second a stand-in suggesting the edit that places a conversion, which `?main_graph=every_pin_kind_with_a_named_type` lets the mock make; none by default. */
   replayedRefusal: MockReplayedRefusal | null;
   /** `?shell_sets_live=<number>`: a few seconds after the page opens, a shell sets the kaleidoscope's `spin` in `main` live to the number, as an agent's `transact` would; nothing is set by default. */
   valueAShellSetsLive: number | null;

@@ -101,3 +101,20 @@ test("a wire dragged off a member's socket asks from the member, is judged at th
   act(() => result.current.wireThePins(connection(["meter", "levels/left"], ["mix", "levels/left"])));
   expect(onPinsWired).toHaveBeenCalledWith({ node_id: "meter", pin: "levels", member: "left" }, { node_id: "mix", pin: "levels", member: "left" });
 });
+
+test("a refused pin whose refusal suggests an edit that fixes it takes the wire, so the link is sent and its refusal offers the fix", async () => {
+  const { result, answers } = wiringAnsweredByTheTest();
+
+  act(() => result.current.askHowTheWireFits(MOUSE_UP, { nodeId: "sweep", handleId: "output:result", handleType: "source" }));
+  await act(async () =>
+    answers[0]?.(
+      new Map([
+        [nodeGraphPinKey("beat", "input", "beats_per_minute", null), { outcome: "refused", words: "To fix: place a `nodes.sweep:SweepPosition` node between them", takes_the_wire_though_refused: true }],
+        [nodeGraphPinKey("glow", "input", "image", null), { outcome: "refused", words: "no node type converts between them", takes_the_wire_though_refused: false }],
+      ]),
+    ),
+  );
+
+  expect(result.current.canTheConnectionBeWired(connection(["sweep", "result"], ["beat", "beats_per_minute"]))).toBe(true);
+  expect(result.current.canTheConnectionBeWired(connection(["sweep", "result"], ["glow", "image"]))).toBe(false);
+});

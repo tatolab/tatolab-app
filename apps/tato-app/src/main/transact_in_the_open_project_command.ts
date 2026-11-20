@@ -43,8 +43,8 @@ function transactionTheWindowReads(answered: GraphTransactionToolResult): Result
 
 /**
  * The runtime's `transact` of the window's graph actions by the person editing in Studio, answering what it applied or its
- * structured refusal, whatever JSON-RPC code carried it; a stream asset that is not one of the window's project's is refused
- * in Studio's words, and a refusal the runtime gave no structure for in the runtime's own.
+ * structured refusal, whatever JSON-RPC code carried it; a stream, named by its stream asset or its stream id, that is not one of
+ * the window's project's is refused in Studio's words, and a refusal the runtime gave no structure for in the runtime's own.
  */
 export const transactInTheOpenProject = Effect.fn("transact_in_the_open_project")(function* (
   transacting: ProjectGraphTransactionSentByTheWindow,
@@ -54,9 +54,10 @@ export const transactInTheOpenProject = Effect.fn("transact_in_the_open_project"
   const projectFolder = yield* studioWindows.projectFolderOfTheWindow(commandFromWindow);
   const listedStreams = yield* ListedStreams;
   const streamAssetsOfTheProject = listedStreams.streamAssetsOfTheProject(projectFolder);
-  const foreignOperation = transacting.operations.find((operation) => !streamAssetsOfTheProject.has(operation.stream));
+  const streamIdsOfTheProject = listedStreams.streamIdsOfTheProject(projectFolder);
+  const foreignOperation = transacting.operations.find((operation) => !streamAssetsOfTheProject.has(operation.stream) && !streamIdsOfTheProject.has(operation.stream));
   if (foreignOperation !== undefined) {
-    return yield* new CommandRefused({ words: `The stream asset ${foreignOperation.stream} is not one of the streams the runtime lists in ${projectFolder}.` });
+    return yield* new CommandRefused({ words: `The stream ${foreignOperation.stream} is not one of the streams the runtime lists in ${projectFolder}, by its stream asset or its stream id.` });
   }
   const { author } = yield* PersonEditingInStudio;
   const runtimeControl = yield* RuntimeControl;

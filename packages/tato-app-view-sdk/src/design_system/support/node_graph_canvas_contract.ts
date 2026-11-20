@@ -129,6 +129,8 @@ export type NodeGraphWireFitOutcome = "connects" | "connects_with_free_conversio
 export interface NodeGraphPinWireFit {
   outcome: NodeGraphWireFitOutcome;
   words: string | null;
+  /** Whether the wire can be let go on the pin though its outcome is `refused`, as where the refusal suggests an edit that fixes it; a refused pin takes no wire when it is left out. */
+  takes_the_wire_though_refused?: boolean;
 }
 
 /** How a wire dragged off a pin fits each pin it was asked about, keyed by `nodeGraphPinKey`; a pin not in it is not judged, so its socket stays as it is and the wire can be let go on it. */

@@ -328,7 +328,7 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
         return { kind: "applied", transaction: { ...structuredClone(committedBefore), added_nodes: committedBefore.added_nodes.map((addedNode) => ({ ...addedNode, as: null })) } };
       }
       savedGraphTargetsOfTheOpenProject();
-      const replayedRefusal = replayedRefusals.refusalOf(operations, mode);
+      const replayedRefusal = replayedRefusals.refusalOf(operations, mode, (stream) => graphTargetsOfTheOpenProject().get(stream)?.stream_id ?? stream);
       if (replayedRefusal !== null) return { kind: "refused", refusal: replayedRefusal };
       const outcome = mode === "commit" ? commitGraphActions(operations, "a_transaction") : applyMockGraphTransaction(graphTargetsOfTheOpenProject(), graphEditGrounds, operations, "a_live_transaction");
       // A live transaction of values alone changes no graph, so only each value's change is pushed; a commit edits the graph too.

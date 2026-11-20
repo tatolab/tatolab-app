@@ -5,6 +5,7 @@ import { readMockTatolabOptions } from "./mock_tatolab_options";
 import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, StreamActionFollowed, StreamGraph } from "../src/shared/tatolab_backend_contract";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { familyOfThePort, jsonObjectMembersOf } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { suggestedGraphEditOf } from "@tatolab/tato-app-view-sdk/suggested_graph_edit_of_a_refusal";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -251,6 +252,37 @@ describe("the mock backend's stream actions", () => {
 
     expect((await settled(backend.transactInTheOpenProject([tallyIntoBase], "commit", null))).kind).toBe("applied");
     expect((await settled(backend.describeStreamGraph(MAIN))).links.filter((link) => link.target.node === "warmth" && link.target.port === "base").map((link) => link.source.node)).toEqual(["tally"]);
+  });
+
+  it("replays the stand-in refusal of a Sweep into a Float with the transact placing SweepPosition, makes that edit as given, by the stream's id, and one undo takes it back", async () => {
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind_with_a_named_type&refusal=link_needs_a_module_conversion");
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(100);
+      return answering;
+    };
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    const graphBefore = await settled(backend.describeStreamGraph(MAIN));
+    const idOf = (name: string) => graphBefore.nodes.find((node) => node.name === name)?.id ?? expect.unreachable(`no ${name} in the sample`);
+    const sweepIntoTheBeat = { operation: "connect" as const, stream: streamAsset, source: { node: idOf("sweep"), port: "result" }, target: { node: idOf("beat"), port: "beats_per_minute" } };
+
+    const refused = await settled(backend.transactInTheOpenProject([sweepIntoTheBeat], "commit", null));
+    if (refused.kind !== "refused") return expect.unreachable("the link is refused");
+    expect(refused.refusal).toMatchObject({ refusal_code: "link_needs_a_module_conversion", suggested_call: { operation: "transact" } });
+    const suggestedEdit = suggestedGraphEditOf(refused.refusal.suggested_call);
+    if (suggestedEdit === null) return expect.unreachable("the refusal suggests an edit");
+    expect(suggestedEdit.operations.map((operation) => operation.stream)).toEqual([MAIN, MAIN, MAIN]);
+    expect(await settled(backend.describeStreamGraph(MAIN))).toEqual(graphBefore);
+
+    const placed = await settled(backend.transactInTheOpenProject(suggestedEdit.operations, suggestedEdit.mode, "take-the-fix"));
+    if (placed.kind !== "applied") return expect.unreachable("the suggested edit applied");
+    expect(placed.transaction.added_nodes).toMatchObject([{ name: "sweepposition", as: "conversion" }]);
+    const graphPlaced = await settled(backend.describeStreamGraph(MAIN));
+    const linksOf = (node: string) => graphPlaced.links.filter((link) => link.source.node === node || link.target.node === node).map((link) => `${link.source.node}.${link.source.port} -> ${link.target.node}.${link.target.port}`);
+    expect(linksOf("sweepposition")).toEqual(["sweep.result -> sweepposition.sweep", "sweepposition.result -> beat.beats_per_minute"]);
+
+    await settled(backend.undoInTheOpenProject({ kind: "person", name: "Sam" }));
+    expect((await settled(backend.describeStreamGraph(MAIN))).nodes.map((node) => node.name)).toEqual(graphBefore.nodes.map((node) => node.name));
+    expect((await settled(backend.describeStreamGraph(MAIN))).links).toHaveLength(graphBefore.links.length);
   });
 
   it("serves the marks the runtime recorded on the sample's links, gives a link it connects the marks its recorded check gave, and serves the stand-in warning when asked", async () => {

@@ -35,7 +35,7 @@ import {
   studioFieldsOfTheNode,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { ControlContractComponentName, ControlContractComponents } from "@tatolab/runtime-client/contract";
-import type { DescribeNodeTypesToolResult, JsonValue, ListNodeTypesToolResult, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphLinkWarning, StreamGraphNode, StreamGraphPort, StreamGraphPortPin } from "../src/shared/tatolab_backend_contract";
+import type { DescribeNodeTypesToolResult, JsonValue, ListNodeTypesToolResult, NodeTypeDescription, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphLinkWarning, StreamGraphNode, StreamGraphPort, StreamGraphPortPin } from "../src/shared/tatolab_backend_contract";
 import type { MockGraphLink, MockGraphNode, MockGraphPort, MockStreamGraph } from "./mock_stream_fixtures";
 
 /** A recording the readers cannot read: the recording, or the reader, has drifted from the runtime. */
@@ -269,6 +269,10 @@ export function mockEveryPinKindGraphWithAStandInBundleNode(): MockStreamGraph {
 /** The pin of the sample's own named type, `nodes.sweep:Sweep`, which `sweep.py` declares. */
 const STAND_IN_SWEEP_PIN: StreamGraphPortPin = { pin_type: { type: "named", named_pin_type: "nodes.sweep:Sweep" }, flow: "value" };
 
+/** The UUIDs the sample's graph document gives `sweep` and `sweep_position`. */
+const SAMPLE_SWEEP_NODE = "3e8b1c47-9d2a-4f60-b5e8-1a7c4d9f2e36";
+const SAMPLE_SWEEP_POSITION_NODE = "7b5d2e91-4c3f-4a8e-9b1d-6f0e2c8a5d47";
+
 /**
  * A stand-in, since the recordings were made before the every-pin-kind sample declared its named type: the sample's `sweep`, a
  * `SweepAt` writing a `Sweep`, linked into `sweep_position`, a `SweepPosition` reading it back, as the sample's stream holds them.
@@ -278,6 +282,7 @@ function standInSweepNodes(): readonly MockGraphNode[] {
   return [
     {
       name: "sweep",
+      id_kept_through_renames: SAMPLE_SWEEP_NODE,
       type: "nodes.sweep:SweepAt",
       kind: "process",
       state: "Running",
@@ -291,6 +296,7 @@ function standInSweepNodes(): readonly MockGraphNode[] {
     },
     {
       name: "sweep_position",
+      id_kept_through_renames: SAMPLE_SWEEP_POSITION_NODE,
       type: "nodes.sweep:SweepPosition",
       kind: "process",
       state: "Running",
@@ -312,6 +318,58 @@ export function mockEveryPinKindGraphWithAStandInNamedTypeLink(): MockStreamGrap
     ...graph,
     nodes: [...graph.nodes, ...standInSweepNodes()],
     links: [...graph.links, { id: "Lmockstandinnamedtypelink01", source_node: "sweep", source_port: "result", target_node: "sweep_position", target_port: "sweep", state: "wired" }],
+  };
+}
+
+/**
+ * A stand-in, since no recording describes the sample's `SweepPosition`: the conversion `sweep.py` states from its named type to a
+ * Float, described as the runtime describes the sample's other function nodes, so the mock can place it.
+ */
+export const MOCK_STAND_IN_SWEEP_POSITION_DESCRIBED: NodeTypeDescription = {
+  node_type: "nodes.sweep:SweepPosition",
+  source: "project",
+  described_from: "interpreter",
+  documentation: "Where a band is across the picture, read from the sample's own named type.",
+  category: "Every pin kind",
+  kind: "function",
+  declared_at: { path: "nodes/sweep.py", line: 74 },
+  inputs: [{ name: "sweep", documentation: "", pin_type: { kind: "is", pin_type: STAND_IN_SWEEP_PIN.pin_type }, flow: "value", mode: "wire_only", lifetime: "kept" }],
+  outputs: [{ name: "result", documentation: "", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value" }],
+};
+
+/** The input of the sample's `beat` that the stand-in refusal of a `Sweep` into a Float names: a Float, unlinked in the sample's graph. */
+const RECORDED_BEAT_NODE = "2f44fe9c-94cb-4bf0-af2c-b91345adc7c9";
+
+/**
+ * A stand-in, since no recording holds a refusal suggesting a call: the runtime's refusal of a `connect` from `sweep.result` into
+ * `beat.beats_per_minute`, a link only the sample's `SweepPosition` bridges, on the stream the runtime lists as `streamId`. Its
+ * `suggested_call` is the `transact` streamlib's engine test `a_link_only_a_projects_conversion_bridges_is_refused_naming_it_with_the_call_placing_it`
+ * pins, the stream named by its id; its words are `PinLinkRefusal`'s for that link.
+ */
+export function mockStandInRefusalOfASweepIntoAFloat(streamId: string): ProjectActionRefusal {
+  const source = { node: SAMPLE_SWEEP_NODE, port: "result" };
+  const target = { node: RECORDED_BEAT_NODE, port: "beats_per_minute" };
+  return {
+    refusal_code: "link_needs_a_module_conversion",
+    action: "transact",
+    refused_operation_index: 0,
+    refused_node: null,
+    refused_link: { source, target },
+    refused_field: null,
+    refused_params_pointer: null,
+    refused_file: null,
+    suggested_call: {
+      operation: "transact",
+      params: {
+        operations: [
+          { operation: "add_node", stream: streamId, type: MOCK_STAND_IN_SWEEP_POSITION_DESCRIBED.node_type, as: "conversion" },
+          { operation: "connect", stream: streamId, source, target: { node: "conversion", port: "sweep" } },
+          { operation: "connect", stream: streamId, source: { node: "conversion", port: "result" }, target },
+        ],
+      },
+    },
+    runtime_words:
+      "cannot link `sweep.result` (Named type `nodes.sweep:Sweep`) to `beat.beats_per_minute` (Float): a Named type `nodes.sweep:Sweep` output does not connect to a Float input. To fix: place a `nodes.sweep:SweepPosition` node between them",
   };
 }
 

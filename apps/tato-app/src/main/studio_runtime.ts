@@ -128,6 +128,8 @@ export class ListedStreams extends Context.Service<
   {
     /** The stream assets of the project in `projectFolder` as the runtime last listed its streams. */
     readonly streamAssetsOfTheProject: (projectFolder: string) => ReadonlySet<string>;
+    /** The stream ids of the project in `projectFolder` as the runtime last listed its streams. */
+    readonly streamIdsOfTheProject: (projectFolder: string) => ReadonlySet<string>;
     /** Whether the runtime last listed a stream from the project in `projectFolder`. */
     readonly aStreamIsListedFrom: (projectFolder: string) => boolean;
     /** Whether the runtime last listed the project in `projectFolder` open: any of its streams in a state other than `closed`. */
@@ -524,6 +526,7 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
     }),
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: (projectFolder) => new Set(streamsLastListedFrom(projectFolder).flatMap((listedStream) => listedStream.location?.stream_asset ?? [])),
+      streamIdsOfTheProject: (projectFolder) => new Set(streamsLastListedFrom(projectFolder).map((listedStream) => listedStream.stream)),
       aStreamIsListedFrom: (projectFolder) => streamsLastListedFrom(projectFolder).length > 0,
       theProjectIsListedOpen: (projectFolder) => theStreamsListTheProjectOpen(streamsLastListedFrom(projectFolder)),
       listedStream: (stream) => streamsLastListed().find((listedStream) => listedStream.stream === stream) ?? null,
