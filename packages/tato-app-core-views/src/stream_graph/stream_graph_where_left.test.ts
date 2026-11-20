@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { isTheSamePlaceLeft, settingsWithTheStreamLeft, STREAMS_WHOSE_PLACE_LEFT_IS_KEPT, whereTheStreamWasLeft } from "./stream_graph_where_left";
 
-const MAIN_LEFT = { viewport: { x: -120, y: 40, zoom: 1.25 }, selected_node: "invertingeffect" };
+const MAIN_LEFT = { viewport: { x: -120, y: 40, zoom: 1.25 }, selected_node: "kaleidoscope" };
 
 test("keeps where each stream was left beside the others, and reads back only a record of the right shape", () => {
   const withMain = settingsWithTheStreamLeft({ where_each_stream_was_left: {} }, "pattern-main", MAIN_LEFT);
@@ -14,8 +14,8 @@ test("keeps where each stream was left beside the others, and reads back only a 
 });
 
 test("keeps a selection left before the canvas was framed, with no viewport yet", () => {
-  const selectedOnly = settingsWithTheStreamLeft(null, "pattern-main", { viewport: null, selected_node: "invertingeffect" });
-  expect(whereTheStreamWasLeft(selectedOnly, "pattern-main")).toEqual({ viewport: null, selected_node: "invertingeffect" });
+  const selectedOnly = settingsWithTheStreamLeft(null, "pattern-main", { viewport: null, selected_node: "kaleidoscope" });
+  expect(whereTheStreamWasLeft(selectedOnly, "pattern-main")).toEqual({ viewport: null, selected_node: "kaleidoscope" });
 });
 
 test("keeps the newest records up to the limit, dropping the stream left longest ago, and tells two records that say the same apart from two that don't", () => {

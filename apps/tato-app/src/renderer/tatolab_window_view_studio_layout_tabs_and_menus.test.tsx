@@ -3,7 +3,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProjectTransaction } from "../shared/tatolab_backend_contract";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
-import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, systemMenuBarOverTheMock, chooseFromTheMenuBar, PATTERN_PROJECT, CAMERA_PROJECT, PATTERN_MAIN_STREAM, coreViewPage, inTheCoreView, outlinerRow, outlinerRowIds, AREAS_OF_THE_COMPOSITION_LAYOUT, AREAS_OF_THE_EDIT_LAYOUT, areaIdsShown, theAreasShownAre, keepThePatternProjectsLayout, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
+import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, systemMenuBarOverTheMock, chooseFromTheMenuBar, PULSE_STAGE_FOLDER, CAMERA_PROJECT, PULSE_STAGE_MAIN_STREAM, coreViewPage, inTheCoreView, outlinerRow, outlinerRowIds, AREAS_OF_THE_COMPOSITION_LAYOUT, AREAS_OF_THE_EDIT_LAYOUT, areaIdsShown, theAreasShownAre, keepThePulseStageLayout, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
 // Code's editor here says Monaco didn't load; the code pane's text and saves are tested beside it.
@@ -12,6 +12,11 @@ vi.mock("@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_monac
 });
 
 afterEach(cleanUpTheWindowsOfEarlierTests);
+
+/** How many group rows the Outliner draws. */
+function groupRowCount(): number {
+  return outlinerRowIds().filter((rowId) => rowId.startsWith("group:")).length;
+}
 
 describe("the studio", () => {
   it("names a runtime older than this Studio in the status bar, whose panel shows the one notice", async () => {
@@ -28,27 +33,31 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running");
 
     await theAreasShownAre(AREAS_OF_THE_EDIT_LAYOUT);
-    const mainNodeRowId = (node: string) => `node:${PATTERN_MAIN_STREAM}/${node}`;
-    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("testpatternsource")));
+    const mainNodeRowId = (node: string) => `node:${PULSE_STAGE_MAIN_STREAM}/${node}`;
+    const groupRow = expect.stringMatching(new RegExp(`^group:${PULSE_STAGE_MAIN_STREAM}/`));
+    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("kaleidoscope")));
     expect(outlinerRowIds()).toEqual([
-      `stream:${PATTERN_MAIN_STREAM}`,
-      mainNodeRowId("testpatternsource"),
-      mainNodeRowId("invertingeffect"),
-      mainNodeRowId("displaywindow"),
-      mainNodeRowId("brightnessmeter"),
-      `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "recorder" })}`,
-      `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" })}`,
+      `stream:${PULSE_STAGE_MAIN_STREAM}`,
+      groupRow,
+      ...["clock", "beat", "follow", "set_pulse", "set_clock", "previous_pulse", "cue", "click", "speaker"].map(mainNodeRowId),
+      groupRow,
+      ...["canvas", "speed", "segments", "get_clock", "get_pulse", "orbits", "kaleidoscope", "glow", "title", "program"].map(mainNodeRowId),
+      `stream:${mockStreamIdOf({ project_directory: PULSE_STAGE_FOLDER, stream_name: "recorder" })}`,
+      `stream:${mockStreamIdOf({ project_directory: PULSE_STAGE_FOLDER, stream_name: "rehearsal" })}`,
     ]);
-    expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).getAttribute("aria-level")).toBe("1");
+    expect(outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`).getAttribute("aria-level")).toBe("1");
     expect(coreViewPage("outliner").querySelector("[data-outliner] [data-tree-column-headings]")?.textContent).toBe("LabelType");
-    expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).textContent).toBe("mainstream");
-    expect(outlinerRow(mainNodeRowId("testpatternsource")).getAttribute("aria-level")).toBe("2");
-    expect(outlinerRow(mainNodeRowId("testpatternsource")).textContent).toBe("Test Pattern Sourceprocess");
-    expect(coreViewPage("outliner").body.textContent).not.toContain("pattern-two pattern");
+    expect(outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`).textContent).toBe("mainstream");
+    const pictureGroupRowId = outlinerRowIds().filter((rowId) => rowId.startsWith("group:"))[1] ?? expect.unreachable("no second group row");
+    expect([outlinerRow(pictureGroupRowId).getAttribute("aria-level"), outlinerRow(pictureGroupRowId).textContent]).toEqual(["2", "Picturegroup"]);
+    expect([outlinerRow(mainNodeRowId("kaleidoscope")).getAttribute("aria-level"), outlinerRow(mainNodeRowId("kaleidoscope")).textContent]).toEqual(["3", "Kaleidoscopeshader"]);
+    expect(outlinerRow(mainNodeRowId("set_pulse")).textContent).toBe("set_pulseprocess");
+    expect(outlinerRow(mainNodeRowId("glow")).textContent).toBe("glowsubgraph");
+    expect(coreViewPage("outliner").body.textContent).not.toContain("rehearsal Pulse Stage");
 
-    fireEvent.click(outlinerRow(mainNodeRowId("invertingeffect")));
-    await waitFor(() => expect(outlinerRow(mainNodeRowId("invertingeffect")).getAttribute("aria-selected")).toBe("true"));
-    await waitFor(() => expect(coreViewPage("properties").body.textContent).toContain("InvertingEffect"));
+    fireEvent.click(outlinerRow(mainNodeRowId("kaleidoscope")));
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("kaleidoscope")).getAttribute("aria-selected")).toBe("true"));
+    await waitFor(() => expect(coreViewPage("properties").body.textContent).toContain("Kaleidoscope"));
 
     const outlinerFrame = document.querySelector<HTMLIFrameElement>('[data-studio-area="outliner"] iframe[data-tatolab-view="outliner"]') ?? expect.unreachable("no Outliner frame");
     expect(outlinerFrame.hasAttribute("sandbox")).toBe(false);
@@ -57,42 +66,44 @@ describe("the studio", () => {
 
   it("selects nodes together with ⌘ in the outliner, the graph and Properties showing the same nodes, and groups them from the + menu", { timeout: 20_000 }, async () => {
     await mountedWindowOverTheMock("state=running");
-    const mainNodeRowId = (node: string) => `node:${PATTERN_MAIN_STREAM}/${node}`;
-    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("invertingeffect")));
+    const mainNodeRowId = (node: string) => `node:${PULSE_STAGE_MAIN_STREAM}/${node}`;
+    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("kaleidoscope")));
+    const groupsBefore = groupRowCount();
 
-    fireEvent.click(outlinerRow(mainNodeRowId("invertingeffect")));
-    await waitFor(() => expect(outlinerRow(mainNodeRowId("invertingeffect")).getAttribute("aria-selected")).toBe("true"));
-    fireEvent.click(outlinerRow(mainNodeRowId("displaywindow")), { metaKey: true });
-    await waitFor(() => expect(outlinerRow(mainNodeRowId("displaywindow")).getAttribute("aria-selected")).toBe("true"));
-    expect(outlinerRow(mainNodeRowId("invertingeffect")).getAttribute("aria-selected")).toBe("true");
-    await waitFor(() => expect(coreViewPage("properties").body.textContent).toContain("Inverting Effect, Display Window. Select one node to edit its config."));
+    fireEvent.click(outlinerRow(mainNodeRowId("kaleidoscope")));
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("kaleidoscope")).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.click(outlinerRow(mainNodeRowId("glow")), { metaKey: true });
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("glow")).getAttribute("aria-selected")).toBe("true"));
+    expect(outlinerRow(mainNodeRowId("kaleidoscope")).getAttribute("aria-selected")).toBe("true");
+    await waitFor(() => expect(coreViewPage("properties").body.textContent).toContain("Kaleidoscope, glow. Select one node to edit its config."));
     expect(coreViewPage("properties").body.textContent).toContain("2 nodes selected");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
-    await waitFor(() => expect([...streamGraph.querySelectorAll<HTMLElement>("[data-node-graph-card][data-selected]")].map((card) => card.dataset.nodeGraphCard).sort()).toEqual(["displaywindow", "invertingeffect"]));
+    await waitFor(() => expect([...streamGraph.querySelectorAll<HTMLElement>("[data-node-graph-card][data-selected]")].map((card) => card.dataset.nodeGraphCard).sort()).toEqual(["glow", "kaleidoscope"]));
 
     pressAsAPointerDoes(coreViewPage("outliner").querySelector<HTMLElement>("[data-outliner-add-menu]") ?? expect.unreachable("no + menu"));
     fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>("[data-outliner-group-selected-nodes]") ?? expect.unreachable("no Group selected nodes")));
-    await waitFor(() => expect(outlinerRowIds().some((rowId) => rowId.startsWith(`group:${PATTERN_MAIN_STREAM}/`))).toBe(true), { timeout: 5000 });
+    await waitFor(() => expect(groupRowCount()).toBe(groupsBefore + 1), { timeout: 5000 });
   });
 
   it("groups the nodes selected in the outliner on F, and leaves F alone while nothing can be grouped", { timeout: 20_000 }, async () => {
     await mountedWindowOverTheMock("state=running");
-    const mainNodeRowId = (node: string) => `node:${PATTERN_MAIN_STREAM}/${node}`;
-    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("testpatternsource")));
-    expect(fireEvent.keyDown(outlinerRow(mainNodeRowId("testpatternsource")), { key: "f" })).toBe(true);
+    const mainNodeRowId = (node: string) => `node:${PULSE_STAGE_MAIN_STREAM}/${node}`;
+    await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("orbits")));
+    const groupsBefore = groupRowCount();
+    expect(fireEvent.keyDown(outlinerRow(mainNodeRowId("orbits")), { key: "f" })).toBe(true);
 
-    fireEvent.click(outlinerRow(mainNodeRowId("testpatternsource")));
-    await waitFor(() => expect(outlinerRow(mainNodeRowId("testpatternsource")).getAttribute("aria-selected")).toBe("true"));
-    fireEvent.click(outlinerRow(mainNodeRowId("brightnessmeter")), { metaKey: true });
-    await waitFor(() => expect(outlinerRow(mainNodeRowId("brightnessmeter")).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.click(outlinerRow(mainNodeRowId("orbits")));
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("orbits")).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.click(outlinerRow(mainNodeRowId("kaleidoscope")), { metaKey: true });
+    await waitFor(() => expect(outlinerRow(mainNodeRowId("kaleidoscope")).getAttribute("aria-selected")).toBe("true"));
     await waitFor(() => expect(coreViewPage("properties").body.textContent).toContain("2 nodes selected"));
-    expect(fireEvent.keyDown(outlinerRow(mainNodeRowId("brightnessmeter")), { key: "f" })).toBe(false);
-    await waitFor(() => expect(outlinerRowIds().some((rowId) => rowId.startsWith(`group:${PATTERN_MAIN_STREAM}/`))).toBe(true), { timeout: 5000 });
+    expect(fireEvent.keyDown(outlinerRow(mainNodeRowId("kaleidoscope")), { key: "f" })).toBe(false);
+    await waitFor(() => expect(groupRowCount()).toBe(groupsBefore + 1), { timeout: 5000 });
   });
 
   it("names the project once on macOS, at the start of the title row before the stream tabs, never on a tab", async () => {
     await mountedWindowOverTheMock("state=running");
-    await waitFor(() => expect(document.querySelector("[data-studio-window-title]")?.textContent).toBe("pattern"));
+    await waitFor(() => expect(document.querySelector("[data-studio-window-title]")?.textContent).toBe("Pulse Stage"));
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
     await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main"]));
   });
@@ -115,22 +126,31 @@ describe("the studio", () => {
 
   it("moves through the outliner from the keyboard, opening and closing rows and selecting as it goes", async () => {
     await mountedWindowOverTheMock("state=running");
-    const mainStreamRowId = `stream:${PATTERN_MAIN_STREAM}`;
-    const patternTwoRowId = `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" })}`;
-    await waitFor(() => outlinerRow(`node:${PATTERN_MAIN_STREAM}/testpatternsource`));
+    const mainStreamRowId = `stream:${PULSE_STAGE_MAIN_STREAM}`;
+    const rehearsalRowId = `stream:${mockStreamIdOf({ project_directory: PULSE_STAGE_FOLDER, stream_name: "rehearsal" })}`;
+    await waitFor(() => outlinerRow(`node:${PULSE_STAGE_MAIN_STREAM}/clock`));
+    const beatGroupRowId = outlinerRowIds().find((rowId) => rowId.startsWith("group:")) ?? expect.unreachable("no group row");
     const tree = inTheCoreView("outliner").getByRole("tree", { name: "Outliner" });
     outlinerRow(mainStreamRowId).focus();
 
     fireEvent.keyDown(tree, { key: "End" });
-    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(patternTwoRowId));
-    await waitFor(() => expect(outlinerRow(patternTwoRowId).getAttribute("aria-selected")).toBe("true"));
+    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(rehearsalRowId));
+    await waitFor(() => expect(outlinerRow(rehearsalRowId).getAttribute("aria-selected")).toBe("true"));
     fireEvent.keyDown(tree, { key: "Home" });
+    await waitFor(() => expect(outlinerRow(mainStreamRowId).getAttribute("aria-selected")).toBe("true"));
     fireEvent.keyDown(tree, { key: "ArrowLeft" });
     await waitFor(() => expect(outlinerRow(mainStreamRowId).getAttribute("aria-expanded")).toBe("false"));
     fireEvent.keyDown(tree, { key: "ArrowRight" });
     await waitFor(() => expect(outlinerRow(mainStreamRowId).getAttribute("aria-expanded")).toBe("true"));
+    await waitFor(() => expect(outlinerRowIds()).toContain(`node:${PULSE_STAGE_MAIN_STREAM}/clock`));
     fireEvent.keyDown(tree, { key: "ArrowDown" });
-    await waitFor(() => expect(outlinerRow(`node:${PATTERN_MAIN_STREAM}/testpatternsource`).getAttribute("aria-selected")).toBe("true"));
+    await waitFor(() => expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(beatGroupRowId)));
+    fireEvent.keyDown(tree, { key: "ArrowDown" });
+    await waitFor(() => expect(outlinerRow(`node:${PULSE_STAGE_MAIN_STREAM}/clock`).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.keyDown(tree, { key: "ArrowLeft" });
+    await waitFor(() => expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(beatGroupRowId)));
+    fireEvent.keyDown(tree, { key: "ArrowLeft" });
+    await waitFor(() => expect(outlinerRow(beatGroupRowId).getAttribute("aria-expanded")).toBe("false"));
     fireEvent.keyDown(tree, { key: "ArrowLeft" });
     expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(mainStreamRowId));
   });
@@ -143,10 +163,10 @@ describe("the studio", () => {
         return () => undefined;
       },
     });
-    await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+    await waitFor(() => outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`));
     await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main"]));
 
-    fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+    fireEvent.doubleClick(outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`));
     fireEvent.keyDown(inTheCoreView("outliner").getByRole("tree", { name: "Outliner" }), { key: "Enter" });
     const cameraStream = mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" });
     act(() => askToShowAStream(cameraStream));
@@ -255,7 +275,7 @@ describe("the studio", () => {
   });
 
   it("applies the saved presets with ⌘1 to ⌘9 in their order, and leaves the layout as it is on a digit with no preset", async () => {
-    keepThePatternProjectsLayout({
+    keepThePulseStageLayout({
       presets_saved: [
         { title: "Graph alone", layout: { kind: "area", area_id: "stream-graph", view_type_id: "stream_graph" } },
         { title: "Viewer alone", layout: { kind: "area", area_id: "viewer", view_type_id: "viewer" } },

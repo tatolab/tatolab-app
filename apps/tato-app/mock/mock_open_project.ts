@@ -1,11 +1,12 @@
-// The mock's open project: the pattern project the mock runtime lists streams from, importing the
+// The mock's open project: Pulse Stage, the project the mock runtime lists streams from, importing the
 // camera and lobby-recorder projects, and one import whose copy the runtime cannot read.
 // `?project=none|unreadable` opens none, or one that cannot be read.
-// The Projects window lists the recent projects: the pattern, camera and lobby-recorder projects and three more,
+// The Projects window lists the recent projects: Pulse Stage, the camera and lobby-recorder projects and three more,
 // one gone from disk, four described and four with a last edit; `?recent=none` lists none, as on first run. Documents/Tato Studio already
 // holds an `Untitled project`, so New project suggests `Untitled project 2`, and Browse… answers ~/Shows.
 
 import { projectNameNumbered, untitledProjectNameNumbered } from "../src/shared/new_project_folder_name";
+import { PULSE_STAGE_FOLDER_NAME, PULSE_STAGE_PROJECT, PULSE_STAGE_PROJECT_DESCRIPTION, PULSE_STAGE_PROJECT_NAME } from "./mock_pulse_stage_sample";
 import type { NewProjectDefaults, OpenProjectReading, ProjectArchiveChosenToImport, ProjectTheRuntimeNames, RecentProject } from "../src/shared/tatolab_backend_contract";
 
 /** The UUID the mock's camera import is listed by. */
@@ -21,17 +22,16 @@ export function mockOpenProjectScenarioNamed(projectInTheQuery: string | null): 
   return projectInTheQuery === "none" || projectInTheQuery === "unreadable" ? projectInTheQuery : "read";
 }
 
-const MOCK_PATTERN_PROJECT = "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90";
 const MOCK_STAGE_LIGHTS_IMPORT_PROJECT = "c05e2b9a-4f61-4d3e-9a7b-1e8d6c2f4a07";
 
 function mockProject(folder: string, project: string, name: string): ProjectTheRuntimeNames {
   return { folder, project, name };
 }
 
-/** The mock's project in `homeDirectory`'s `streams/pattern`, as `scenario` has it. */
+/** The mock's project, Pulse Stage, in `homeDirectory`'s `streams/pulse-stage`, as `scenario` has it. */
 export function mockOpenProjectReading(scenario: MockOpenProjectScenario, homeDirectory: string): OpenProjectReading {
   const streamsFolder = `${homeDirectory}/streams`;
-  const projectFolder = `${streamsFolder}/pattern`;
+  const projectFolder = `${streamsFolder}/${PULSE_STAGE_FOLDER_NAME}`;
   switch (scenario) {
     case "none":
       return { kind: "none_open" };
@@ -45,7 +45,7 @@ export function mockOpenProjectReading(scenario: MockOpenProjectScenario, homeDi
       return {
         kind: "read",
         open_project: {
-          project: mockProject(projectFolder, MOCK_PATTERN_PROJECT, "pattern"),
+          project: mockProject(projectFolder, PULSE_STAGE_PROJECT, PULSE_STAGE_PROJECT_NAME),
           imports: [
             {
               project: MOCK_CAMERA_IMPORT_PROJECT,
@@ -102,7 +102,7 @@ export function mockRecentProjects(recentInTheQuery: string | null, homeDirector
     last_opened_at_wall_clock_ms: openedHoursAgo(openedHours),
   });
   return [
-    recentProject(`${streamsFolder}/pattern`, "pattern", "The project tatolab new makes: a test pattern through a halftone effect into a brightness meter.", 0.1, 2, true),
+    recentProject(`${streamsFolder}/${PULSE_STAGE_FOLDER_NAME}`, PULSE_STAGE_PROJECT_NAME, PULSE_STAGE_PROJECT_DESCRIPTION, 0.1, 2, true),
     recentProject(`${streamsFolder}/night-market-visuals`, "night-market-visuals", "Projection loops for the night market's north wall.", 20, 26, true),
     recentProject(`${streamsFolder}/camera`, "camera", "Camera test bench for the new capture cards.", 75, 75),
     recentProject(`${streamsFolder}/lobby-recorder`, "lobby-recorder", null, 170, 170),
@@ -111,10 +111,10 @@ export function mockRecentProjects(recentInTheQuery: string | null, homeDirector
   ];
 }
 
-/** The project a recent `folder` reads as when it opens: the pattern project for its folder, one importing nothing for another that reads, unreadable for one gone from disk. */
+/** The project a recent `folder` reads as when it opens: Pulse Stage for its folder, one importing nothing for another that reads, unreadable for one gone from disk. */
 export function mockRecentProjectReading(recentProject: RecentProject, homeDirectory: string): OpenProjectReading {
-  const patternReading = mockOpenProjectReading("read", homeDirectory);
-  if (patternReading.kind === "read" && patternReading.open_project.project.folder === recentProject.folder) return patternReading;
+  const pulseStageReading = mockOpenProjectReading("read", homeDirectory);
+  if (pulseStageReading.kind === "read" && pulseStageReading.open_project.project.folder === recentProject.folder) return pulseStageReading;
   if (recentProject.project_name === null) return { kind: "unreadable", folder: recentProject.folder, refusal: `list_assets failed: ${recentProject.folder} holds no project: it has no tatolab-project.json` };
   return {
     kind: "read",

@@ -13,7 +13,7 @@ afterEach(cleanUpTheWindowsOfEarlierTests);
 
 describe("the studio", () => {
   it("closes the view-type menu on a choice, and lists in the Library each source's node types by category, its generators under Show, and says why a module does not parse", async () => {
-    await mountedWindowOverTheMock("state=running");
+    await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind");
     await showTheLibraryInTheViewerArea();
 
     await waitFor(() => libraryRow("source:project"));
@@ -36,7 +36,7 @@ describe("the studio", () => {
   });
 
   it("moves a node type into a group typed from its row's right-click menu and puts it back, a group with a blank name refused in the runtime's words", async () => {
-    await mountedWindowOverTheMock("state=running");
+    await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind");
     await showTheLibraryInTheViewerArea();
 
     const library = coreViewPage("library");
@@ -164,12 +164,12 @@ describe("the studio", () => {
 
     const library = coreViewPage("library");
     const viewRowIds = () => [...library.querySelectorAll<HTMLElement>("[data-library-view]")].map((row) => row.dataset.libraryView);
-    await waitFor(() => expect(viewRowIds().slice(0, 2)).toEqual(["pattern/pattern:picture_and_fader", "lobby-wall/lobby-wall:stage_rig"]));
+    await waitFor(() => expect(viewRowIds().slice(0, 2)).toEqual(["Pulse Stage/Pulse Stage:picture_and_fader", "lobby-wall/lobby-wall:stage_rig"]));
     expect(viewRowIds()).toContain("Tato Studio/outliner");
     expect(viewRowIds()).not.toContain("Tato Studio/transactions");
-    expect(library.querySelector('[data-library-view="pattern/pattern:picture_and_fader"]')?.textContent).toContain("Picture and fader · 1 in · 1 out");
+    expect(library.querySelector('[data-library-view="Pulse Stage/Pulse Stage:picture_and_fader"]')?.textContent).toContain("Picture and fader · 1 in · 1 out");
     const details = () => library.querySelector<HTMLElement>("[data-library-view-details]") ?? expect.unreachable("no view details");
-    expect(details().dataset.libraryViewDetails).toBe("pattern/pattern:picture_and_fader");
+    expect(details().dataset.libraryViewDetails).toBe("Pulse Stage/Pulse Stage:picture_and_fader");
     expect([...details().querySelectorAll<HTMLElement>("[data-library-view-port]")].map((port) => port.dataset.libraryViewPort)).toEqual(["picture", "fader"]);
 
     fireEvent.click(library.querySelector<HTMLElement>('[data-library-view="lobby-wall/lobby-wall:stage_rig"]') ?? expect.unreachable("no Stage rig row"));
@@ -177,7 +177,7 @@ describe("the studio", () => {
     expect(details().textContent).toContain("`contract`: this runtime reads view contract 1.0.");
 
     fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-view-search]") ?? expect.unreachable("no search field"), { target: { value: "fader" } });
-    await waitFor(() => expect(viewRowIds()).toEqual(["pattern/pattern:picture_and_fader"]));
+    await waitFor(() => expect(viewRowIds()).toEqual(["Pulse Stage/Pulse Stage:picture_and_fader"]));
   });
 
   it("imports the file the person chooses, which the runtime places in its kind's folder, shows it at once and outlines its card", async () => {
@@ -264,7 +264,7 @@ describe("the studio", () => {
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
 
     expect((await screen.findByRole("menuitemradio", { name: /^Outliner/ })).textContent).toBe("OutlinerTato Studio");
-    expect((await screen.findByRole("menuitemradio", { name: /^Picture and fader/ })).textContent).toBe("Picture and faderpattern");
+    expect((await screen.findByRole("menuitemradio", { name: /^Picture and fader/ })).textContent).toBe("Picture and faderPulse Stage");
     const stageRigRow = document.querySelector<HTMLElement>('[data-view-type-not-opened="lobby-wall:stage_rig"]') ?? expect.unreachable("no row for the view that does not open");
     expect(stageRigRow.textContent).toBe("Stage riglobby-wall");
     expect(stageRigRow.getAttribute("aria-disabled")).toBe("true");
@@ -328,7 +328,7 @@ describe("the studio", () => {
     } finally {
       [madeFileUrl, revokedFileUrl, clickedLink].forEach((spy) => spy.mockRestore());
     }
-    expect(downloadedFiles.map((file) => file.fileName)).toEqual(["pattern transactions.json"]);
+    expect(downloadedFiles.map((file) => file.fileName)).toEqual(["Pulse Stage transactions.json"]);
     const downloadedLog: unknown = JSON.parse(await (downloadedFiles[0]?.blob ?? expect.unreachable("nothing downloaded")).text());
     expect(downloadedLog).toMatchObject({ transactions: expect.arrayContaining([expect.objectContaining({ author_name: "claude-code" })]), refused_actions: [expect.objectContaining({ author_name: "claude-code" })] });
   });
@@ -383,9 +383,9 @@ describe("the studio", () => {
     const historyRows = () => [...coreViewPage("history").querySelectorAll<HTMLElement>("[data-history-row]")];
     await waitFor(() =>
       expect(historyRows().map((row) => [row.getAttribute("aria-label")?.split(". ").slice(0, 2).join(". ").replace(/ · (?!undone)[^·]*?(?= · |$)/g, ""), row.hasAttribute("data-undone")])).toEqual([
-        ["Set displaywindow scaling to fit. Sam · undone", true],
-        ["Added brightnessmeter and its link. claude-code (agent)", false],
-        ["Renamed invert to invertingeffect. Sam", false],
+        ["Set click volume to 0.4. Sam · undone", true],
+        ["Added glow and its link. claude-code (agent)", false],
+        ["Renamed fold to kaleidoscope. Sam", false],
         ["Refreshed mic_levels from its code. Runtime", false],
         ["Imported warm.cube. Sam", false],
       ]),

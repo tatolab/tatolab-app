@@ -1,10 +1,11 @@
 // The browser mock's `list_node_types` and `describe_node_types`: the runtime's answers for streamlib's
-// sample that declares each kind of pin, replayed for the mock's pattern project, whose stream `main`
-// is that sample's graph. With `?port_families=unserved` no described port names a family, as a
+// sample project Pulse Stage, replayed for the mock's open project, which is that sample, or for the
+// every-pin-kind sample while `?main_graph=` shows one of its graphs. With `?port_families=unserved` no described port names a family, as a
 // runtime from before strict-port-families serves none. With `?wire_controls=named` each described
 // Texture input names the Studio's `preview` control, as a node type annotating it would.
 
-import { MOCK_RECORDED_NODE_TYPES_DESCRIBED, MOCK_RECORDED_NODE_TYPES_LISTED } from "./mock_recordings";
+import { PULSE_STAGE_FOLDER_NAME } from "./mock_pulse_stage_sample";
+import type { MockRecordedNodeTypes } from "./mock_recordings";
 import type { MockTatolabOptions } from "./mock_tatolab_options";
 import type { DescribeNodeTypesToolResult, JsonValue, ListNodeTypesToolResult, NodeTypeDescribedOrWhyNot, NodeTypeDescription } from "../src/shared/tatolab_backend_contract";
 
@@ -151,9 +152,9 @@ export class MockNodeTypesTheProjectGains {
   }
 }
 
-/** The project folder the recordings answer for, under `streamsFolder`: the mock's pattern project. */
+/** The project folder the recordings answer for, under `streamsFolder`: the mock's open project, Pulse Stage. */
 function projectFolderTheRecordingsAnswerFor(streamsFolder: string): string {
-  return `${streamsFolder}/pattern`;
+  return `${streamsFolder}/${PULSE_STAGE_FOLDER_NAME}`;
 }
 
 /** `listed`, under the group the project files it in when it files it, served with `category_from` as the runtime serves it. */
@@ -163,16 +164,16 @@ function filedAsTheProjectFilesIt(listed: NodeTypeListedUnderASource, gained: Mo
 }
 
 /** The node types the project in `projectDirectory` lists, as the runtime's `list_node_types` listed them; `null` for a folder holding no project. */
-export function mockNodeTypesListed(projectDirectory: string, streamsFolder: string, gained: MockNodeTypesTheProjectGains): ListNodeTypesToolResult | null {
+export function mockNodeTypesListed(projectDirectory: string, streamsFolder: string, recorded: MockRecordedNodeTypes, gained: MockNodeTypesTheProjectGains): ListNodeTypesToolResult | null {
   if (projectDirectory !== projectFolderTheRecordingsAnswerFor(streamsFolder)) return null;
-  const recorded = structuredClone(MOCK_RECORDED_NODE_TYPES_LISTED);
-  const sources = recorded.sources
+  const listed = structuredClone(recorded.listed);
+  const sources = listed.sources
     .map((source) => (source.source === "project" ? { ...source, node_types: [...source.node_types, ...gained.made.map(({ listed }) => structuredClone(listed))] } : source))
     .map((source) => ({ ...source, node_types: source.node_types.map((listed) => filedAsTheProjectFilesIt(listed, gained)) }));
   const builtInSourceIndex = sources.findIndex((source) => source.source === "built_in");
   const sourcesBeforeTheBuiltIns = builtInSourceIndex === -1 ? sources : sources.slice(0, builtInSourceIndex);
   const builtInSources = builtInSourceIndex === -1 ? [] : sources.slice(builtInSourceIndex);
-  return { ...recorded, sources: [...sourcesBeforeTheBuiltIns, ...structuredClone(gained.sourcesOfTheModulesAdded), ...builtInSources], project_directory: projectDirectory };
+  return { ...listed, sources: [...sourcesBeforeTheBuiltIns, ...structuredClone(gained.sourcesOfTheModulesAdded), ...builtInSources], project_directory: projectDirectory };
 }
 
 /** The node type and the group a `set_node_type_group` history operation files it under, `null` for putting it back; `null` for any other operation. */
@@ -190,19 +191,20 @@ function mockNodeTypeGroupFiledBy(operation: JsonValue): { nodeType: string; gro
 export function mockSetTheNodeTypeGroup(
   projectDirectory: string,
   streamsFolder: string,
+  recorded: MockRecordedNodeTypes,
   gained: MockNodeTypesTheProjectGains,
   nodeType: string,
   group: string | null,
   recordTheTransaction: (operations: JsonValue[], inverseOperations: JsonValue[]) => void,
 ): string | null {
-  const listed = mockNodeTypesListed(projectDirectory, streamsFolder, gained);
+  const listed = mockNodeTypesListed(projectDirectory, streamsFolder, recorded, gained);
   if (listed === null) return `set_node_type_group failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
   if (group !== null && group.split("/").some((name) => name.trim() === "")) {
     return `set_node_type_group failed: ${JSON.stringify(group)} cannot file \`${nodeType}\`: a group is one or more names split by \`/\`, none of them blank, as \`Effects/Stylize\``;
   }
   const isListed = listed.sources.some((source) => source.node_types.some((listedType) => listedType.node_type === nodeType));
   if (group !== null && !isListed) {
-    return `set_node_type_group failed: neither the project \`${MOCK_RECORDED_NODE_TYPES_LISTED.project_name}\` nor the runtime offers a node type \`${nodeType}\`; \`list_node_types\` lists the ones they do`;
+    return `set_node_type_group failed: neither the project \`${recorded.listed.project_name}\` nor the runtime offers a node type \`${nodeType}\`; \`list_node_types\` lists the ones they do`;
   }
   const from = gained.groupTheProjectFiles(nodeType) ?? null;
   gained.fileUnderAGroup(nodeType, group);
@@ -234,20 +236,21 @@ export function mockNodeTypesDescribed(
   streamsFolder: string,
   nodeTypes: readonly string[],
   served: Pick<MockTatolabOptions, "arePortFamiliesServed" | "areWireControlsNamed">,
+  recorded: MockRecordedNodeTypes,
   gained: MockNodeTypesTheProjectGains,
 ): DescribeNodeTypesToolResult | null {
   if (projectDirectory !== projectFolderTheRecordingsAnswerFor(streamsFolder)) return null;
   const recordedByType = new Map<string, NodeTypeDescribedOrWhyNot>([
-    ...MOCK_RECORDED_NODE_TYPES_DESCRIBED.node_types.map((nodeType) => [nodeType.node_type, nodeType] as const),
+    ...recorded.described.node_types.map((nodeType) => [nodeType.node_type, nodeType] as const),
     ...gained.described.map((described) => [described.node_type, described] as const),
   ]);
   return {
     node_types: nodeTypes.map((nodeType) => {
-      const recorded = recordedByType.get(nodeType);
-      if (recorded === undefined) {
-        throw `describe_node_types failed: neither the project \`${MOCK_RECORDED_NODE_TYPES_LISTED.project_name}\` nor the runtime offers a node type \`${nodeType}\`; \`list_node_types\` lists the ones they do`;
+      const described = recordedByType.get(nodeType);
+      if (described === undefined) {
+        throw `describe_node_types failed: neither the project \`${recorded.listed.project_name}\` nor the runtime offers a node type \`${nodeType}\`; \`list_node_types\` lists the ones they do`;
       }
-      const withTheFamiliesServed = served.arePortFamiliesServed ? structuredClone(recorded) : withoutPortFamilies(recorded);
+      const withTheFamiliesServed = served.arePortFamiliesServed ? structuredClone(described) : withoutPortFamilies(described);
       return served.areWireControlsNamed ? withEachTextureInputPreviewed(withTheFamiliesServed) : withTheFamiliesServed;
     }),
   };

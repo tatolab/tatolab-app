@@ -23,23 +23,24 @@ import { MOCK_COMMAND_LATENCY_MILLISECONDS } from "./mock_tatolab_simulation_con
 import { sleep, type MockTatolabSimulation } from "./mock_tatolab_simulation";
 import { inputValuesChangedBy } from "./mock_input_value_changes";
 import { mockMessagesPublishedBy } from "./mock_value_sources";
+import { PULSE_STAGE_FOLDER_NAME } from "./mock_pulse_stage_sample";
 
 /** The mock backend's projects and streams methods over `simulation`. */
 export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulation): Pick<TatolabBackend, "listNodeTypes" | "describeNodeTypes" | "listProjectAssets" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "setNodeTypeGroupInTheOpenProject" | "removeProject" | "renameStream" | "createStreamInTheOpenProject" | "deleteStream" | "openStreamProjectFolder" | "openTerminalAtStreamProject" | "openStreamLogFolder" | "chooseStreamProjectFolder" | "createStreamProject" | "openStreamProject" | "stopOpenProject" | "reloadProject" | "describeStreamAction" | "cancelStreamAction" | "chooseProjectFolder" | "readNewProjectDefaults" | "chooseNewProjectLocation" | "createNewProject" | "readOpenProject" | "readRecentProjects" | "openRecentProject" | "renameRecentProject" | "duplicateRecentProject" | "deleteRecentProject" | "readRecentProjectCover" | "setRecentProjectDescription" | "chooseProjectCoverImage" | "setRecentProjectCover" | "chooseProjectArchiveToImport" | "importProjectArchive" | "onOpenProjectChanged" | "readOpenProjectTransactions" | "onProjectTransactionsChanged" | "onProjectFilesChanged" | "onProjectNodeTypesChanged" | "undoInTheOpenProject" | "transactInTheOpenProject" | "checkLinkCandidatesInTheOpenProject" | "readThePersonEditingInStudio" | "redoInTheOpenProject" | "readProjectFile" | "saveProjectFile" | "createNodeFile" | "checkProjectFile" | "listProjectFiles" | "runOpenProject" | "pauseOpenProject" | "listStudioViewsOfTheOpenProject"> {
-  const { fixtures, assetsChangedWhileTheMockRuns, openProjectListeners, mockStudioViewsListedInTheProject, coverImageUrlsByFolder, mockFoldersOnDisk, rememberTheProjectAsOpenedLast, openTheProjectInTheMock, mockProjectFiles, graphTransactionsCommittedByIdempotencyKey, mockProjectTransactions, refuseWithoutAnOpenProject, loadedStreams, graphTargetsOfTheOpenProject, savedGraphTargetsOfTheOpenProject, commitGraphActions, graphEditGrounds, nodeTypesTheProjectGains, whyTheUndoIsRefused, applyingItsGraphOperations, pushEveryFollowedStreamGraphChanged, pushEachInputValueChanged, streamsWhoseGraphsAreFollowed, graphOfLoadedStream, listStreams, projectFolders, foldersHandedToTheWindow, projectFolderTheDialogChooses, refuseAFolderNotHandedToTheWindow, newProjectFolderTheRuntimeDraws, projectLoadsQueued, notHeldWords, cancelMockStreamAction, queueAMockProjectLoadThatFails, queueAMockProjectLoad, noRuntimeAnswersRefusal, streamIdsListedForARefusal, loadedStreamsOfTheMockProjectIn, mockPlaybackAReloadOfTheProjectKeeps, setTheMockPlaybackOfTheStreams, stopMockProject, removeMockProject, renameMockStream, createMockStreamInTheOpenProject, deleteMockStream, listedProjectFolderOf, isTheTerminalMissing, isTheLogFolderMissing, isNoProjectLoadHeld, mockTatolabOptions, mockPortViewers } = simulation;
+  const { fixtures, assetsChangedWhileTheMockRuns, openProjectListeners, mockStudioViewsListedInTheProject, coverImageUrlsByFolder, mockFoldersOnDisk, rememberTheProjectAsOpenedLast, openTheProjectInTheMock, mockProjectFiles, graphTransactionsCommittedByIdempotencyKey, mockProjectTransactions, refuseWithoutAnOpenProject, loadedStreams, graphTargetsOfTheOpenProject, savedGraphTargetsOfTheOpenProject, commitGraphActions, graphEditGrounds, nodeTypesTheProjectGains, recordedNodeTypes, whyTheUndoIsRefused, applyingItsGraphOperations, pushEveryFollowedStreamGraphChanged, pushEachInputValueChanged, streamsWhoseGraphsAreFollowed, graphOfLoadedStream, listStreams, projectFolders, foldersHandedToTheWindow, projectFolderTheDialogChooses, refuseAFolderNotHandedToTheWindow, newProjectFolderTheRuntimeDraws, projectLoadsQueued, notHeldWords, cancelMockStreamAction, queueAMockProjectLoadThatFails, queueAMockProjectLoad, noRuntimeAnswersRefusal, streamIdsListedForARefusal, loadedStreamsOfTheMockProjectIn, mockPlaybackAReloadOfTheProjectKeeps, setTheMockPlaybackOfTheStreams, stopMockProject, removeMockProject, renameMockStream, createMockStreamInTheOpenProject, deleteMockStream, listedProjectFolderOf, isTheTerminalMissing, isTheLogFolderMissing, isNoProjectLoadHeld, mockTatolabOptions, mockPortViewers } = simulation;
   const replayedRefusals = new MockReplayedRefusals(mockTatolabOptions.replayedRefusal);
   return {
     listNodeTypes: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (simulation.mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const listed = mockNodeTypesListed(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, nodeTypesTheProjectGains);
+      const listed = mockNodeTypesListed(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, recordedNodeTypes, nodeTypesTheProjectGains);
       if (listed === null) throw `list_node_types failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
       return listed;
     },
     describeNodeTypes: async (projectDirectory, nodeTypes) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (simulation.mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const described = mockNodeTypesDescribed(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, nodeTypes, mockTatolabOptions, nodeTypesTheProjectGains);
+      const described = mockNodeTypesDescribed(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, nodeTypes, mockTatolabOptions, recordedNodeTypes, nodeTypesTheProjectGains);
       if (described === null) throw `describe_node_types failed: ${projectDirectory} holds no project: it has no tatolab-project.json`;
       return described;
     },
@@ -89,7 +90,7 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (simulation.openProjectReading.kind !== "read") throw "No project is open in this window.";
       if (simulation.mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const refusal = mockSetTheNodeTypeGroup(simulation.openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, nodeTypesTheProjectGains, nodeType, group, (operations, inverseOperations) =>
+      const refusal = mockSetTheNodeTypeGroup(simulation.openProjectReading.open_project.project.folder, `${fixtures.machine.homeDirectory}/streams`, recordedNodeTypes, nodeTypesTheProjectGains, nodeType, group, (operations, inverseOperations) =>
         mockProjectTransactions?.record(MOCK_PERSON_EDITING_IN_STUDIO, operations, inverseOperations),
       );
       if (refusal !== null) throw refusal;
@@ -260,7 +261,7 @@ export function mockProjectsAndStreamsBackendOf(simulation: MockTatolabSimulatio
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       const recentProject = simulation.recentProjects.find((recent) => recent.folder === folder);
       if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
-      return recentProject.has_a_chosen_cover ? (coverImageUrlsByFolder.get(folder) ?? mockProjectCoverImageUrl(folder.endsWith("pattern") ? "arcs" : "stripes")) : null;
+      return recentProject.has_a_chosen_cover ? (coverImageUrlsByFolder.get(folder) ?? mockProjectCoverImageUrl(folder.endsWith(`/${PULSE_STAGE_FOLDER_NAME}`) ? "arcs" : "stripes")) : null;
     },
     setRecentProjectDescription: async (folder, description) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

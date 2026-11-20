@@ -7,7 +7,8 @@
 // `undo_state` that rule gives it, and an undo or redo refused is kept as the runtime keeps it.
 // `?history=empty` opens a project with no transactions.
 
-import { mockNodeIdOf, mockStreamIdOf, mockStreamLocationOf } from "./mock_stream_fixtures";
+import { mockGraphNodeIdOf, mockStreamIdOf, mockStreamLocationOf } from "./mock_stream_fixtures";
+import { mockRecordedGraphOfThePulseStageSample } from "./mock_recordings";
 import type {
   JsonValue,
   ProjectActionRefusal,
@@ -90,7 +91,12 @@ function mockTransactionsOldestFirst(projectDirectory: string): ProjectTransacti
   const mainStreamAddress = { project_directory: projectDirectory, stream_name: "main" };
   const mainStream = mockStreamLocationOf(mainStreamAddress).stream_asset;
   const mainStreamId = mockStreamIdOf(mainStreamAddress);
-  const nodeOf = (nodeName: string) => mockNodeIdOf(mainStreamId, nodeName);
+  const recordedNodes = mockRecordedGraphOfThePulseStageSample().nodes;
+  const nodeOf = (nodeName: string) => {
+    const node = recordedNodes.find((recorded) => recorded.name === nodeName);
+    if (node === undefined) throw new Error(`Pulse Stage's recorded graph holds no node ${nodeName}`);
+    return mockGraphNodeIdOf(mainStreamId, node);
+  };
   const warmLut = { asset: "a7c1e0d2-5b3f-4e8a-9d61-0f2c4b8e7a15", kind: "data", path: "media/warm.cube", content_sha256: "9f".repeat(32), content_byte_len: 1_048_576, import_settings: {} };
   const imported = mockTransaction(1, YOU, [{ operation: "import_asset", asset: warmLut }], [{ operation: "delete_asset", asset: warmLut }]);
   const micLevelsBefore = { type: "nodes.mic_levels:mic_levels", config: { bands: 8 }, fragment: { nodes: [], links: [] } };
@@ -104,17 +110,17 @@ function mockTransactionsOldestFirst(projectDirectory: string): ProjectTransacti
   const renamed = mockTransaction(
     3,
     YOU,
-    [{ stream: mainStream, operation: "rename_node", node: nodeOf("invertingeffect"), from: "invert", to: "invertingeffect" }],
-    [{ stream: mainStream, operation: "rename_node", node: nodeOf("invertingeffect"), from: "invertingeffect", to: "invert" }],
+    [{ stream: mainStream, operation: "rename_node", node: nodeOf("kaleidoscope"), from: "fold", to: "kaleidoscope" }],
+    [{ stream: mainStream, operation: "rename_node", node: nodeOf("kaleidoscope"), from: "kaleidoscope", to: "fold" }],
   );
-  const meter = { id: nodeOf("brightnessmeter"), name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", config: {} };
-  const meterLinks = [{ source: { node: nodeOf("invertingeffect"), port: "video_to_downstream" }, target: { node: meter.id, port: "video_from_upstream" } }];
-  const added = mockTransaction(4, CLAUDE, [{ stream: mainStream, operation: "add_node", node: meter, links: meterLinks }], [{ stream: mainStream, operation: "remove_node", node: meter.id, links: meterLinks }]);
+  const glow = { id: nodeOf("glow"), name: "glow", type: "nodes.looks:glow_look", config: { passes: 3, strength: 0.9 } };
+  const glowLinks = [{ source: { node: nodeOf("kaleidoscope"), port: "result" }, target: { node: glow.id, port: "video_in" } }];
+  const added = mockTransaction(4, CLAUDE, [{ stream: mainStream, operation: "add_node", node: glow, links: glowLinks }], [{ stream: mainStream, operation: "remove_node", node: glow.id, links: glowLinks }]);
   const fitted = mockTransaction(
     5,
     YOU,
-    [{ stream: mainStream, operation: "set_node_config", node: nodeOf("displaywindow"), from: { title: "Tatolab", scaling: "fill" }, to: { title: "Tatolab", scaling: "fit" } }],
-    [{ stream: mainStream, operation: "set_node_config", node: nodeOf("displaywindow"), from: { title: "Tatolab", scaling: "fit" }, to: { title: "Tatolab", scaling: "fill" } }],
+    [{ stream: mainStream, operation: "set_node_config", node: nodeOf("click"), from: { volume: 0.8 }, to: { volume: 0.4 } }],
+    [{ stream: mainStream, operation: "set_node_config", node: nodeOf("click"), from: { volume: 0.4 }, to: { volume: 0.8 } }],
   );
   const fittedUndone = mockTransaction(6, YOU, fitted.inverse_operations, fitted.operations, { undoes: fitted.transaction });
   return [imported, refreshed, renamed, added, fitted, fittedUndone];

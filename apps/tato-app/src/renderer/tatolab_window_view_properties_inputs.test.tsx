@@ -2,7 +2,7 @@
 import { fireEvent, waitFor } from "@testing-library/react";
 import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PATTERN_MAIN_STREAM, tagOfTheStudiosFloatControl } from "./tatolab_window_view_test_support";
+import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PULSE_STAGE_MAIN_STREAM, tagOfTheStudiosFloatControl } from "./tatolab_window_view_test_support";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import { inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 
@@ -76,14 +76,14 @@ async function operationsRecorded(backend: TatolabBackend): Promise<string[]> {
 
 /** What the main stream's node `nodeName` reads on its input `input`, as the mock's graph renders it. */
 async function valueTheGraphReads(backend: TatolabBackend, nodeName: string, input: string): Promise<unknown> {
-  const graph = await backend.describeStreamGraph(PATTERN_MAIN_STREAM);
+  const graph = await backend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM);
   const port = graph.nodes.find((node) => node.name === nodeName)?.ports.inputs.find((candidate) => candidate.name === input);
   return port === undefined ? undefined : inputValueReadOfThePort(port);
 }
 
 /** The links of the main stream's graph into the node `nodeName`, as `source.port -> input`. */
 async function linksInto(backend: TatolabBackend, nodeName: string): Promise<string[]> {
-  const graph = await backend.describeStreamGraph(PATTERN_MAIN_STREAM);
+  const graph = await backend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM);
   return graph.links.filter((link) => link.target.node === nodeName).map((link) => `${link.source.node}.${link.source.port} -> ${link.target.port}`);
 }
 
@@ -115,62 +115,62 @@ describe("Properties' Inputs", () => {
 
   it("names the node and pin that drive a wired input, with no value of its own, its disconnect is one Undo step, and it jumps to that node", { timeout: 20_000 }, async () => {
     const { backend } = await mountedWindowOverTheMock("state=running");
-    await selectInTheStreamGraph("brightnessmeter");
-    const linkedEnds = () => [...inputRow("video_from_upstream").querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"));
-    await waitFor(() => expect(linkedEnds()).toEqual(["Inverting Effect › video_to_downstream"]));
-    expect(inputRow("video_from_upstream").querySelector("input, [data-input-control]")).toBeNull();
-    expect(inputRow("video_from_upstream").querySelector("[data-properties-input-promote]")).toBeNull();
+    await selectInTheStreamGraph("kaleidoscope");
+    const linkedEnds = () => [...inputRow("image").querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"));
+    await waitFor(() => expect(linkedEnds()).toEqual(["orbits › result"]));
+    expect(inputRow("image").querySelector("input, [data-input-control]")).toBeNull();
+    expect(inputRow("image").querySelector("[data-properties-input-promote]")).toBeNull();
 
     const entriesBefore = await historyLength(backend);
-    fireEvent.click(buttonOn(inputRow("video_from_upstream"), "[data-property-port-linked-end-disconnect]"));
-    await waitFor(async () => expect(await linksInto(backend, "brightnessmeter")).toEqual([]));
+    fireEvent.click(buttonOn(inputRow("image"), "[data-property-port-linked-end-disconnect]"));
+    await waitFor(async () => expect(await linksInto(backend, "kaleidoscope")).not.toContain("orbits.result -> image"));
     await waitFor(() => expect(linkedEnds()).toEqual([]));
-    expect(inputRow("video_from_upstream").textContent).toContain("Not connected");
+    expect(inputRow("image").textContent).toContain("Not connected");
     expect(await historyLength(backend)).toBe(entriesBefore + 1);
 
     await backend.undoInTheOpenProject({ kind: "person", name: "Sam" });
-    await waitFor(() => expect(linkedEnds()).toEqual(["Inverting Effect › video_to_downstream"]));
+    await waitFor(() => expect(linkedEnds()).toEqual(["orbits › result"]));
 
-    fireEvent.click(buttonOn(inputRow("video_from_upstream"), "[data-property-port-linked-end-jump]"));
-    await waitFor(() => expect(properties().querySelector('[data-properties-of-node="invertingeffect"]')).not.toBeNull());
+    fireEvent.click(buttonOn(inputRow("image"), "[data-property-port-linked-end-jump]"));
+    await waitFor(() => expect(properties().querySelector('[data-properties-of-node="orbits"]')).not.toBeNull());
   });
 
   it("promotes an unwired input to a new Graph Input wired into it, one Undo step taking out both", { timeout: 20_000 }, async () => {
     const { backend } = await mountedWindowOverTheMock("state=running");
-    await selectInTheStreamGraph("invertingeffect");
-    await waitFor(() => controlOnTheRow("amount") ?? expect.unreachable("no control on Properties' amount row"), AS_LONG_AS_A_FRAME_BINDS);
+    await selectInTheStreamGraph("kaleidoscope");
+    await waitFor(() => controlOnTheRow("spin") ?? expect.unreachable("no control on Properties' spin row"), AS_LONG_AS_A_FRAME_BINDS);
     const entriesBefore = await historyLength(backend);
 
-    fireEvent.click(buttonOn(inputRow("amount"), "[data-properties-input-promote]"));
-    await waitFor(async () => expect(await linksInto(backend, "invertingeffect")).toContain("invertingeffect_amount.value -> amount"));
-    await waitFor(() => expect(streamGraph().querySelector('[data-node-graph-card="invertingeffect_amount"]')).not.toBeNull());
-    await waitFor(() => expect([...inputRow("amount").querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"))).toEqual(["invertingeffect_amount › value"]));
-    expect(controlOnTheRow("amount")).toBeNull();
+    fireEvent.click(buttonOn(inputRow("spin"), "[data-properties-input-promote]"));
+    await waitFor(async () => expect(await linksInto(backend, "kaleidoscope")).toContain("kaleidoscope_spin.value -> spin"));
+    await waitFor(() => expect(streamGraph().querySelector('[data-node-graph-card="kaleidoscope_spin"]')).not.toBeNull());
+    await waitFor(() => expect([...inputRow("spin").querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"))).toEqual(["kaleidoscope_spin › value"]));
+    expect(controlOnTheRow("spin")).toBeNull();
     expect(await historyLength(backend)).toBe(entriesBefore + 1);
 
     await backend.undoInTheOpenProject({ kind: "person", name: "Sam" });
-    await waitFor(() => expect(streamGraph().querySelector('[data-node-graph-card="invertingeffect_amount"]')).toBeNull());
-    expect(await linksInto(backend, "invertingeffect")).not.toContain("invertingeffect_amount.value -> amount");
-    await waitFor(() => controlOnTheRow("amount") ?? expect.unreachable("no control on Properties' amount row once undone"), AS_LONG_AS_A_FRAME_BINDS);
+    await waitFor(() => expect(streamGraph().querySelector('[data-node-graph-card="kaleidoscope_spin"]')).toBeNull());
+    expect(await linksInto(backend, "kaleidoscope")).not.toContain("kaleidoscope_spin.value -> spin");
+    await waitFor(() => controlOnTheRow("spin") ?? expect.unreachable("no control on Properties' spin row once undone"), AS_LONG_AS_A_FRAME_BINDS);
   });
 
   it("while the control table's listing loads, draws an input's value in words and no field that would write it", { timeout: 20_000 }, async () => {
     await mountedWindowOverTheMock("state=running", { listNodeUiElements: () => new Promise(() => undefined) });
-    await selectInTheStreamGraph("invertingeffect");
-    await waitFor(() => expect(inputRow("amount").querySelector("[data-properties-input-value-words]")?.textContent).toBe("1.0"), AS_LONG_AS_A_FRAME_BINDS);
-    expect(inputRow("amount").querySelector('input[aria-label="Value of amount"]')).toBeNull();
-    expect(controlOnTheRow("amount")).toBeNull();
+    await selectInTheStreamGraph("kaleidoscope");
+    await waitFor(() => expect(inputRow("spin").querySelector("[data-properties-input-value-words]")?.textContent).toBe("0.0"), AS_LONG_AS_A_FRAME_BINDS);
+    expect(inputRow("spin").querySelector('input[aria-label="Value of spin"]')).toBeNull();
+    expect(controlOnTheRow("spin")).toBeNull();
   });
 
   it("draws its own field where the table has no control for an input, and the field sets the input's value, not its old pin value", { timeout: 20_000 }, async () => {
     const { backend } = await mountedWindowOverTheMock("state=running&node_ui=refused");
-    await selectInTheStreamGraph("invertingeffect");
-    const field = await waitFor(() => inputRow("amount").querySelector<HTMLInputElement>('input[aria-label="Value of amount"]') ?? expect.unreachable("no field on Properties' amount row"), AS_LONG_AS_A_FRAME_BINDS);
+    await selectInTheStreamGraph("kaleidoscope");
+    const field = await waitFor(() => inputRow("spin").querySelector<HTMLInputElement>('input[aria-label="Value of spin"]') ?? expect.unreachable("no field on Properties' spin row"), AS_LONG_AS_A_FRAME_BINDS);
 
     field.focus();
     fireEvent.change(field, { target: { value: "0.5" } });
     fireEvent.keyDown(field, { key: "Enter" });
-    await waitFor(async () => expect(await valueTheGraphReads(backend, "invertingeffect", "amount")).toEqual({ value: 0.5, comes_from: "saved" }));
+    await waitFor(async () => expect(await valueTheGraphReads(backend, "kaleidoscope", "spin")).toEqual({ value: 0.5, comes_from: "saved" }));
     const operations = await operationsRecorded(backend);
     expect(operations).toContain("set_node_input_value");
     expect(operations).not.toContain("set_pin_value");

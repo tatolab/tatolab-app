@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mountedWindowOverTheMock, textOf, systemMenuBarOverTheMock, chooseFromTheMenuBar, openSettingsOn, settingsRow, PATTERN_PROJECT, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
+import { mountedWindowOverTheMock, textOf, systemMenuBarOverTheMock, chooseFromTheMenuBar, openSettingsOn, settingsRow, PULSE_STAGE_FOLDER, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
 // Code's editor here says Monaco didn't load; the code pane's text and saves are tested beside it.
@@ -49,21 +49,21 @@ describe("Settings", () => {
     const chooseProjectCoverImage = vi.fn<() => Promise<string | null>>(async () => "/Users/jonathanf/Pictures/stage.png");
     await mountedWindowOverTheMock("state=running", { setRecentProjectDescription, renameRecentProject, setRecentProjectCover, chooseProjectCoverImage });
     await openSettingsOn("project");
-    const projectSettings = await waitFor(() => document.querySelector<HTMLElement>(`[data-project-settings="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no Project section"));
+    const projectSettings = await waitFor(() => document.querySelector<HTMLElement>(`[data-project-settings="${PULSE_STAGE_FOLDER}"]`) ?? expect.unreachable("no Project section"));
     const nameField = await waitFor(() => projectSettings.querySelector<HTMLInputElement>("[data-project-details-name]") ?? expect.unreachable("no name field"));
-    expect(nameField.value).toBe("pattern");
+    expect(nameField.value).toBe("Pulse Stage");
 
-    fireEvent.change(nameField, { target: { value: "Lobby pattern" } });
+    fireEvent.change(nameField, { target: { value: "Lobby Pulse Stage" } });
     fireEvent.keyDown(nameField, { key: "Enter" });
-    await waitFor(() => expect(renameRecentProject).toHaveBeenCalledWith(PATTERN_PROJECT, "Lobby pattern"));
+    await waitFor(() => expect(renameRecentProject).toHaveBeenCalledWith(PULSE_STAGE_FOLDER, "Lobby Pulse Stage"));
 
     const descriptionField = projectSettings.querySelector<HTMLTextAreaElement>("[data-project-details-description]") ?? expect.unreachable("no description field");
-    fireEvent.change(descriptionField, { target: { value: "The lobby's test pattern." } });
+    fireEvent.change(descriptionField, { target: { value: "The lobby's light show." } });
     fireEvent.blur(descriptionField);
-    await waitFor(() => expect(setRecentProjectDescription).toHaveBeenCalledWith(PATTERN_PROJECT, "The lobby's test pattern."));
+    await waitFor(() => expect(setRecentProjectDescription).toHaveBeenCalledWith(PULSE_STAGE_FOLDER, "The lobby's light show."));
 
     fireEvent.click(within(projectSettings).getByRole("button", { name: "Choose image…" }));
-    await waitFor(() => expect(setRecentProjectCover).toHaveBeenCalledWith(PATTERN_PROJECT, "/Users/jonathanf/Pictures/stage.png"));
+    await waitFor(() => expect(setRecentProjectCover).toHaveBeenCalledWith(PULSE_STAGE_FOLDER, "/Users/jonathanf/Pictures/stage.png"));
   });
 
   it("lists no Project section in Settings opened from the Projects window", async () => {

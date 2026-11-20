@@ -1,6 +1,6 @@
 import { defineConfig } from "eslint/config";
 import { tatolabTypeScriptLintConfig } from "@tatolab/lint-config/eslint";
-import { DOT_INDICATOR_SELECTORS, ROUND_STATUS_ICON_IMPORTS, SVG_CIRCLE_SELECTORS } from "../../packages/package_lint_rules.js";
+import { DOT_INDICATOR_SELECTORS, ROUND_STATUS_ICON_IMPORTS, SVG_CIRCLE_SELECTORS, retiredSampleLintConfig } from "../../packages/package_lint_rules.js";
 
 // ESLint applies one list per rule to a file, so each group of files below gets the whole list of
 // restrictions that hold for it, composed from these pieces.
@@ -139,4 +139,5 @@ export default defineConfig(
   { files: ICON_GEOMETRY_FILES, rules: windowRestrictions({ mayDrawCircles: true }) },
   { files: SCREEN_FILES, ignores: TEST_FILES, rules: windowRestrictions({ isScreen: true }) },
   { files: FRAME_LANE_FILES, rules: { "@typescript-eslint/no-restricted-imports": ["error", { patterns: FRAME_LANE_IMPORT_PATTERNS }] } },
+  retiredSampleLintConfig(["src/**/*.{ts,tsx,cts}", "mock/**/*.{ts,tsx}", "scripts/**/*.mjs"]),
 );

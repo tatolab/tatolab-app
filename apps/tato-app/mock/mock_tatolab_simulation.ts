@@ -15,7 +15,7 @@ import { mockConditionOf } from "./mock_stream_conditions";
 import type { MockInputValueChanged } from "./mock_input_value_changes";
 import { mockFoldersInDocumentsTatoStudio, mockOpenProjectReading, mockRecentProjects } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
-import { MOCK_RECORDED_NODE_TYPES_DESCRIBED } from "./mock_recordings";
+import { recordedNodeTypesOfTheMainGraph } from "./mock_main_graphs";
 import { MockPortViewers } from "./mock_port_viewers";
 import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./mock_studio_view/mock_studio_view_listing";
 import { MockProjectFiles } from "./mock_project_files";
@@ -97,20 +97,18 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
   const mainStreamAsChosen = mockTatolabOptions.mainGraph !== null
     ? fixtures.mainStreamHoldingTheGraph[mockTatolabOptions.mainGraph]
     : scenario === "node-error"
-      ? fixtures.mainStreamWithDisplayWindowInError
+      ? fixtures.mainStreamWithTheSpeakerInError
       : scenario === "node-not-ready"
         ? fixtures.mainStreamWithAnImageFileNotReady
         : scenario === "dropping"
-          ? fixtures.mainStreamWithItsMeterFallingBehind
+          ? fixtures.mainStreamWithItsGlowFallingBehind
           : mockTatolabOptions.isTheFixtureViewListed
             ? fixtures.mainStreamWithTheFixtureViewsNode
             : mockTatolabOptions.isTheCompositorInMain
               ? fixtures.mainStreamWithTheCompositorNode
               : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
-                ? fixtures.mainStreamDeclaringGraphInputs
-                : mockTatolabOptions.doesTheMainStreamHoldAGeneratedSubgraph
-                  ? fixtures.mainStreamHoldingAGeneratedSubgraph
-                  : fixtures.mainStream;
+                ? fixtures.mainStreamDeclaringExtraGraphInputs
+                : fixtures.mainStream;
   const mainStream = mockMainStreamAsTheRuntimeHoldsIt(mainStreamAsChosen, scenario === "refused-at-play" ? "refused_at_play" : mockTatolabOptions.areTheMainStreamsNodesStopped ? "nodes_stopped" : "as_chosen");
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
@@ -127,7 +125,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
   let openProjectReading = mockOpenProjectReading(openProjectScenario, fixtures.machine.homeDirectory);
   const mockStudioViewsListedInTheProject = () => (mockTatolabOptions.isTheFixtureViewListed ? [mockStudioViewListing(), mockStudioViewListingThatDoesNotOpen()] : []);
   const workspaceDependencies = new MockWorkspaceDependencies(
-    openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : `${fixtures.machine.homeDirectory}/streams/pattern`,
+    openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : fixtures.pulseStageProjectDirectory,
     mockTatolabOptions.moduleManagerWorkspaceDependencies ?? "copied",
     () => mockStudioViewsListedInTheProject(),
   );
@@ -187,7 +185,8 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
       }),
     );
   /** Commit `operations`: applied to the saved graphs, which answer, then to the running ones. */
-  const graphEditGrounds: MockGraphEditGrounds = { nodeTypesDescribed: MOCK_RECORDED_NODE_TYPES_DESCRIBED.node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [nodeType])), portsOfTheNodesRemoved: new Map() };
+  const recordedNodeTypes = recordedNodeTypesOfTheMainGraph(mockTatolabOptions.mainGraph);
+  const graphEditGrounds: MockGraphEditGrounds = { nodeTypesDescribed: recordedNodeTypes.described.node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [nodeType])), portsOfTheNodesRemoved: new Map() };
   const nodeTypesTheProjectGains = new MockNodeTypesTheProjectGains(graphEditGrounds);
   const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo", historyOperationsReplayed: readonly JsonValue[] = []) => {
     const applied = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), graphEditGrounds, operations, applying, historyOperationsReplayed);
@@ -222,14 +221,14 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     return undoOrRedo;
   };
   const listedStreamsNotLoaded = new Map<string, ListedStream>([
-    [fixtures.stoppedPatternTwo.stream, fixtures.stoppedPatternTwo],
+    [fixtures.stoppedRehearsal.stream, fixtures.stoppedRehearsal],
     [fixtures.failedLobbyRecorder.stream, fixtures.failedLobbyRecorder],
     ...(doesTheRuntimeListAnEarlierRuntimesRecord ? [[fixtures.earlierRuntimesRecord.stream, fixtures.earlierRuntimesRecord] as const] : []),
   ]);
   /** The display names `set_stream_display_name` gave, by stream id, over the ones the fixtures load with. */
   const displayNamesRenamedTo = new Map<string, string>();
-  /** Recorded streams not loaded that a run of their project loads again, by id: `pattern-two`, and each one stopped from the window. */
-  const recordedFixturesNotLoaded = new Map<string, MockStreamFixture>([[fixtures.patternTwoStream.listing.stream, fixtures.patternTwoStream]]);
+  /** Recorded streams not loaded that a run of their project loads again, by id: `rehearsal`, and each one stopped from the window. */
+  const recordedFixturesNotLoaded = new Map<string, MockStreamFixture>([[fixtures.rehearsalStream.listing.stream, fixtures.rehearsalStream]]);
   const forgottenStreamIds = new Set<string>();
   /** The stream action queued or under way on each stream, by id; a step of an action that is no longer its stream's does nothing. */
   const streamActionOfEachStream = new Map<string, string>();
@@ -286,7 +285,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
   const projectFolders = new Map<string, { streamNames: readonly string[]; hasAPythonEnvironment: boolean }>([
     [`${fixtures.machine.homeDirectory}/code/heat-map`, { streamNames: ["heat_map"], hasAPythonEnvironment: chosenProjectFolder !== "no-venv" }],
     [`${fixtures.machine.homeDirectory}/code/doorways`, { streamNames: ["front_door", MOCK_FAILING_STREAM_NAME], hasAPythonEnvironment: true }],
-    [fixtures.patternProjectDirectory, { streamNames: ["main", "recorder", "pattern_two"], hasAPythonEnvironment: true }],
+    [fixtures.pulseStageProjectDirectory, { streamNames: ["main", "recorder", "rehearsal"], hasAPythonEnvironment: true }],
     [`${fixtures.machine.homeDirectory}/code/notes`, { streamNames: [], hasAPythonEnvironment: true }],
   ]);
   const foldersHandedToTheWindow = new Set<string>();
@@ -301,7 +300,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
       case "several":
         return `${projectsFolder}/doorways`;
       case "recorded":
-        return fixtures.patternProjectDirectory;
+        return fixtures.pulseStageProjectDirectory;
       case "no-project-file":
         return `${projectsFolder}/notes`;
     }
@@ -911,6 +910,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     commitGraphActions,
     graphEditGrounds,
     nodeTypesTheProjectGains,
+    recordedNodeTypes,
     whyTheUndoIsRefused,
     applyingItsGraphOperations,
     streamsWhoseGraphsAreFollowed,

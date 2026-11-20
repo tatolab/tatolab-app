@@ -152,7 +152,7 @@ export interface MockTatolabOptions {
   doesTheRuntimeListAnEarlierRuntimesRecord: boolean;
   /** `?project_open=refused`: the runtime fails the open project's `open_project`, as it does while a record an earlier runtime wrote elsewhere holds its stream id. */
   isTheOpenProjectsOpenRefused: boolean;
-  /** `?project=none|unreadable`: no project open, or one the runtime names no project in; the pattern project by default. */
+  /** `?project=none|unreadable`: no project open, or one the runtime names no project in; Pulse Stage by default. */
   openProjectScenario: MockOpenProjectScenario;
   /** `?history=empty`: the open project has no transactions yet; a few by the person, an agent and the runtime by default. */
   projectHistoryScenario: MockProjectHistoryScenario;
@@ -180,18 +180,16 @@ export interface MockTatolabOptions {
   isTheFixtureViewListed: boolean;
   /** `?node_ui=unserved`: the Studio's own controls are listed with scripts nothing serves, so each ends at the read-only line with why; `?node_ui=refused`: listing them is refused, so each input draws its own field. They are listed and served by default. */
   nodeUiElementsListing: MockNodeUiElementsListing;
-  /** `?node_bodies=served`: the mock project brings a body for the inverting effect, a fader for its amount, one for each stage of `?main_graph=large`, which the canvas measurements mount, and the default control of `nodes.sweep:Sweep`, which `?main_graph=every_pin_kind_with_a_named_type` draws; `?node_bodies=blocked`: it lists them with a finding of their folder's check, so each card draws its rows alone. None by default. */
+  /** `?node_bodies=served`: the mock project brings Pulse Stage's body for its kaleidoscope, a drawing of its wedges and a fader for its spin, one for each stage of `?main_graph=large`, which the canvas measurements mount, and the default control of `nodes.sweep:Sweep`, which `?main_graph=every_pin_kind_with_a_named_type` draws; `?node_bodies=blocked`: it lists them with a finding of their folder's check, so each card draws its rows alone. None by default. */
   projectNodeBodies: MockProjectNodeBodies;
   /** `?refusal=link_of_another_type|value_of_another_type`: the runtime's recorded refusal the mock replays for the first link made, or the first value set; none by default. */
   replayedRefusal: MockReplayedRefusal | null;
-  /** `?shell_sets_live=<number>`: a few seconds after the page opens, a shell sets the inverting effect's `amount` in `main` live to the number, as an agent's `transact` would; nothing is set by default. */
+  /** `?shell_sets_live=<number>`: a few seconds after the page opens, a shell sets the kaleidoscope's `spin` in `main` live to the number, as an agent's `transact` would; nothing is set by default. */
   valueAShellSetsLive: number | null;
-  /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the effect's output. */
+  /** `?compositor=layered`: `main` holds an alpha-over compositor of two layers on the folded lights. */
   isTheCompositorInMain: boolean;
   /** Whether the open project's main stream declares Graph Inputs, which Perform shows. */
   doesTheMainStreamDeclareGraphInputs: boolean;
-  /** `?subgraphs=generated`: `main` holds a graph generator's frozen output. */
-  doesTheMainStreamHoldAGeneratedSubgraph: boolean;
   /** `?node_states=stopped`: every node of `main` that has a state reads `Stopped` once the stream settles, so none of its ports writes. */
   areTheMainStreamsNodesStopped: boolean;
   /** `?main_graph=every_pin_kind|every_pin_kind_with_a_warned_link|every_pin_kind_with_a_bundle|every_pin_kind_with_a_named_type|large`: `main` holds the graph recorded from streamlib's sample project that declares each kind of pin, that graph with a stand-in warning on its link from `beat.count` into `warmth.count`, that graph with a stand-in node with bundle pins, a member of one linked from `warmth.result`, that graph with the sample's `sweep` linked by its named type `nodes.sweep:Sweep` into `sweep_position`, as stand-ins, or 300 nodes of four inputs each and 450 links for the canvas measurements; either takes precedence over every other choice of `main`. */
@@ -328,7 +326,6 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     replayedRefusal: mockReplayedRefusalNamed(pageQuery.get("refusal")),
     valueAShellSetsLive: numberInTheQuery(pageQuery.get("shell_sets_live")),
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",
-    doesTheMainStreamHoldAGeneratedSubgraph: pageQuery.get("subgraphs") === "generated",
     mainGraph: mockMainGraphNamed(pageQuery.get("main_graph")),
     areTheMainStreamsNodesStopped: pageQuery.get("node_states") === "stopped",
   };

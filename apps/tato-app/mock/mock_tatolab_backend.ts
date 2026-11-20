@@ -17,22 +17,24 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     ...mockSettingsAndUpdatesBackendOf(simulation),
     ...mockNodeUiElementsBackendOf(mockTatolabOptions.nodeUiElementsListing, mockTatolabOptions.projectNodeBodies),
   } satisfies TatolabBackend;
-  if (mockTatolabOptions.valueAShellSetsLive !== null) setTheEffectsAmountLiveFromAShell(backend, mockTatolabOptions.valueAShellSetsLive);
+  if (mockTatolabOptions.valueAShellSetsLive !== null) setTheKaleidoscopesSpinLiveFromAShell(backend, mockTatolabOptions.valueAShellSetsLive);
   return backend;
 }
 
-/** The main stream of the mock's open project, which holds the inverting effect. */
-const MAIN_STREAM = "pattern-main-bcd55b";
 /** How long after the page opens the shell sets its value: once `main` is loaded and drawn. */
 const A_SHELL_SETS_THE_VALUE_AFTER_MILLISECONDS = 4_000;
 
-/** A shell outside the window sets the inverting effect's `amount` in `main` live to `value`, as an agent's `transact` does. */
-function setTheEffectsAmountLiveFromAShell(backend: TatolabBackend, value: number): void {
+/** A shell outside the window sets the kaleidoscope's `spin` in `main` live to `value`, as an agent's `transact` does. */
+function setTheKaleidoscopesSpinLiveFromAShell(backend: TatolabBackend, value: number): void {
   window.setTimeout(() => {
-    void backend.describeStreamGraph(MAIN_STREAM).then((graph) => {
-      const invert = graph.nodes.find((node) => node.name === "invertingeffect");
-      if (invert === undefined || graph.asset === undefined || graph.asset === null) return undefined;
-      return backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: graph.asset, node: invert.id, input: "amount", value }], "live", null);
-    });
+    void backend
+      .getTatolabStatus()
+      .then((status) => status.streams?.find((listed) => listed.display_name === "main")?.stream)
+      .then((mainStream) => (mainStream === undefined ? undefined : backend.describeStreamGraph(mainStream)))
+      .then((graph) => {
+        const kaleidoscope = graph?.nodes.find((node) => node.name === "kaleidoscope");
+        if (graph === undefined || kaleidoscope === undefined || graph.asset === undefined || graph.asset === null) return undefined;
+        return backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: graph.asset, node: kaleidoscope.id, input: "spin", value }], "live", null);
+      });
   }, A_SHELL_SETS_THE_VALUE_AFTER_MILLISECONDS);
 }
