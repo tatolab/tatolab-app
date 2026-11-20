@@ -33,6 +33,11 @@ function controlTemplateFor(pinTypeName: string): string {
   return readFileSync(path.join(kitFolder, "templates", "control.ts"), "utf8").replace('"PIN_TYPE_NAME"', JSON.stringify(pinTypeName));
 }
 
+/** The kit's node body template, written for the node type `nodeType`. */
+function nodeBodyTemplateFor(nodeType: string): string {
+  return readFileSync(path.join(kitFolder, "templates", "node_body.ts"), "utf8").replace('"NODE_TYPE_NAME"', JSON.stringify(nodeType));
+}
+
 /** A node UI manifest registering each of `controls`. */
 function nodeUiManifestOf(controls: readonly { type: string; script: string }[]): string {
   return JSON.stringify({ contract: "1.1", controls });
@@ -42,6 +47,19 @@ describe("checking an extension folder against the kit", () => {
   test("the kit's control template passes once its pin type is written, tied to the class type its manifest entry declares", () => {
     const answer = checkAnExtensionFolder(folderHolding({ "float_words.ts": controlTemplateFor("float"), "tatolab_node_ui.json": nodeUiManifestOf([{ type: "float", script: "float_words.ts" }]) }), kitFolder);
     expect(answer.compiler_printed).toBe("");
+    expect(answer.passed).toBe(true);
+  });
+
+  test("the kit's node body template passes once its node type is written, registered as its node type's body", () => {
+    const template = readFileSync(path.join(kitFolder, "templates", "node_body.ts"), "utf8");
+    expect(template).toContain('"NODE_TYPE_NAME"');
+    expect(template).not.toContain("customElements.define");
+    const answer = checkAnExtensionFolder(
+      folderHolding({ "crossfade_body.ts": nodeBodyTemplateFor("acme:Crossfade"), "tatolab_node_ui.json": JSON.stringify({ contract: "1.1", node_bodies: [{ node_type: "acme:Crossfade", script: "crossfade_body.ts" }] }) }),
+      kitFolder,
+    );
+    expect(answer.compiler_printed).toBe("");
+    expect(answer.linter_printed).toBe("");
     expect(answer.passed).toBe(true);
   });
 
