@@ -1,7 +1,7 @@
 // A view made with the view SDK, drawn in a frame of its own so its styles and the window's never
 // mix, its one channel to Studio the MessagePort its bridge answers. Every view runs with full access,
 // framed on the window's origin so its Image frames cross as `VideoFrame`s with no copy. A project
-// view whose newer version is blocked keeps its frame on the version that last passed, under a bar
+// view whose newer version is blocked keeps its frame on the version that last passed, over a bar
 // saying why the newer one is blocked; the frame keeps its URL, so it does not reload.
 
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
@@ -195,15 +195,20 @@ function WhereTheNodeViewsNodeIs({ viewTypeId, hostServices }: { viewTypeId: str
 }
 
 /**
- * The area of the view `listed` around `children`: the bar saying its newer version is blocked over them, while the Studio keeps
- * serving the version that last passed. The frame's place in the tree is the same with the bar or without, so it never reloads.
+ * The area of the view `listed` around `children`: the bar saying its newer version is blocked under them, while the Studio keeps
+ * serving the version that last passed, clear of the area's header row over the frame. The frame's place in the tree is the same
+ * with the bar or without, so it never reloads.
  */
-function TatolabViewUnderItsNotice({ listed, children }: { listed: ListedStudioView; children: ReactNode }) {
-  const newerVersionBlockedBecause = listed.newer_version_blocked_because;
+function TatolabViewOverItsNotice({ listed, children }: { listed: ListedStudioView; children: ReactNode }) {
+  const [keptLine = "", ...blockedLines] = listed.newer_version_blocked_because?.split("\n") ?? [];
   return (
     <div className="flex size-full flex-col">
-      {newerVersionBlockedBecause !== null && <RefusalLine tone="warning" layout="bar" words={newerVersionBlockedBecause} data-newer-version-blocked={listed.view_type_id} />}
       <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
+      {listed.newer_version_blocked_because !== null && (
+        <div className="border-t">
+          <RefusalLine tone="warning" layout="bar" lead={keptLine} words={blockedLines.join("\n")} data-newer-version-blocked={listed.view_type_id} />
+        </div>
+      )}
     </div>
   );
 }
@@ -217,13 +222,13 @@ export function tatolabFrameViewType(listed: ListedStudioView, manifest: Tatolab
     brought_by: broughtBy,
     manifest,
     renderInAnArea: (area, hostServices) => (
-      <TatolabViewUnderItsNotice listed={listed}>
+      <TatolabViewOverItsNotice listed={listed}>
         {manifest.placement === "area" ? (
           <TatolabViewFrame listed={listed} manifest={manifest} area={area} hostServices={hostServices} inputWiring={{}} viewNode={null} settingsHeld={area.saved_settings} />
         ) : (
           <TatolabNodeView listed={listed} manifest={manifest} area={area} hostServices={hostServices} />
         )}
-      </TatolabViewUnderItsNotice>
+      </TatolabViewOverItsNotice>
     ),
     renderWordsAfterTheViewTypeMenu:
       manifest.placement === "node" ? (hostServices) => <WhereTheNodeViewsNodeIs viewTypeId={listed.view_type_id} hostServices={hostServices} /> : undefined,
