@@ -3,7 +3,7 @@ import { cn } from "cn";
 import { Combine, Frame, Plus, Scan, Search, StickyNote, Workflow, ZoomIn, ZoomOut } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { RightClickMenu } from "./menus";
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
 import { ToolbarDivider, ToolbarGroup } from "./toolbar";
@@ -12,6 +12,7 @@ import { NodeGraphFindBar, NodeGraphNodesFoundContext } from "./node_graph_find_
 import { isPartOfTheGraphOutsideTheView } from "./support/node_graph_map_visibility";
 import { frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, placeClearBelowTheCards, type NodeGraphLinkMidpoint } from "./support/node_graph_editing";
 import { type NodeGraphCanvasNode, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasNote, type NodeGraphCanvasLink, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphCanvasCardMove, type NodeGraphCanvasEditing, type NodeGraphCardCode } from "./support/node_graph_canvas_contract";
+import { theDragCarriesANodeType, theNodeTypeTheDragCarries } from "./support/node_type_drag";
 import { NodeGraphCardView } from "./node_graph/node_card";
 import { pinTypeKeyOfTheLink } from "./support/node_graph_link_colour";
 import { rowKeyOfTheLinkEnd } from "../pin_model/node_pins";
@@ -486,6 +487,17 @@ function NodeGraphFlow({
               }}
               onPointerDownCapture={(event: ReactPointerEvent<HTMLDivElement>) => {
                 pointerRestsAt.current = canvasPointOf({ x: event.clientX, y: event.clientY });
+              }}
+              onDragOver={(event: ReactDragEvent<HTMLDivElement>) => {
+                if (editing === null || !theDragCarriesANodeType(event.dataTransfer)) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "copy";
+              }}
+              onDrop={(event: ReactDragEvent<HTMLDivElement>) => {
+                const nodeType = editing === null ? null : theNodeTypeTheDragCarries(event.dataTransfer);
+                if (editing === null || nodeType === null) return;
+                event.preventDefault();
+                editing.onNodeTypeDropped(nodeType, canvasPointOf({ x: event.clientX, y: event.clientY }));
               }}
               data-node-graph-editable={editing !== null || undefined}
             >

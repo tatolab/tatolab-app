@@ -75,7 +75,15 @@ function patternNodeTypes(isEveryOwnModuleUnreadable = false): ProjectNodeTypesD
     installedDistribution("camera", "0.1.0", [listed("camera.nodes:CameraTilt", "Camera")]),
     installedDistribution("lobby-recorder", "0.4.1", [listed("lobby_recorder.recording:LobbyRecorder", "Recording")]),
     installedDistribution("tatolab-testpattern", "0.3.2", [listed("tatolab.testpattern:TestPatternSource", "tatolab.testpattern")]),
-    { source: "built_in", node_types: [listed("tatolab.stream:ChannelsToRecords", null)], graph_generators: [], unreadable_modules: [] },
+    {
+      source: "built_in",
+      node_types: [
+        listed("tatolab.stream:ChannelsToRecords", null),
+        ...["SetVariable", "GetVariable", "GraphInput", "GraphOutput"].map((name) => ({ ...listed(`tatolab.stream:${name}`, "Graph"), kind: null, described_from: "built_in" as const })),
+      ],
+      graph_generators: [],
+      unreadable_modules: [],
+    },
   ];
   return {
     listing: { project_directory: `${STREAMS_FOLDER}/pattern`, project: "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90", project_name: "pattern", sources },
@@ -88,7 +96,7 @@ function patternNodeTypes(isEveryOwnModuleUnreadable = false): ProjectNodeTypesD
 }
 
 describe("the Library's tree", () => {
-  it("lists each source by its title, the project first, each node type under its category and each module that does not parse, and leaves the runtime's own node types out", () => {
+  it("lists each source by its title, the project first, each node type under its category and each module that does not parse, and of the runtime's own node types only those the graph resolves itself", () => {
     const rows = libraryTreeOfTheListing(patternNodeTypes(), {}, "node_types");
     expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label} ${row.expansion}`)).toEqual([
       "This project expanded",
@@ -104,6 +112,12 @@ describe("the Library's tree", () => {
       "camera 0.1.0 collapsed",
       "lobby-recorder 0.4.1 collapsed",
       "tatolab-testpattern 0.3.2 collapsed",
+      "Built in expanded",
+      "  Graph expanded",
+      "    GetVariable leaf",
+      "    GraphInput leaf",
+      "    GraphOutput leaf",
+      "    SetVariable leaf",
     ]);
   });
 

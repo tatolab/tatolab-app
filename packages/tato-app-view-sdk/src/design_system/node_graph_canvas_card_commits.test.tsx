@@ -72,6 +72,7 @@ function editingOfAReading(): NodeGraphCanvasEditing {
     onPinsWired: vi.fn(),
     onWireLetGoOverTheCanvas: vi.fn(),
     onNodeAskedFor: vi.fn(),
+    onNodeTypeDropped: vi.fn(),
     onNoteAskedFor: vi.fn(),
     onDeleted: vi.fn(),
     onFrameAskedFor: applied,

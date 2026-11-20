@@ -176,6 +176,8 @@ export interface NodeGraphCanvasEditing {
   onWireLetGoOverTheCanvas(looseWire: NodeGraphCanvasDraggedPin, at: NodeGraphCanvasPoint): void;
   /** Tab pressed over the canvas, to place a node where the pointer rests, or Add node pressed, to place one in the middle of the view. */
   onNodeAskedFor(at: NodeGraphCanvasPoint): void;
+  /** A node type dragged in from a list of node types and let go of over the canvas, to place a node of it there. */
+  onNodeTypeDropped(nodeType: string, at: NodeGraphCanvasPoint): void;
   /** Note pressed, to place a note in the middle of the view. */
   onNoteAskedFor(at: NodeGraphCanvasPoint): void;
   /** The selected cards, links and notes, deleted with Backspace or Delete. */
