@@ -1,7 +1,9 @@
 // A stream's inputs as Perform lists them: each top-level `GraphInput` the runtime's `graph` renders
 // back, by the port it declares and the family it carries, with its own `value` input, where Perform
-// sets its value with `set_node_input_value` as every surface sets a node's, and the control Perform
-// draws there while the control table has none for it.
+// sets its value with `set_node_input_value` as every surface sets a node's. The control table picks
+// that input's control by the pin type the Graph Input chose and the annotations `graph` serves on
+// it, such as the `control` it names; while it picks none, as for an Input saved before it chose a
+// type, Perform draws its own field.
 
 import type { GraphAddress, InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { PinAnnotations } from "@tatolab/tato-app-view-sdk/pin_type_readings";
@@ -45,7 +47,7 @@ export interface GraphInputOfTheStream {
   readonly value_address: InputAddress | null;
   /** The exact type and flow of its `value` input; `null` while the runtime serves none. */
   readonly value_pin: StreamGraphPortPin | null;
-  /** What the node type annotates of its `value` input, as every surface reads a node's inputs. */
+  /** What `graph` serves as the annotations of its `value` input, those its settings state, as every surface reads a node's inputs. */
   readonly value_annotations: PinAnnotations;
   readonly lifetime: GraphInputLifetime;
   readonly range: GraphInputRange | null;
@@ -63,8 +65,8 @@ export function graphInputsOfTheStream(graph: StreamGraph, valuesAt: GraphAddres
       const declaredDefault = config["default"] ?? config[GRAPH_INPUT_VALUE_INPUT] ?? null;
       const declared = graphInterfacePortOfTheNode(node);
       const familyDeclared = declared?.family ?? (typeof family === "string" ? family : null);
-      const rangeDeclared = graphInputRangeFrom(range);
       const valueInput = nodeInputs(graph, node, undefined, valuesAt, null).find((input) => input.name === GRAPH_INPUT_VALUE_INPUT);
+      const rangeDeclared = graphInputRangeOfTheAnnotations(valueInput?.annotations ?? {}) ?? graphInputRangeFrom(range);
       return {
         node_id: node.id,
         port_name: declared?.port ?? (typeof port === "string" && port !== "" ? port : node.name),
@@ -83,6 +85,16 @@ export function graphInputsOfTheStream(graph: StreamGraph, valuesAt: GraphAddres
 function graphInputRangeFrom(range: JsonValue | undefined): GraphInputRange | null {
   if (!Array.isArray(range) || range.length !== 2) return null;
   const [lowest, highest] = range;
+  return graphInputRangeBetween(lowest, highest);
+}
+
+/** The span the `range` annotation `graph` serves on a Graph Input's `value` states, `null` unless it states both ends, the lowest first. */
+function graphInputRangeOfTheAnnotations(annotations: PinAnnotations): GraphInputRange | null {
+  return graphInputRangeBetween(annotations.range?.minimum, annotations.range?.maximum);
+}
+
+/** The span from `lowest` to `highest`, `null` unless both are finite numbers, the lowest first. */
+function graphInputRangeBetween(lowest: unknown, highest: unknown): GraphInputRange | null {
   if (typeof lowest !== "number" || typeof highest !== "number" || !Number.isFinite(lowest) || !Number.isFinite(highest) || highest <= lowest) return null;
   return { lowest, highest };
 }

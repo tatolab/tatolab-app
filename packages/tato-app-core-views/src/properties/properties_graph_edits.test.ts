@@ -133,6 +133,49 @@ test("a promotion takes the first free name, names no family where the input nam
   expect(promoteToGraphInput("asset", { node: glow, input: aPort("tint", null), valueShown: null, isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set() })[0]).not.toHaveProperty("config.family");
 });
 
+test("promoting a typed input chooses its pin type and states its annotations as the Graph Input's settings, carrying the value it shows as its default", () => {
+  const caption = { id: "id-caption", name: "caption" };
+  const lines = aGraphPort("lines", "channels", {
+    pin_type: { type: "integer" },
+    flow: "value",
+    annotations: { range: { minimum: 1, maximum: 8 }, step: 1, unit: "lines", meaning: "count", control: "dial", project_asset: null },
+    value: 2,
+    value_comes_from: "saved",
+  });
+  expect(promoteToGraphInput("asset", { node: caption, input: lines, valueShown: 3, isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set(["caption"]) })).toEqual([
+    {
+      operation: "add_node",
+      stream: "asset",
+      type: "tatolab.stream:GraphInput",
+      name: "caption_lines",
+      config: { port: "caption_lines", pin_type: { type: "integer" }, family: "channels", range: [1, 8], step: 1, unit: "lines", meaning: "count", control: "dial", default: 3 },
+      as: "graph_input",
+    },
+    { operation: "connect", stream: "asset", source: { node: "graph_input", port: "value" }, target: { node: "id-caption", port: "lines" } },
+  ]);
+
+  const align = aGraphPort("align", "records", { pin_type: { type: "menu", option_names: ["left", "centre", "right"] }, flow: "value", annotations: { control: "segmented" } });
+  expect(promoteToGraphInput("asset", { node: caption, input: align, valueShown: "centre", isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set() })[0]).toMatchObject({
+    config: { port: "caption_align", pin_type: { type: "menu", option_names: ["left", "centre", "right"] }, family: "records", control: "segmented", default: "centre" },
+  });
+});
+
+test("a promoted input's annotations are left out where a Graph Input takes none: a range of one end, below a stream's own level, and on a type no client sets or no port carries", () => {
+  const caption = { id: "id-caption", name: "caption" };
+  const size = aGraphPort("size", "channels", { pin_type: { type: "float" }, flow: "value", annotations: { range: { maximum: 2 }, control: "dial" } });
+  const configOf = (input: StreamGraphPort, isOnTheStreamsOwnLevel: boolean) => promoteToGraphInput("asset", { node: caption, input, valueShown: 1, isOnTheStreamsOwnLevel, nodeNamesTaken: new Set() })[0];
+
+  expect(configOf(size, true)).toMatchObject({ config: { port: "caption_size", pin_type: { type: "float" }, control: "dial", default: 1 } });
+  expect(configOf(size, true)).not.toHaveProperty("config.range");
+  expect(configOf(size, false)).toEqual({ operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "caption_size", config: { port: "caption_size", pin_type: { type: "float" }, family: "channels" }, as: "graph_input" });
+
+  const preview = aGraphPort("preview", "image", { pin_type: { type: "texture" }, flow: "stream", annotations: { control: "preview" } });
+  expect(configOf(preview, true)).toEqual({ operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "caption_preview", config: { port: "caption_preview", pin_type: { type: "texture" }, family: "image" }, as: "graph_input" });
+
+  const points = aGraphPort("points", "records", { pin_type: { type: "list_of", element_type: { type: "float" } }, flow: "value", annotations: { control: "list" } });
+  expect(configOf(points, true)).toEqual({ operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "caption_points", config: { port: "caption_points", family: "records" }, as: "graph_input" });
+});
+
 test("taking out the link that drives an input disconnects it by both nodes' UUIDs", () => {
   const camera = aNode("camera", [], [aPort("frames", "image")]);
   const glow = aNode("glow", [aPort("video", "image")], []);

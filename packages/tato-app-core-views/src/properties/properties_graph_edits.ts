@@ -1,8 +1,10 @@
 // What Properties sends the runtime for each edit of the graph, and what it shows of a node's links. A
 // value set on an input or a setting goes through the frame's store of input values, never from here.
 
-import type { PinAnnotations } from "@tatolab/tato-app-view-sdk/pin_type_readings";
-import { familyOfThePort, type JsonValue, type NodeTypeDescription, type StreamGraph, type StreamGraphAction, type StreamGraphLink, type StreamGraphNode, type StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { BuiltInPinTypeName, PinAnnotations, PinType } from "@tatolab/tato-app-view-sdk/pin_type_readings";
+import type { PinValues } from "@tatolab/tato-app-view-sdk/pin_types";
+import { FAMILY_CARRYING_A_PIN_OF } from "@tatolab/tato-app-view-sdk/port_families";
+import { familyOfThePort, isAJsonValue, type JsonValue, type NodeTypeDescription, type StreamGraph, type StreamGraphAction, type StreamGraphLink, type StreamGraphNode, type StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { GRAPH_INPUT_NODE_TYPE } from "../controls/graph_inputs_of_the_stream";
 import { recordsOfAListField, type ConfigFormField, type JsonObject } from "./config_form_fields";
 
@@ -158,7 +160,7 @@ export function exposeTheConfigFieldAsAGraphInput(stream: string, node: Pick<Str
 /** What a promotion reads of the input it promotes, and of the level of the graph it is at. */
 export interface InputToPromote {
   node: Pick<StreamGraphNode, "id" | "name">;
-  input: Pick<StreamGraphPort, "name" | "family">;
+  input: Pick<StreamGraphPort, "name" | "family" | "pin_type" | "annotations">;
   /** The value the input shows now, which a value set live since the graph was read has changed in no reading. */
   valueShown: JsonValue | null;
   /** Whether the node is on the stream's own level, where a Graph Input is written by a client and carries a default. */
@@ -167,20 +169,49 @@ export interface InputToPromote {
   nodeNamesTaken: ReadonlySet<string>;
 }
 
+/** The built-in types a Graph Input chooses that hold a value a client sets, so a stream's own Input of one takes a default and the annotations of its `value`. */
+const PIN_TYPES_A_CLIENT_SETS: ReadonlySet<BuiltInPinTypeName> = new Set(["boolean", "integer", "float", "string", "menu", "color", "vector", "rectangle", "transform", "asset"] satisfies (keyof PinValues)[]);
+
+/** The pin type a Graph Input feeding an input of `pinType` chooses: that type, where a stream's port carries it; `null` for none, or one no port carries, such as a List, which leaves the Graph Input to its family. */
+function pinTypeAGraphInputChooses(pinType: PinType | undefined): (PinType & JsonValue) | null {
+  return pinType !== undefined && FAMILY_CARRYING_A_PIN_OF[pinType.type] !== null && isAJsonValue(pinType) ? pinType : null;
+}
+
+/** The settings of a Graph Input that state `annotations` of its `value`, each by the annotation's name: a range of both ends as `[lowest, highest]`, a step, a unit, a meaning and a control. */
+function graphInputSettingsOfTheAnnotations(annotations: PinAnnotations): JsonObject {
+  const settings: JsonObject = {};
+  const minimum = annotations.range?.minimum;
+  const maximum = annotations.range?.maximum;
+  if (typeof minimum === "number" && typeof maximum === "number") settings["range"] = [minimum, maximum];
+  if (typeof annotations.step === "number") settings["step"] = annotations.step;
+  for (const key of ["unit", "meaning", "control"] as const) {
+    const annotated = annotations[key];
+    if (typeof annotated === "string") settings[key] = annotated;
+  }
+  return settings;
+}
+
 /**
  * One transaction that feeds an input from a new Graph Input of its level, named `<node>_<input>`, or with the first
- * free number after it, so a promotion never takes a name a node already goes by. The Graph Input declares the input's
- * family where it names one, otherwise the link gives it its own; on a stream's own level, a Channels input's number
- * value becomes the Graph Input's default, so promoting it changes nothing the node reads.
+ * free number after it, so a promotion never takes a name a node already goes by. The Graph Input chooses the input's
+ * pin type where a stream's port carries it, and declares the input's family where it names one, otherwise the link
+ * gives it its own. On a stream's own level, a Graph Input of a type that holds a value states the input's annotations
+ * as its settings, so its `value` takes the control the input's author named, and takes the value the input shows as
+ * its default, as one of no type does a Channels input's number, so promoting it changes nothing the node reads.
  */
 export function promoteToGraphInput(stream: string, { node, input, valueShown, isOnTheStreamsOwnLevel, nodeNamesTaken }: InputToPromote): StreamGraphAction[] {
   const nameWanted = `${node.name}_${input.name}`;
   let graphInputName = nameWanted;
   for (let number = 2; nodeNamesTaken.has(graphInputName); number += 1) graphInputName = `${nameWanted}_${number}`;
   const graphInputConfig: JsonObject = { port: graphInputName };
+  const pinType = pinTypeAGraphInputChooses(input.pin_type);
+  if (pinType !== null) graphInputConfig["pin_type"] = pinType;
   const family = familyOfThePort(input);
   if (family !== null) graphInputConfig["family"] = family;
-  if (isOnTheStreamsOwnLevel && family === "channels" && typeof valueShown === "number") graphInputConfig["default"] = valueShown;
+  const holdsAValueAClientSets = isOnTheStreamsOwnLevel && pinType !== null && PIN_TYPES_A_CLIENT_SETS.has(pinType.type);
+  if (holdsAValueAClientSets) Object.assign(graphInputConfig, graphInputSettingsOfTheAnnotations(input.annotations ?? {}));
+  const takesTheValueShown = holdsAValueAClientSets ? valueShown !== null : isOnTheStreamsOwnLevel && pinType === null && family === "channels" && typeof valueShown === "number";
+  if (takesTheValueShown && valueShown !== null) graphInputConfig["default"] = valueShown;
   return [
     { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
     { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: input.name } },
