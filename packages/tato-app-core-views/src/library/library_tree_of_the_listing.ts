@@ -1,10 +1,10 @@
 // The Library's tree of node types or of graph generators, derived from the open project's node
-// types as `list_node_types` lists them: a heading per source, the project's own code first, the
-// runtime's built-in node types left out. Node types sit under their categories beside the modules
-// that do not parse; generators sit straight under their source, and a source that declares none is
-// left out.
+// types as `list_node_types` lists them: a heading per source, the project's own code first, and of
+// the runtime's built-in node types only those the graph resolves itself, which have no kind since
+// no node code runs them. Node types sit under their categories beside the modules that do not
+// parse; generators sit straight under their source, and a source that declares none is left out.
 
-import type { NodeTypeDescribedOrWhyNot, ProjectNodeTypesDescribed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { NodeTypeDescribedOrWhyNot, NodeTypeSourceListed, ProjectNodeTypesDescribed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import {
   nodeTypeSourceChildren,
   nodeTypeSourceKey,
@@ -30,8 +30,8 @@ export function libraryTreeOfTheListing(
 ): ShownStudioTreeRow<LibraryRowMeaning>[] {
   const { listing } = nodeTypes;
   const describedByType = new Map<string, NodeTypeDescribedOrWhyNot>(nodeTypes.described.map((described) => [described.node_type, described]));
-  const sourceNodes = listing.sources.flatMap((source): StudioTreeNode<LibraryRowMeaning>[] => {
-    if (source.source === "built_in") return [];
+  const sourceNodes = listing.sources.map(theSourceTheLibraryShows).flatMap((source): StudioTreeNode<LibraryRowMeaning>[] => {
+    if (source === null) return [];
     const sourceRowId = `source:${nodeTypeSourceKey(source)}`;
     const sourceTitle = nodeTypeSourceTitle(source);
     const children = nodeTypeSourceChildren(source, describedByType, sourceRowId, sourceTitle, listing.project_directory, declarationsShown);
@@ -56,4 +56,11 @@ export function libraryTreeOfTheListing(
     ];
   });
   return shownStudioTreeRows(sourceNodes, expansionChoices);
+}
+
+/** `source` as the Library lists it: whole, or for the runtime's built-in node types only those with no kind, which the graph resolves itself; `null` for a built-in source holding none. */
+function theSourceTheLibraryShows(source: NodeTypeSourceListed): NodeTypeSourceListed | null {
+  if (source.source !== "built_in") return source;
+  const nodeTypesOfTheGraphItself = source.node_types.filter((nodeType) => nodeType.kind === undefined || nodeType.kind === null);
+  return nodeTypesOfTheGraphItself.length === 0 ? null : { ...source, node_types: nodeTypesOfTheGraphItself, graph_generators: [], unreadable_modules: [] };
 }
