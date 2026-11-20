@@ -77,6 +77,7 @@ function editingOfAReading(): NodeGraphCanvasEditing {
     onFrameAskedFor: applied,
     onSubgraphAskedFor: vi.fn(),
     onNoteChanged: applied,
+    onTidiedUp: applied,
     onFrameChanged: vi.fn(),
     onFrameRemoved: vi.fn(),
     onCardCollapsed: vi.fn(),

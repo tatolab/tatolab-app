@@ -190,6 +190,8 @@ export interface NodeGraphCanvasEditing {
   onCardCollapsed(nodeId: string, collapsed: boolean): void;
   /** A bundle pin's chevron pressed, to show a row for each of its members or fold them back into the bundle's row. */
   onBundleOpened(nodeId: string, side: "input" | "output", pin: string, open: boolean): void;
+  /** Tidy up pressed: the selected cards, or every card and note when none is selected, each at the new top-left corner it was laid out at, in its frame still; one gesture. */
+  onTidiedUp(places: { cards: readonly NodeGraphCanvasCardMove[]; notes: readonly { note_id: string; position: NodeGraphPosition }[] }): Promise<NodeGraphCanvasEditAnswer>;
   /** A note's text edited, or the note moved or resized. */
   onNoteChanged(noteId: string, change: { text?: string; position?: NodeGraphPosition; size?: { width: number; height: number } }): Promise<NodeGraphCanvasEditAnswer>;
 }

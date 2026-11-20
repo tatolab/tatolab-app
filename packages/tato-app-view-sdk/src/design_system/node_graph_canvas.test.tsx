@@ -60,6 +60,7 @@ function editingRecorded() {
     onFrameAskedFor: applied,
     onSubgraphAskedFor: vi.fn(),
     onNoteChanged: applied,
+    onTidiedUp: applied,
     onFrameChanged,
     onFrameRemoved,
     onCardCollapsed,
@@ -359,18 +360,63 @@ describe("the node graph canvas while it takes edits", () => {
     expect(onNodeAskedFor).toHaveBeenCalledWith(expect.objectContaining({ in_the_element: { x: 120, y: 480 } }));
   });
 
-  it("draws Add node, Frame, Note and Subgraph, then Frame the whole graph and the zooms, in the graph's ribbon, Frame and Subgraph saying why they wait for a selection", async () => {
+  it("draws Add node, Frame, Note, Subgraph and Tidy up, then Frame the whole graph and the zooms, in the graph's ribbon, Frame and Subgraph saying why they wait for a selection", async () => {
     const { editing } = editingRecorded();
     const onNodeAskedFor = vi.fn();
     const { container } = drawnCanvas({ ...editing, onNodeAskedFor });
     const tool = (name: string) => container.querySelector<HTMLElement>(`[data-node-graph-tool="${name}"]`) ?? expect.unreachable(`no ${name}`);
     await vi.waitFor(() => tool("add_node"));
     expect(tool("add_note").closest('[role="toolbar"]')?.getAttribute("aria-label")).toBe("Stream graph tools");
-    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["add_node", "frame_selection", "add_note", "add_subgraph", "frame_all", "zoom_in", "zoom_out", "find"]);
+    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["add_node", "frame_selection", "add_note", "add_subgraph", "tidy_up", "frame_all", "zoom_in", "zoom_out", "find"]);
     expect(tool("frame_selection").getAttribute("aria-disabled")).toBe("true");
     expect(tool("add_subgraph").getAttribute("aria-label")).toBe("Collapse the selection into a subgraph: Select the nodes to collapse into a subgraph first");
     fireEvent.click(tool("add_node"));
     expect(onNodeAskedFor).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for every card's new place in its frame as one edit when Tidy up or Shift T is pressed with nothing selected", async () => {
+    const { editing } = editingRecorded();
+    const onTidiedUp = vi.fn(async () => "applied" as const);
+    const { container } = drawnCanvas({ ...editing, onTidiedUp });
+    const tidyUp = await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-tool="tidy_up"]') ?? expect.unreachable("no Tidy up"));
+    expect(tidyUp.getAttribute("aria-label")).toBe("Tidy up the graph");
+    fireEvent.click(tidyUp);
+    expect(onTidiedUp).toHaveBeenCalledTimes(1);
+    expect(onTidiedUp).toHaveBeenCalledWith({ cards: [{ node_id: "pattern", position: { x: 0, y: 0 }, frame_id: FRAME_ID }], notes: [] });
+    const canvas = container.querySelector<HTMLElement>("[data-node-graph-editable]") ?? expect.unreachable("no editable canvas");
+    fireEvent.keyDown(canvas, { key: "T", shiftKey: true });
+    expect(onTidiedUp).toHaveBeenCalledTimes(2);
+  });
+
+  it("holds the cards at the places Tidy up gives them, and puts them back where they were when the edit is refused", async () => {
+    const { editing } = editingRecorded();
+    let answer: (answer: "applied" | "refused") => void = () => undefined;
+    const onTidiedUp = vi.fn((_places: Parameters<NodeGraphCanvasEditing["onTidiedUp"]>[0]) => new Promise<"applied" | "refused">((resolve) => (answer = resolve)));
+    const upstream = { ...card("upstream", false), saved_position: { x: 600, y: 400 }, frame_id: null };
+    const downstream = { ...card("downstream", false), saved_position: { x: 0, y: 0 }, frame_id: null };
+    const { container } = render(
+      <NodeGraphCanvas
+        label="Stream graph"
+        nodes={[upstream, downstream]}
+        links={[{ link_id: "wire", source_node_id: "upstream", source_pin: "video_out", source_member: null, target_node_id: "downstream", target_pin: "video_in", target_member: null, look: "carrying", description: "wired", warning_words: [] }]}
+        frames={[]}
+        selectedNodeIds={[]}
+        onNodesSelected={vi.fn()}
+        editing={{ ...editing, onTidiedUp }}
+      />,
+    );
+    const placeOf = (nodeId: string) => container.querySelector<HTMLElement>(`.react-flow__node[data-id="${nodeId}"]`)?.style.transform;
+    await vi.waitFor(() => expect(placeOf("upstream")).toBe("translate(600px,400px)"));
+    fireEvent.click(container.querySelector<HTMLElement>('[data-node-graph-tool="tidy_up"]') ?? expect.unreachable("no Tidy up"));
+    const [places] = onTidiedUp.mock.calls[0] ?? expect.unreachable("Tidy up asked for nothing");
+    const upstreamPlace = places.cards.find((move) => move.node_id === "upstream")?.position ?? expect.unreachable("upstream not placed");
+    const downstreamPlace = places.cards.find((move) => move.node_id === "downstream")?.position ?? expect.unreachable("downstream not placed");
+    expect(upstreamPlace.x).toBeLessThan(downstreamPlace.x);
+    await vi.waitFor(() => expect(placeOf("upstream")).toBe(`translate(${upstreamPlace.x}px,${upstreamPlace.y}px)`));
+    expect(container.querySelector(".node-graph-canvas-tidying")).toBeTruthy();
+    await act(async () => answer("refused"));
+    await vi.waitFor(() => expect(placeOf("upstream")).toBe("translate(600px,400px)"));
+    expect(placeOf("downstream")).toBe("translate(0px,0px)");
   });
 
   it("offers Add node and Add note where the canvas is right-clicked, and Frame the whole graph", async () => {

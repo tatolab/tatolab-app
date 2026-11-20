@@ -11,6 +11,14 @@
 /* Zoomed out past reading them, a card's inline controls are hidden without taking their room, so no row changes height. The attribute is NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE in support/node_graph_flow_elements.ts. */
 .node-graph-canvas-zoomed-out [data-node-graph-inline-control] { visibility: hidden; }
 
+/* Tidy up: the cards, notes and frames glide to their new places, and the wires, drawn at the new places already, come back once they are there. */
+.node-graph-canvas .react-flow__edges { transition: opacity 160ms ease-out; }
+.node-graph-canvas-tidying .react-flow__node { transition: transform 320ms ease-in-out, width 320ms ease-in-out, height 320ms ease-in-out; }
+.node-graph-canvas-tidying .react-flow__edges { opacity: 0; transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .node-graph-canvas-tidying .react-flow__node { transition: none; }
+}
+
 .node-graph-card {
   overflow: visible;
   border: 1px solid var(--studio-graph-card-line);

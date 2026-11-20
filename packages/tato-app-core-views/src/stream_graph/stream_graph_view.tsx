@@ -327,6 +327,7 @@ function StreamGraphOfTheTab({
           if (selectionOfTheSubgraph !== null) select(selectionOfTheSubgraph);
         });
       },
+      onTidiedUp: (places) => sendTheStudioGesture([...cardsMovedEdits(editedGraph, places.cards), ...places.notes.flatMap((note) => noteChangedEdits(editedGraph, note.note_id, { position: note.position }))]),
       onNoteChanged: (noteId, change) => sendTheGestureAtTheLevelShown(noteChangedEdits(editedGraph, noteId, change)),
       onFrameChanged: (frameId, change) => void sendTheGestureAtTheLevelShown(frameChangedEdits(editedGraph, frameId, change)),
       onFrameRemoved: (frameId) => void sendTheGestureAtTheLevelShown(frameRemovedEdits(editedGraph, frameId)),

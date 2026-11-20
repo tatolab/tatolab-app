@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { NodeChange, ReactFlowInstance } from "@xyflow/react";
 import { failureWordsTheCardShows } from "../node_graph/node_card";
-import { layOutNodeGraph, nodeGraphCardHeight, type NodeGraphLayoutLink, type NodeGraphPosition } from "./node_graph_layout";
+import { layOutNodeGraph, nodeGraphCardHeight, type NodeGraphLayoutLink, type NodeGraphLayoutNode, type NodeGraphPosition } from "./node_graph_layout";
 import type { NodeGraphCanvasCardMove, NodeGraphCanvasEditing, NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCanvasNote, NodeGraphCanvasViewport } from "./node_graph_canvas_contract";
 import type { NodeGraphFlowNode } from "./node_graph_flow_elements";
 import { type HeldPositionById, type NodeGraphNoteSize, samePosition, onTheCanvasPixel, inCanvasPixels, sameSize, heldValuesNotShownYet, withEntriesSet, withoutTheIds } from "./node_graph_held_layout";
@@ -38,12 +38,25 @@ function nodeGraphShapeKey(
 }
 
 /** A link as the layout reads it: from the row it starts at to the row it ends at, a member's while its card shows the member. */
-function layoutLinkOf(link: NodeGraphCanvasLink, nodeById: ReadonlyMap<string, NodeGraphCanvasNode>): NodeGraphLayoutLink {
+export function layoutLinkOf(link: NodeGraphCanvasLink, nodeById: ReadonlyMap<string, NodeGraphCanvasNode>): NodeGraphLayoutLink {
   return {
     source_node_id: link.source_node_id,
     source_pin: rowKeyOfTheLinkEnd(nodeById.get(link.source_node_id)?.outputs ?? [], link.source_pin, link.source_member),
     target_node_id: link.target_node_id,
     target_pin: rowKeyOfTheLinkEnd(nodeById.get(link.target_node_id)?.inputs ?? [], link.target_pin, link.target_member),
+  };
+}
+
+/** A card as the layout reads it: its rows as shown, and its size as measured, or the narrowest width and the height its rows take before it is. */
+export function layoutNodeOf(node: NodeGraphCanvasNode, measuredSize: { width: number; height: number } | undefined): NodeGraphLayoutNode {
+  return {
+    node_id: node.node_id,
+    input_pin_names: nodePinsShown(node.inputs).map(nodePinRowKey),
+    output_pin_names: nodePinsShown(node.outputs).map(nodePinRowKey),
+    shows_failure_words: failureWordsTheCardShows(node) !== null,
+    is_collapsed: node.is_collapsed,
+    card_width: measuredSize?.width ?? NODE_GRAPH_CARD_SMALLEST_WIDTH,
+    card_height: measuredSize?.height ?? null,
   };
 }
 
@@ -98,15 +111,7 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
       isEveryCardPlaced
         ? new Map()
         : layOutNodeGraph(
-            nodes.map((node) => ({
-              node_id: node.node_id,
-              input_pin_names: nodePinsShown(node.inputs).map(nodePinRowKey),
-              output_pin_names: nodePinsShown(node.outputs).map(nodePinRowKey),
-              shows_failure_words: failureWordsTheCardShows(node) !== null,
-              is_collapsed: node.is_collapsed,
-              card_width: (isLaidOutOnMeasuredSizes ? measuredCardSizes.sizeByNode.get(node.node_id)?.width : undefined) ?? NODE_GRAPH_CARD_SMALLEST_WIDTH,
-              card_height: (isLaidOutOnMeasuredSizes ? measuredCardSizes.sizeByNode.get(node.node_id)?.height : undefined) ?? null,
-            })),
+            nodes.map((node) => layoutNodeOf(node, isLaidOutOnMeasuredSizes ? measuredCardSizes.sizeByNode.get(node.node_id) : undefined)),
             links.map((link) => layoutLinkOf(link, nodeById)),
           ),
     [isEveryCardPlaced, nodes, links, nodeById, isLaidOutOnMeasuredSizes, measuredCardSizes],
@@ -178,7 +183,10 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
     setHeldCardPositions((held) => withoutTheIds(held, nodeIds));
     setHeldCardFrames((held) => withoutTheIds(held, nodeIds));
   }, []);
-  const releaseTheHeldNotePosition = useCallback((noteId: string) => setHeldNotePositions((held) => withoutTheIds(held, [noteId])), []);
+  const holdTheNoteMoves = useCallback((moves: readonly { note_id: string; position: NodeGraphPosition }[]) => {
+    setHeldNotePositions((held) => withEntriesSet(held, moves.map((move) => ({ id: move.note_id, value: move.position }))));
+  }, []);
+  const releaseTheHeldNotePositions = useCallback((noteIds: readonly string[]) => setHeldNotePositions((held) => withoutTheIds(held, noteIds)), []);
 
   const keepTheResizedNote = useCallback(
     (noteId: string, resized: NodeGraphPosition & NodeGraphNoteSize) => {
@@ -196,5 +204,5 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
     [editing],
   );
 
-  return { cardSizeByNode, isLaidOutOnMeasuredSizes, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, releaseTheHeldNotePosition, keepTheResizedNote };
+  return { cardSizeByNode, isLaidOutOnMeasuredSizes, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, holdTheNoteMoves, releaseTheHeldNotePositions, keepTheResizedNote };
 }

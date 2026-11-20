@@ -56,3 +56,35 @@ test("a card measured taller than its rows, as one whose controls grow its rows,
   const positions = layOutNodeGraph([{ ...card("a", [], ["x"]), card_height: 300 }, card("b", [], ["x"])], []);
   expect((positions.get("b")?.y ?? 0) - (positions.get("a")?.y ?? 0)).toBeGreaterThanOrEqual(300);
 });
+
+test("a_node_nothing_feeds_sits_in_the_column_just_before_the_first_node_it_feeds", () => {
+  const positions = layOutNodeGraph(
+    [card("camera", [], ["video"]), card("blur", ["video"], ["video"]), card("mix", ["video", "amount"], ["video"]), card("amount", [], ["value"])],
+    [
+      { source_node_id: "camera", source_pin: "video", target_node_id: "blur", target_pin: "video" },
+      { source_node_id: "blur", source_pin: "video", target_node_id: "mix", target_pin: "video" },
+      { source_node_id: "amount", source_pin: "value", target_node_id: "mix", target_pin: "amount" },
+    ],
+  );
+  expect(positions.get("amount")?.x).toBe(positions.get("blur")?.x);
+  expect(positions.get("amount")?.x).toBeGreaterThan(positions.get("camera")?.x ?? 0);
+});
+
+test("a_link_skipping_columns_keeps_a_lane_clear_past_the_cards_between", () => {
+  const positions = layOutNodeGraph(
+    [card("source", [], ["video"]), card("one", ["video"], ["video"]), card("two", ["video"], ["video"]), card("sink", ["video", "direct"], [])],
+    [
+      { source_node_id: "source", source_pin: "video", target_node_id: "one", target_pin: "video" },
+      { source_node_id: "one", source_pin: "video", target_node_id: "two", target_pin: "video" },
+      { source_node_id: "two", source_pin: "video", target_node_id: "sink", target_pin: "video" },
+      { source_node_id: "source", source_pin: "video", target_node_id: "sink", target_pin: "direct" },
+    ],
+  );
+  const height = nodeGraphCardHeight({ input_pin_names: ["video"], output_pin_names: ["video"], shows_failure_words: false, is_collapsed: false });
+  const sourceRowY = (positions.get("source")?.y ?? 0) + 26 + 6 + 12;
+  for (const between of ["one", "two"]) {
+    const top = positions.get(between)?.y ?? 0;
+    expect(sourceRowY < top || sourceRowY > top + height).toBe(true);
+  }
+  expect(positions.size).toBe(4);
+});
