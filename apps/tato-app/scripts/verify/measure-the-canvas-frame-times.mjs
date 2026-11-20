@@ -3,11 +3,11 @@
 // outside React. It reports each step's frame times and how many times a card rendered, counted from React's
 // commits through the DevTools hook (a function component's fiber that ran carries React's PerformedWork flag). The
 // window serves the core views as built for production, so the frame times are a production build's.
-// Usage: [CHROMIUM_EXECUTABLE=<path>] node measure-the-canvas-frame-times.mjs <the mock window's URL, as serve_the_mock_window_in_a_browser.mjs prints it>
+// Usage: [CHROMIUM_EXECUTABLE=<path>] node measure-the-canvas-frame-times.mjs <the mock window's URL, as serve_the_mock_window_in_a_browser.mjs prints it> [more of the mock's query, as `node_bodies=served`]
 import { NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_flow_elements";
 import { chromium } from "playwright";
 
-const [, , mockWindowUrl = "http://localhost:5173/"] = process.argv;
+const [, , mockWindowUrl = "http://localhost:5173/", moreOfTheQuery = ""] = process.argv;
 const FEED_VALUES_PER_FRAME = 200;
 const STEP_MILLISECONDS = 4000;
 
@@ -123,7 +123,7 @@ function summary(step, { frameTimes, cardRenders, pinRenders, cardsRendered }) {
 const browser = await chromium.launch({ executablePath: process.env["CHROMIUM_EXECUTABLE"] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 await page.addInitScript(countTheCardRenders);
-await page.goto(new URL("?main_graph=large", mockWindowUrl).toString());
+await page.goto(new URL(`?main_graph=large${moreOfTheQuery === "" ? "" : `&${moreOfTheQuery}`}`, mockWindowUrl).toString());
 // The window opens on the open project's main stream, its graph in the Stream graph view's frame.
 const canvasFrame = await (async () => {
   for (let attempt = 0; attempt < 120; attempt += 1) {

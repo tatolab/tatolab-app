@@ -5,6 +5,7 @@
 // while its control moves, since each value it takes rebuilds the node: it commits on release alone.
 // An input of a type only a wire carries, such as a Texture, holds no value: it takes a control only
 // where its node type's annotation names one, such as a preview, which shows what its wire carries.
+// A node body draws whichever of its node's inputs it states, each input whose type is exact, wired or not.
 
 import type { BuiltInPinTypeName, PinAnnotations, PinValues } from "../pin_types.js";
 import type { InputPinDeclaration } from "../node_ui/input_control_element.js";
@@ -66,4 +67,45 @@ export function takesAControl(input: InputAControlMayDraw): ControlledInput | nu
 /** Whether `before` and `after` are the same input under the same declaration, wired the same, so a control drawn for one stays for the other. */
 export function areTheSameControlledInput(before: ControlledInput, after: ControlledInput): boolean {
   return jsonTextOf([before.address, before.declaration, before.rebuilds_its_node, before.driven_by]) === jsonTextOf([after.address, after.declaration, after.rebuilds_its_node, after.driven_by]);
+}
+
+/**
+ * One input as a node body is told of it: its declaration, where a person sets it (`null` for one a link feeds or that holds no
+ * value of its own), whether a change of it rebuilds its node, and what it reads through its wire, `null` where it reads none.
+ */
+export interface InputOfANodeBody {
+  readonly declaration: ControlledInput["declaration"];
+  readonly value_address: InputAddress | null;
+  readonly rebuilds_its_node: boolean;
+  readonly wiring: InputWiring | null;
+}
+
+/** The node a body draws: its node type, the project its stream is in, and each of its inputs whose type is exact, which is each one a body may draw. */
+export interface NodeOfABody {
+  readonly node_type: string;
+  readonly project_folder: string;
+  readonly inputs: readonly InputOfANodeBody[];
+}
+
+/**
+ * The node of `nodeType` whose inputs are `inputs`, as a body draws it, each input whose type is exact, wired or not; `null` outside
+ * a stream's graph, where no input of it is addressed, so no body draws it.
+ */
+export function nodeOfABody(nodeType: string, inputs: readonly InputAControlMayDraw[]): NodeOfABody | null {
+  const projectFolder = inputs.map((input) => (input.value_address ?? input.wire?.into ?? null)?.graph.project_folder).find((folder) => folder !== undefined);
+  if (projectFolder === undefined) return null;
+  return {
+    node_type: nodeType,
+    project_folder: projectFolder,
+    inputs: inputs.flatMap((input) =>
+      input.pin === null
+        ? []
+        : [{ declaration: declarationOfTheInput(input, input.pin), value_address: input.value_address, rebuilds_its_node: doesAChangeRebuildTheNode(input), wiring: input.wire?.wiring ?? null }],
+    ),
+  };
+}
+
+/** Whether `before` and `after` are the same node to a body, so a body drawn for one stays for the other and is only told its inputs again. */
+export function areTheSameNodeOfABody(before: NodeOfABody, after: NodeOfABody): boolean {
+  return before === after || jsonTextOf(before) === jsonTextOf(after);
 }

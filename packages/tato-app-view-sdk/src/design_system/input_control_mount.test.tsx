@@ -27,6 +27,9 @@ function binderUnderTest() {
     bindOwnField: () => {
       throw new Error("the slot binds no own field");
     },
+    bindNodeBody: () => {
+      throw new Error("the slot binds no node body");
+    },
   };
   const show = (shown: InputControlShown) =>
     act(() => {

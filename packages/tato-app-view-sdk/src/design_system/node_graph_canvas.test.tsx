@@ -25,6 +25,7 @@ function card(nodeId: string, isCollapsed: boolean): NodeGraphCanvasNode {
     node_id: nodeId,
     title: nodeId,
     type_name: null,
+    node_type: null,
     description: "Passes each frame through.",
     condition: { look: "healthy" },
     inputs: [
