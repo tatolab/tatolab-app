@@ -297,7 +297,7 @@ function StreamGraphOfTheTab({
     return {
       onCardsMoved: (moves, cardLetGoOverALink) =>
         sendTheStudioGesture([
-          ...(cardLetGoOverALink === null ? [] : cardLetGoOverALinkEdits(editedGraph, cardLetGoOverALink.node_id, cardLetGoOverALink.link_id)),
+          ...(cardLetGoOverALink === null ? [] : cardLetGoOverALinkEdits(editedGraph, describedByType, cardLetGoOverALink.node_id, cardLetGoOverALink.link_id)),
           ...cardsMovedEdits(editedGraph, moves),
         ]),
       fitsOfAWireFrom: async (draggedOff) => {
@@ -335,7 +335,7 @@ function StreamGraphOfTheTab({
       onCardCollapsed: (nodeId, collapsed) => void sendTheStudioGesture(cardCollapsedEdits(editedGraph, nodeId, collapsed)),
       onBundleOpened: (nodeId, side, pin, open) => void sendTheStudioGesture(bundleOpenedEdits(editedGraph, nodeId, side, pin, open)),
     };
-  }, [importedProjectName, editedGraph, sendTheGestureAtTheLevelShown, sendTheStudioGesture, select, streamTab.stream, keepWhereTheStreamWasLeft, levelOfTheEdits, connection, projectFolder]);
+  }, [importedProjectName, editedGraph, describedByType, sendTheGestureAtTheLevelShown, sendTheStudioGesture, select, streamTab.stream, keepWhereTheStreamWasLeft, levelOfTheEdits, connection, projectFolder]);
   const editingOfTheLevelShown = subgraphKeepingTheLevelReadOnly === null ? editing : null;
   const sendTheSubgraphGesture = useCallback(
     (depth: number, actionsOf: (edited: EditedStreamGraph, subgraphName: string) => StreamGraphAction[], returnsToItsLevel: boolean) => {

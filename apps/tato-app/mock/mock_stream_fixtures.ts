@@ -33,11 +33,6 @@ export function mockNodeIdOf(streamId: string, nodeName: string): string {
   return `P${fnv1aHashOf(name).toString(36).padStart(7, "0")}${name.length.toString(36)}mockgraph`.slice(0, 26);
 }
 
-/** Whether a link may end at the input `port` of `node`, as `graph` marks it: as its recording marks it, else, as the runtime marks it, at every input but one of a Graph Input, each of which is a setting taking no wire. */
-export function doesTheMockInputTakeAWire(node: Pick<MockGraphNode, "type">, port: Pick<MockGraphPort, "takes_a_wire">): boolean {
-  return port.takes_a_wire ?? node.type !== "tatolab.stream:GraphInput";
-}
-
 /** The id the graph names `node` of the stream `streamId` by: its own name's, or the one it kept through a rename. */
 export function mockGraphNodeIdOf(streamId: string, node: Pick<MockGraphNode, "name" | "id_kept_through_renames">): string {
   return node.id_kept_through_renames ?? mockNodeIdOf(streamId, node.name);
@@ -131,7 +126,7 @@ export interface MockGraphPort {
   member_reads?: MockMemberRead[];
   /** What its pin states besides its type, as `graph` serves it; absent where it states none. */
   annotations?: NonNullable<StreamGraphPort["annotations"]>;
-  /** On an input, whether a link may end at it, as a recording of `graph` marks it; absent where it marks none. */
+  /** On an input, whether a link may end at it, as `graph` marks it; absent where the recording it comes from, made before the runtime marked inputs, marks none. */
   takes_a_wire?: boolean;
 }
 
@@ -364,7 +359,7 @@ const EXTRA_GRAPH_INPUTS: MockGraphNode[] = [
  * type, since it carries any value of its family, reading `savedValue`, the value the graph document saves for it, while nothing sets it.
  */
 function graphInputValueInput(family: PortFamily, savedValue: JsonValue): MockGraphPort {
-  return { name: "value", family, stream_facts: null, values_checked: family === "records" ? false : null, pin: null, value_read: { value: savedValue, comes_from: "saved" } };
+  return { name: "value", family, stream_facts: null, values_checked: family === "records" ? false : null, pin: null, value_read: { value: savedValue, comes_from: "saved" }, takes_a_wire: false };
 }
 
 /** A top-level `GraphInput` named `name`, declaring the input port `port` of `family` with `config`, as the runtime renders one back: running, a `value` input reading `savedValue`, which its config does not repeat, and one `value` output. */
@@ -409,7 +404,7 @@ const PICTURE_AND_FADER_VIEW_NODE: MockGraphNode = {
   state: "Running",
   config: {},
   settings: ["picture_fit"],
-  input_ports: [...portsStatingNoStreamFacts("image", "picture"), { name: "fader", family: "array", stream_facts: null, values_checked: null, pin: null, value_read: { value: null, comes_from: null } }],
+  input_ports: [...portsStatingNoStreamFacts("image", "picture"), { name: "fader", family: "array", stream_facts: null, values_checked: null, pin: null, value_read: { value: null, comes_from: null }, takes_a_wire: false }],
   output_ports: portsStatingNoStreamFacts("array", "fader"),
   is_a_value_source: true,
 };

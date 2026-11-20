@@ -2,7 +2,7 @@
 // then its other inputs, each carrying the pin's exact type and flow where the runtime serves them.
 
 import type { PinAnnotations } from "../pin_type_readings.js";
-import { jsonObjectMembersOf, type JsonValue, type NodeTypeInputDescribed, type NodeTypePortDescribed, type SettingReadTime, type StreamGraphPortPin } from "../studio_readings.js";
+import { jsonObjectMembersOf, type JsonValue, type NodeTypeInputDescribed, type NodeTypePortDescribed, type SettingReadTime, type StreamGraphPort, type StreamGraphPortPin } from "../studio_readings.js";
 import type { PortFamily } from "../port_families.js";
 import type { InputWiring } from "./input_wiring.js";
 import type { NodeInputLink } from "./node_input_link.js";
@@ -62,9 +62,18 @@ export function settingOfTheDescribedInput(input: Pick<NodeTypeInputDescribed, "
   return input.mode === "setting_only" ? { read: input.read ?? "at_setup" } : null;
 }
 
-/** Whether a link may end at `input`, as its node type's description marks it; one it marks neither way takes one. */
+/** Whether a link may end at `input`, as its node type's description marks it, which the runtime does on every input it describes. */
 export function doesTheDescribedInputTakeAWire(input: Pick<NodeTypeInputDescribed, "takes_a_wire">): boolean {
   return input.takes_a_wire ?? true;
+}
+
+/**
+ * Whether a link may end at the input `port`, as the runtime marks it: on the port in `graph`, else on `describedInput`, its input
+ * in its node type's description; a port neither marks takes one, which only a port of a subgraph's own node, which no node type
+ * describes, can be.
+ */
+export function doesTheInputPortTakeAWire(port: Pick<StreamGraphPort, "takes_a_wire">, describedInput: Pick<NodeTypeInputDescribed, "takes_a_wire"> | undefined): boolean {
+  return port.takes_a_wire ?? (describedInput === undefined || doesTheDescribedInputTakeAWire(describedInput));
 }
 
 /** Whether a change of `pin` rebuilds its node: a setting its node reads as it is set up. */

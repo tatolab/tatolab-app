@@ -202,26 +202,30 @@ test("deleting_disconnects_the_selected_links_removes_the_nodes_and_notes_and_le
 });
 
 test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_ports_of_the_links_family_and_one_without_them_asks_nothing", () => {
-  expect(cardLetGoOverALinkEdits(edited(), "halftone", "L1")).toEqual([
+  expect(cardLetGoOverALinkEdits(edited(), new Map(), "halftone", "L1")).toEqual([
     { operation: "disconnect", stream: STREAM_ASSET, source: { node: "uuid-pattern", port: "video" }, target: { node: "uuid-display", port: "video" } },
     { operation: "connect", stream: STREAM_ASSET, source: { node: "uuid-pattern", port: "video" }, target: { node: "uuid-halftone", port: "frames" } },
     { operation: "connect", stream: STREAM_ASSET, source: { node: "uuid-halftone", port: "image" }, target: { node: "uuid-display", port: "video" } },
   ]);
   const meterOnly = edited({ ...GRAPH, nodes: [...GRAPH.nodes, graphNode("meter", "uuid-meter", { inputs: [["level", "array"]] })] });
-  expect(cardLetGoOverALinkEdits(meterOnly, "meter", "L1")).toEqual([]);
+  expect(cardLetGoOverALinkEdits(meterOnly, new Map(), "meter", "L1")).toEqual([]);
 });
 
 test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_input_of_the_links_family_that_takes_a_wire", () => {
   const setting = aGraphPort("source_frames", "image", { takes_a_wire: false });
   const withASettingFirst = aGraphNode("lens", { id: "uuid-lens", kind: "process", config: {}, inputs: [setting, aGraphPort("frames", "image", { takes_a_wire: true })], outputs: [aGraphPort("image", "image")], components: { state: "Running" } });
-  expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, withASettingFirst] }), "lens", "L1")[1]).toEqual({
+  expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, withASettingFirst] }), new Map(), "lens", "L1")[1]).toEqual({
     operation: "connect",
     stream: STREAM_ASSET,
     source: { node: "uuid-pattern", port: "video" },
     target: { node: "uuid-lens", port: "frames" },
   });
   const takingNoWire = aGraphNode("still", { id: "uuid-still", kind: "process", config: {}, inputs: [setting], outputs: [aGraphPort("image", "image")], components: { state: "Running" } });
-  expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, takingNoWire] }), "still", "L1")).toEqual([]);
+  expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, takingNoWire] }), new Map(), "still", "L1")).toEqual([]);
+
+  const unmarked = aGraphNode("lens", { id: "uuid-lens", kind: "process", config: {}, inputs: [aGraphPort("source_frames", "image"), aGraphPort("frames", "image")], outputs: [aGraphPort("image", "image")], components: { state: "Running" } });
+  const lensDescribed: NodeTypeDescription = { ...describedNodeType("nodes.lens:Node", [], []), inputs: [{ name: "source_frames", documentation: "", family: { family: "image" }, ...A_SETTING, takes_a_wire: false }] };
+  expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, unmarked] }), new Map([["nodes.lens:Node", lensDescribed]]), "lens", "L1")[1]).toMatchObject({ target: { node: "uuid-lens", port: "frames" } });
 });
 
 test("framing_the_selection_makes_one_labelled_group_of_its_nodes", () => {

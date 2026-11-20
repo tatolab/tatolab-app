@@ -375,6 +375,11 @@ export function NodeGraphPinMark({ pin }: { pin: StreamGraphPortPin | null }) {
   return <span aria-hidden className="node-graph-pin-mark" {...socketLookAttributes(pin)} />;
 }
 
+/** An input's mark beside its name outside the canvas, in a slot as wide as a socket: its `NodeGraphPinMark` where it takes a wire, else nothing, so the names of a list of inputs line up. */
+export function NodeGraphPinMarkSlot({ pin, takesAWire }: { pin: StreamGraphPortPin | null; takesAWire: boolean }) {
+  return <span className="node-graph-pin-mark-slot">{takesAWire && <NodeGraphPinMark pin={pin} />}</span>;
+}
+
 /** How much smaller than in the graph a card's preview is drawn. */
 const NODE_GRAPH_CARD_PREVIEW_SCALE = 0.85;
 

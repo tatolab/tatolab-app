@@ -2,7 +2,7 @@
 // typed by the control contract — node ids, config, ports, components with state and metrics, link
 // ids and ends, `machine` — which the main process passes on unchanged.
 
-import { doesTheMockInputTakeAWire, mockGraphNodeIdOf, type MockGraphLink, type MockGraphNode, type MockGraphPort, type MockStreamGraph } from "./mock_stream_fixtures";
+import { mockGraphNodeIdOf, type MockGraphLink, type MockGraphNode, type MockGraphPort, type MockStreamGraph } from "./mock_stream_fixtures";
 import type {
   JsonValue,
   ListedStream,
@@ -177,7 +177,7 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
           inputs: node.input_ports.map((port) => ({
             ...portAsTheRuntimeRendersIt(port),
             delivery_profile: "newest",
-            takes_a_wire: doesTheMockInputTakeAWire(node, port),
+            ...(port.takes_a_wire === undefined ? {} : { takes_a_wire: port.takes_a_wire }),
             ...(port.member_reads === undefined
               ? inputValueAsTheRuntimeRendersIt(linksInto(port).length > 0 ? { ...port, value_read: { value: null, comes_from: "wire" } } : port)
               : memberValuesAsTheRuntimeRendersThem(port, linksInto(port))),

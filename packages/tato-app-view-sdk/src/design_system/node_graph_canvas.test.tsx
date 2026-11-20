@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { Position } from "@xyflow/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { NodeGraphCanvas } from "./node_graph_canvas";
-import { NodeGraphCardPreview, NodeGraphPinMark } from "./node_graph/node_card";
+import { NodeGraphCardPreview, NodeGraphPinMark, NodeGraphPinMarkSlot } from "./node_graph/node_card";
 import { NodeGraphLinkView } from "./node_graph_link_view";
 import type { NodePin } from "../pin_model/node_pins";
 import type { NodeGraphCanvasEditing, NodeGraphCanvasNode, NodeGraphCardKind } from "./support/node_graph_canvas_contract";
@@ -625,6 +625,16 @@ describe("a pin's mark and a link outside a card", () => {
       ["float", "value"],
       ["untyped", null],
     ]);
+  });
+
+  it("keeps a socket-wide slot for an input's mark, empty where the input takes no wire", () => {
+    const { container } = render(
+      <>
+        <NodeGraphPinMarkSlot pin={{ pin_type: { type: "integer" }, flow: "value" }} takesAWire />
+        <NodeGraphPinMarkSlot pin={{ pin_type: { type: "pin_type_choice" }, flow: "value" }} takesAWire={false} />
+      </>,
+    );
+    expect([...container.querySelectorAll(".node-graph-pin-mark-slot")].map((slot) => slot.querySelector(".node-graph-pin-mark")?.getAttribute("data-pin-type") ?? null)).toEqual(["integer", null]);
   });
 
   it("colours a link by the type key of the pin it starts from", () => {

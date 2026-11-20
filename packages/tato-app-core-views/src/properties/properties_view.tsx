@@ -2,7 +2,7 @@ import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_re
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
-import { NodeGraphPinMark, NodeGraphRebuildsTheNodeMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
+import { NodeGraphPinMark, NodeGraphPinMarkSlot, NodeGraphRebuildsTheNodeMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { pinWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
 import { takesAControl } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
 import type { GraphAddress, InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
@@ -386,18 +386,6 @@ interface InputRowsOfTheNode {
   searchWords: string;
 }
 
-/** The marks beside an input's name: in a slot as wide as a socket, so every input's name lines up, the socket its card draws on one that takes a wire; and on a setting a change of which rebuilds its node, the mark that says so. */
-function InputMarkOfTheRow({ pin }: { pin: NodePin }) {
-  return (
-    <>
-      <span className="flex w-2.5 shrink-0 justify-center" data-properties-socket-slot>
-        {pin.takes_a_wire && <NodeGraphPinMark pin={pin.pin} />}
-      </span>
-      <NodeGraphRebuildsTheNodeMark pin={pin} />
-    </>
-  );
-}
-
 /** Where the runtime reads an input's value from: as its port states, or for a setting the graph lists among no port, as the node's graph document holds it. */
 function whereTheInputReadsFrom(node: StreamGraphNode, port: StreamGraphPort | null, describedInput: NodeTypeInputDescribed | undefined): StreamGraphInputValueRead | null {
   if (port !== null) return inputValueReadOfThePort(port);
@@ -445,7 +433,8 @@ function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin
       portName={pin.name}
       searchWords={searchWords}
       typeWords={typeWordsOfThePin(pin)}
-      pinMark={<InputMarkOfTheRow pin={pin} />}
+      pinMark={<NodeGraphPinMarkSlot pin={pin.pin} takesAWire={pin.takes_a_wire} />}
+      nameMarks={<NodeGraphRebuildsTheNodeMark pin={pin} />}
       meaning={meaningOfAPort(pin, port)}
       description={pin.description ?? undefined}
       bandShade={bandShade}

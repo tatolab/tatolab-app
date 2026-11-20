@@ -320,7 +320,7 @@ describe("the mock backend's stream actions", () => {
     ]);
   });
 
-  it("serves the stand-in Graph Input whose `pin_type` setting chose Float as the runtime serves the sample's `warmth_base`, its choice set and undone", async () => {
+  it("serves the recorded Graph Input whose `pin_type` setting chose Float, the sample's `warmth_base`, as the runtime served it, its choice set and undone", async () => {
     const { backend } = await runningMockBackend("main_graph=every_pin_kind_with_a_type_choosing_input");
     const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
       await vi.advanceTimersByTimeAsync(100);
@@ -333,14 +333,20 @@ describe("the mock backend's stream actions", () => {
     expect(choosingOf(graphBefore)?.ports.inputs.map((port) => [port.name, port.pin_type?.type ?? null, port.value_comes_from ?? null])).toEqual([
       ["port", "string", "saved"],
       ["pin_type", "pin_type_choice", "saved"],
+      ["family", "menu", null],
       ["range", "list_of", "saved"],
+      ["step", "float", null],
+      ["unit", "string", null],
+      ["meaning", "string", null],
+      ["control", "string", null],
+      ["lifetime", "menu", "default"],
       ["value", "float", "saved"],
     ]);
     expect(pinTypeOf(graphBefore)?.value).toEqual({ type: "float" });
     expect(choosingOf(graphBefore)?.ports.inputs.find((port) => port.name === "range")?.value).toEqual([0, 1]);
     expect(choosingOf(graphBefore)?.ports.inputs.find((port) => port.name === "value")?.annotations).toEqual({ range: { minimum: 0, maximum: 1 } });
-    expect(choosingOf(graphBefore)?.components.graph_interface).toEqual({ direction: "input", port: "warmth_base", family: "channels", pin_type: { type: "float" }, current_value: 0.1 });
-    expect(choosingOf(graphBefore)?.config).not.toHaveProperty("default");
+    // Recorded with playback stopped, each node reads Pending, and an Input that is not running carries no current value.
+    expect(choosingOf(graphBefore)?.components.graph_interface).toEqual({ direction: "input", port: "warmth_base", family: "channels", pin_type: { type: "float" } });
     expect(graphBefore.links.filter((link) => link.target.node === "warmth" && link.target.port === "base").map((link) => `${link.source.node}.${link.source.port}`)).toEqual(["warmth_base.value"]);
 
     const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
@@ -351,45 +357,47 @@ describe("the mock backend's stream actions", () => {
     expect(pinTypeOf(await settled(backend.describeStreamGraph(MAIN)))?.value).toEqual({ type: "float" });
   });
 
-  it("marks each input it serves with whether a link may end at it as the runtime does, every recorded config field taking none", async () => {
-    const { backend } = await runningMockBackend("main_graph=every_pin_kind_with_a_wired_setting");
+  it("serves each input's mark as the runtime recorded it, and replays its refusal of a link into a Graph Input's setting", async () => {
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind_with_a_wired_setting&refusal=input_takes_no_wire");
     const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
       await vi.advanceTimersByTimeAsync(200);
       return answering;
     };
     const graph = await settled(backend.describeStreamGraph(MAIN));
     const marksOf = (nodeName: string) => graph.nodes.find((node) => node.name === nodeName)?.ports.inputs.map((port) => [port.name, port.takes_a_wire]);
-    expect(marksOf("warmth_base")).toEqual([
-      ["port", false],
-      ["pin_type", false],
-      ["range", false],
-      ["value", false],
-    ]);
-    expect(marksOf("oscillator")).toEqual([
-      ["frequency", true],
-      ["amplitude", true],
+    expect(marksOf("warmth_base")?.every(([, takesAWire]) => takesAWire === false)).toBe(true);
+    expect(marksOf("caption")?.every(([, takesAWire]) => takesAWire === true)).toBe(true);
+    expect(marksOf("tensortoaudio")).toEqual([
+      ["array", true],
+      ["attribute", true],
+      ["channel_names", true],
       ["sample_rate", true],
-      ["channels", true],
-      ["block_size", true],
     ]);
-    expect(graph.links.filter((link) => link.target.node === "oscillator").map((link) => `${link.source.node}.${link.source.port} → ${link.target.port}`)).toEqual(["flash.flashes → sample_rate"]);
-    expect(graph.nodes.find((node) => node.name === "oscillator")?.ports.inputs.find((port) => port.name === "sample_rate")?.value_comes_from).toBe("wire");
+    expect(graph.links.filter((link) => link.target.node === "tensortoaudio").map((link) => `${link.source.node}.${link.source.port} → ${link.target.port}`)).toEqual(["flash.flashes → sample_rate"]);
+    expect(graph.nodes.find((node) => node.name === "flash")?.kind).toBe("process");
+    expect(graph.nodes.find((node) => node.name === "tensortoaudio")?.ports.inputs.find((port) => port.name === "sample_rate")?.value_comes_from).toBe("wire");
 
-    const described = await settled(backend.describeNodeTypes(PULSE_STAGE_FOLDER, ["tatolab.stream:RecordsToChannels", "nodes.beat:Warmth", "core_nodes.oscillator:Oscillator"]));
+    const described = await settled(backend.describeNodeTypes(PULSE_STAGE_FOLDER, ["tatolab.stream:RecordsToChannels", "tatolab.stream:TensorToAudio", "tatolab.stream:TensorToTexture"]));
     expect(described.node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : nodeType.inputs.map((input) => [input.name, input.takes_a_wire])))).toEqual([
       ["records", true],
       ["channel_names", false],
       ["sample_rate", false],
-      ["count", true],
-      ["accented", true],
-      ["beats_per_bar", true],
-      ["base", true],
-      ["frequency", true],
-      ["amplitude", true],
+      ["array", true],
+      ["attribute", true],
+      ["channel_names", true],
       ["sample_rate", true],
-      ["channels", true],
-      ["block_size", true],
+      ["array", true],
+      ["attribute", true],
+      ["format", true],
     ]);
+
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    const idOf = (name: string) => graph.nodes.find((node) => node.name === name)?.id ?? expect.unreachable(`no ${name} in the graph`);
+    const intoTheGraphInputsPort = { operation: "connect", stream: streamAsset, source: { node: idOf("caption"), port: "result" }, target: { node: idOf("warmth_base"), port: "port" } } as const;
+    expect(await settled(backend.transactInTheOpenProject([intoTheGraphInputsPort], "commit", null))).toMatchObject({
+      kind: "refused",
+      refusal: { refusal_code: "input_takes_no_wire", refused_operation_index: 0, refused_field: "port", refused_link: { source: intoTheGraphInputsPort.source, target: intoTheGraphInputsPort.target } },
+    });
   });
 
   it("serves the stand-in bundle node's members each on its own row, sets and undoes one member alone, and links and unlinks a member", async () => {
