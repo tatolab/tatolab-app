@@ -7,7 +7,8 @@
 // `main`'s graph and the refusals of `transact` a scenario replays, recorded from the `tatolabd` 0.68.82
 // built from streamlib, the graph and the refusals at 6c0be0f.
 // The mock holds no node type, graph or refusal of its own for this work, but for one warning on a link,
-// one node with bundle pins and two nodes linked by a named type, which no recording carries, each named
+// one node with bundle pins, two nodes linked by a named type and a Graph Input whose setting chooses its
+// type, which no recording carries, each named
 // as a stand-in where it is held; a recording that no longer reads fails the mock's load, as the app
 // would fail to read the runtime's answer.
 
@@ -311,5 +312,47 @@ export function mockEveryPinKindGraphWithAStandInNamedTypeLink(): MockStreamGrap
     ...graph,
     nodes: [...graph.nodes, ...standInSweepNodes()],
     links: [...graph.links, { id: "Lmockstandinnamedtypelink01", source_node: "sweep", source_port: "result", target_node: "sweep_position", target_port: "sweep", state: "wired" }],
+  };
+}
+
+/** A stand-in's port of `pinType`, of a value read as `saved`, as the runtime serves an input whose value the graph document keeps. */
+function standInSavedInput(name: string, pinType: StreamGraphPortPin["pin_type"], family: MockGraphPort["family"], value: JsonValue): MockGraphPort {
+  return { name, family, stream_facts: null, values_checked: null, pin: { pin_type: pinType, flow: "value" }, value_read: { value, comes_from: "saved" } };
+}
+
+/**
+ * A stand-in, since the recordings were made before the every-pin-kind sample held it: the sample's `warmth_base`, a Graph Input
+ * whose `pin_type` setting chooses Float, linked into `warmth.base`, served as streamlib's `test_every_pin_kind_sample` pins it: its
+ * `pin_type` input a Pin type choice reading `{"type": "float"}` as saved, its `value` a Float, and no `default` in its config.
+ */
+function standInGraphInputChoosingAType(): MockGraphNode {
+  const port = "warmth_base";
+  const pinType = { type: "float" } as const;
+  const value = 0.1;
+  return {
+    name: "warmth_base",
+    type: "tatolab.stream:GraphInput",
+    state: "Running",
+    config: { port, pin_type: pinType },
+    pins: { port, pin_type: pinType, value },
+    input_defaults: {},
+    exposed_config_fields: [],
+    input_ports: [
+      standInSavedInput("port", { type: "string" }, null, port),
+      standInSavedInput("pin_type", { type: "pin_type_choice" }, null, pinType),
+      standInSavedInput("value", pinType, "channels", value),
+    ],
+    output_ports: [{ name: "value", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: pinType, flow: "value" }, value_read: null }],
+    studio: { ...NODE_STUDIO_FIELDS_NONE_SET },
+  };
+}
+
+/** The every-pin-kind sample's graph with the stand-in `warmth_base` beside it, its `value` linked into `warmth.base`. */
+export function mockEveryPinKindGraphWithAStandInTypeChoosingInput(): MockStreamGraph {
+  const graph = mockRecordedGraphOfTheEveryPinKindSample();
+  return {
+    ...graph,
+    nodes: [...graph.nodes, standInGraphInputChoosingAType()],
+    links: [...graph.links, { id: "Lmockstandintypechoosing01", source_node: "warmth_base", source_port: "value", target_node: "warmth", target_port: "base", state: "wired" }],
   };
 }

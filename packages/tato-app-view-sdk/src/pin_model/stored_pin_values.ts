@@ -1,8 +1,10 @@
 // An input's value as the store holds it, JSON, and as a control holds it, the stored value its pin
 // type generates. Each built-in type that stores a value and has a control is read each way; any
 // other type, a bundle among them, reads as no value, so no control is handed a value of a form it
-// does not declare. A Trigger stores none.
+// does not declare. A Trigger stores none. A Pin type choice stores the pin type it chose, read as
+// one of a built-in type that the choice offers.
 
+import { BUILT_IN_PIN_TYPES } from "../built_in_pin_types.js";
 import type { AssetPinValue, BuiltInPinTypeName, ColorPinValue, PinType, RectanglePinValue, VectorComponentCount, VectorPinValue } from "../pin_types.js";
 import type { StoredPinValue } from "../node_ui/input_control_element.js";
 import { isAJsonValue, type JsonValue } from "../studio_readings.js";
@@ -100,6 +102,13 @@ function listOf<Element>(value: unknown, readTheElement: (element: unknown) => E
   return elements;
 }
 
+/** Whether `value` is a pin type a choice whose `among` list is `among` offers: an object whose `type` names a built-in type, one `among` names when it names any. */
+function isAPinTypeTheChoiceOffers(value: unknown, among: readonly PinType[]): value is PinType & JsonValue {
+  if (typeof value !== "object" || value === null || Array.isArray(value) || !isAJsonValue(value)) return false;
+  const typeName = new Map<string, unknown>(Object.entries(value)).get("type");
+  return BUILT_IN_PIN_TYPES.some((builtInPinType) => builtInPinType.name === typeName) && (among.length === 0 || among.some((offered) => offered.type === typeName));
+}
+
 /** The value of a type made of numbers, as `pinType` declares its form, or `undefined` for another type or a value not of that form; the store's JSON and a control's value have the same form. */
 function numbersOfThePinType(pinType: PinType, value: unknown): ColorPinValue | VectorPinValue | RectanglePinValue | number[] | undefined {
   switch (pinType.type) {
@@ -135,6 +144,8 @@ export function storedPinValueOfTheJson(pinType: PinType, value: JsonValue | nul
       const elementType = pinType.element_type;
       return listOf(value, (element) => (isAJsonValue(element) ? storedPinValueOfTheJson(elementType, element) : undefined));
     }
+    case "pin_type_choice":
+      return isAPinTypeTheChoiceOffers(value, pinType.among ?? []) ? value : undefined;
     case "color":
     case "vector":
     case "rectangle":
@@ -168,6 +179,8 @@ export function jsonOfTheStoredPinValue(pinType: PinType, stored: unknown): Json
       const elementType = pinType.element_type;
       return listOf(stored, (element) => jsonOfTheStoredPinValue(elementType, element));
     }
+    case "pin_type_choice":
+      return isAPinTypeTheChoiceOffers(stored, pinType.among ?? []) ? stored : undefined;
     case "color":
     case "vector":
     case "rectangle":
