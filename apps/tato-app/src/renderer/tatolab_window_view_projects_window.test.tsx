@@ -2,7 +2,8 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OpenProjectReading, RecentProject } from "../shared/tatolab_backend_contract";
-import { removeTheKeydownListenersOfEarlierWindows, hideTheWindowsOfEarlierTestsAndLetTheirReadsSettle, mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PATTERN_PROJECT, CAMERA_PROJECT, coreViewPage, inTheCoreView, projectsWindowNewProjectButton, AREAS_OF_THE_DEFAULT_LAYOUT, theAreasShownAre, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
+import { PULSE_STAGE_PROJECT_DESCRIPTION } from "../../mock/mock_pulse_stage_sample";
+import { removeTheKeydownListenersOfEarlierWindows, hideTheWindowsOfEarlierTestsAndLetTheirReadsSettle, mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PULSE_STAGE_FOLDER, CAMERA_PROJECT, coreViewPage, inTheCoreView, projectsWindowNewProjectButton, AREAS_OF_THE_DEFAULT_LAYOUT, theAreasShownAre, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
 // Code's editor here says Monaco didn't load; the code pane's text and saves are tested beside it.
@@ -15,10 +16,10 @@ afterEach(cleanUpTheWindowsOfEarlierTests);
 describe("the studio", () => {
   it("shows the Projects window with no project open, its recent projects as cards, and opens the one chosen on its stream", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
-    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+    const pulseStageCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`) ?? expect.unreachable("no Pulse Stage card"));
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6);
 
-    fireEvent.click(patternCard.querySelector<HTMLElement>("[data-project-open]") ?? expect.unreachable("no open button"));
+    fireEvent.click(pulseStageCard.querySelector<HTMLElement>("[data-project-open]") ?? expect.unreachable("no open button"));
 
     await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
     expect(document.querySelector("[data-projects]")).toBeNull();
@@ -77,10 +78,10 @@ describe("the studio", () => {
     await waitFor(() => expect(document.querySelector("[data-projects]")?.getAttribute("data-projects-layout")).toBe("list"));
     expect(screen.getByRole("button", { name: "View: List" })).toBeTruthy();
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6);
-    const patternRow = document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern row");
-    expect(patternRow.querySelector("[data-project-open]")?.getAttribute("title")).toBe("~/streams/pattern");
-    expect(patternRow.textContent).toContain("The project tatolab new makes");
-    expect(patternRow.textContent).toMatch(/(ago|just now)$/);
+    const pulseStageRow = document.querySelector<HTMLElement>(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`) ?? expect.unreachable("no Pulse Stage row");
+    expect(pulseStageRow.querySelector("[data-project-open]")?.getAttribute("title")).toBe("~/streams/pulse-stage");
+    expect(pulseStageRow.textContent).toContain(PULSE_STAGE_PROJECT_DESCRIPTION);
+    expect(pulseStageRow.textContent).toMatch(/(ago|just now)$/);
 
     await hideTheWindowsOfEarlierTestsAndLetTheirReadsSettle();
     removeTheKeydownListenersOfEarlierWindows();
@@ -89,7 +90,7 @@ describe("the studio", () => {
     await waitFor(() => expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6));
     expect(document.querySelector("[data-projects]")?.getAttribute("data-projects-layout")).toBe("list");
 
-    fireEvent.click(document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"] [data-project-open]`) ?? expect.unreachable("no pattern row"));
+    fireEvent.click(document.querySelector<HTMLElement>(`[data-projects-project="${PULSE_STAGE_FOLDER}"] [data-project-open]`) ?? expect.unreachable("no Pulse Stage row"));
 
     await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
     expect(document.querySelector("[data-projects]")).toBeNull();
@@ -100,7 +101,7 @@ describe("the studio", () => {
     await waitFor(() => expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6));
     const namesShown = () => [...document.querySelectorAll("[data-projects-project] [data-project-more-actions]")].map((moreActions) => (moreActions.getAttribute("aria-label") ?? "").replace(/^Actions for (.*), [^,]*$/, "$1"));
     const namesByLastOpened = namesShown();
-    expect(namesByLastOpened.slice(0, 3)).toEqual(["pattern", "night-market-visuals", "camera"]);
+    expect(namesByLastOpened.slice(0, 3)).toEqual(["Pulse Stage", "night-market-visuals", "camera"]);
 
     pressAsAPointerDoes(screen.getByRole("button", { name: "Sort: Last edited" }));
     fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-projects-sort-choice="name"]') ?? expect.unreachable("no Name choice")));
@@ -112,9 +113,9 @@ describe("the studio", () => {
 
   it("shows each project's description, or that it has none, and when it was edited, or opened for a project with no edit", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
-    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
-    expect(patternCard.textContent).toContain("The project tatolab new makes: a test pattern through a halftone effect into a brightness meter.");
-    expect(patternCard.textContent).toMatch(/Edited (\d+ minutes? ago|just now)/);
+    const pulseStageCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`) ?? expect.unreachable("no Pulse Stage card"));
+    expect(pulseStageCard.textContent).toContain(PULSE_STAGE_PROJECT_DESCRIPTION);
+    expect(pulseStageCard.textContent).toMatch(/Edited (\d+ minutes? ago|just now)/);
     const galleryCard = document.querySelector<HTMLElement>(`[data-projects-project$="/streams/gallery-wall"]`) ?? expect.unreachable("no gallery card");
     expect(galleryCard.textContent).toContain("No description yet");
     expect(galleryCard.textContent).toContain("Opened 2 weeks ago");
@@ -129,12 +130,12 @@ describe("the studio", () => {
     const { backend } = await mountedWindowOverTheMock("state=running&project=none", { renameRecentProject });
     const readRecentProjectsOfTheMock = backend.readRecentProjects.bind(backend);
     backend.readRecentProjects = async () => (await readRecentProjectsOfTheMock()).map((recent) => ({ ...recent, project_name: renamedNames.get(recent.folder) ?? recent.project_name }));
-    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+    const pulseStageCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`) ?? expect.unreachable("no Pulse Stage card"));
 
-    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
+    pressAsAPointerDoes(within(pulseStageCard).getByRole("button", { name: /^Actions for Pulse Stage,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Rename…/ }));
     const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-naming-dialog-name]") ?? expect.unreachable("no Rename dialog"));
-    expect(nameField.value).toBe("pattern");
+    expect(nameField.value).toBe("Pulse Stage");
     fireEvent.change(nameField, { target: { value: "   " } });
     fireEvent.keyDown(nameField, { key: "Enter" });
     expect(renameRecentProject).not.toHaveBeenCalled();
@@ -148,20 +149,20 @@ describe("the studio", () => {
     fireEvent.keyDown(nameField, { key: "Enter" });
 
     await waitFor(() => expect(document.querySelector("[data-name-form-dialog='rename_project']")).toBeNull());
-    expect(renameRecentProject).toHaveBeenLastCalledWith(PATTERN_PROJECT, "Night Show");
-    await waitFor(() => expect(within(patternCard).getByRole("button", { name: /^Actions for Night Show,/ })).toBeTruthy());
+    expect(renameRecentProject).toHaveBeenLastCalledWith(PULSE_STAGE_FOLDER, "Night Show");
+    await waitFor(() => expect(within(pulseStageCard).getByRole("button", { name: /^Actions for Night Show,/ })).toBeTruthy());
   });
 
   it("duplicates a project from its ⋯ menu into a card of its own, and says why in a notice when the runtime refuses", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
-    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+    const pulseStageCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`) ?? expect.unreachable("no Pulse Stage card"));
 
-    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
+    pressAsAPointerDoes(within(pulseStageCard).getByRole("button", { name: /^Actions for Pulse Stage,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Duplicate/ }));
 
-    await waitFor(() => expect(document.querySelector(`[data-projects-project="${PATTERN_PROJECT} copy"]`)).not.toBeNull());
+    await waitFor(() => expect(document.querySelector(`[data-projects-project="${PULSE_STAGE_FOLDER} copy"]`)).not.toBeNull());
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(7);
-    expect(screen.getByRole("button", { name: /^Actions for pattern copy,/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Actions for Pulse Stage copy,/ })).toBeTruthy();
 
     const goneCard = document.querySelector<HTMLElement>(`[data-projects-project$="/Desktop/old-sketch"]`) ?? expect.unreachable("no card of the project gone from disk");
     pressAsAPointerDoes(within(goneCard).getByRole("button", { name: /^Actions for old-sketch,/ }));
@@ -175,8 +176,8 @@ describe("the studio", () => {
   it("shows a project covered by a chosen image by that image, one with none by its initial's tile, and ends the grid with New project", async () => {
     const { backend } = await mountedWindowOverTheMock("state=running&project=none");
     const createAProject = vi.spyOn(backend, "readNewProjectDefaults");
-    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
-    await waitFor(() => expect(patternCard.querySelector('[data-project-cover="image"] img')?.getAttribute("src")).toMatch(/^data:image\/svg\+xml;base64,/));
+    const pulseStageCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`) ?? expect.unreachable("no Pulse Stage card"));
+    await waitFor(() => expect(pulseStageCard.querySelector('[data-project-cover="image"] img')?.getAttribute("src")).toMatch(/^data:image\/svg\+xml;base64,/));
     const galleryCard = document.querySelector<HTMLElement>(`[data-projects-project$="/streams/gallery-wall"]`) ?? expect.unreachable("no gallery card");
     expect(galleryCard.querySelector('[data-project-cover="plain"]')?.textContent).toBe("G");
 
@@ -191,8 +192,8 @@ describe("the studio", () => {
     const renameRecentProject = vi.fn<(folder: string, name: string) => Promise<void>>(async () => undefined);
     await mountedWindowOverTheMock("state=running&project=none", { setRecentProjectDescription, renameRecentProject });
     const detailsPanel = () => document.querySelector<HTMLElement>("[data-project-details]") ?? expect.unreachable("no Project details");
-    await waitFor(() => expect(detailsPanel().getAttribute("data-project-details")).toBe(PATTERN_PROJECT));
-    expect(detailsPanel().querySelector<HTMLInputElement>("[data-project-details-name]")?.value).toBe("pattern");
+    await waitFor(() => expect(detailsPanel().getAttribute("data-project-details")).toBe(PULSE_STAGE_FOLDER));
+    expect(detailsPanel().querySelector<HTMLInputElement>("[data-project-details-name]")?.value).toBe("Pulse Stage");
 
     const cameraCard = document.querySelector<HTMLElement>(`[data-projects-project$="/streams/camera"]`) ?? expect.unreachable("no camera card");
     pressAsAPointerDoes(within(cameraCard).getByRole("button", { name: /^Actions for camera,/ }));
@@ -276,25 +277,25 @@ describe("the studio", () => {
       deleteRecentProject(folder);
       await deleteRecentProjectOfTheMock(folder);
     };
-    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+    const pulseStageCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`) ?? expect.unreachable("no Pulse Stage card"));
 
-    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
+    pressAsAPointerDoes(within(pulseStageCard).getByRole("button", { name: /^Actions for Pulse Stage,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Delete…/ }));
-    await waitFor(() => expect(screen.getByText("Delete “pattern”?")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Delete “Pulse Stage”?")).toBeTruthy());
     expect(screen.getByText("Its streams stop, and Tato Studio moves its folder to the Trash, where you can put it back.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(screen.queryByText("Delete “pattern”?")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("Delete “Pulse Stage”?")).toBeNull());
     expect(deleteRecentProject).not.toHaveBeenCalled();
 
-    pressAsAPointerDoes(within(patternCard).getByRole("button", { name: /^Actions for pattern,/ }));
+    pressAsAPointerDoes(within(pulseStageCard).getByRole("button", { name: /^Actions for Pulse Stage,/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Delete…/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Move to Trash" }));
-    await waitFor(() => expect(within(patternCard).getByText("Moving to Trash…")).toBeTruthy());
-    expect(patternCard.querySelector<HTMLButtonElement>("[data-project-open]")?.disabled).toBe(true);
-    expect(patternCard.querySelector("[data-project-more-actions]")).toBeNull();
+    await waitFor(() => expect(within(pulseStageCard).getByText("Moving to Trash…")).toBeTruthy());
+    expect(pulseStageCard.querySelector<HTMLButtonElement>("[data-project-open]")?.disabled).toBe(true);
+    expect(pulseStageCard.querySelector("[data-project-more-actions]")).toBeNull();
 
-    await waitFor(() => expect(document.querySelector(`[data-projects-project="${PATTERN_PROJECT}"]`)).toBeNull());
-    expect(deleteRecentProject).toHaveBeenCalledExactlyOnceWith(PATTERN_PROJECT);
+    await waitFor(() => expect(document.querySelector(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`)).toBeNull());
+    expect(deleteRecentProject).toHaveBeenCalledExactlyOnceWith(PULSE_STAGE_FOLDER);
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(5);
   });
 
@@ -358,12 +359,12 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running&project=none&recent=none", { readRecentProjects: () => Promise.resolve([...recentProjectsOnDisk]) });
     await waitFor(() => expect(textOf("[data-projects-empty]")).toContain("No projects yet"));
 
-    recentProjectsOnDisk.push({ folder: PATTERN_PROJECT, project_name: "pattern", project_description: null, last_edited_at_wall_clock_ms: null, has_a_chosen_cover: false, last_opened_at_wall_clock_ms: Date.now() });
+    recentProjectsOnDisk.push({ folder: PULSE_STAGE_FOLDER, project_name: "Pulse Stage", project_description: null, last_edited_at_wall_clock_ms: null, has_a_chosen_cover: false, last_opened_at_wall_clock_ms: Date.now() });
     act(() => {
       window.dispatchEvent(new FocusEvent("focus"));
     });
 
-    await waitFor(() => expect(document.querySelector(`[data-projects-project="${PATTERN_PROJECT}"]`)).not.toBeNull());
+    await waitFor(() => expect(document.querySelector(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`)).not.toBeNull());
     expect(document.querySelector("[data-projects-empty]")).toBeNull();
   });
 
@@ -384,7 +385,7 @@ describe("the studio", () => {
 
   it("says why an unreadable project can't be read, in the reader's words", async () => {
     await mountedWindowOverTheMock("state=running&project=unreadable");
-    await waitFor(() => expect(inTheCoreView("outliner").getByText(`${PATTERN_PROJECT} can't be read`)).toBeTruthy());
+    await waitFor(() => expect(inTheCoreView("outliner").getByText(`${PULSE_STAGE_FOLDER} can't be read`)).toBeTruthy());
     expect(inTheCoreView("outliner").getByText(/holds no project: it has no tatolab-project\.json/)).toBeTruthy();
   });
 

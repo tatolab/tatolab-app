@@ -1,13 +1,13 @@
-// The browser mock's `list_assets`: the pattern project's graph documents, under the stream asset
+// The browser mock's `list_assets`: Pulse Stage's graph documents, under the stream asset
 // UUIDs its streams are listed with, beside the media, scene and data files imported into it, as the
 // mock's own imports, renames, moves and deletes left them, and the preview pictures its media show.
 
 import type { AssetPreviewPicture, ProjectAsset, ProjectAssetListing, ProjectAssetsImported } from "../src/shared/tatolab_backend_contract";
+import { PULSE_STAGE_FOLDER_NAME, PULSE_STAGE_PROJECT, PULSE_STAGE_PROJECT_NAME } from "./mock_pulse_stage_sample";
 import { mockStreamLocationOf } from "./mock_stream_fixtures";
 
-const PATTERN_PROJECT = "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90";
-
-const IMPORTED_INTO_THE_PATTERN_PROJECT: readonly ProjectAsset[] = [
+/** The media, scene and data files imported into Pulse Stage in the mock. */
+const IMPORTED_INTO_PULSE_STAGE: readonly ProjectAsset[] = [
   {
     asset: "045c7554-dab9-483e-a8fc-064bf9ad3668",
     kind: "data",
@@ -60,7 +60,7 @@ export interface MockProjectAssetsChangedWhileTheMockRuns {
   deleted: Set<string>;
 }
 
-/** No asset of the pattern project changed yet. */
+/** No asset of Pulse Stage changed yet. */
 export function mockProjectAssetsUnchanged(): MockProjectAssetsChangedWhileTheMockRuns {
   return { imported: [], relocatedPathByAsset: new Map(), deleted: new Set() };
 }
@@ -68,7 +68,7 @@ export function mockProjectAssetsUnchanged(): MockProjectAssetsChangedWhileTheMo
 /** What the browser mock's Import asset… does: imports the one file its dialog answers with, or also refuses a graph document chosen beside it, in the runtime's words. */
 export type MockAssetImportScenario = "imports_one" | "refuses_one";
 
-/** The mock's `import_assets_into_the_open_project`: the file its dialog answers with imported into its kind's folder of the pattern project in `streamsFolder`, as the runtime places an import that names no path, its name numbered `-2`, `-3` past one already there, kept in `assetsChangedWhileTheMockRuns`, and with `refuses_one` a graph document refused beside it. */
+/** The mock's `import_assets_into_the_open_project`: the file its dialog answers with imported into its kind's folder of Pulse Stage in `streamsFolder`, as the runtime places an import that names no path, its name numbered `-2`, `-3` past one already there, kept in `assetsChangedWhileTheMockRuns`, and with `refuses_one` a graph document refused beside it. */
 export function mockImportTheFilesChosen(
   projectDirectory: string,
   streamsFolder: string,
@@ -100,7 +100,7 @@ export function mockImportTheFilesChosen(
   return { imported: [{ asset: imported.asset, path: imported.path }], refused };
 }
 
-/** The mock runtime's `relocate_asset` of `asset` in the pattern project in `streamsFolder` to `toPath`, kept in `assetsChangedWhileTheMockRuns`, refused in the runtime's words for an asset it does not hold or a path another asset takes. */
+/** The mock runtime's `relocate_asset` of `asset` in Pulse Stage in `streamsFolder` to `toPath`, kept in `assetsChangedWhileTheMockRuns`, refused in the runtime's words for an asset it does not hold or a path another asset takes. */
 export function mockRelocateTheAsset(projectDirectory: string, streamsFolder: string, assetsChangedWhileTheMockRuns: MockProjectAssetsChangedWhileTheMockRuns, asset: string, toPath: string): string | null {
   const listing = mockProjectAssetListing(projectDirectory, streamsFolder, assetsChangedWhileTheMockRuns);
   if (listing === null) return `relocate_asset failed: ${projectDirectory} holds no project`;
@@ -111,7 +111,7 @@ export function mockRelocateTheAsset(projectDirectory: string, streamsFolder: st
   return null;
 }
 
-/** The mock runtime's `delete_asset` of `asset` in the pattern project in `streamsFolder`, kept in `assetsChangedWhileTheMockRuns`, refused in the runtime's words for an asset it does not hold. */
+/** The mock runtime's `delete_asset` of `asset` in Pulse Stage in `streamsFolder`, kept in `assetsChangedWhileTheMockRuns`, refused in the runtime's words for an asset it does not hold. */
 export function mockDeleteTheAsset(projectDirectory: string, streamsFolder: string, assetsChangedWhileTheMockRuns: MockProjectAssetsChangedWhileTheMockRuns, asset: string): string | null {
   const listing = mockProjectAssetListing(projectDirectory, streamsFolder, assetsChangedWhileTheMockRuns);
   if (listing === null) return `delete_asset failed: ${projectDirectory} holds no project`;
@@ -122,8 +122,8 @@ export function mockDeleteTheAsset(projectDirectory: string, streamsFolder: stri
 
 /** The mock runtime's `list_assets` for `projectDirectory` in `streamsFolder`, as `assetsChangedWhileTheMockRuns` left it, or `null` for a folder it holds no project in. */
 export function mockProjectAssetListing(projectDirectory: string, streamsFolder: string, assetsChangedWhileTheMockRuns: MockProjectAssetsChangedWhileTheMockRuns): ProjectAssetListing | null {
-  if (projectDirectory !== `${streamsFolder}/pattern`) return null;
-  const graphDocuments = ["main", "pattern_two", "recorder"].map(
+  if (projectDirectory !== `${streamsFolder}/${PULSE_STAGE_FOLDER_NAME}`) return null;
+  const graphDocuments = ["main", "recorder", "rehearsal", "title_card"].map(
     (streamName): ProjectAsset => ({
       asset: mockStreamLocationOf({ project_directory: projectDirectory, stream_name: streamName }).stream_asset,
       kind: "stream",
@@ -137,9 +137,9 @@ export function mockProjectAssetListing(projectDirectory: string, streamsFolder:
   );
   return {
     project_directory: projectDirectory,
-    project: PATTERN_PROJECT,
-    project_name: "pattern",
-    assets: [...IMPORTED_INTO_THE_PATTERN_PROJECT, ...assetsChangedWhileTheMockRuns.imported, ...graphDocuments]
+    project: PULSE_STAGE_PROJECT,
+    project_name: PULSE_STAGE_PROJECT_NAME,
+    assets: [...IMPORTED_INTO_PULSE_STAGE, ...assetsChangedWhileTheMockRuns.imported, ...graphDocuments]
       .filter((asset) => !assetsChangedWhileTheMockRuns.deleted.has(asset.asset))
       .map((asset) => ({ ...asset, path: assetsChangedWhileTheMockRuns.relocatedPathByAsset.get(asset.asset) ?? asset.path }))
       .sort((first, second) => first.path.localeCompare(second.path)),
@@ -162,7 +162,7 @@ function mockPreviewPictureDrawnFor(contentSha256: string, pixelWidth: number, p
   return `data:image/svg+xml;base64,${btoa(pictureSvg)}`;
 }
 
-/** The mock runtime's `read_asset_preview` of `asset` in the pattern project in `streamsFolder`, or why it has none in the runtime's words. */
+/** The mock runtime's `read_asset_preview` of `asset` in Pulse Stage in `streamsFolder`, or why it has none in the runtime's words. */
 export function mockReadTheAssetPreview(projectDirectory: string, streamsFolder: string, assetsChangedWhileTheMockRuns: MockProjectAssetsChangedWhileTheMockRuns, asset: string): AssetPreviewPicture | string {
   const listing = mockProjectAssetListing(projectDirectory, streamsFolder, assetsChangedWhileTheMockRuns);
   if (listing === null) return `read_asset_preview failed: ${projectDirectory} holds no project`;

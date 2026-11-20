@@ -25,12 +25,12 @@ function patternProjectSource(isEveryModuleUnreadable: boolean): NodeTypeSourceL
       source: "project",
       node_types: [],
       graph_generators: [],
-      unreadable_modules: [HALF_WRITTEN, { module: "nodes.inverting_effect", path: "nodes/inverting_effect.py", line: 3, column: 1, why: "SyntaxError: unterminated triple-quoted string literal (detected at line 23)" }],
+      unreadable_modules: [HALF_WRITTEN, { module: "nodes.stage_shaders", path: "nodes/stage_shaders.py", line: 3, column: 1, why: "SyntaxError: unterminated triple-quoted string literal (detected at line 23)" }],
     };
   }
   return {
     source: "project",
-    node_types: [listed("nodes.inverting_effect:InvertingEffect", "Effects"), listed("nodes.brightness_meter:BrightnessMeter", "nodes.brightness_meter"), listed("nodes.captions:caption_overlay", "Effects")],
+    node_types: [listed("nodes.stage_shaders:Kaleidoscope", "Effects"), listed("nodes.brightness_meter:BrightnessMeter", "nodes.brightness_meter"), listed("nodes.captions:caption_overlay", "Effects")],
     graph_generators: [
       {
         generator: "nodes.scenes:two_cameras_side_by_side",
@@ -80,7 +80,7 @@ function patternNodeTypes(isEveryOwnModuleUnreadable = false): ProjectNodeTypesD
   return {
     listing: { project_directory: `${STREAMS_FOLDER}/pattern`, project: "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90", project_name: "pattern", sources },
     described: [
-      describedAt("nodes.inverting_effect:InvertingEffect", "nodes/inverting_effect.py"),
+      describedAt("nodes.stage_shaders:Kaleidoscope", "nodes/stage_shaders.py"),
       describedAt("nodes.gripper:Gripper", "nodes/gripper.py"),
       describedAt("camera.nodes:CameraTilt", "camera/nodes.py"),
     ],
@@ -94,7 +94,7 @@ describe("the Library's tree", () => {
       "This project expanded",
       "  Effects expanded",
       "    caption_overlay leaf",
-      "    InvertingEffect leaf",
+      "    Kaleidoscope leaf",
       "  nodes.brightness_meter expanded",
       "    BrightnessMeter leaf",
       "  nodes/half_written.py:12:5: SyntaxError: expected ':' leaf",
@@ -114,13 +114,13 @@ describe("the Library's tree", () => {
       const meaning = meaningOfRow(label);
       return meaning === undefined || meaning.kind === "nothing_to_select" ? undefined : meaning.file;
     };
-    expect(fileOfRow("InvertingEffect")).toBe(`${STREAMS_FOLDER}/pattern/nodes/inverting_effect.py`);
+    expect(fileOfRow("Kaleidoscope")).toBe(`${STREAMS_FOLDER}/pattern/nodes/stage_shaders.py`);
     expect(fileOfRow("BrightnessMeter")).toBeNull();
     expect(fileOfRow("nodes/half_written.py:12:5: SyntaxError: expected ':'")).toBe(`${STREAMS_FOLDER}/pattern/nodes/half_written.py`);
     expect(fileOfRow("Gripper")).toBeNull();
     expect(fileOfRow("CameraTilt")).toBeNull();
-    const inverter = meaningOfRow("InvertingEffect");
-    expect(inverter?.kind === "node_type_declaration" ? inverter.described?.node_type : null).toBe("nodes.inverting_effect:InvertingEffect");
+    const kaleidoscope = meaningOfRow("Kaleidoscope");
+    expect(kaleidoscope?.kind === "node_type_declaration" ? kaleidoscope.described?.node_type : null).toBe("nodes.stage_shaders:Kaleidoscope");
   });
 
   it("shows each module that does not parse in the parser's words, for that module only", () => {
@@ -128,7 +128,7 @@ describe("the Library's tree", () => {
     expect(rows.slice(0, 3).map(({ row }) => [row.label, row.tone ?? "plain"])).toEqual([
       ["This project", "plain"],
       ["nodes/half_written.py:12:5: SyntaxError: expected ':'", "unreadable"],
-      ["nodes/inverting_effect.py:3:1: SyntaxError: unterminated triple-quoted string literal (detected at line 23)", "unreadable"],
+      ["nodes/stage_shaders.py:3:1: SyntaxError: unterminated triple-quoted string literal (detected at line 23)", "unreadable"],
     ]);
     expect(rows[3]?.row.label).toBe("imports/hall-of-light");
   });

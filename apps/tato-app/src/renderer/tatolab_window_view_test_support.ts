@@ -120,12 +120,12 @@ export function settingsRow(rowName: string): HTMLElement {
   return document.querySelector<HTMLElement>(`[data-settings-row="${rowName}"]`) ?? expect.unreachable(`no ${rowName} row`);
 }
 
-/** The mock's pattern project's folder, open by default. */
-export const PATTERN_PROJECT = "/Users/jonathanf/streams/pattern";
+/** The folder of the mock's open project, Pulse Stage, open by default. */
+export const PULSE_STAGE_FOLDER = "/Users/jonathanf/streams/pulse-stage";
 /** The mock's camera project's folder. */
 export const CAMERA_PROJECT = "/Users/jonathanf/streams/camera";
-/** The id of the pattern project's `main` stream. */
-export const PATTERN_MAIN_STREAM = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "main" });
+/** The id of Pulse Stage's `main` stream. */
+export const PULSE_STAGE_MAIN_STREAM = mockStreamIdOf({ project_directory: PULSE_STAGE_FOLDER, stream_name: "main" });
 
 /** The page of the core view `viewTypeId` drawn in its frame, in the area `areaId` when one is named. */
 export function coreViewPage(viewTypeId: string, areaId?: string): Document {
@@ -189,9 +189,9 @@ export async function theAreasShownAre(areaIds: readonly string[]): Promise<void
   await waitFor(() => expect(areaIdsShown()).toEqual(areaIds));
 }
 
-/** Keeps `saved` as the pattern project's layout, for the studio to open on. */
-export function keepThePatternProjectsLayout(saved: unknown): void {
-  localStorage.setItem(studioLayoutStorageKey(PATTERN_PROJECT), JSON.stringify(saved));
+/** Keeps `saved` as Pulse Stage's layout, for the studio to open on. */
+export function keepThePulseStageLayout(saved: unknown): void {
+  localStorage.setItem(studioLayoutStorageKey(PULSE_STAGE_FOLDER), JSON.stringify(saved));
 }
 
 /**

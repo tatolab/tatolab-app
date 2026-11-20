@@ -15,7 +15,7 @@ export const MOCK_STREAM_SETTLE_MILLISECONDS = 1600;
 
 /** The runtime's words for an `open_project` it fails while a record an earlier runtime wrote from another folder holds the project's stream id. */
 export const mockOpenRefusedForAnEarlierRuntimesRecord = (projectDirectory: string): string =>
-  `Stream graph error: the stream id \`pattern-main\` of the stream asset 7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68 of the project 0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55 in ${projectDirectory} is held by a record an earlier runtime wrote from ${projectDirectory}-copy; two streams cannot share one id, so \`rm\` the stream that holds it, or give a second copy of a project its own project UUID`;
+  `Stream graph error: the stream id \`pulse-stage-main\` of the stream asset 7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68 of the project 0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55 in ${projectDirectory} is held by a record an earlier runtime wrote from ${projectDirectory}-copy; two streams cannot share one id, so \`rm\` the stream that holds it, or give a second copy of a project its own project UUID`;
 
 /** How long `main` stays listed but not loaded in the `loading` scenario. */
 export const MOCK_MAIN_LOADING_MILLISECONDS = 9000;

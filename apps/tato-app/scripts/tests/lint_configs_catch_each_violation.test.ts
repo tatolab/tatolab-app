@@ -74,6 +74,9 @@ async function ruleIdsReportedFor(filePath: string, plantedSource: string): Prom
 
 const reportedCases: [string, string, string, string][] = [
   ["a console.log in the window", "src/renderer/zz_planted.ts", 'console.log("planted");\n', "eslint(no-console)"],
+  ["the retired sample's node named in the mock", "mock/zz_planted.ts", 'export const plantedNode = "invertingeffect";\n', "tatolab_samples/names_no_retired_sample"],
+  ["the retired example named in a window test's comment", "src/renderer/zz_planted.test.ts", "// Copied from examples/camera-virtual-camera.\nexport const planted = 1;\n", "tatolab_samples/names_no_retired_sample"],
+  ["the retired sample's node type named in a package", "view-sdk:src/zz_planted.ts", "export const InvertingEffect = 1;\n", "tatolab_samples/names_no_retired_sample"],
   ["a console.table in the window", "src/renderer/zz_planted.ts", "console.table([1]);\n", "eslint(no-console)"],
   ["a debugger statement in the window", "src/renderer/zz_planted.ts", "export function planted(): void {\n  debugger;\n}\n", "eslint(no-debugger)"],
   ["a console call in a screen", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedLog = () => console.log("planted");\n', "eslint(no-console)"],
@@ -149,6 +152,7 @@ const quietCases: [string, string, string][] = [
   ["effect imported by the port viewers' lifecycle, beside the frame lane", "src/main/runtime_port_viewers.ts", 'import { Effect } from "effect";\nexport const plantedEffect = Effect.void;\n'],
   ["effect imported by the port viewers' connection, beside the frame lane", "src/main/runtime_viewer_control_connection.ts", 'import { Effect } from "effect";\nexport const plantedEffect = Effect.void;\n'],
   ["a console.log in a window test", "src/renderer/zz_planted.test.ts", 'console.log("planted");\n'],
+  ["the Pulse Stage sample's kaleidoscope named in the mock", "mock/zz_planted.ts", 'export const plantedNode = "kaleidoscope";\n'],
   ["a spinner, which is not a dot", "src/renderer/studio_shell/zz_planted.tsx", 'export const plantedSpinner = () => <span className="size-3.5 animate-spin" />;\n'],
   ["a screen composed from the design system", "src/renderer/studio_shell/zz_planted.tsx", 'import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";\nexport const PlantedScreen = () => <ActionButton onPressed={() => {}}>Planted</ActionButton>;\n'],
   ["a raw button in a window test", "src/renderer/studio_shell/zz_planted.test.tsx", 'export const plantedTestMarkup = () => <button type="button">Planted</button>;\n'],

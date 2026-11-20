@@ -13,8 +13,8 @@ describe("the words a search matches", () => {
   });
 
   it("marks the part that matches and leaves the words whole", () => {
-    const { container } = render(<MatchedWords words="Inverting Effect" searchWords="ting" />);
-    expect(container.textContent).toBe("Inverting Effect");
-    expect(container.querySelector("[data-matched-words]")?.textContent).toBe("ting");
+    const { container } = render(<MatchedWords words="Kaleidoscope" searchWords="scope" />);
+    expect(container.textContent).toBe("Kaleidoscope");
+    expect(container.querySelector("[data-matched-words]")?.textContent).toBe("scope");
   });
 });

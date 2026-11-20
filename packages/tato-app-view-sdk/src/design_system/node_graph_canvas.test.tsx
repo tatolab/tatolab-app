@@ -482,7 +482,7 @@ describe("finding nodes in the graph", () => {
     return render(
       <NodeGraphCanvas
         label="Stream graph"
-        nodes={[namedCard("pattern", "Test Pattern Source", null, 0), namedCard("invert", "Inverting Effect", null, 300), namedCard("meter", "Brightness Meter", "Meter", 600), namedCard("display", "Display Window", null, 900)]}
+        nodes={[namedCard("orbits", "Orbit Lights", null, 0), namedCard("speed", "Graph Input", null, 300), namedCard("click", "Click Track", "Click", 600), namedCard("speaker", "Speaker Sink", null, 900)]}
         links={[]}
         selectedNodeIds={[]}
         onNodesSelected={onNodesSelected}
@@ -503,18 +503,18 @@ describe("finding nodes in the graph", () => {
     expect(progress()).toBe("1 of 2");
     fireEvent.change(findWords, { target: { value: "t" } });
     expect(progress()).toBe("1 of 3");
-    expect(["pattern", "invert", "meter", "display"].map(findLookOf)).toEqual(["current", "found", "found", null]);
+    expect(["orbits", "speed", "click", "speaker"].map(findLookOf)).toEqual(["current", "found", "found", null]);
 
     fireEvent.keyDown(findWords, { key: "Enter" });
     expect(progress()).toBe("2 of 3");
-    expect(findLookOf("invert")).toBe("current");
+    expect(findLookOf("speed")).toBe("current");
     fireEvent.keyDown(findWords, { key: "Enter", shiftKey: true });
     fireEvent.keyDown(findWords, { key: "Enter", shiftKey: true });
     expect(progress()).toBe("3 of 3");
-    expect(findLookOf("meter")).toBe("current");
+    expect(findLookOf("click")).toBe("current");
 
-    fireEvent.change(findWords, { target: { value: "meter" } });
-    expect(["pattern", "invert", "meter", "display"].map(findLookOf)).toEqual([null, null, "current", null]);
+    fireEvent.change(findWords, { target: { value: "click" } });
+    expect(["orbits", "speed", "click", "speaker"].map(findLookOf)).toEqual([null, null, "current", null]);
     expect(progress()).toBe("1 of 1");
     fireEvent.change(findWords, { target: { value: "zzz" } });
     expect(progress()).toBe("No results");
@@ -526,8 +526,8 @@ describe("finding nodes in the graph", () => {
     const canvas = await vi.waitFor(() => container.querySelector<HTMLElement>("[data-node-graph-editable]") ?? expect.unreachable("no canvas"));
     fireEvent.keyDown(canvas, { key: "f", metaKey: true });
     const findWords = container.querySelector<HTMLInputElement>("[data-node-graph-find-words]") ?? expect.unreachable("⌘F opened no find bar");
-    fireEvent.change(findWords, { target: { value: "pattern" } });
-    expect(container.querySelector('[data-node-graph-card="pattern"]')?.getAttribute("data-found")).toBe("current");
+    fireEvent.change(findWords, { target: { value: "orbit" } });
+    expect(container.querySelector('[data-node-graph-card="orbits"]')?.getAttribute("data-found")).toBe("current");
     fireEvent.keyDown(findWords, { key: "Escape" });
     expect(container.querySelector("[data-node-graph-find-bar]")).toBeNull();
     expect(container.querySelector("[data-found]")).toBeNull();

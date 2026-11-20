@@ -13,6 +13,7 @@ import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { sleep } from "./mock_tatolab_simulation";
 import type { MockNodeUiElementsListing, MockProjectNodeBodies } from "./mock_tatolab_options";
 import { MOCK_COMMAND_LATENCY_MILLISECONDS } from "./mock_tatolab_simulation_constants";
+import { PULSE_STAGE_PROJECT_NAME } from "./mock_pulse_stage_sample";
 
 /** Where the mock's dev server serves the Studio's own node UI module, as the app's window page serves it. */
 const MOCK_STUDIO_NODE_UI_FILES_PATH = "/core_node_ui/";
@@ -37,7 +38,7 @@ const MOCK_PROJECT_NODE_UI_FILES_PATH = "/mock_project_node_ui/";
 /** The mock project's node bodies, served from the page's own origin, or blocked by a finding of their folder's check. */
 export function mockProjectNodeBodies(pageOrigin: string, bodies: Exclude<MockProjectNodeBodies, "none">): readonly ListedNodeUiElement[] {
   return elementsTheManifestRegisters(projectNodeUiManifestText, "mock/mock_project_node_ui/tatolab_node_ui.json").map(({ script, registration }) => ({
-    module: "pattern",
+    module: PULSE_STAGE_PROJECT_NAME,
     brought_by: "project",
     script,
     folder_version: bodies === "served" ? "0123456789abcdef" : "",

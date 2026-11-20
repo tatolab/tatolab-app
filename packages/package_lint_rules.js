@@ -126,6 +126,41 @@ function importsOnlyWhatAnExtensionMayRule(extensionFolder) {
   };
 }
 
+// streamlib's camera-virtual-camera example, and the InvertingEffect copied from it, no longer seed a sample anywhere
+// in the app: an inverted test pattern cannot be told from a working one. The mock opens streamlib's Pulse Stage
+// sample (`examples/pulse-stage`), and a test or fixture builds on it.
+const RETIRED_SAMPLE_WORDS = /camera[-_ ]?virtual[-_ ]?camera|inverting[-_ ]?effect/i;
+const RETIRED_SAMPLE_MESSAGE =
+  "camera-virtual-camera and its InvertingEffect are retired as a sample: build on streamlib's Pulse Stage (examples/pulse-stage), the project the mock opens.";
+
+/** A rule refusing the retired sample by name, in a string, an identifier, JSX text or a comment. */
+const namesNoRetiredSampleRule = {
+  meta: { type: "problem", schema: [] },
+  create(context) {
+    const refuseTheRetiredSample = (node, text) => {
+      if (typeof text === "string" && RETIRED_SAMPLE_WORDS.test(text)) context.report({ node, message: RETIRED_SAMPLE_MESSAGE });
+    };
+    return {
+      Program: () => {
+        for (const comment of context.sourceCode.getAllComments()) refuseTheRetiredSample(comment, comment.value);
+      },
+      Literal: (node) => refuseTheRetiredSample(node, node.value),
+      TemplateElement: (node) => refuseTheRetiredSample(node, node.value.raw),
+      JSXText: (node) => refuseTheRetiredSample(node, node.value),
+      Identifier: (node) => refuseTheRetiredSample(node, node.name),
+    };
+  },
+};
+
+/** The config refusing the retired sample in `files`, which every package and the app lint with. */
+export function retiredSampleLintConfig(files) {
+  return {
+    files,
+    plugins: { tatolab_samples: { rules: { names_no_retired_sample: namesNoRetiredSampleRule } } },
+    rules: { "tatolab_samples/names_no_retired_sample": "error" },
+  };
+}
+
 /** Imports no package makes: the app, by name or by path, or another package's files by path rather than by its name. */
 const IMPORTS_OUTSIDE_THE_PACKAGE = [
   { group: ["tato-app", "tato-app/*"], message: "A package never imports the app; a view reaches Studio only through @tatolab/tato-app-view-sdk." },
@@ -160,6 +195,7 @@ export function packageLintConfig(packageFolder, { sourceFolders = ["src"], file
         "no-restricted-imports": ["error", { patterns: IMPORTS_OUTSIDE_THE_PACKAGE }],
       },
     },
+    retiredSampleLintConfig(lintedFiles),
     {
       files: ["src/design_system/**/*.ts", "src/design_system/**/*.tsx"],
       ignores: ["src/design_system/ui/**", "src/design_system/**/*.test.ts", "src/design_system/**/*.test.tsx"],

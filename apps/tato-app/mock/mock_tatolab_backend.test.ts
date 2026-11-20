@@ -11,10 +11,10 @@ afterEach(() => {
 });
 
 /** The mock streams' ids, which the runtime would compute from their locations. */
-const MAIN = "pattern-main-bcd55b";
+const MAIN = "pulse-stage-main-111b09";
 const CAMERA = "camera-main-b0a0e5";
-const RECORDER = "pattern-recorder-077241";
-const PATTERN_TWO = "pattern-pattern-two-346432";
+const RECORDER = "pulse-stage-recorder-f382aa";
+const REHEARSAL = "pulse-stage-rehearsal-8d090c";
 const LOBBY_RECORDER = "lobby-recorder-main-d76949";
 const HEAT_MAP = "heat-map-heat-map-68aac7";
 
@@ -45,7 +45,7 @@ async function everyProjectLogRecord(backend: TatolabBackend, projectDirectory: 
   return (await page).records;
 }
 
-const PATTERN_FOLDER = "/Users/jonathanf/streams/pattern";
+const PULSE_STAGE_FOLDER = "/Users/jonathanf/streams/pulse-stage";
 const LOBBY_RECORDER_FOLDER = "/Users/jonathanf/streams/lobby-recorder";
 
 describe("the mock backend's stream actions", () => {
@@ -58,7 +58,7 @@ describe("the mock backend's stream actions", () => {
       [MAIN, "main", "running"],
       [CAMERA, "camera", "running"],
       [RECORDER, "recorder", "running"],
-      [PATTERN_TWO, "pattern-two", "stopped"],
+      [REHEARSAL, "rehearsal", "stopped"],
       [LOBBY_RECORDER, "lobby-recorder", "failed"],
     ]);
   });
@@ -97,7 +97,7 @@ describe("the mock backend's stream actions", () => {
     expect(listingWithTheId(stopped.streams, MAIN)).toMatchObject({ state: "stopped" });
     const pausedWhileStopped = await streamsAfterEachChange(() => backend.pauseOpenProject());
     expect(pausedWhileStopped.answer).toEqual({
-      refusal: expect.stringMatching(/^Runtime error: no stream of the project in \/Users\/jonathanf\/streams\/pattern plays, so there is none to pause; `start_playback` plays it\. Loaded: /),
+      refusal: expect.stringMatching(/^Runtime error: no stream of the project in \/Users\/jonathanf\/streams\/pulse-stage plays, so there is none to pause; `start_playback` plays it\. Loaded: /),
     });
     await streamsAfterEachChange(() => backend.runOpenProject());
     const playedAgain = await streamsAfterEachChange(() => Promise.resolve(), 3000);
@@ -112,7 +112,7 @@ describe("the mock backend's stream actions", () => {
     await streamsAfterEachChange(() => Promise.resolve(), 1000);
     const stoppedTwice = await streamsAfterEachChange(() => backend.stopOpenProject());
     expect(stoppedTwice.answer).toEqual({
-      refusal: expect.stringMatching(/^Runtime error: no stream of the project in \/Users\/jonathanf\/streams\/pattern plays, so there is none to stop; `start_playback` plays it\. Loaded: /),
+      refusal: expect.stringMatching(/^Runtime error: no stream of the project in \/Users\/jonathanf\/streams\/pulse-stage plays, so there is none to stop; `start_playback` plays it\. Loaded: /),
     });
     const removedAFolderOfNoStream = await streamsAfterEachChange(() => backend.removeProject("/Users/jonathanf/streams/nothing-here"));
     expect(removedAFolderOfNoStream.answer).toEqual({
@@ -183,11 +183,11 @@ describe("the mock backend's stream actions", () => {
 
     const grouped = await settled(backend.transactInTheOpenProject([{ operation: "add_group", stream: streamAsset, title: "Frame", nodes: [firstNode.id] }], "commit", null));
     if (grouped.kind !== "applied") return expect.unreachable("the group was added");
-    const group = (await settled(backend.describeStreamGraph(MAIN))).groups?.[0];
+    const group = (await settled(backend.describeStreamGraph(MAIN))).groups?.at(-1);
     expect(group?.id).toBe(grouped.transaction.added_groups[0]?.group);
     const coloured = await settled(backend.transactInTheOpenProject([{ operation: "set_group_fields", stream: streamAsset, group: group?.id ?? "", colour: "#3fcf8e", description: "The source" }], "commit", null));
     expect(coloured.kind).toBe("applied");
-    expect((await settled(backend.describeStreamGraph(MAIN))).groups?.[0]).toMatchObject({ colour: "#3fcf8e", description: "The source" });
+    expect((await settled(backend.describeStreamGraph(MAIN))).groups?.at(-1)).toMatchObject({ colour: "#3fcf8e", description: "The source" });
   });
 
   it("answers a wire drag's question about the sample's pins with the runtime's recorded answer, unchanged, and refuses one it holds no recording of, judging none", async () => {
@@ -340,7 +340,7 @@ describe("the mock backend's stream actions", () => {
     const lookNode = (await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === look);
     expect(lookNode).toMatchObject({ type: "tatolab.project:StreamFragment" });
 
-    const addInside = { operation: "add_node" as const, stream: streamAsset, level: [look], type: "nodes.frame_tally:FrameTally", name: "preview" };
+    const addInside = { operation: "add_node" as const, stream: streamAsset, level: [look], type: "nodes.looks:GlowBlur", name: "preview" };
     expect((await settled(backend.transactInTheOpenProject([addInside], "commit", null))).kind).toBe("applied");
     const insideNames = async () => (await settled(backend.describeStreamGraph(MAIN))).nodes.find((node) => node.id === look)?.fragment?.nodes.map((node) => node.name);
     expect(await insideNames()).toContain("preview");
@@ -369,16 +369,16 @@ describe("the mock backend's stream actions", () => {
     await vi.advanceTimersByTimeAsync(100);
 
     expect((await status).project_stream_action_failures).toEqual([
-      expect.objectContaining({ project_directory: PATTERN_FOLDER, kind: "open", failed_because: expect.stringContaining("held by a record an earlier runtime wrote") }),
+      expect.objectContaining({ project_directory: PULSE_STAGE_FOLDER, kind: "open", failed_because: expect.stringContaining("held by a record an earlier runtime wrote") }),
     ]);
   });
 
   it("removes a project: each of its streams stopping, then forgotten, and no other", async () => {
     const { backend, streamsAfterEachChange } = await runningMockBackend();
 
-    const removing = await streamsAfterEachChange(() => backend.removeProject(PATTERN_FOLDER));
+    const removing = await streamsAfterEachChange(() => backend.removeProject(PULSE_STAGE_FOLDER));
     expect(removing.answer).toEqual({ queued: true });
-    expect([MAIN, RECORDER, PATTERN_TWO].map((streamId) => listingWithTheId(removing.streams, streamId)?.state)).toEqual(["stopping", "stopping", "stopping"]);
+    expect([MAIN, RECORDER, REHEARSAL].map((streamId) => listingWithTheId(removing.streams, streamId)?.state)).toEqual(["stopping", "stopping", "stopping"]);
     const removed = await streamsAfterEachChange(() => Promise.resolve(), 1000);
     expect(removed.streams?.map((stream) => stream.stream)).toEqual([CAMERA, LOBBY_RECORDER]);
   });
@@ -397,15 +397,15 @@ describe("the mock backend's project logs", () => {
   it("narrows a project's log to one stream, and pages on from each cursor", async () => {
     const { backend } = await runningMockBackend();
 
-    const wholeProject = await everyProjectLogRecord(backend, PATTERN_FOLDER, { stream: null, action: null });
-    const mainOnly = await everyProjectLogRecord(backend, PATTERN_FOLDER, { stream: MAIN, action: null });
+    const wholeProject = await everyProjectLogRecord(backend, PULSE_STAGE_FOLDER, { stream: null, action: null });
+    const mainOnly = await everyProjectLogRecord(backend, PULSE_STAGE_FOLDER, { stream: MAIN, action: null });
     expect(new Set(wholeProject.map((record) => record.stream))).toEqual(new Set([MAIN, RECORDER]));
     expect(mainOnly.length).toBeGreaterThan(0);
     expect(mainOnly.every((record) => record.stream === MAIN)).toBe(true);
 
-    const firstPage = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, null, null);
+    const firstPage = backend.readProjectLogRecords(PULSE_STAGE_FOLDER, { stream: null, action: null }, null, null);
     await vi.advanceTimersByTimeAsync(100);
-    const pageAfterIt = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, (await firstPage).next_after, null);
+    const pageAfterIt = backend.readProjectLogRecords(PULSE_STAGE_FOLDER, { stream: null, action: null }, (await firstPage).next_after, null);
     await vi.advanceTimersByTimeAsync(100);
     expect((await pageAfterIt).records.length).toBeLessThan(wholeProject.length);
   });
@@ -413,7 +413,7 @@ describe("the mock backend's project logs", () => {
   it("marks records no longer held once the log's retention deleted some, with ?held_records=", async () => {
     const { backend } = await runningMockBackend("held_records=5");
 
-    const page = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, null, null);
+    const page = backend.readProjectLogRecords(PULSE_STAGE_FOLDER, { stream: null, action: null }, null, null);
     await vi.advanceTimersByTimeAsync(100);
 
     expect(await page).toMatchObject({ records_no_longer_held: true });
@@ -588,11 +588,11 @@ describe("the mock backend's node types", () => {
   it("lists and describes the node types the runtime listed and described for the sample, every one the sample's graph names but its Graph Input, and refuses a folder holding no project", async () => {
     const { backend } = await runningMockBackend("main_graph=every_pin_kind");
     const graph = backend.describeStreamGraph(MAIN);
-    const listing = backend.listNodeTypes(PATTERN_FOLDER);
+    const listing = backend.listNodeTypes(PULSE_STAGE_FOLDER);
     const refusal = backend.listNodeTypes("/etc").catch((refused: unknown) => refused);
     await vi.advanceTimersByTimeAsync(200);
     const typesListed = (await listing).sources.flatMap((source) => source.node_types.map((listed) => listed.node_type));
-    expect((await listing).project_directory).toBe(PATTERN_FOLDER);
+    expect((await listing).project_directory).toBe(PULSE_STAGE_FOLDER);
     expect((await graph).nodes.map((node) => [node.name, typesListed.includes(node.type)])).toEqual([
       ["testpattern", true],
       ["brightness", false],
@@ -605,7 +605,7 @@ describe("the mock backend's node types", () => {
       ["tally", true],
     ]);
     expect(await refusal).toBe("list_node_types failed: /etc holds no project: it has no tatolab-project.json");
-    const described = backend.describeNodeTypes(PATTERN_FOLDER, typesListed);
+    const described = backend.describeNodeTypes(PULSE_STAGE_FOLDER, typesListed);
     await vi.advanceTimersByTimeAsync(200);
     expect((await described).node_types.map((nodeType) => nodeType.node_type)).toEqual(typesListed);
   });
@@ -620,12 +620,12 @@ describe("the mock backend's node types", () => {
     backend.onProjectNodeTypesChanged(() => {
       nodeTypesChanged += 1;
     });
-    expect(await settled(backend.createNodeFile(`${PATTERN_FOLDER}/nodes/sparkle.py`))).toEqual({ file: `${PATTERN_FOLDER}/nodes/sparkle.py`, node_type: "nodes.sparkle:Sparkle" });
+    expect(await settled(backend.createNodeFile(`${PULSE_STAGE_FOLDER}/nodes/sparkle.py`))).toEqual({ file: `${PULSE_STAGE_FOLDER}/nodes/sparkle.py`, node_type: "nodes.sparkle:Sparkle" });
     expect(nodeTypesChanged).toBe(1);
 
-    const listing = await settled(backend.listNodeTypes(PATTERN_FOLDER));
+    const listing = await settled(backend.listNodeTypes(PULSE_STAGE_FOLDER));
     expect(listing.sources.find((source) => source.source === "project")?.node_types.map((listed) => listed.node_type)).toContain("nodes.sparkle:Sparkle");
-    const described = await settled(backend.describeNodeTypes(PATTERN_FOLDER, ["nodes.sparkle:Sparkle"]));
+    const described = await settled(backend.describeNodeTypes(PULSE_STAGE_FOLDER, ["nodes.sparkle:Sparkle"]));
     expect(described.node_types).toMatchObject([{ node_type: "nodes.sparkle:Sparkle", declared_at: { path: "nodes/sparkle.py" }, inputs: [{ name: "video_in" }], outputs: [{ name: "video_out" }] }]);
 
     const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
@@ -634,16 +634,20 @@ describe("the mock backend's node types", () => {
   });
 });
 
+/** The node types of a stream's variables, whose ports the runtime serves no family on. */
+const VARIABLE_NODE_TYPES: readonly string[] = ["tatolab.stream:SetVariable", "tatolab.stream:GetVariable"];
+
 describe("the mock backend's port families", () => {
   it("serves each port's family by default, as the runtime does, and none when asked", async () => {
     const familiesOfMain = async (pageQuery: string) => {
       const { backend } = await runningMockBackend(pageQuery);
       const graph = backend.describeStreamGraph(MAIN);
-      const described = backend.describeNodeTypes(PATTERN_FOLDER, ["tatolab.stream:ChannelsToRecords", "nodes.glow:Glow"]);
+      const described = backend.describeNodeTypes(PULSE_STAGE_FOLDER, ["tatolab.stream:ChannelsToRecords", "nodes.stage_shaders:Kaleidoscope"]);
       await vi.advanceTimersByTimeAsync(200);
       const read = await graph;
       return {
-        graph: read.nodes.flatMap((node) => [...node.ports.inputs, ...node.ports.outputs].map(familyOfThePort)),
+        // A Set or Get Variable's `value` carries whatever is linked to it, so the runtime serves no family on it.
+        graph: read.nodes.filter((node) => !VARIABLE_NODE_TYPES.includes(node.type)).flatMap((node) => [...node.ports.inputs, ...node.ports.outputs].map(familyOfThePort)),
         described: (await described).node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [...nodeType.inputs, ...nodeType.outputs].map(familyOfThePort))),
       };
     };
@@ -651,8 +655,8 @@ describe("the mock backend's port families", () => {
     expect(new Set([...unservedWhenAsked.graph, ...unservedWhenAsked.described])).toEqual(new Set([null]));
     const servedByDefault = await familiesOfMain("");
     expect(servedByDefault.graph).not.toContain(null);
-    expect(new Set(servedByDefault.graph)).toEqual(new Set(["image", "channels", "records", "array"]));
-    expect(servedByDefault.described).toEqual(["channels", null, "records", null, null, null, null]);
+    expect(new Set(servedByDefault.graph)).toEqual(new Set(["image", "channels", "records"]));
+    expect(servedByDefault.described).toEqual(["channels", null, "records", null, null, null, null, null]);
   });
 });
 

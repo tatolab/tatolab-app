@@ -40,8 +40,8 @@ describe("Module manager", () => {
 
     await shown('[data-module-manager-row="import:lobby-wall"]');
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
-    expect(textOf('[data-module-manager-show="added_to_this_project"]')).toBe("pattern1");
-    expect(textOf("[data-module-manager-project-name]")).toBe("pattern");
+    expect(textOf('[data-module-manager-show="added_to_this_project"]')).toBe("Pulse Stage1");
+    expect(textOf("[data-module-manager-project-name]")).toBe("Pulse Stage");
     expect(document.body.textContent).not.toContain("This project");
     expect(moduleManagerRow("import:lobby-wall").textContent).toContain("1 view");
     expect(moduleManagerRow("import:lobby-wall").textContent).toContain("From a folder");
@@ -256,7 +256,7 @@ describe("Module manager", () => {
     await shown('[data-module-manager-row="import:lobby-wall"]');
 
     await chosenFromTheActionsOf("lobby-wall", "remove");
-    await waitFor(() => expect(textOf("[data-module-manager-remove-dialog]")).toContain("Uninstall lobby-wall from pattern?"));
+    await waitFor(() => expect(textOf("[data-module-manager-remove-dialog]")).toContain("Uninstall lobby-wall from Pulse Stage?"));
     pressed("[data-module-manager-confirm-remove]");
     await waitFor(() => expect(textOf('[data-module-manager-refusal="import:lobby-wall"]')).toContain("remove_dependency failed: the stream main still uses a node of lobby-wall"));
     expect(document.querySelector('[data-module-manager-row="import:lobby-wall"]')).not.toBeNull();
@@ -298,7 +298,7 @@ describe("Module manager", () => {
     pressed('[data-module-manager-add-from-card="catalog:tatolab-camera"]');
 
     await waitFor(() => expect(textOf('[data-module-manager-row="catalog:tatolab-camera"] [data-module-card-pending]')).toBe("Adding…"));
-    expect(textOf("[data-module-manager-in-progress]")).toBe("Adding Camera to pattern…");
+    expect(textOf("[data-module-manager-in-progress]")).toBe("Adding Camera to Pulse Stage…");
     expect(document.querySelector("[data-module-manager-detail]")).toBeNull();
     expect(document.querySelector('[data-module-manager-add-from-card="catalog:tatolab-opus"]')).not.toBeNull();
     openThePageOf("catalog:tatolab-opus");
@@ -318,11 +318,11 @@ describe("Module manager", () => {
     openThePageOf("catalog:tatolab-compositor");
     await shown('[data-module-manager-detail="catalog:tatolab-compositor"]');
     expect(textOf("[data-module-manager-whats-inside]")).toContain("LowerThird");
-    expect(textOf('[data-module-manager-import="tatolab-compositor"]')).toBe("Add to pattern");
+    expect(textOf('[data-module-manager-import="tatolab-compositor"]')).toBe("Add to Pulse Stage");
     pressed('[data-module-manager-import="tatolab-compositor"]');
 
     await shown('[data-module-manager-added="catalog:tatolab-compositor"]');
-    expect(textOf('[data-module-manager-added="catalog:tatolab-compositor"]')).toContain("Compositor is in pattern");
+    expect(textOf('[data-module-manager-added="catalog:tatolab-compositor"]')).toContain("Compositor is in Pulse Stage");
     expect(textOf('[data-module-manager-added="catalog:tatolab-compositor"]')).toContain("LowerThird");
     expect(document.querySelector('[data-module-manager-import="tatolab-compositor"]')).toBeNull();
     pressed("[data-module-manager-view-in-project]");
@@ -344,7 +344,7 @@ describe("Module manager", () => {
 
     await waitFor(() => expect(textOf("[data-module-manager-refusal-words]")).toBe("https://get.tatolab.com/modules/tatolab-camera-0.68.29.zip downloaded with the SHA-256 28f8, not the catalog's 4f7a; nothing was imported."));
     expect(textOf('[data-module-manager-refusal="catalog:tatolab-camera"]')).toContain("Camera was not added");
-    expect(textOf('[data-module-manager-refusal="catalog:tatolab-camera"]')).toContain("Nothing in pattern changed.");
+    expect(textOf('[data-module-manager-refusal="catalog:tatolab-camera"]')).toContain("Nothing in Pulse Stage changed.");
     pressed("[data-module-manager-retry]");
     await waitFor(() => expect(timesAsked).toBe(2));
   });
@@ -385,7 +385,7 @@ describe("Module manager", () => {
 
     told({ kind: "adding" });
     await shown('[data-module-manager-add-stage="adding"]');
-    expect(textOf('[data-module-manager-work="catalog:tatolab-camera"]')).toContain("Adding Camera to pattern…");
+    expect(textOf('[data-module-manager-work="catalog:tatolab-camera"]')).toContain("Adding Camera to Pulse Stage…");
     act(() => answerTheImport({ kind: "imported", dependency: { project: "tatolab-camera", folder: "tatolab-camera", source: "/downloads/tatolab-camera-0.68.29.zip", version: "0.68.29" } }));
     await shown('[data-module-manager-added="catalog:tatolab-camera"]');
   });
@@ -425,7 +425,7 @@ describe("Module manager", () => {
     pressed('[data-module-manager-clone="camera-halftone"]');
 
     await shown('[data-module-manager-cloned="catalog:camera-halftone"]');
-    expect(textOf('[data-module-manager-cloned="catalog:camera-halftone"]')).toContain("pattern was not changed.");
+    expect(textOf('[data-module-manager-cloned="catalog:camera-halftone"]')).toContain("Pulse Stage was not changed.");
     pressed("[data-module-manager-show-cloned-project]");
     await waitFor(() => expect(foldersShown).toEqual(["/Users/jonathanf/Documents/Tato Studio/Camera halftone"]));
     expect(document.querySelector("[data-module-manager-show-cloned-project-refusal]")).toBeNull();
@@ -475,7 +475,7 @@ describe("Module manager", () => {
     openThePageOf("catalog:tatolab-camera");
     pressed(await waitFor(() => (document.querySelector("[data-module-manager-import]") === null ? expect.unreachable("no Add") : "[data-module-manager-import]")));
     await shown('[data-module-manager-added="catalog:tatolab-camera"]');
-    await waitFor(() => expect(textOf('[data-module-manager-show="added_to_this_project"]')).toBe("pattern2"));
+    await waitFor(() => expect(textOf('[data-module-manager-show="added_to_this_project"]')).toBe("Pulse Stage2"));
 
     pressed("[data-module-manager-back]");
     pressed('[data-module-manager-show="added_to_this_project"]');

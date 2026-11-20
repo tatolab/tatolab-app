@@ -9,7 +9,7 @@ import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
 import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import { studioLayoutStorageKey } from "./studio_shell/studio_layout";
-import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PATTERN_PROJECT, PATTERN_MAIN_STREAM, coreViewPage, inTheCoreView, libraryRow, showTheLibraryInTheViewerArea, outlinerRow, outlinerRowIds, AREAS_OF_THE_DEFAULT_LAYOUT, theAreasShownAre, keepThePatternProjectsLayout, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
+import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PULSE_STAGE_FOLDER, PULSE_STAGE_MAIN_STREAM, coreViewPage, inTheCoreView, libraryRow, showTheLibraryInTheViewerArea, outlinerRow, outlinerRowIds, AREAS_OF_THE_DEFAULT_LAYOUT, theAreasShownAre, keepThePulseStageLayout, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
 // Code's editor here says Monaco didn't load; the code pane's text and saves are tested beside it.
@@ -125,17 +125,17 @@ async function thePictureAndFaderPanelInTheViewer(): Promise<TatoAppViewConnecti
 describe("the studio", () => {
   it("asks for a node while nothing is selected, then plays the node clicked, reading its port as a port viewer", async () => {
     await mountedWindowOverTheMock("state=running&outliner=open");
-    await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+    await waitFor(() => outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`));
+    fireEvent.doubleClick(outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`));
 
     const askingForANode = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="nothing_selected"]') ?? expect.unreachable("no placeholder asking for a node"));
     expect(askingForANode.textContent).toContain("Select a node to visualize it");
     expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-port-chooser]")).toBeNull();
 
-    fireEvent.click(await waitFor(() => outlinerRow(`node:${PATTERN_MAIN_STREAM}/invertingeffect`)));
+    fireEvent.click(await waitFor(() => outlinerRow(`node:${PULSE_STAGE_MAIN_STREAM}/kaleidoscope`)));
     const playing = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>("[data-viewer-playing]") ?? expect.unreachable("the Node visualizer plays nothing"));
-    expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
-    expect(playing.querySelector("canvas")?.getAttribute("aria-label")).toBe("Live picture of Inverting Effect › video_to_downstream");
+    expect(playing.getAttribute("data-viewer-playing")).toBe("kaleidoscope/result");
+    expect(playing.querySelector("canvas")?.getAttribute("aria-label")).toBe("Live picture of Kaleidoscope › result");
     await waitFor(() => expect(playing.getAttribute("data-viewer-port-state")).toBe("ended"));
     expect(playing.textContent).toContain("This page has no WebCodecs VideoFrame to play the mock's frames.");
     expect(playing.querySelector("[data-viewer-ended]")?.getAttribute("data-viewer-ended")).toBe("open_the_port_again");
@@ -144,16 +144,16 @@ describe("the studio", () => {
     await waitFor(() => expect(playing.getAttribute("data-viewer-port-state")).toBe("ended"));
     expect(playing.ownerDocument.activeElement).toBe(within(playing).getByRole("button", { name: "Open again" }));
 
-    fireEvent.click(outlinerRow(`node:${PATTERN_MAIN_STREAM}/displaywindow`));
+    fireEvent.click(outlinerRow(`node:${PULSE_STAGE_MAIN_STREAM}/speaker`));
     const withoutOutput = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="node_without_output"]') ?? expect.unreachable("no placeholder for a node with no output"));
-    expect(withoutOutput.textContent).toContain("Display Window");
+    expect(withoutOutput.textContent).toContain("speaker");
   });
 
   it("shows a node the runtime reports not ready in the runtime's own words in Properties, and draws the checker behind its picture only", async () => {
     await mountedWindowOverTheMock("state=node-not-ready&outliner=open");
-    await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    fireEvent.click(await waitFor(() => outlinerRow(`node:${PATTERN_MAIN_STREAM}/posterimage`)));
+    await waitFor(() => outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`));
+    fireEvent.doubleClick(outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`));
+    fireEvent.click(await waitFor(() => outlinerRow(`node:${PULSE_STAGE_MAIN_STREAM}/posterimage`)));
 
     const notReadyBar = await waitFor(() => coreViewPage("properties").querySelector<HTMLElement>('[data-properties-not-ready-because="posterimage"]') ?? expect.unreachable("no not-ready bar in Properties"));
     expect(notReadyBar.getAttribute("role")).toBe("status");
@@ -161,28 +161,28 @@ describe("the studio", () => {
     const playing = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-playing="posterimage/image"]') ?? expect.unreachable("the Node visualizer plays nothing"));
     expect(playing.hasAttribute("data-viewer-node-not-ready")).toBe(true);
 
-    fireEvent.click(outlinerRow(`node:${PATTERN_MAIN_STREAM}/invertingeffect`));
-    const playingAReadyNode = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-playing="invertingeffect/video_to_downstream"]') ?? expect.unreachable("the Node visualizer plays nothing"));
+    fireEvent.click(outlinerRow(`node:${PULSE_STAGE_MAIN_STREAM}/kaleidoscope`));
+    const playingAReadyNode = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-playing="kaleidoscope/result"]') ?? expect.unreachable("the Node visualizer plays nothing"));
     expect(playingAReadyNode.hasAttribute("data-viewer-node-not-ready")).toBe(false);
     await waitFor(() => expect(coreViewPage("properties").querySelector("[data-properties-not-ready-because]")).toBeNull());
   });
 
   it("shows a stopped node's port as its family's placeholder in the Node visualizer, opening no read of it", async () => {
     await mountedWindowOverTheMock("state=running&node_states=stopped&outliner=open");
-    await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    fireEvent.click(await waitFor(() => outlinerRow(`node:${PATTERN_MAIN_STREAM}/invertingeffect`)));
+    await waitFor(() => outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`));
+    fireEvent.doubleClick(outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`));
+    fireEvent.click(await waitFor(() => outlinerRow(`node:${PULSE_STAGE_MAIN_STREAM}/kaleidoscope`)));
 
     const placeholder = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="node_not_running"]') ?? expect.unreachable("no placeholder for the stopped node"));
     expect(placeholder.getAttribute("data-viewer-node-state")).toBe("Stopped");
     expect(placeholder.getAttribute("data-family")).toBe("image");
-    expect(placeholder.textContent).toContain("Inverting Effect › video_to_downstream");
+    expect(placeholder.textContent).toContain("Kaleidoscope › result");
     expect(placeholder.textContent).toContain("Not running. It shows here live once the stream plays.");
     expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).toBeNull();
   });
 
   it("opens a node type's file in Code's own frame from the Library, its tab and the log's toggle in Code's header row, a closed tab staying closed as the frame loads again until the file is opened again", async () => {
-    keepThePatternProjectsLayout({
+    keepThePulseStageLayout({
       layout: {
         kind: "split",
         split_id: "library-and-code",
@@ -195,18 +195,18 @@ describe("the studio", () => {
     });
     await mountedWindowOverTheMock("state=running");
     await theAreasShownAre(["library-area", "code-area"]);
-    const glowRowId = "source:project/category:Every pin kind/node_type:nodes.glow:Glow";
-    fireEvent.doubleClick(await waitFor(() => libraryRow(glowRowId)));
+    const kaleidoscopeRowId = "source:project/category:Pulse Stage/node_type:nodes.stage_shaders:Kaleidoscope";
+    fireEvent.doubleClick(await waitFor(() => libraryRow(kaleidoscopeRowId)));
 
-    const glowFile = `${PATTERN_PROJECT}/nodes/glow.py`;
+    const shadersFile = `${PULSE_STAGE_FOLDER}/nodes/stage_shaders.py`;
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("read"));
-    expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(glowFile);
-    expect(coreViewPage("code").querySelector(`[data-code-file-tab="${CSS.escape(glowFile)}"]`)?.textContent).toContain("glow.py");
+    expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(shadersFile);
+    expect(coreViewPage("code").querySelector(`[data-code-file-tab="${CSS.escape(shadersFile)}"]`)?.textContent).toContain("stage_shaders.py");
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-project-log]")).not.toBeNull());
 
     fireEvent.click(coreViewPage("code").querySelector<HTMLElement>("[data-code-logs-toggle]") ?? expect.unreachable("no logs toggle"));
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-project-log]")).toBeNull());
-    fireEvent.click(coreViewPage("code").querySelector<HTMLElement>(`[data-code-file-tab-close="${CSS.escape(glowFile)}"]`) ?? expect.unreachable("no close on the tab"));
+    fireEvent.click(coreViewPage("code").querySelector<HTMLElement>(`[data-code-file-tab-close="${CSS.escape(shadersFile)}"]`) ?? expect.unreachable("no close on the tab"));
     await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open"));
 
     const rightEdgeButton = () => document.querySelector<HTMLElement>('[data-studio-layout-edge="right"]') ?? expect.unreachable("no right edge button");
@@ -220,15 +220,15 @@ describe("the studio", () => {
     expect(coreViewPage("code").querySelector("[data-code-document-state]")?.getAttribute("data-code-document-state")).toBe("none_open");
     expect(coreViewPage("code").querySelector("[data-code-file-tab]")).toBeNull();
 
-    fireEvent.doubleClick(await waitFor(() => libraryRow(glowRowId)));
-    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(glowFile));
+    fireEvent.doubleClick(await waitFor(() => libraryRow(kaleidoscopeRowId)));
+    await waitFor(() => expect(coreViewPage("code").querySelector("[data-code-document-file]")?.getAttribute("data-code-document-file")).toBe(shadersFile));
   });
 
   it("switches to the Code layout Studio ships to open a node type's file from the Library while no area shows Code", async () => {
     await mountedWindowOverTheMock("state=running");
     await showTheLibraryInTheViewerArea();
     expect(document.querySelector('[data-studio-area="code"]')).toBeNull();
-    fireEvent.doubleClick(await waitFor(() => libraryRow("source:project/category:Every pin kind/node_type:nodes.glow:Glow")));
+    fireEvent.doubleClick(await waitFor(() => libraryRow("source:project/category:Pulse Stage/node_type:nodes.stage_shaders:Kaleidoscope")));
 
     await waitFor(() => expect(["code-files", "code", "code-stream-graph", "code-viewer"].map((areaId) => document.querySelector(`[data-studio-area="${areaId}"]`) !== null)).toEqual([true, true, true, true]));
     expect(document.querySelector('[data-studio-area="viewer"]')).toBeNull();
@@ -251,7 +251,7 @@ describe("the studio", () => {
     await waitFor(() => expect(coreViewPage("viewer", "viewer").querySelector('[data-viewer-state="nothing_selected"]')).not.toBeNull());
 
     await popOutTheViewOf("viewer");
-    const mainStreamTab = { stream: PATTERN_MAIN_STREAM, project_name: "pattern", display_name: "main" };
+    const mainStreamTab = { stream: PULSE_STAGE_MAIN_STREAM, project_name: "Pulse Stage", display_name: "main" };
     await waitFor(() => expect(popOutsAsked).toEqual([{ view_type_id: "viewer", window_title: "main · Node visualizer", pinned_to: { stream_tab: mainStreamTab, selection: { kind: "nothing" }, settings: null } }]));
     await popOutTheViewOf("outliner");
     await waitFor(() => expect(popOutsAsked[1]).toMatchObject({ view_type_id: "outliner", window_title: "main · Outliner" }));
@@ -263,28 +263,28 @@ describe("the studio", () => {
   });
 
   it("draws a popped-out view's window as that view alone, pinned, in its own frame, with no menus, tabs or other areas", async () => {
-    const mainStreamTab = { stream: PATTERN_MAIN_STREAM, project_name: "pattern", display_name: "main" };
+    const mainStreamTab = { stream: PULSE_STAGE_MAIN_STREAM, project_name: "Pulse Stage", display_name: "main" };
     const poppedOutViewer: PoppedOutView = {
       view_type_id: "viewer",
-      window_title: "main › invertingeffect · Node visualizer",
-      pinned_to: { stream_tab: mainStreamTab, selection: { kind: "node", stream: PATTERN_MAIN_STREAM, node: "invertingeffect" }, settings: null },
+      window_title: "main › kaleidoscope · Node visualizer",
+      pinned_to: { stream_tab: mainStreamTab, selection: { kind: "node", stream: PULSE_STAGE_MAIN_STREAM, node: "kaleidoscope" }, settings: null },
     };
     await mountedWindowOverTheMock(`state=running&popped_out_view=${encodeURIComponent(JSON.stringify(poppedOutViewer))}`);
 
     const playing = await waitFor(() => coreViewPage("viewer").querySelector<HTMLElement>("[data-viewer-playing]") ?? expect.unreachable("the popped-out Node visualizer plays nothing"));
-    expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
+    expect(playing.getAttribute("data-viewer-playing")).toBe("kaleidoscope/result");
     expect(document.querySelector('[data-popped-out-view="viewer"] iframe[data-tatolab-view="viewer"]')).not.toBeNull();
-    expect(textOf("[data-popped-out-view-title]")).toBe("main › invertingeffect · Node visualizer");
+    expect(textOf("[data-popped-out-view-title]")).toBe("main › kaleidoscope · Node visualizer");
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
     expect(document.querySelector("[data-studio-area]")).toBeNull();
     expect(document.querySelector("[data-projects]")).toBeNull();
   });
 
   it("draws a popped-out Outliner on its studio window's project", async () => {
-    const poppedOutOutliner: PoppedOutView = { view_type_id: "outliner", window_title: "pattern · Outliner", pinned_to: { stream_tab: null, selection: { kind: "nothing" }, settings: null } };
+    const poppedOutOutliner: PoppedOutView = { view_type_id: "outliner", window_title: "Pulse Stage · Outliner", pinned_to: { stream_tab: null, selection: { kind: "nothing" }, settings: null } };
     await mountedWindowOverTheMock(`state=running&popped_out_view=${encodeURIComponent(JSON.stringify(poppedOutOutliner))}`);
 
-    await waitFor(() => expect(outlinerRowIds()).toContain(`stream:${PATTERN_MAIN_STREAM}`));
+    await waitFor(() => expect(outlinerRowIds()).toContain(`stream:${PULSE_STAGE_MAIN_STREAM}`));
     expect(document.querySelector('[data-popped-out-view="outliner"]')).not.toBeNull();
   });
 
@@ -299,7 +299,7 @@ describe("the studio", () => {
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Outliner/ }));
 
     await waitFor(() => expect(coreViewPage("outliner", "viewer").querySelector("[data-outliner]")).not.toBeNull());
-    expect(localStorage.getItem(studioLayoutStorageKey(PATTERN_PROJECT))).toContain('"area_id":"viewer","view_type_id":"outliner"');
+    expect(localStorage.getItem(studioLayoutStorageKey(PULSE_STAGE_FOLDER))).toContain('"area_id":"viewer","view_type_id":"outliner"');
     document.body.replaceChildren();
 
     await mountedWindowOverTheMock("state=running");
@@ -310,9 +310,9 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
     expect(streamGraph.querySelector('[aria-label="Graph of main"]')).not.toBeNull();
-    const invertingEffectCard = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card"));
-    fireEvent.click(invertingEffectCard);
-    await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Inverting Effect"));
+    const kaleidoscopeCard = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="kaleidoscope"]') ?? expect.unreachable("no Kaleidoscope card"));
+    fireEvent.click(kaleidoscopeCard);
+    await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Kaleidoscope"));
   });
 
   it("draws the recorded sample's Float, Integer, Boolean and Texture pins and its untyped Records pin each in its own look, and names each type on its tooltip", async () => {
@@ -330,35 +330,39 @@ describe("the studio", () => {
   it("names each port's type and flow in Properties beside a mark in its type's look, and an untyped port's family as a family", async () => {
     await mountedWindowOverTheMock("state=running");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card")));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="kaleidoscope"]') ?? expect.unreachable("no Kaleidoscope card")));
     const portRow = (portName: string) => coreViewPage("properties").querySelector<HTMLElement>(`[data-properties-port="${portName}"]`);
     const wordsAndMark = (portName: string) => {
       const row = portRow(portName) ?? expect.unreachable(`no ${portName} row in Properties`);
       return [row.querySelector("[data-properties-port-type-words]")?.textContent, row.querySelector(".node-graph-pin-mark")?.getAttribute("data-pin-type")];
     };
-    await waitFor(() => expect(portRow("amount")).not.toBeNull());
-    expect(wordsAndMark("amount")).toEqual(["Float, one value at a time", "float"]);
-    expect(wordsAndMark("video_from_upstream")).toEqual(["No exact type · Image", "untyped"]);
+    await waitFor(() => expect(portRow("spin")).not.toBeNull());
+    expect(wordsAndMark("spin")).toEqual(["Float, one value at a time", "float"]);
+    expect(wordsAndMark("image")).toEqual(["Texture, a stream", "texture"]);
+
+    fireEvent.click(streamGraph.querySelector<HTMLElement>('[data-node-graph-card="click"]') ?? expect.unreachable("no click card"));
+    await waitFor(() => expect(portRow("cue")).not.toBeNull());
+    expect(wordsAndMark("cue")).toEqual(["No exact type · Records", "untyped"]);
   });
 
   it("narrows Properties to the matching properties from its toolbar's search field, and shows them all again once cleared", async () => {
     await mountedWindowOverTheMock("state=running");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="invertingeffect"]') ?? expect.unreachable("no Inverting Effect card")));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="kaleidoscope"]') ?? expect.unreachable("no Kaleidoscope card")));
     const properties = () => coreViewPage("properties");
     const portsListed = () => [...properties().querySelectorAll("[data-properties-port]")].map((port) => port.getAttribute("data-properties-port"));
-    await waitFor(() => expect(portsListed()).toEqual(["video_from_upstream", "amount", "video_to_downstream"]));
+    await waitFor(() => expect(portsListed()).toEqual(["image", "segments", "spin", "pulse", "result"]));
     const search = properties().querySelector<HTMLInputElement>("[data-properties-search]") ?? expect.unreachable("no search field in Properties' toolbar");
     expect(search.closest('[role="toolbar"]')?.getAttribute("aria-label")).toBe("Properties tools");
 
-    fireEvent.change(search, { target: { value: "UPSTREAM" } });
-    await waitFor(() => expect(portsListed()).toEqual(["video_from_upstream"]));
+    fireEvent.change(search, { target: { value: "SPIN" } });
+    await waitFor(() => expect(portsListed()).toEqual(["spin"]));
     expect(properties().querySelector("[data-properties-listed-count]")?.textContent).toMatch(/^1 of \d+ propert/);
-    expect(properties().querySelector('[data-properties-port="video_from_upstream"] [data-matched-words]')?.textContent).toBe("upstream");
+    expect(properties().querySelector('[data-properties-port="spin"] [data-matched-words]')?.textContent).toBe("spin");
     expect(properties().querySelector('[data-properties-section="outputs"]')).toBeNull();
 
     fireEvent.keyDown(search, { key: "Escape" });
-    await waitFor(() => expect(portsListed()).toEqual(["video_from_upstream", "amount", "video_to_downstream"]));
+    await waitFor(() => expect(portsListed()).toEqual(["image", "segments", "spin", "pulse", "result"]));
     expect(properties().querySelector("[data-properties-listed-count]")).toBeNull();
   });
 
@@ -366,12 +370,12 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running");
     const outliner = () => coreViewPage("outliner");
     const rowLabels = () => [...outliner().querySelectorAll('[role="treeitem"]')].map((row) => row.textContent);
-    await waitFor(() => expect(rowLabels().some((label) => label?.startsWith("Brightness Meter"))).toBe(true));
+    await waitFor(() => expect(rowLabels().some((label) => label?.startsWith("Kaleidoscope"))).toBe(true));
     const search = outliner().querySelector<HTMLInputElement>("[data-outliner-search]") ?? expect.unreachable("no search field in the Outliner's toolbar");
-    fireEvent.change(search, { target: { value: "bright" } });
-    await waitFor(() => expect(rowLabels().slice(0, 2)).toEqual(["mainstream", "Brightness Meterfunction"]));
-    expect(rowLabels().some((label) => label?.startsWith("Test Pattern Source"))).toBe(false);
-    expect(outliner().querySelector("[data-matched-words]")?.textContent).toBe("Bright");
+    fireEvent.change(search, { target: { value: "kaleido" } });
+    await waitFor(() => expect(rowLabels().slice(0, 3)).toEqual(["mainstream", "Picturegroup", "Kaleidoscopeshader"]));
+    expect(rowLabels().some((label) => label?.startsWith("orbits"))).toBe(false);
+    expect(outliner().querySelector("[data-matched-words]")?.textContent).toBe("Kaleido");
     fireEvent.change(search, { target: { value: "nothing-is-called-this" } });
     await waitFor(() => expect(outliner().querySelector('[data-outliner-state="no_row_matches"]')).not.toBeNull());
     fireEvent.keyDown(search, { key: "Escape" });
@@ -545,7 +549,7 @@ describe("the studio", () => {
 
     const offered = await waitFor(() => nodeSearch.querySelector<HTMLElement>(CAMERA_SOURCE_FROM_THE_MARKETPLACE) ?? expect.unreachable("Camera Source not offered"));
     expect(offered.textContent).toContain("In the Camera module");
-    expect([...nodeSearch.querySelectorAll("[data-search-popover-section-heading]")].map((heading) => heading.textContent)).toEqual(["Not in patternMarketplace", "Sample projectsMarketplace"]);
+    expect([...nodeSearch.querySelectorAll("[data-search-popover-section-heading]")].map((heading) => heading.textContent)).toEqual(["Ungrouped", "Not in Pulse StageMarketplace", "Sample projectsMarketplace"]);
     fireEvent.click(offered);
 
     await waitFor(() => expect(nodeSearch.querySelector('[data-search-popover-item="tatolab.camera:CameraSource"]')).not.toBeNull());
@@ -575,7 +579,7 @@ describe("the studio", () => {
     act(() => refuseTheAdd?.());
 
     await waitFor(() => expect(nodeSearch.querySelector(`${CAMERA_SOURCE_FROM_THE_MARKETPLACE} [data-search-popover-item-end="refused"]`)?.textContent).toBe("Not added"));
-    expect(streamGraph.body.textContent).toContain("Didn't add Camera to pattern:");
+    expect(streamGraph.body.textContent).toContain("Didn't add Camera to Pulse Stage:");
     expect(streamGraph.body.textContent).toContain("tatolab-camera-0.68.29.zip holds no tatolab-project.json");
   });
 
@@ -608,26 +612,26 @@ describe("the studio", () => {
     expect(screen.queryByRole("menuitem", { name: "In place of Properties" })).toBeNull();
     fireEvent.click(viewerChoice);
 
-    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] iframe[data-tatolab-view]')?.getAttribute("data-tatolab-view")).toBe("pattern:picture_and_fader"));
+    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] iframe[data-tatolab-view]')?.getAttribute("data-tatolab-view")).toBe("Pulse Stage:picture_and_fader"));
     await waitFor(() => expect(shownInWords()).toBe("1 area"));
   });
 
   it("names each port's linked ends in Properties, offering only a way to a wired input's driver and its disconnect, and no way to wire there", { timeout: 20_000 }, async () => {
     await mountedWindowOverTheMock("state=running");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="brightnessmeter"]') ?? expect.unreachable("no Brightness Meter card")));
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="kaleidoscope"]') ?? expect.unreachable("no Kaleidoscope card")));
     const properties = () => coreViewPage("properties");
     const linkedEndsOf = (port: string) => [...properties().querySelectorAll(`[data-properties-port="${port}"] [data-property-port-linked-end]`)].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"));
-    await waitFor(() => expect(linkedEndsOf("video_from_upstream")).toEqual(["Inverting Effect › video_to_downstream"]));
+    await waitFor(() => expect(linkedEndsOf("image")).toEqual(["orbits › result"]));
 
     const buttonsOf = (port: string) => [...(properties().querySelector(`[data-properties-port="${port}"]`)?.querySelectorAll("button") ?? [])].map((button) => button.getAttribute("aria-label"));
-    expect(buttonsOf("video_from_upstream")).toEqual(["Go to Inverting Effect", "Disconnect Inverting Effect › video_to_downstream"]);
+    expect(buttonsOf("image")).toEqual(["Go to orbits", "Disconnect orbits › result"]);
     expect([...properties().querySelectorAll('[data-properties-port-direction="output"] button')]).toEqual([]);
-    expect(properties().querySelector('[data-properties-port="video_from_upstream"] input')).toBeNull();
+    expect(properties().querySelector('[data-properties-port="image"] input')).toBeNull();
   });
 
   it("answers a studio shortcut pressed while a core view's frame holds the focus", async () => {
-    keepThePatternProjectsLayout({ presets_saved: [{ title: "Graph alone", layout: { kind: "area", area_id: "stream-graph", view_type_id: "stream_graph" } }] });
+    keepThePulseStageLayout({ presets_saved: [{ title: "Graph alone", layout: { kind: "area", area_id: "stream-graph", view_type_id: "stream_graph" } }] });
     await mountedWindowOverTheMock("state=running");
     const outlinerPage = await waitFor(() => (coreViewPage("outliner").querySelector("[data-outliner]") === null ? expect.unreachable("no outliner drawn") : coreViewPage("outliner")));
 
@@ -637,7 +641,7 @@ describe("the studio", () => {
 
   it("opens a stream's tab on a single click of its Outliner row, and the views follow the tab", async () => {
     await mountedWindowOverTheMock("state=running");
-    const recorderStream = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "recorder" });
+    const recorderStream = mockStreamIdOf({ project_directory: PULSE_STAGE_FOLDER, stream_name: "recorder" });
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
     await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main"]));
 
@@ -652,15 +656,15 @@ describe("the studio", () => {
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
     await waitFor(() => expect(streamGraph.querySelector('[aria-label="Graph of main"]')).not.toBeNull());
     const startRefused = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-stream-diagnostic="start_refused"]') ?? expect.unreachable("no start refused bar"));
-    expect(startRefused.textContent).toMatch(/^main: Invalid link: link `Lkrgygd6qubqrj4jviamzuzfw` feeds a function node island into `displaywindow`/);
+    expect(startRefused.textContent).toMatch(/^main: Invalid link: link `Lkrgygd6qubqrj4jviamzuzfw` feeds a function node island into `speaker`/);
     expect(within(startRefused).getByRole("button", { name: "Restart playback" })).not.toBeNull();
     expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-graph-state="not_read"]')).toBeNull();
 
-    await waitFor(() => expect(outlinerRowIds()).toEqual(expect.arrayContaining([`stream:${PATTERN_MAIN_STREAM}/diagnostic/start_refused@stream`, `node:${PATTERN_MAIN_STREAM}/displaywindow`])));
+    await waitFor(() => expect(outlinerRowIds()).toEqual(expect.arrayContaining([`stream:${PULSE_STAGE_MAIN_STREAM}/diagnostic/start_refused@stream`, `node:${PULSE_STAGE_MAIN_STREAM}/speaker`])));
 
-    const displayWindowCard = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="displaywindow"]') ?? expect.unreachable("no Display Window card"));
-    fireEvent.click(displayWindowCard);
-    await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "Display Window"));
+    const speakerCard = await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="speaker"]') ?? expect.unreachable("no speaker card"));
+    fireEvent.click(speakerCard);
+    await waitFor(() => expect(inTheCoreView("properties").getByRole("textbox", { name: "Node name" })).toHaveProperty("value", "speaker"));
   });
 
   it("restarts a stream the runtime refused to play without stopping a project none of whose streams plays", { timeout: 20_000 }, async () => {
@@ -686,10 +690,10 @@ describe("the studio", () => {
 
   it("draws a stopped stream's saved graph with its condition in the Stream graph's frame, and says no stream is open once its tab closes", async () => {
     await mountedWindowOverTheMock("state=running");
-    const patternTwoStream = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" });
-    fireEvent.doubleClick(await waitFor(() => outlinerRow(`stream:${patternTwoStream}`)));
+    const rehearsalStream = mockStreamIdOf({ project_directory: PULSE_STAGE_FOLDER, stream_name: "rehearsal" });
+    fireEvent.doubleClick(await waitFor(() => outlinerRow(`stream:${rehearsalStream}`)));
 
-    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[aria-label="Graph of pattern-two"]')).not.toBeNull());
+    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[aria-label="Graph of rehearsal"]')).not.toBeNull());
     expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-graph-state="not_read"]')).toBeNull();
     await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-condition="healthy"]')?.textContent).toBe("not loaded, stopped, healthy"));
 
@@ -708,7 +712,7 @@ describe("the studio", () => {
     const viewFrame = await waitFor(
       () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-tatolab-view]') ?? expect.unreachable("no project view frame"),
     );
-    expect(viewFrame.getAttribute("data-tatolab-view")).toBe("pattern:picture_and_fader");
+    expect(viewFrame.getAttribute("data-tatolab-view")).toBe("Pulse Stage:picture_and_fader");
     expect(viewFrame.hasAttribute("sandbox")).toBe(false);
     expect(viewFrame.getAttribute("allow")).toBe("camera 'none'; microphone 'none'");
     expect(viewFrame.getAttribute("src")).toMatch(/\/mock_studio_view\/picture_and_fader\/index\.html$/);
@@ -722,7 +726,7 @@ describe("the studio", () => {
 
     expect(await panel.sendOutput("fader", 0.6)).toEqual({ kind: "done" });
     panel.close();
-    const graph = await backend.describeStreamGraph(PATTERN_MAIN_STREAM);
+    const graph = await backend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM);
     const viewNode = graph.nodes.find((node) => node.name === "pictureandfader") ?? expect.unreachable("no view node");
     expect(transactionsSent.mock.calls).toEqual([[[{ operation: "set_node_input_value", stream: graph.asset, node: viewNode.id, input: "fader", value: 0.6 }], "live", null]]);
     expect(viewNode.ports.inputs.find((port) => port.name === "fader")).toMatchObject({ value: 0.6, value_comes_from: "live" });
@@ -737,9 +741,9 @@ describe("the studio", () => {
 
     expect(await panel.rememberSettings({ picture_fit: "cover" })).toEqual({ kind: "done" });
     await waitFor(() => expect(settingsSeen.at(-1)).toEqual({ picture_fit: "cover" }));
-    const viewNodeOf = async () => (await backend.describeStreamGraph(PATTERN_MAIN_STREAM)).nodes.find((node) => node.name === "pictureandfader") ?? expect.unreachable("no view node");
+    const viewNodeOf = async () => (await backend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM)).nodes.find((node) => node.name === "pictureandfader") ?? expect.unreachable("no view node");
     expect((await viewNodeOf()).input_values).toMatchObject({ picture_fit: "cover" });
-    expect(localStorage.getItem(studioLayoutStorageKey(PATTERN_PROJECT)) ?? "").not.toContain("picture_fit");
+    expect(localStorage.getItem(studioLayoutStorageKey(PULSE_STAGE_FOLDER)) ?? "").not.toContain("picture_fit");
 
     await backend.undoInTheOpenProject({ kind: "person", name: "Sam" });
     await waitFor(() => expect(settingsSeen.at(-1)).toEqual({ picture_fit: "contain" }));
@@ -756,7 +760,7 @@ describe("the studio", () => {
   });
 
   it("says in the area why a project's view it remembers does not open, in the runtime's words", async () => {
-    keepThePatternProjectsLayout({ layout: { kind: "area", area_id: "rig", view_type_id: "lobby-wall:stage_rig" } });
+    keepThePulseStageLayout({ layout: { kind: "area", area_id: "rig", view_type_id: "lobby-wall:stage_rig" } });
     await mountedWindowOverTheMock("state=running&studio_views=fixture");
     await theAreasShownAre(["rig"]);
 
@@ -766,13 +770,13 @@ describe("the studio", () => {
   });
 
   it("opens a saved layout that does not parse on its default, and says when an area names a view this build lacks", async () => {
-    keepThePatternProjectsLayout({ layout: { kind: "area", area_id: "venue", view_type_id: "venue-3d" } });
+    keepThePulseStageLayout({ layout: { kind: "area", area_id: "venue", view_type_id: "venue-3d" } });
     await mountedWindowOverTheMock("state=running");
     await theAreasShownAre(["venue"]);
     expect(screen.getByText("This area's view, venue-3d, isn't in this build")).toBeTruthy();
     document.body.replaceChildren();
 
-    keepThePatternProjectsLayout({ layout: { kind: "split", parts: [] } });
+    keepThePulseStageLayout({ layout: { kind: "split", parts: [] } });
     await mountedWindowOverTheMock("state=running");
     await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
   });
