@@ -23,7 +23,9 @@ test("the Studio's default for each built-in pin type draws its inputs, and a de
     if (name === "named") expect(choice.kind, name).toBe("read_only_line");
     else expect(choice, name).toEqual({ kind: "element", listed: defaults.find((listed) => listed.script === `${name}.ts`), chosen_by: "type_default", because: null });
   }
-  expect(table.registrationsPassedOver.map(({ because }) => because)).toEqual(["A control cannot be registered for one named type, so studio's named.ts draws none."]);
+  expect(table.registrationsPassedOver.map(({ because }) => because)).toEqual([
+    "A control is registered for one named type by the import path of its class, so studio's named.ts, registered for named, draws none.",
+  ]);
 });
 
 test("the control an annotation names wins over the type's default, bare for the Studio's and qualified by its module for a project's", () => {
@@ -83,16 +85,18 @@ test("an annotation that names a control no one registers says so, on the type's
   });
 });
 
-test("a control registered for named would draw every named type, so the table uses none and a named input ends at the read-only line", () => {
+test("a control registered for the bare name named would draw every named type, so the table uses none", () => {
   const spectrumView = listedElementOf("acme", { kind: "control", type: "named", control: "spectrum" });
   const table = new NodeUiControlTable({ elements: [spectrumView] });
   const spectrum = ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.named;
   expect(table.controlChoiceForTheInput(inputDeclarationOf(spectrum, { control: "acme:spectrum" }))).toEqual({
     kind: "read_only_line",
-    because: "A control cannot be registered for one named type, so acme:spectrum does not draw acme:Spectrum.",
+    because: "No control named acme:spectrum is registered for an input of type acme:Spectrum.",
   });
   expect(table.controlChoiceForTheInput(inputDeclarationOf(spectrum))).toEqual({ kind: "read_only_line", because: "No control is registered for an input of type acme:Spectrum." });
-  expect(table.registrationsPassedOver).toEqual([{ listed: spectrumView, because: "A control cannot be registered for one named type, so acme's control.ts draws none." }]);
+  expect(table.registrationsPassedOver).toEqual([
+    { listed: spectrumView, because: "A control is registered for one named type by the import path of its class, so acme's control.ts, registered for named, draws none." },
+  ]);
 });
 
 test("only the Studio sets a built-in type's default, and a node body is keyed by its node type, one that passed its checks taking the key from one that did not; each refusal is kept with why", () => {
@@ -127,4 +131,33 @@ test("the table chooses a blocked element all the same, so loading it ends at th
   const floatDefault = listedElementOf("studio", { kind: "control", type: "float", control: null });
   const table = new NodeUiControlTable({ elements: [blockedSlider, floatDefault] });
   expect(table.controlChoiceForTheInput(inputDeclarationOf(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.float, { control: "slider" }))).toEqual({ kind: "element", listed: blockedSlider, chosen_by: "annotation", because: null });
+});
+
+test("a named type's input gets the default its declaring module registers, an annotation's control first, and else the read-only line", () => {
+  const sweepDefault = listedElementOf("every-pin-kind", { kind: "control", type: "nodes.sweep:Sweep", control: null }, { script: "sweep_on_its_wire.ts" });
+  const sweepGauge = listedElementOf("every-pin-kind", { kind: "control", type: "nodes.sweep:Sweep", control: "gauge" }, { script: "sweep_gauge.ts" });
+  const table = new NodeUiControlTable({ elements: [sweepDefault, sweepGauge] });
+  const sweep = { type: "named", named_pin_type: "nodes.sweep:Sweep" } as const;
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(sweep))).toEqual({ kind: "element", listed: sweepDefault, chosen_by: "named_type", because: null });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(sweep, { control: "every-pin-kind:gauge" }))).toEqual({ kind: "element", listed: sweepGauge, chosen_by: "annotation", because: null });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(sweep, { control: "dial" }))).toEqual({
+    kind: "element",
+    listed: sweepDefault,
+    chosen_by: "named_type",
+    because: "No control named dial is registered for an input of type nodes.sweep:Sweep; its type's default draws it.",
+  });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf({ type: "named", named_pin_type: "rig.arm:Pose" }))).toEqual({ kind: "read_only_line", because: "No control is registered for an input of type rig.arm:Pose." });
+  expect(table.registrationsPassedOver).toEqual([]);
+});
+
+test("a named type's default the Studio registers is passed over, and one a served folder registers takes the key from a blocked one", () => {
+  const studioSweep = listedElementOf("studio", { kind: "control", type: "nodes.sweep:Sweep", control: null }, { script: "studio_sweep.ts" });
+  const blockedSweep = listedElementOf("sweeps", { kind: "control", type: "nodes.sweep:Sweep", control: null }, { script: "sweep.ts", script_serving: { kind: "blocked", findings: ["only the module that declares a named type may register its default"] } });
+  const servedSweep = listedElementOf("every-pin-kind", { kind: "control", type: "nodes.sweep:Sweep", control: null }, { script: "sweep_on_its_wire.ts" });
+  const table = new NodeUiControlTable({ elements: [studioSweep, blockedSweep, servedSweep] });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf({ type: "named", named_pin_type: "nodes.sweep:Sweep" }))).toEqual({ kind: "element", listed: servedSweep, chosen_by: "named_type", because: null });
+  expect(table.registrationsPassedOver).toEqual([
+    { listed: studioSweep, because: "Only the module that declares a named type sets its default control, and Tato Studio declares none; it registers one for nodes.sweep:Sweep." },
+    { listed: blockedSweep, because: "every-pin-kind's sweep_on_its_wire.ts, which passed its checks, registers the default control for nodes.sweep:Sweep." },
+  ]);
 });

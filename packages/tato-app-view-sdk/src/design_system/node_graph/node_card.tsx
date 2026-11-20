@@ -8,7 +8,7 @@ import { freeConversionWords } from "../../pin_model/node_input_link";
 import { doesAChangeRebuildTheNode, nodePinLabel, nodePinRowKey, nodePinRows, nodePinsShown, type NodePin } from "../../pin_model/node_pins";
 import { valueWords, wordsOfAValueOfNoType } from "../../pin_model/value_words";
 import type { PinFlow, PinType } from "../../pin_type_readings";
-import { pinTypeKey, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
+import { pinTypeKey, pinTypeWords, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
 import { jsonTextOf, type StreamGraphPortPin } from "../../studio_readings";
 import { InputControlMount } from "../input_control_mount";
 import { NodeBodyMount } from "../node_body_mount";
@@ -113,18 +113,30 @@ const INLINE_CONTROL_HOST_ATTRIBUTES = { [NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE]: 
 /**
  * What an input's row shows of its value at its end: the control `takesAControl` gives it, or its value in words where the table
  * has none, and nothing for one that holds no value of its own. An input of a type only a wire carries shows only a control its
- * wire drives, such as a preview its node type names.
+ * wire drives, such as a preview its node type names; one of a named type shows its type's name where the table has no control
+ * for it.
  */
 function NodeGraphInputValueOfTheRow({ pin }: { pin: NodePin }) {
   const isEditable = useContext(NodeGraphEditableContext);
   const controlled = takesAControl(pin);
   if (controlled !== null && controlled.driven_by !== null) {
-    return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={null} className="ml-auto shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
+    const pinType = controlled.declaration.pin_type;
+    const noControl = pinType.type === "named" ? <NodeGraphNamedTypeWords pinType={pinType} /> : null;
+    return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={null} noControl={noControl} className="ml-auto shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
   }
   if (pin.value_address === null) return null;
   const wordsOfTheValue = <NodeGraphInputValueWords address={pin.value_address} pinType={pin.pin?.pin_type ?? null} />;
   if (controlled === null) return wordsOfTheValue;
   return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={wordsOfTheValue} className="ml-auto shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
+}
+
+/** The name of the named type an input takes, at its row's end, where no control draws the input. */
+function NodeGraphNamedTypeWords({ pinType }: { pinType: PinType }) {
+  return (
+    <span className="ml-auto max-w-1/2 min-w-0 truncate pl-2 text-fg-3" data-node-graph-input-type-words>
+      {pinTypeWords(pinType)}
+    </span>
+  );
 }
 
 /** What the mark beside a setting its node reads as it is set up says while the pointer rests on it. */

@@ -70,7 +70,7 @@ import { previewPictureUrlOf } from "../library/library_asset_preview_pictures";
 import { useAssetPreviewPicturesOfTheProject } from "../library/use_asset_preview_pictures_of_the_project";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import { streamGraphLevelAtTheSubgraphIds } from "../stream_graph/stream_graph_levels";
-import { nodeInputs, nodeOutputs } from "../shared/node_pins_of_the_graph";
+import { nodeInputs, nodeOutputs, wiresReadAtTheLevel } from "../shared/node_pins_of_the_graph";
 import { selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 import { inputRowStateOf, type InputRowState } from "./input_row_state";
 import {
@@ -431,6 +431,7 @@ function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin
   const state = inputRowStateOf({ input: pin, value_comes_from: whereTheInputReadsFrom(node, port, describedInput)?.comes_from ?? null, driven_by: linkedEndsOfThePort(graph, node, "input", pin.name), is_editable: streamAsset !== null });
   const valueSource = useWhereTheInputsValueComesFrom(state.kind === "holds_a_value" ? state.address : null, "commit");
   const comesFrom = valueSource?.comes_from ?? null;
+  const wireDriven = pin.pin?.pin_type.type === "named" ? takesAControl(pin) : null;
   return (
     <PropertyPortRow
       direction="input"
@@ -463,6 +464,7 @@ function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin
               };
             })
       }
+      wireReading={wireDriven === null ? undefined : <InputControlMount input={wireDriven} surface="properties" readOnly={streamAsset === null} fallback={null} className="w-full" />}
       unlinkedValue={
         state.kind === "holds_a_value" ? (
           <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} nodePin={pin} describedInput={describedInput} row={{ address: state.address, place, graphEdits }} />
@@ -659,7 +661,7 @@ function PropertiesOfTheSelectedNode({
   const streamName = listedStream?.display_name ?? stream;
   const typeClassName = nodeTypeClassName(node.type);
   const refusalOfTheName = graphEdits.refusalsByPlace.get("name");
-  const inputPins = nodeInputs(graph, node, described, valuesAt, null);
+  const inputPins = nodeInputs(graph, node, described, valuesAt, wiresReadAtTheLevel(stream, valuesAt));
   const outputPins = nodeOutputs(node, described);
   const matching = propertiesMatchingTheSearch(
     inputPins.map((pin) => pin.name),

@@ -541,6 +541,7 @@ export function PropertyPortRow({
   description,
   comesFromWords,
   unlinkedValue,
+  wireReading,
   reset,
   promotion,
   refusal = null,
@@ -562,6 +563,8 @@ export function PropertyPortRow({
   comesFromWords?: string;
   /** The field of the value an unjoined input holds; absent where it takes none. */
   unlinkedValue?: ReactNode;
+  /** The control that shows what the wire carries into an input holding no value of its own, under its wire, its row hidden while the table has none for it; absent where none may draw it. */
+  wireReading?: ReactNode;
   /** Takes the input's own value off, so it reads its default; absent while it holds none or can't be edited. */
   reset?: { label: string; onReset: () => void };
   /** Feeds the input from a new Graph Input of the stream; absent where it can't be. */
@@ -608,6 +611,12 @@ export function PropertyPortRow({
           linkedEnds.map((linkedEnd) => <PropertyPortLinkedEndLine key={linkedEnd.linkKey} linkedEnd={linkedEnd} />)
         ) : (
           <div className={cn(PORT_BAND_DETAIL_ROW_CLASS_NAME, "truncate text-fg-2")}>{unlinkedValue ?? <span className="text-fg-3">Not connected</span>}</div>
+        )}
+        {/* The row hides while its control's slot shows `no_control`, matched by its start since an underscore in a class names a space. */}
+        {wireReading !== undefined && (
+          <div className={cn(PORT_BAND_DETAIL_ROW_CLASS_NAME, "has-[[data-input-control-shows^=no]]:hidden")} data-properties-input-wire-reading>
+            {wireReading}
+          </div>
         )}
       </div>
       {refusal !== null && (
