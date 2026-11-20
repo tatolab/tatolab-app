@@ -416,6 +416,27 @@ describe("the node graph canvas while it takes edits", () => {
     expect(tool("hand").getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("keeps the selection with Hand when the canvas or a card is clicked", async () => {
+    const onNodesSelected = vi.fn();
+    const { container } = render(
+      <NodeGraphCanvas
+        label="Stream graph"
+        nodes={[card("pattern", false)]}
+        links={[]}
+        frames={[{ frame_id: FRAME_ID, title: "Frame", description: null, colour: null }]}
+        selectedNodeIds={["pattern"]}
+        onNodesSelected={onNodesSelected}
+        editing={editingRecorded().editing}
+      />,
+    );
+    const patternCard = await vi.waitFor(() => container.querySelector<HTMLElement>('.react-flow__node[data-id="pattern"]') ?? expect.unreachable("no card"));
+    fireEvent.click(container.querySelector<HTMLElement>('[data-node-graph-tool="hand"]') ?? expect.unreachable("no Hand"));
+    fireEvent.click(container.querySelector<HTMLElement>(".react-flow__pane") ?? expect.unreachable("no pane"));
+    fireEvent.click(patternCard);
+    expect(onNodesSelected).not.toHaveBeenCalled();
+    expect(patternCard.classList.contains("selected")).toBe(true);
+  });
+
   it("asks for every card's new place in its frame as one edit when Tidy up or Shift T is pressed with nothing selected", async () => {
     const { editing } = editingRecorded();
     const onTidiedUp = vi.fn(async () => "applied" as const);
