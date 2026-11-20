@@ -55,27 +55,34 @@ interface TransactionStudioWasAsked {
   idempotencyKey: string | null;
 }
 
-/** A graph's view drawing the refusal bar of its latest edit, against a Studio answering each transaction with the next of `answers`. */
-function drawTheBarAgainstAStudioAnswering(answers: ProjectGraphTransactionApplying[]) {
+/** A graph's view drawing the refusal bar of its latest edit beside a canvas it edits, against a Studio answering each transaction with the next of `answers`, each one awaited first. */
+function drawTheBarAgainstAStudioAnswering(answers: (ProjectGraphTransactionApplying | Promise<ProjectGraphTransactionApplying>)[]) {
   const asked: TransactionStudioWasAsked[] = [];
   const connection: Pick<TatoAppViewConnection, "transactInTheProject"> = {
     transactInTheProject: async (_projectFolder, operations, sending) => {
       asked.push({ operations, mode: sending.mode, idempotencyKey: sending.idempotencyKey });
-      return answers.shift() ?? APPLIED;
+      return (await answers.shift()) ?? APPLIED;
     },
   };
   const drawn: { sendTheGesture: (operations: readonly StreamGraphAction[], level?: readonly string[]) => Promise<unknown> } = { sendTheGesture: () => Promise.resolve() };
   function GraphViewStandIn() {
     const { sendTheGesture, sendTheSuggestedEdit, refusalOfTheLatestEdit } = useStreamGraphEditsSentToTheRuntime(connection, "/projects/every-pin-kind");
     drawn.sendTheGesture = sendTheGesture;
-    return <StreamGraphEditRefusalBar refusal={refusalOfTheLatestEdit} onSuggestedEditTaken={(suggested) => void sendTheSuggestedEdit(suggested)} />;
+    return (
+      <>
+        <StreamGraphEditRefusalBar refusal={refusalOfTheLatestEdit} sendTheSuggestedEdit={sendTheSuggestedEdit} />
+        <div tabIndex={0} data-node-graph-editable="true" />
+      </>
+    );
   }
   const container = document.createElement("div");
+  document.body.replaceChildren(container);
   act(() => createRoot(container).render(<GraphViewStandIn />));
   const theFixButton = () => container.querySelector<HTMLButtonElement>("[data-suggested-graph-edit='take']");
   return {
     asked,
     container,
+    theCanvas: () => container.querySelector<HTMLElement>("[data-node-graph-editable]"),
     theFixButton,
     send: (operations: readonly StreamGraphAction[], level?: readonly string[]) => act(async () => void (await drawn.sendTheGesture(operations, level))),
     takeTheFix: () => act(async () => theFixButton()?.click()),
@@ -102,17 +109,41 @@ test("a suggested edit inside a placed stream is sent with the level the runtime
   expect(bar.asked[1]?.operations).toEqual(atTheLevel);
 });
 
-test("a suggested edit taken again after a refusal of it is sent under the same key, so the runtime applies it once", async () => {
+test("a suggested edit Studio did not send stays offered beside why, and taken again is sent under the same key, so the runtime applies it once", async () => {
   const suggesting = aRefusalSuggesting({ operation: "transact", params: { operations: placingTheSweepPosition() } });
   const bar = drawTheBarAgainstAStudioAnswering([suggesting, { kind: "not_sent", because: "The runtime didn't answer." }]);
   await bar.send([SWEEP_INTO_A_FLOAT]);
-  const button = bar.theFixButton();
-  await act(async () => {
-    button?.click();
-    button?.click();
-  });
+  await bar.takeTheFix();
+  expect(bar.container.textContent).toContain("The runtime didn't answer.");
+  expect(bar.theFixButton()?.textContent).toBe("Apply the fix");
+
+  await bar.takeTheFix();
   expect(bar.asked).toHaveLength(3);
-  expect(bar.asked[2]?.idempotencyKey).toBe(bar.asked[1]?.idempotencyKey);
+  expect(bar.asked[2]).toEqual(bar.asked[1]);
+  expect(bar.container.textContent).toBe("");
+});
+
+test("while the fix is being applied its action waits, saying so, and pressing it again sends nothing more", async () => {
+  let answer: (applying: ProjectGraphTransactionApplying) => void = () => undefined;
+  const theAnswer = new Promise<ProjectGraphTransactionApplying>((resolve) => (answer = resolve));
+  const bar = drawTheBarAgainstAStudioAnswering([aRefusalSuggesting({ operation: "transact", params: { operations: placingTheSweepPosition() } }), theAnswer]);
+  await bar.send([SWEEP_INTO_A_FLOAT]);
+  await bar.takeTheFix();
+  expect(bar.theFixButton()?.getAttribute("aria-disabled")).toBe("true");
+  expect(bar.theFixButton()?.getAttribute("aria-label")).toContain("Applying the fix…");
+  await bar.takeTheFix();
+  expect(bar.asked).toHaveLength(2);
+
+  await act(async () => answer(APPLIED));
+  expect(bar.container.textContent).toBe("");
+});
+
+test("once the fix applies, the focus goes back to the canvas the person was editing", async () => {
+  const bar = drawTheBarAgainstAStudioAnswering([aRefusalSuggesting({ operation: "transact", params: { operations: placingTheSweepPosition() } })]);
+  await bar.send([SWEEP_INTO_A_FLOAT]);
+  bar.theFixButton()?.focus();
+  await bar.takeTheFix();
+  expect(document.activeElement).toBe(bar.theCanvas());
 });
 
 test("a refusal suggesting a read, or nothing, shows the runtime's words alone", async () => {

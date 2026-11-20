@@ -537,7 +537,7 @@ function StreamGraphOfTheTab({
         {editedGraph !== null && "because" in editedGraph && importedProjectName === null && (
           <RefusalLine layout="bar" tone="warning" lead="Read only:" words={editedGraph.because} />
         )}
-        <StreamGraphEditRefusalBar refusal={refusalOfTheLatestEdit} onSuggestedEditTaken={(suggested) => void sendTheSuggestedEdit(suggested)} />
+        <StreamGraphEditRefusalBar refusal={refusalOfTheLatestEdit} sendTheSuggestedEdit={sendTheSuggestedEdit} />
         <RefusalOfTheLatestAskBar refusal={modulesAndMarketplaceRefusal} />
         <RefusalOfTheLatestAskBar refusal={marketplaceAddRefusal} />
         <RefusalOfTheLatestAskBar refusal={codeOpeningRefusal} />

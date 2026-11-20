@@ -143,7 +143,7 @@ function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
         </IconButtonMenu>
       </StudioViewToolbarTools>
       <RefusalOfTheLatestAskBar refusal={askRefusal} />
-      <StreamGraphEditRefusalBar refusal={refusalOfTheLatestEdit} onSuggestedEditTaken={(suggested) => void sendTheSuggestedEdit(suggested)} />
+      <StreamGraphEditRefusalBar refusal={refusalOfTheLatestEdit} sendTheSuggestedEdit={sendTheSuggestedEdit} />
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-outliner="" onKeyDown={groupTheSelectedNodesOnFOrCommandG}>
         {isSearching && outlinerRows.length === 0 ? (
           <WaitingState title={`Nothing matches “${searchWords.trim()}”`} data-outliner-state="no_row_matches" />

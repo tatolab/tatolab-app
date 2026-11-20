@@ -21,23 +21,23 @@ export interface StreamGraphEditRefusal {
   suggestedEdit: SuggestedGraphEditToSend | null;
 }
 
-/** What `applying` says of an edit not applied, the runtime's words unchanged, with the edit its refusal suggests under `newKey()`; `null` when it applied. */
-export function streamGraphEditRefusalOf(applying: ProjectGraphTransactionApplying, newKey: () => string = newGestureIdempotencyKey): StreamGraphEditRefusal | null {
+/** Why an edit did not apply, as `applying` says it, the runtime's words unchanged, and the edit its refusal suggests; `null` when it applied. */
+export function streamGraphEditRefusalOf(applying: ProjectGraphTransactionApplying): { lead: string; words: string; suggestedEdit: SuggestedGraphEdit | null } | null {
   switch (applying.kind) {
     case "applied":
       return null;
-    case "refused": {
-      const edit = suggestedGraphEditOf(applying.refusal.suggested_call);
-      return { lead: "The runtime refused the edit:", words: applying.refusal.runtime_words, suggestedEdit: edit === null ? null : { edit, idempotencyKey: newKey() } };
-    }
+    case "refused":
+      return { lead: "The runtime refused the edit:", words: applying.refusal.runtime_words, suggestedEdit: suggestedGraphEditOf(applying.refusal.suggested_call) };
     case "not_sent":
       return { lead: "Studio didn't send the edit:", words: applying.because, suggestedEdit: null };
   }
 }
 
+const NO_PROJECT_TO_EDIT_IN = "The runtime lists this stream in no project, so Studio has no project to edit it in.";
+
 /**
  * Sends each gesture's actions to `projectFolder`'s runtime as one transaction, inside the subgraph `level` names when given, answering whether it applied, and a suggested
- * edit as the runtime named it, level and all; the refusal of the latest one sent, until a later one applies.
+ * edit as the runtime named it, level and all; the refusal of the latest one sent, until a later one applies. A suggested edit Studio did not send stays offered under its key.
  */
 export function useStreamGraphEditsSentToTheRuntime(
   connection: Pick<TatoAppViewConnection, "transactInTheProject">,
@@ -49,31 +49,44 @@ export function useStreamGraphEditsSentToTheRuntime(
 } {
   const [refusalOfTheLatestEdit, setRefusalOfTheLatestEdit] = useState<StreamGraphEditRefusal | null>(null);
   const latestGestureNumber = useRef(0);
-  const sendAndKeepTheRefusal = useCallback(async (sending: () => Promise<ProjectGraphTransactionApplying>): Promise<NodeGraphCanvasEditAnswer> => {
-    latestGestureNumber.current += 1;
-    const gestureNumber = latestGestureNumber.current;
-    const refusal = streamGraphEditRefusalOf(await sending());
-    if (gestureNumber === latestGestureNumber.current) setRefusalOfTheLatestEdit(refusal);
-    return refusal === null ? "applied" : "refused";
-  }, []);
+  const sendAndKeepTheRefusal = useCallback(
+    async (sending: () => Promise<ProjectGraphTransactionApplying>, suggestedEditSent: SuggestedGraphEditToSend | null): Promise<NodeGraphCanvasEditAnswer> => {
+      latestGestureNumber.current += 1;
+      const gestureNumber = latestGestureNumber.current;
+      const applying = await sending();
+      const refusal = streamGraphEditRefusalOf(applying);
+      if (gestureNumber === latestGestureNumber.current) {
+        const suggestedEdit =
+          applying.kind === "not_sent" && suggestedEditSent !== null
+            ? suggestedEditSent
+            : refusal?.suggestedEdit
+              ? { edit: refusal.suggestedEdit, idempotencyKey: newGestureIdempotencyKey() }
+              : null;
+        setRefusalOfTheLatestEdit(refusal === null ? null : { lead: refusal.lead, words: refusal.words, suggestedEdit });
+      }
+      return refusal === null ? "applied" : "refused";
+    },
+    [],
+  );
   const sendTheGesture = useCallback(
     async (operations: readonly StreamGraphAction[], level: readonly string[] = []): Promise<NodeGraphCanvasEditAnswer> => {
       if (operations.length === 0) return "applied";
       const operationsAtTheLevel = streamGraphActionsAtTheLevel(operations, level);
       return sendAndKeepTheRefusal(async (): Promise<ProjectGraphTransactionApplying> => {
-        if (projectFolder === null) return { kind: "not_sent", because: "The runtime lists this stream in no project, so Studio has no project to edit it in." };
+        if (projectFolder === null) return { kind: "not_sent", because: NO_PROJECT_TO_EDIT_IN };
         if ("because" in operationsAtTheLevel) return { kind: "not_sent", because: operationsAtTheLevel.because };
         return connection.transactInTheProject(projectFolder, operationsAtTheLevel, { mode: "commit", idempotencyKey: newGestureIdempotencyKey() });
-      });
+      }, null);
     },
     [connection, projectFolder, sendAndKeepTheRefusal],
   );
   const sendTheSuggestedEdit = useCallback(
-    ({ edit, idempotencyKey }: SuggestedGraphEditToSend): Promise<NodeGraphCanvasEditAnswer> =>
-      sendAndKeepTheRefusal(async (): Promise<ProjectGraphTransactionApplying> => {
-        if (projectFolder === null) return { kind: "not_sent", because: "The runtime lists this stream in no project, so Studio has no project to edit it in." };
-        return connection.transactInTheProject(projectFolder, edit.operations, { mode: edit.mode, idempotencyKey: edit.mode === "commit" ? idempotencyKey : null });
-      }),
+    async (suggested: SuggestedGraphEditToSend): Promise<NodeGraphCanvasEditAnswer> => {
+      return sendAndKeepTheRefusal(async (): Promise<ProjectGraphTransactionApplying> => {
+        if (projectFolder === null) return { kind: "not_sent", because: NO_PROJECT_TO_EDIT_IN };
+        return connection.transactInTheProject(projectFolder, suggested.edit.operations, { mode: suggested.edit.mode, idempotencyKey: suggested.idempotencyKey });
+      }, suggested);
+    },
     [connection, projectFolder, sendAndKeepTheRefusal],
   );
   return { sendTheGesture, sendTheSuggestedEdit, refusalOfTheLatestEdit };
