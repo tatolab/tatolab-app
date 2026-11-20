@@ -27,6 +27,7 @@ function openingOverFakes(existingFolders: readonly string[], terminalRefusal: s
   const servicesOfTheOpening = Layer.mergeAll(
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: () => new Set(),
+      namesAStreamOfTheProject: () => false,
       aStreamIsListedFrom: () => true,
       theProjectIsListedOpen: () => true,
       listedStream: (stream) => LISTED_STREAMS.find((listedStream) => listedStream.stream === stream) ?? null,

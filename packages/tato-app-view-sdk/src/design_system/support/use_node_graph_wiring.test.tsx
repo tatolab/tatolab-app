@@ -43,7 +43,7 @@ const connection = (source: [string, string], target: [string, string]): Connect
 
 const FITS_OF_THE_PATTERN_OUTPUT: NodeGraphWireFits = new Map([
   [nodeGraphPinKey("blur", "input", "video_in", null), { outcome: "connects", words: null }],
-  [nodeGraphPinKey("blur", "input", "gain", null), { outcome: "refused", words: "cannot link pattern.video (Image) to blur.gain (Channels)" }],
+  [nodeGraphPinKey("blur", "input", "gain", null), { outcome: "refused", words: "cannot link pattern.video (Image) to blur.gain (Channels)", takes_the_wire_though_refused: false }],
 ]);
 
 test("a wire dragged off a pin asks once how it fits, judges nothing until the answer arrives, then refuses only the pins the answer refuses", async () => {
@@ -70,7 +70,7 @@ test("a wire dragged off an input is judged by the output at its other end", asy
   const { result, answers } = wiringAnsweredByTheTest();
 
   act(() => result.current.askHowTheWireFits(MOUSE_UP, { nodeId: "glow", handleId: "input:image", handleType: "target" }));
-  await act(async () => answers[0]?.(new Map([[nodeGraphPinKey("tally", "output", "tally", null), { outcome: "refused", words: "a link joins two ports of one family" }]])));
+  await act(async () => answers[0]?.(new Map([[nodeGraphPinKey("tally", "output", "tally", null), { outcome: "refused", words: "a link joins two ports of one family", takes_the_wire_though_refused: false }]])));
 
   expect(result.current.canTheConnectionBeWired(connection(["tally", "tally"], ["glow", "image"]))).toBe(false);
   expect(result.current.canTheConnectionBeWired(connection(["glow", "result"], ["glow", "image"]))).toBe(true);
@@ -95,10 +95,27 @@ test("a wire dragged off a member's socket asks from the member, is judged at th
 
   act(() => result.current.askHowTheWireFits(MOUSE_UP, { nodeId: "meter", handleId: "output:levels/left", handleType: "source" }));
   expect(fitsOfAWireFrom).toHaveBeenCalledWith({ node_id: "meter", side: "output", pin: "levels", member: "left" });
-  await act(async () => answers[0]?.(new Map([[nodeGraphPinKey("mix", "input", "levels", "right"), { outcome: "refused", words: "a Float member does not take a Texture" }]])));
+  await act(async () => answers[0]?.(new Map([[nodeGraphPinKey("mix", "input", "levels", "right"), { outcome: "refused", words: "a Float member does not take a Texture", takes_the_wire_though_refused: false }]])));
 
   expect(result.current.canTheConnectionBeWired(connection(["meter", "levels/left"], ["mix", "levels/right"]))).toBe(false);
   expect(result.current.canTheConnectionBeWired(connection(["meter", "levels/left"], ["mix", "levels/left"]))).toBe(true);
   act(() => result.current.wireThePins(connection(["meter", "levels/left"], ["mix", "levels/left"])));
   expect(onPinsWired).toHaveBeenCalledWith({ node_id: "meter", pin: "levels", member: "left" }, { node_id: "mix", pin: "levels", member: "left" });
+});
+
+test("a refused pin whose refusal suggests an edit that fixes it takes the wire, so the link is sent and its refusal offers the fix", async () => {
+  const { result, answers } = wiringAnsweredByTheTest();
+
+  act(() => result.current.askHowTheWireFits(MOUSE_UP, { nodeId: "sweep", handleId: "output:result", handleType: "source" }));
+  await act(async () =>
+    answers[0]?.(
+      new Map([
+        [nodeGraphPinKey("beat", "input", "beats_per_minute", null), { outcome: "refused", words: "To fix: place a `nodes.sweep:SweepPosition` node between them", takes_the_wire_though_refused: true }],
+        [nodeGraphPinKey("glow", "input", "image", null), { outcome: "refused", words: "no node type converts between them", takes_the_wire_though_refused: false }],
+      ]),
+    ),
+  );
+
+  expect(result.current.canTheConnectionBeWired(connection(["sweep", "result"], ["beat", "beats_per_minute"]))).toBe(true);
+  expect(result.current.canTheConnectionBeWired(connection(["sweep", "result"], ["glow", "image"]))).toBe(false);
 });

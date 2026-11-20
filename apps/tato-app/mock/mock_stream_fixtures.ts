@@ -347,28 +347,28 @@ const SPEAKER_FAILED_BECAUSE = "start() failed: SpeakerSink could not open an au
  * family a client writes is declared once: `strobe` a Channels input reset at Stop, `tint` an Array and `cue` a Records input.
  */
 const EXTRA_GRAPH_INPUTS: MockGraphNode[] = [
-  graphInputDeclaring("strobe_input", "channels", { port: "strobe", default: false, lifetime: "reset" }),
-  graphInputDeclaring("tint_input", "array", { port: "tint", default: [1, 0.5, 0.25], range: [0, 1] }),
-  graphInputDeclaring("cue_input", "records", { port: "cue", default: { scene: "intro" } }),
+  graphInputDeclaring("strobe_input", "channels", { port: "strobe", lifetime: "reset" }, false),
+  graphInputDeclaring("tint_input", "array", { port: "tint", range: [0, 1] }, [1, 0.5, 0.25]),
+  graphInputDeclaring("cue_input", "records", { port: "cue" }, { scene: "intro" }),
 ];
 
 /**
  * The `value` input of a top-level `GraphInput` of `family`, a setting that takes no wire, as the runtime renders it: no pin
- * type, since it carries any value of its family, reading `defaultValue`, the Input's `default`, while nothing sets it.
+ * type, since it carries any value of its family, reading `savedValue`, the value the graph document saves for it, while nothing sets it.
  */
-function graphInputValueInput(family: PortFamily, defaultValue: JsonValue): MockGraphPort {
-  return { name: "value", family, stream_facts: null, values_checked: family === "records" ? false : null, pin: null, value_read: { value: defaultValue, comes_from: "default" } };
+function graphInputValueInput(family: PortFamily, savedValue: JsonValue): MockGraphPort {
+  return { name: "value", family, stream_facts: null, values_checked: family === "records" ? false : null, pin: null, value_read: { value: savedValue, comes_from: "saved" } };
 }
 
-/** A top-level `GraphInput` named `name`, declaring the input port `port` of `family` with `config`, as the runtime renders one back: running, a `value` input reading its `default` and one `value` output. */
-function graphInputDeclaring(name: string, family: PortFamily, config: Record<string, JsonValue> & { port: string; default: JsonValue }): MockGraphNode {
+/** A top-level `GraphInput` named `name`, declaring the input port `port` of `family` with `config`, as the runtime renders one back: running, a `value` input reading `savedValue`, which its config does not repeat, and one `value` output. */
+function graphInputDeclaring(name: string, family: PortFamily, config: Record<string, JsonValue> & { port: string }, savedValue: JsonValue): MockGraphNode {
   return {
     name,
     type: "tatolab.stream:GraphInput",
     state: "Running",
     config: { ...config, family },
-    input_ports: [graphInputValueInput(family, config.default)],
-    input_defaults: { value: config.default },
+    pins: { value: savedValue },
+    input_ports: [graphInputValueInput(family, savedValue)],
     output_ports: portsStatingNoStreamFacts(family, "value"),
   };
 }

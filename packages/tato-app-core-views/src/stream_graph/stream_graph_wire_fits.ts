@@ -1,10 +1,12 @@
 // How a wire dragged off a pin fits, as the runtime's `check_link_candidates` answers it: the question asked once
 // per drag, from the pin by its node's id, and the answer read back onto the canvas's pins by name, each socket's
-// words the runtime's own; for a wire let go over empty canvas, the node types it fits and the port of each a placed
-// one is linked by. Studio judges no pin itself: a pin the runtime did not answer for is left unjudged.
+// words the runtime's own, a refused one taking the wire where its refusal suggests an edit that fixes it, so the
+// `connect` is sent and its refusal offers that edit; for a wire let go over empty canvas, the node types it fits
+// and the port of each a placed one is linked by. Studio judges no pin itself: a pin the runtime did not answer for is left unjudged.
 
 import { nodeGraphPinKey, type NodeGraphCanvasDraggedPin, type NodeGraphPinWireFit, type NodeGraphWireFits } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import type { CheckLinkCandidatesRequest, LinkCandidateEnd, LinkCandidatesChecking, LinkCheckResult } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { suggestedGraphEditOf } from "@tatolab/tato-app-view-sdk/suggested_graph_edit_of_a_refusal";
 import { nameInWords, nodeTypeClassName } from "../shared/node_words";
 import type { EditedStreamGraph } from "../shared/stream_graph_edits";
 
@@ -34,7 +36,7 @@ function wireFitOfTheCheck(check: LinkCheckResult): NodeGraphPinWireFit {
     case "connects_through_convert_node":
       return { outcome: check.outcome, words: check.convert_node === undefined || check.convert_node === null ? null : `Connects through a ${nameInWords(nodeTypeClassName(check.convert_node.node_type))} node` };
     case "refused":
-      return { outcome: check.outcome, words: check.refusal?.runtime_words ?? null };
+      return { outcome: check.outcome, words: check.refusal?.runtime_words ?? null, takes_the_wire_though_refused: suggestedGraphEditOf(check.refusal?.suggested_call) !== null };
   }
 }
 

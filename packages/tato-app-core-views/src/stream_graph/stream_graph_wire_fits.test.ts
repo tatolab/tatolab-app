@@ -71,7 +71,7 @@ test("the runtime's answer lights each placed pin by name with its outcome, a re
     [nodeGraphPinKey("warmth", "input", "beats_per_bar", null), { outcome: "connects", words: null }],
     [nodeGraphPinKey("warmth", "input", "base", null), { outcome: "connects_with_free_conversion", words: null }],
     [nodeGraphPinKey("warmth", "input", "count", null), { outcome: "connects_through_convert_node", words: "Connects through a Tensor To Texture node" }],
-    [nodeGraphPinKey("tally", "input", "picture", null), { outcome: "refused", words: "cannot link `beat.count` (Integer) to `tally.picture` (Texture): a Integer output does not connect to a Texture input" }],
+    [nodeGraphPinKey("tally", "input", "picture", null), { outcome: "refused", words: "cannot link `beat.count` (Integer) to `tally.picture` (Texture): a Integer output does not connect to a Texture input", takes_the_wire_though_refused: false }],
     [nodeGraphPinKey("warmth", "input", "level", null), { outcome: "not_checked", words: "the link closes a loop of function nodes no `PreviousValue` node is in, which `connect` closes through a `PreviousValue` node it adds" }],
   ]);
 });
@@ -132,4 +132,30 @@ test("a wire dragged off a member asks from the member, each member the runtime 
     },
   } satisfies LinkCandidatesChecking;
   expect(portsALooseWireFits(looseWireChecking)).toEqual(new Map([["nodes.mix:Mix", "gain"]]));
+});
+
+test("a refused pin whose refusal suggests an edit takes the wire, so its connect is sent and refused with the fix; one suggesting a read does not", () => {
+  const refusalSuggesting = (suggested_call: { operation: string; params: Record<string, unknown> }) => ({
+    refusal_code: "link_needs_a_module_conversion" as const,
+    action: "connect",
+    refused_operation_index: 0,
+    suggested_call,
+    runtime_words: "To fix: place a `nodes.sweep:SweepPosition` node between them",
+  });
+  const placing = {
+    operation: "transact",
+    params: { operations: [{ operation: "add_node", stream: "every-pin-kind-main-8c1d2e", type: "nodes.sweep:SweepPosition", as: "conversion" }] },
+  };
+  const checking: LinkCandidatesChecking = {
+    kind: "checked",
+    result: {
+      candidates: [
+        { end: { kind: "placed_port", node: WARMTH, port: "base" }, check: { outcome: "refused", refusal: refusalSuggesting(placing) } },
+        { end: { kind: "placed_port", node: TALLY, port: "picture" }, check: { outcome: "refused", refusal: refusalSuggesting({ operation: "describe_operations", params: { operations: ["connect"] } }) } },
+      ],
+    },
+  };
+  const fits = wireFitsOfTheAnswer(EDITED, BEAT_COUNT, checking);
+  expect(fits.get(nodeGraphPinKey("warmth", "input", "base", null))).toEqual({ outcome: "refused", words: "To fix: place a `nodes.sweep:SweepPosition` node between them", takes_the_wire_though_refused: true });
+  expect(fits.get(nodeGraphPinKey("tally", "input", "picture", null))).toEqual({ outcome: "refused", words: "To fix: place a `nodes.sweep:SweepPosition` node between them", takes_the_wire_though_refused: false });
 });

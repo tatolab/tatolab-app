@@ -14,11 +14,13 @@ import tallyRecordsAmongPlacedPorts from "./recordings/every-pin-kind-link-candi
 import tallyRecordsAmongNodeTypePorts from "./recordings/every-pin-kind-link-candidates-of-the-tally-records-output-among-node-type-ports.json?raw";
 import glowImageAmongPlacedPorts from "./recordings/every-pin-kind-link-candidates-of-the-glow-image-input-among-placed-ports.json?raw";
 import glowImageAmongNodeTypePorts from "./recordings/every-pin-kind-link-candidates-of-the-glow-image-input-among-node-type-ports.json?raw";
+import sweepResultAmongPlacedPorts from "./recordings/every-pin-kind-link-candidates-of-the-sweep-result-output-among-placed-ports.json?raw";
 
 /** The runtime's ids of the sample's nodes the recordings ask about, as its `graph` answered them. */
 const BEAT = "2f44fe9c-94cb-4bf0-af2c-b91345adc7c9";
 const TALLY = "f511b25f-7028-4320-b538-a152f38695f8";
 const GLOW = "070e58f6-394d-4c38-8872-d4be5dcec5dd";
+const SWEEP = "3e8b1c47-9d2a-4f60-b5e8-1a7c4d9f2e36";
 
 /** A question the runtime was asked, without its stream, and the response it gave. */
 interface RecordedLinkCandidatesQuestion {
@@ -57,6 +59,11 @@ const RECORDED_QUESTIONS: readonly RecordedLinkCandidatesQuestion[] = [
     recording: "every-pin-kind-link-candidates-of-the-glow-image-input-among-node-type-ports",
     asked: { from: { input: { node: GLOW, port: "image" } }, among: "node_type_ports" },
     responseText: glowImageAmongNodeTypePorts,
+  },
+  {
+    recording: "every-pin-kind-link-candidates-of-the-sweep-result-output-among-placed-ports",
+    asked: { from: { output: { node: SWEEP, port: "result" } }, among: "placed_ports", include_refused: true },
+    responseText: sweepResultAmongPlacedPorts,
   },
 ];
 

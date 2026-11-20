@@ -125,11 +125,13 @@ export interface NodeGraphCanvasDraggedPin extends NodeGraphCanvasPinEnd {
 /** How the runtime answered that a wire dragged off a pin would link to another pin: as it is, converted for free, through a convert node it places, refused, or not checked. */
 export type NodeGraphWireFitOutcome = "connects" | "connects_with_free_conversion" | "connects_through_convert_node" | "refused" | "not_checked";
 
-/** How a wire dragged off a pin fits one pin of a card, and what a pointer resting on that pin's socket reads of it, such as the runtime's refusal in its words; `null` for nothing more. */
-export interface NodeGraphPinWireFit {
-  outcome: NodeGraphWireFitOutcome;
-  words: string | null;
-}
+/**
+ * How a wire dragged off a pin fits one pin of a card, and what a pointer resting on that pin's socket reads of it, such as the runtime's refusal in its words; `null` for nothing more.
+ * A refused pin says whether it takes the wire all the same, as where its refusal suggests an edit that fixes it, so the link is sent and its refusal offers that edit.
+ */
+export type NodeGraphPinWireFit =
+  | { outcome: Exclude<NodeGraphWireFitOutcome, "refused">; words: string | null }
+  | { outcome: "refused"; words: string | null; takes_the_wire_though_refused: boolean };
 
 /** How a wire dragged off a pin fits each pin it was asked about, keyed by `nodeGraphPinKey`; a pin not in it is not judged, so its socket stays as it is and the wire can be let go on it. */
 export type NodeGraphWireFits = ReadonlyMap<string, NodeGraphPinWireFit>;

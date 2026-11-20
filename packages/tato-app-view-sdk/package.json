@@ -10,6 +10,7 @@
     "./marketplace_modules": "./src/marketplace_modules.ts",
     "./port_families": "./src/port_families.ts",
     "./stream_graph_builders": "./src/stream_graph_builders.ts",
+    "./suggested_graph_edit_of_a_refusal": "./src/suggested_graph_edit_of_a_refusal.ts",
     "./pin_type_readings": "./src/pin_type_readings.ts",
     "./pin_types": "./src/pin_types.ts",
     "./built_in_pin_types": "./src/built_in_pin_types.ts",

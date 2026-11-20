@@ -40,7 +40,8 @@ export function useNodeGraphWiring(editing: NodeGraphCanvasEditing | null, canva
       if (source?.side !== "output" || target?.side !== "input") return false;
       const draggedOff = pinDraggedOff.current;
       const farEnd = draggedOff?.side === "input" ? { node_id: connection.source, ...source } : { node_id: connection.target, ...target };
-      return wireFits?.get(nodeGraphPinKey(farEnd.node_id, farEnd.side, farEnd.pin, farEnd.member))?.outcome !== "refused";
+      const fit = wireFits?.get(nodeGraphPinKey(farEnd.node_id, farEnd.side, farEnd.pin, farEnd.member));
+      return fit?.outcome !== "refused" || fit.takes_the_wire_though_refused;
     },
     [wireFits],
   );

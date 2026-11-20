@@ -5,6 +5,7 @@ import { readMockTatolabOptions } from "./mock_tatolab_options";
 import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, StreamActionFollowed, StreamGraph } from "../src/shared/tatolab_backend_contract";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { familyOfThePort, jsonObjectMembersOf } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { suggestedGraphEditOf } from "@tatolab/tato-app-view-sdk/suggested_graph_edit_of_a_refusal";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -253,6 +254,40 @@ describe("the mock backend's stream actions", () => {
     expect((await settled(backend.describeStreamGraph(MAIN))).links.filter((link) => link.target.node === "warmth" && link.target.port === "base").map((link) => link.source.node)).toEqual(["tally"]);
   });
 
+  it("answers the recorded check and refusal of a Sweep into a Float with the transact placing SweepPosition, makes that edit as given, by the stream's id, and one undo takes it back", async () => {
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind_with_a_named_type&refusal=link_needs_a_module_conversion");
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(100);
+      return answering;
+    };
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    const graphBefore = await settled(backend.describeStreamGraph(MAIN));
+    const idOf = (name: string) => graphBefore.nodes.find((node) => node.name === name)?.id ?? expect.unreachable(`no ${name} in the sample`);
+    const sweepIntoTheBeat = { operation: "connect" as const, stream: streamAsset, source: { node: idOf("sweep"), port: "result" }, target: { node: idOf("beat"), port: "beats_per_minute" } };
+    const checked = await settled(backend.checkLinkCandidatesInTheOpenProject({ stream: streamAsset, from: { output: { node: idOf("sweep"), port: "result" } }, among: "placed_ports", include_refused: true }));
+    const checkOf = (port: string) => checked.candidates.find(({ end }) => end.kind === "placed_port" && end.node === idOf("beat") && end.port === port)?.check;
+    expect(checkOf("beats_per_minute")).toMatchObject({ outcome: "refused", refusal: { refusal_code: "link_needs_a_module_conversion", suggested_call: { operation: "transact" } } });
+
+    const refused = await settled(backend.transactInTheOpenProject([sweepIntoTheBeat], "commit", null));
+    if (refused.kind !== "refused") return expect.unreachable("the link is refused");
+    expect(refused.refusal).toMatchObject({ refusal_code: "link_needs_a_module_conversion", suggested_call: { operation: "transact" } });
+    const suggestedEdit = suggestedGraphEditOf(refused.refusal.suggested_call);
+    if (suggestedEdit === null) return expect.unreachable("the refusal suggests an edit");
+    expect(suggestedEdit.operations.map((operation) => operation.stream)).toEqual([MAIN, MAIN, MAIN]);
+    expect(await settled(backend.describeStreamGraph(MAIN))).toEqual(graphBefore);
+
+    const placed = await settled(backend.transactInTheOpenProject(suggestedEdit.operations, suggestedEdit.mode, "take-the-fix"));
+    if (placed.kind !== "applied") return expect.unreachable("the suggested edit applied");
+    expect(placed.transaction.added_nodes).toMatchObject([{ name: "sweepposition", as: "conversion" }]);
+    const graphPlaced = await settled(backend.describeStreamGraph(MAIN));
+    const linksOf = (node: string) => graphPlaced.links.filter((link) => link.source.node === node || link.target.node === node).map((link) => `${link.source.node}.${link.source.port} -> ${link.target.node}.${link.target.port}`);
+    expect(linksOf("sweepposition")).toEqual(["sweep.result -> sweepposition.sweep", "sweepposition.result -> beat.beats_per_minute"]);
+
+    await settled(backend.undoInTheOpenProject({ kind: "person", name: "Sam" }));
+    expect((await settled(backend.describeStreamGraph(MAIN))).nodes.map((node) => node.name)).toEqual(graphBefore.nodes.map((node) => node.name));
+    expect((await settled(backend.describeStreamGraph(MAIN))).links).toHaveLength(graphBefore.links.length);
+  });
+
   it("serves the marks the runtime recorded on the sample's links, gives a link it connects the marks its recorded check gave, and serves the stand-in warning when asked", async () => {
     const marksOf = (graph: StreamGraph) => graph.links.flatMap((link) => (link.free_conversion === undefined && link.warnings === undefined ? [] : [[`${link.source.node}.${link.source.port} → ${link.target.node}.${link.target.port}`, link.free_conversion ?? null, link.warnings ?? null]]));
     const { backend } = await runningMockBackend("main_graph=every_pin_kind");
@@ -283,6 +318,37 @@ describe("the mock backend's stream actions", () => {
       ["beat.glow → glow.glow", true, null],
       ["warmth.result → glow.warmth", true, null],
     ]);
+  });
+
+  it("serves the stand-in Graph Input whose `pin_type` setting chose Float as the runtime serves the sample's `warmth_base`, its choice set and undone", async () => {
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind_with_a_type_choosing_input");
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(100);
+      return answering;
+    };
+    const choosingOf = (graph: StreamGraph) => graph.nodes.find((node) => node.name === "warmth_base");
+    const pinTypeOf = (graph: StreamGraph) => choosingOf(graph)?.ports.inputs.find((port) => port.name === "pin_type");
+    const graphBefore = await settled(backend.describeStreamGraph(MAIN));
+    expect(choosingOf(graphBefore)?.type).toBe("tatolab.stream:GraphInput");
+    expect(choosingOf(graphBefore)?.ports.inputs.map((port) => [port.name, port.pin_type?.type ?? null, port.value_comes_from ?? null])).toEqual([
+      ["port", "string", "saved"],
+      ["pin_type", "pin_type_choice", "saved"],
+      ["range", "list_of", "saved"],
+      ["value", "float", "saved"],
+    ]);
+    expect(pinTypeOf(graphBefore)?.value).toEqual({ type: "float" });
+    expect(choosingOf(graphBefore)?.ports.inputs.find((port) => port.name === "range")?.value).toEqual([0, 1]);
+    expect(choosingOf(graphBefore)?.ports.inputs.find((port) => port.name === "value")?.annotations).toEqual({ range: { minimum: 0, maximum: 1 } });
+    expect(choosingOf(graphBefore)?.components.graph_interface).toEqual({ direction: "input", port: "warmth_base", family: "channels", pin_type: { type: "float" }, current_value: 0.1 });
+    expect(choosingOf(graphBefore)?.config).not.toHaveProperty("default");
+    expect(graphBefore.links.filter((link) => link.target.node === "warmth" && link.target.port === "base").map((link) => `${link.source.node}.${link.source.port}`)).toEqual(["warmth_base.value"]);
+
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    const choosingId = choosingOf(graphBefore)?.id ?? expect.unreachable("the graph holds warmth_base");
+    expect((await settled(backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: streamAsset, node: choosingId, input: "pin_type", value: { type: "integer" } }], "commit", null))).kind).toBe("applied");
+    expect(pinTypeOf(await settled(backend.describeStreamGraph(MAIN)))?.value).toEqual({ type: "integer" });
+    await settled(backend.undoInTheOpenProject({ kind: "person", name: "Sam" }));
+    expect(pinTypeOf(await settled(backend.describeStreamGraph(MAIN)))?.value).toEqual({ type: "float" });
   });
 
   it("serves the stand-in bundle node's members each on its own row, sets and undoes one member alone, and links and unlinks a member", async () => {

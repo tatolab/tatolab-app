@@ -7,7 +7,8 @@
 // `main`'s graph and the refusals of `transact` a scenario replays, recorded from the `tatolabd` 0.68.82
 // built from streamlib, the graph and the refusals at 6c0be0f.
 // The mock holds no node type, graph or refusal of its own for this work, but for one warning on a link,
-// one node with bundle pins and two nodes linked by a named type, which no recording carries, each named
+// one node with bundle pins, two nodes linked by a named type and a Graph Input whose setting chooses its
+// type, which no recording carries, each named
 // as a stand-in where it is held; a recording that no longer reads fails the mock's load, as the app
 // would fail to read the runtime's answer.
 
@@ -18,6 +19,7 @@ import everyPinKindDescribeNodeTypesResult from "./recordings/every-pin-kind-des
 import graphResultOfMain from "./recordings/every-pin-kind-graph-result-of-main.json?raw";
 import transactRefusalForALinkOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-a-records-output-into-a-float-input.json?raw";
 import transactRefusalForAValueOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-words-as-a-float-value.json?raw";
+import transactRefusalForASweepIntoAFloat from "./recordings/every-pin-kind-transact-refusal-for-a-sweep-output-into-a-float-input.json?raw";
 import pulseStageGraphResultOfMain from "./recordings/pulse-stage-graph-result-of-main.json?raw";
 import { projectActionRefusalOfTheContract } from "../src/main/project_transactions_on_the_wire";
 import { controlContractRefusalOf, describeTheContractIssues, readControlContractValue } from "../src/main/tatolab_runtime_control_operation_call";
@@ -34,7 +36,7 @@ import {
   studioFieldsOfTheNode,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { ControlContractComponentName, ControlContractComponents } from "@tatolab/runtime-client/contract";
-import type { DescribeNodeTypesToolResult, JsonValue, ListNodeTypesToolResult, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphLinkWarning, StreamGraphNode, StreamGraphPort, StreamGraphPortPin } from "../src/shared/tatolab_backend_contract";
+import type { DescribeNodeTypesToolResult, JsonValue, ListNodeTypesToolResult, NodeTypeDescription, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphLinkWarning, StreamGraphNode, StreamGraphPort, StreamGraphPortPin } from "../src/shared/tatolab_backend_contract";
 import type { MockGraphLink, MockGraphNode, MockGraphPort, MockStreamGraph } from "./mock_stream_fixtures";
 
 /** A recording the readers cannot read: the recording, or the reader, has drifted from the runtime. */
@@ -268,6 +270,10 @@ export function mockEveryPinKindGraphWithAStandInBundleNode(): MockStreamGraph {
 /** The pin of the sample's own named type, `nodes.sweep:Sweep`, which `sweep.py` declares. */
 const STAND_IN_SWEEP_PIN: StreamGraphPortPin = { pin_type: { type: "named", named_pin_type: "nodes.sweep:Sweep" }, flow: "value" };
 
+/** The UUIDs the sample's graph document gives `sweep` and `sweep_position`. */
+const SAMPLE_SWEEP_NODE = "3e8b1c47-9d2a-4f60-b5e8-1a7c4d9f2e36";
+const SAMPLE_SWEEP_POSITION_NODE = "7b5d2e91-4c3f-4a8e-9b1d-6f0e2c8a5d47";
+
 /**
  * A stand-in, since the recordings were made before the every-pin-kind sample declared its named type: the sample's `sweep`, a
  * `SweepAt` writing a `Sweep`, linked into `sweep_position`, a `SweepPosition` reading it back, as the sample's stream holds them.
@@ -277,6 +283,7 @@ function standInSweepNodes(): readonly MockGraphNode[] {
   return [
     {
       name: "sweep",
+      id_kept_through_renames: SAMPLE_SWEEP_NODE,
       type: "nodes.sweep:SweepAt",
       kind: "process",
       state: "Running",
@@ -290,6 +297,7 @@ function standInSweepNodes(): readonly MockGraphNode[] {
     },
     {
       name: "sweep_position",
+      id_kept_through_renames: SAMPLE_SWEEP_POSITION_NODE,
       type: "nodes.sweep:SweepPosition",
       kind: "process",
       state: "Running",
@@ -311,5 +319,96 @@ export function mockEveryPinKindGraphWithAStandInNamedTypeLink(): MockStreamGrap
     ...graph,
     nodes: [...graph.nodes, ...standInSweepNodes()],
     links: [...graph.links, { id: "Lmockstandinnamedtypelink01", source_node: "sweep", source_port: "result", target_node: "sweep_position", target_port: "sweep", state: "wired" }],
+  };
+}
+
+/**
+ * A stand-in, since no recording describes the sample's `SweepPosition`: the conversion `sweep.py` states from its named type to a
+ * Float, described as the runtime describes the sample's other function nodes, so the mock can place it.
+ */
+export const MOCK_STAND_IN_SWEEP_POSITION_DESCRIBED: NodeTypeDescription = {
+  node_type: "nodes.sweep:SweepPosition",
+  source: "project",
+  described_from: "interpreter",
+  documentation: "Where a band is across the picture, read from the sample's own named type.",
+  category: "Every pin kind",
+  kind: "function",
+  declared_at: { path: "nodes/sweep.py", line: 74 },
+  inputs: [{ name: "sweep", documentation: "", pin_type: { kind: "is", pin_type: STAND_IN_SWEEP_PIN.pin_type }, flow: "value", mode: "wire_only", lifetime: "kept" }],
+  outputs: [{ name: "result", documentation: "", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value" }],
+};
+
+/**
+ * The runtime's refusal of a `connect` from `sweep.result` into `beat.beats_per_minute`, a link only the sample's `SweepPosition`
+ * bridges, its `suggested_call` the `transact` that places it, the stream named by its id.
+ */
+const MOCK_RECORDED_REFUSAL_OF_A_SWEEP_INTO_A_FLOAT: ProjectActionRefusal = recordedRefusal(
+  "every-pin-kind-transact-refusal-for-a-sweep-output-into-a-float-input",
+  transactRefusalForASweepIntoAFloat,
+);
+
+/** `refusal` with each operation of its suggested `transact` on the stream the mock lists as `streamId`, wherever the runtime that gave it listed its own. */
+function withTheSuggestedTransactOnTheStream(refusal: ProjectActionRefusal, streamId: string): ProjectActionRefusal {
+  const operations = refusal.suggested_call?.operation === "transact" ? refusal.suggested_call.params.operations : undefined;
+  if (refusal.suggested_call === null || !Array.isArray(operations)) return refusal;
+  return {
+    ...refusal,
+    suggested_call: {
+      ...refusal.suggested_call,
+      params: {
+        ...refusal.suggested_call.params,
+        operations: operations.map((operation) => (typeof operation === "object" && operation !== null && !Array.isArray(operation) && "stream" in operation ? { ...operation, stream: streamId } : operation)),
+      },
+    },
+  };
+}
+
+/** The runtime's refusal of a `connect` from `sweep.result` into `beat.beats_per_minute`, its suggested `transact` on the stream the mock lists as `streamId`. */
+export function mockRecordedRefusalOfASweepIntoAFloat(streamId: string): ProjectActionRefusal {
+  return withTheSuggestedTransactOnTheStream(MOCK_RECORDED_REFUSAL_OF_A_SWEEP_INTO_A_FLOAT, streamId);
+}
+
+/** A stand-in's port of `pinType`, of a value read as `saved`, as the runtime serves an input whose value the graph document keeps. */
+function standInSavedInput(name: string, pinType: StreamGraphPortPin["pin_type"], family: MockGraphPort["family"], value: JsonValue): MockGraphPort {
+  return { name, family, stream_facts: null, values_checked: null, pin: { pin_type: pinType, flow: "value" }, value_read: { value, comes_from: "saved" } };
+}
+
+/**
+ * A stand-in, since the recordings were made before the every-pin-kind sample held it: the sample's `warmth_base`, a Graph Input
+ * whose `pin_type` setting chooses Float, linked into `warmth.base`, holding the input values the sample's `main.graph.json` saves,
+ * served as streamlib's `test_every_pin_kind_sample` pins it: its `pin_type` input a Pin type choice reading `{"type": "float"}` as
+ * saved, its `value` a Float annotated with the `range` its setting states, and no `default` in its config.
+ */
+function standInGraphInputChoosingAType(): MockGraphNode {
+  const port = "warmth_base";
+  const pinType = { type: "float" } as const;
+  const range = [0, 1];
+  const value = 0.1;
+  return {
+    name: "warmth_base",
+    type: "tatolab.stream:GraphInput",
+    state: "Running",
+    config: { port, pin_type: pinType, range },
+    pins: { port, pin_type: pinType, range, value },
+    input_defaults: {},
+    exposed_config_fields: [],
+    input_ports: [
+      standInSavedInput("port", { type: "string" }, null, port),
+      standInSavedInput("pin_type", { type: "pin_type_choice" }, null, pinType),
+      standInSavedInput("range", { type: "list_of", element_type: { type: "float" } }, null, range),
+      { ...standInSavedInput("value", pinType, "channels", value), annotations: { range: { minimum: 0, maximum: 1 } } },
+    ],
+    output_ports: [{ name: "value", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: pinType, flow: "value" }, value_read: null }],
+    studio: { ...NODE_STUDIO_FIELDS_NONE_SET },
+  };
+}
+
+/** The every-pin-kind sample's graph with the stand-in `warmth_base` beside it, its `value` linked into `warmth.base`. */
+export function mockEveryPinKindGraphWithAStandInTypeChoosingInput(): MockStreamGraph {
+  const graph = mockRecordedGraphOfTheEveryPinKindSample();
+  return {
+    ...graph,
+    nodes: [...graph.nodes, standInGraphInputChoosingAType()],
+    links: [...graph.links, { id: "Lmockstandintypechoosing01", source_node: "warmth_base", source_port: "value", target_node: "warmth", target_port: "base", state: "wired" }],
   };
 }

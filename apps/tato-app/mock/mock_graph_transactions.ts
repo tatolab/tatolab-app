@@ -384,8 +384,9 @@ function isASettingOfTheNode(node: Pick<MockGraphNode, "type" | "settings" | "in
  * Apply `operations` to `targetsByStreamAsset`'s graphs as one transaction: each graph is changed only once every
  * operation has applied to a copy of it. Applied by an undo or a redo, an `add_node`'s `as` is the id the node had, which
  * it takes again. An `add_group` or `add_note` takes the id its operation in `historyOperationsReplayed` recorded, so the
- * running graph a commit changes after the saved one gets the same ids. An operation naming a placed stream's asset, as
- * history does, is made at that stream's first placement. A node is added with the ports `nodeTypesDescribed` describes for its type.
+ * running graph a commit changes after the saved one gets the same ids. An operation names its stream by its stream asset
+ * or its stream id, as the runtime takes either; one naming a placed stream's asset, as history does, is made at that
+ * stream's first placement. A node is added with the ports `nodeTypesDescribed` describes for its type.
  */
 export function applyMockGraphTransaction(
   targetsByStreamAsset: ReadonlyMap<string, MockStreamGraphTarget>,
@@ -400,8 +401,9 @@ export function applyMockGraphTransaction(
   const historyOperations: JsonValue[] = [];
   const inverseOperations: JsonValue[] = [];
   for (const [operationIndex, operation] of operations.entries()) {
-    const placementNamed = targetsByStreamAsset.has(operation.stream) ? null : firstPlacementOf(operation.stream, targetsByStreamAsset);
-    const streamAsset = placementNamed?.streamAsset ?? operation.stream;
+    const streamAssetOfTheStreamIdNamed = [...targetsByStreamAsset].find(([, target]) => target.stream_id === operation.stream)?.[0] ?? null;
+    const placementNamed = targetsByStreamAsset.has(operation.stream) || streamAssetOfTheStreamIdNamed !== null ? null : firstPlacementOf(operation.stream, targetsByStreamAsset);
+    const streamAsset = placementNamed?.streamAsset ?? streamAssetOfTheStreamIdNamed ?? operation.stream;
     const target = targetsByStreamAsset.get(streamAsset);
     const streamGraph = workingGraphs.get(streamAsset);
     if (target === undefined || streamGraph === undefined) {
