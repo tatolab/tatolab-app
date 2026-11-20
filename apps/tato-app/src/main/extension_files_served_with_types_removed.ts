@@ -13,7 +13,7 @@ import path from "node:path";
 import { withTheSuppliedModulesImportMap } from "@tatolab/tato-app-view-sdk/supplied_modules";
 import { Cause, Data, Effect, Exit, type ManagedRuntime } from "effect";
 import { howAnExtensionFileIsServed, type ExtensionFileServedAs } from "./extension_file_serving.js";
-import type { ExtensionFolderPassed } from "./extension_check_gate.js";
+import { isANodeUiFolder, type ExtensionFolderPassed } from "./extension_check_gate.js";
 import { describeCaughtFailure } from "./result.js";
 import { ProjectViewsListed, StudioWindows } from "./studio_runtime.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -23,8 +23,8 @@ import { isOnTheLocationUnderThePath, TATOLAB_WINDOW_PAGE_ROOT_URL, windowPagePa
 /** Where the window serves project views' files. */
 export const PROJECT_VIEW_FILES_PATH = "/project_views/";
 
-/** A view's folder inside a project: its own `views/<folder>`, or an import's `imports/<import>/views/<folder>`. */
-const VIEW_FOLDER_IN_A_PROJECT = /^(?:views\/[^/]+|imports\/[^/]+\/views\/[^/]+)(?=\/)/;
+/** An extension folder inside a project: a view's, its own `views/<folder>` or an import's `imports/<import>/views/<folder>`, or a module's node UI folder, its own `node_ui` or an import's `imports/<import>/node_ui`. */
+const EXTENSION_FOLDER_IN_A_PROJECT = /^(?:imports\/[^/]+\/)?(?:views\/[^/]+|node_ui)(?=\/)/;
 
 /** A folder version as the URL carries it. */
 const FOLDER_VERSION = /^[0-9a-f]{16}$/;
@@ -59,7 +59,7 @@ export function projectViewFileOfTheRequest(requestUrl: string): ProjectViewFile
   const folderVersion = requestedPath.slice(folderEnd + 1, versionEnd);
   const pathInTheProject = requestedPath.slice(versionEnd + 1);
   if (!path.isAbsolute(openProjectFolder) || path.normalize(openProjectFolder) !== openProjectFolder || !FOLDER_VERSION.test(folderVersion)) return null;
-  const viewFolderInTheProject = VIEW_FOLDER_IN_A_PROJECT.exec(pathInTheProject)?.[0];
+  const viewFolderInTheProject = EXTENSION_FOLDER_IN_A_PROJECT.exec(pathInTheProject)?.[0];
   if (viewFolderInTheProject === undefined) return null;
   return { open_project_folder: openProjectFolder, folder_version: folderVersion, view_folder_in_the_project: viewFolderInTheProject, path_in_the_project: pathInTheProject };
 }
@@ -73,9 +73,12 @@ type ProjectViewFileNotServedStatus = 403 | 404 | 422;
 /** How the running app answers a request for a project view's file. */
 export type AnswerAProjectViewFileRequest = (requestUrl: string) => Promise<ExtensionFileAnswer>;
 
-/** The views each studio window's view-type menu last listed as ones that open, by project, each with the files the gate passed: the only bytes served. */
+/** What a window lists of a project's extension folders: its views, or the node UI elements their controls pick from. */
+export type ExtensionFoldersListed = "views" | "node_ui_elements";
+
+/** The extension folders each studio window last listed as ones that open, by project and by listing, each with the files the gate passed: the only bytes served. */
 export class ProjectViewsListedToTheWindows {
-  private readonly viewFoldersByOpenProjectFolder = new Map<string, { listing_started: number; view_folders: ReadonlyMap<string, ExtensionFolderPassed> }>();
+  private readonly foldersByListingOfTheProject = new Map<string, { listing_started: number; passed_folders: ReadonlyMap<string, ExtensionFolderPassed> }>();
   private listingsStarted = 0;
 
   /** The mark of a listing of a project about to be asked for, which `rememberTheListing` takes back with its answer. */
@@ -84,16 +87,18 @@ export class ProjectViewsListedToTheWindows {
     return this.listingsStarted;
   }
 
-  /** Keep `passedViewFolders`, the views that open in the listing of the project in `openProjectFolder` started as `listingStarted`, by view folder, in place of its last listing, unless a listing started later is already kept. */
-  rememberTheListing(openProjectFolder: string, listingStarted: number, passedViewFolders: ReadonlyMap<string, ExtensionFolderPassed>): void {
-    const keptListing = this.viewFoldersByOpenProjectFolder.get(openProjectFolder);
+  /** Keep `passedFolders`, the folders that open in the `listed` listing of the project in `openProjectFolder` started as `listingStarted`, by folder, in place of its last such listing, unless one started later is already kept. */
+  rememberTheListing(openProjectFolder: string, listed: ExtensionFoldersListed, listingStarted: number, passedFolders: ReadonlyMap<string, ExtensionFolderPassed>): void {
+    const listingKey = JSON.stringify([openProjectFolder, listed]);
+    const keptListing = this.foldersByListingOfTheProject.get(listingKey);
     if (keptListing !== undefined && keptListing.listing_started > listingStarted) return;
-    this.viewFoldersByOpenProjectFolder.set(openProjectFolder, { listing_started: listingStarted, view_folders: passedViewFolders });
+    this.foldersByListingOfTheProject.set(listingKey, { listing_started: listingStarted, passed_folders: passedFolders });
   }
 
-  /** The view folder `viewFolderInTheProject` at `folderVersion` as the last listing of the project in `openProjectFolder` passed it; `null` when that listing holds no such view at that version. */
-  passedViewFolder(openProjectFolder: string, folderVersion: string, viewFolderInTheProject: string): ExtensionFolderPassed | null {
-    const passed = this.viewFoldersByOpenProjectFolder.get(openProjectFolder)?.view_folders.get(viewFolderInTheProject);
+  /** The extension folder `folderInTheProject` at `folderVersion` as the last listing of the project in `openProjectFolder` that names it passed it; `null` when none holds it at that version. */
+  passedExtensionFolder(openProjectFolder: string, folderVersion: string, folderInTheProject: string): ExtensionFolderPassed | null {
+    const listed: ExtensionFoldersListed = isANodeUiFolder(folderInTheProject) ? "node_ui_elements" : "views";
+    const passed = this.foldersByListingOfTheProject.get(JSON.stringify([openProjectFolder, listed]))?.passed_folders.get(folderInTheProject);
     return passed !== undefined && passed.folder_version === folderVersion ? passed : null;
   }
 }
@@ -164,13 +169,13 @@ const projectViewFileServed = Effect.fn("project_view_file_served")(function* (r
   if (!studioWindows.aStudioWindowHoldsTheProjectIn(fileAsked.open_project_folder)) {
     return yield* new ProjectViewNotOpenInAStudioWindow({ words: `${fileAsked.open_project_folder} is not a project open in a studio window.` });
   }
-  const passedViewFolder = (yield* ProjectViewsListed).passedViewFolder(fileAsked.open_project_folder, fileAsked.folder_version, fileAsked.view_folder_in_the_project);
-  if (passedViewFolder === null) {
+  const passedExtensionFolder = (yield* ProjectViewsListed).passedExtensionFolder(fileAsked.open_project_folder, fileAsked.folder_version, fileAsked.view_folder_in_the_project);
+  if (passedExtensionFolder === null) {
     return yield* new ProjectViewNotOpenInAStudioWindow({
       words: `${fileAsked.view_folder_in_the_project} at ${fileAsked.folder_version} is not a view the studio window of ${fileAsked.open_project_folder} last listed as passing its check.`,
     });
   }
-  const fileBytes = passedViewFolder.files.get(fileAsked.path_in_the_project);
+  const fileBytes = passedExtensionFolder.files.get(fileAsked.path_in_the_project);
   if (fileBytes === undefined) return yield* new ProjectViewFileNotPassed({ words: `${fileAsked.path_in_the_project} is not a file of the view folder the runtime checked.` });
   const serving = howAnExtensionFileIsServed(fileAsked.path_in_the_project.slice(fileAsked.view_folder_in_the_project.length + 1));
   const servedBytes = yield* projectViewFileAsServed(fileAsked.path_in_the_project, fileBytes, serving.served_as);

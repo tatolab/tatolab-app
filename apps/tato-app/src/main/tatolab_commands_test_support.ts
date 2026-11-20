@@ -190,7 +190,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
       chooseAStreamProjectFolder: () => Effect.succeed(null),
     }),
     Layer.succeed(RecentProjects, { readRecentFolders: Effect.succeed([]), rememberOpened: () => Effect.void, forget: () => Effect.void }),
-    Layer.succeed(ProjectViewsListed, { passedViewFolder: () => null, startAListing: Effect.succeed(1), rememberTheListing: () => Effect.void, extensionFolderChecks: { kitFolderOfThisCheckout: null, checksKept: new ExtensionFolderChecksKept() } }),
+    Layer.succeed(ProjectViewsListed, { passedExtensionFolder: () => null, startAListing: Effect.succeed(1), rememberTheListing: () => Effect.void, extensionFolderChecks: { kitFolderOfThisCheckout: null, checksKept: new ExtensionFolderChecksKept() } }),
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: overrides.streamAssetsOfTheProject ?? (() => new Set()),
       aStreamIsListedFrom: overrides.aStreamIsListedFrom ?? ((projectFolder) => (overrides.streamAssetsOfTheProject?.(projectFolder).size ?? 0) > 0),

@@ -88,7 +88,7 @@ test("the window's node UI elements are published as listed, and published empty
   const openProject = new WatchedStudioValue<OpenProjectReading>({ kind: "none_open" });
   const { list, asked } = listingInTheTestsHands<readonly ListedNodeUiElement[]>();
   const listed = new NodeUiElementsListedForViews();
-  listed.listForEachOpenProject({ listNodeUiElements: list }, openProject.watch);
+  listed.listForEachOpenProject({ listNodeUiElements: list, onProjectFilesChanged: () => () => {} }, openProject.watch);
   const readings: NodeUiElementsReading[] = [];
   listed.watch((reading) => readings.push(reading));
   expect(readings).toEqual([]);

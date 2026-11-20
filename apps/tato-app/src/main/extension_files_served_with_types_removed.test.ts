@@ -115,6 +115,7 @@ function projectViewFilesServedOverAnOpenNightShow() {
   const projectViewsListed = new ProjectViewsListedToTheWindows();
   projectViewsListed.rememberTheListing(
     NIGHT_SHOW,
+    "views",
     projectViewsListed.startAListing(),
     new Map([
       ["views/deck", passed(DECK_FILES)],
@@ -127,7 +128,7 @@ function projectViewFilesServedOverAnOpenNightShow() {
     Layer.mergeAll(
       Layer.mock(StudioWindows, { aStudioWindowHoldsTheProjectIn: (projectFolder) => projectFolder === NIGHT_SHOW, folderOfTheWindowsOpenProject: () => null, openedFolderOfTheStudioWindow: () => null, windowFollowingTheRuntimeOf: () => null }),
       Layer.mock(ProjectViewsListed, {
-        passedViewFolder: (openProjectFolder, folderVersion, viewFolder) => projectViewsListed.passedViewFolder(openProjectFolder, folderVersion, viewFolder),
+        passedExtensionFolder: (openProjectFolder, folderVersion, viewFolder) => projectViewsListed.passedExtensionFolder(openProjectFolder, folderVersion, viewFolder),
         extensionFolderChecks: { kitFolderOfThisCheckout: null, checksKept: new ExtensionFolderChecksKept() },
       }),
       tatolabAppLogAsEffectsLogger(tatolabAppLog),
@@ -240,10 +241,33 @@ test("a listing that answers after one started later is not kept over it", () =>
   const projectViewsListed = new ProjectViewsListedToTheWindows();
   const earlierListing = projectViewsListed.startAListing();
   const laterListing = projectViewsListed.startAListing();
-  projectViewsListed.rememberTheListing(NIGHT_SHOW, laterListing, new Map([["views/deck", passed(DECK_FILES)]]));
-  projectViewsListed.rememberTheListing(NIGHT_SHOW, earlierListing, new Map());
-  expect(projectViewsListed.passedViewFolder(NIGHT_SHOW, DECK_VERSION, "views/deck")?.files).toBe(DECK_FILES);
+  projectViewsListed.rememberTheListing(NIGHT_SHOW, "views", laterListing, new Map([["views/deck", passed(DECK_FILES)]]));
+  projectViewsListed.rememberTheListing(NIGHT_SHOW, "views", earlierListing, new Map());
+  expect(projectViewsListed.passedExtensionFolder(NIGHT_SHOW, DECK_VERSION, "views/deck")?.files).toBe(DECK_FILES);
 
-  projectViewsListed.rememberTheListing(NIGHT_SHOW, projectViewsListed.startAListing(), new Map());
-  expect(projectViewsListed.passedViewFolder(NIGHT_SHOW, DECK_VERSION, "views/deck")).toBeNull();
+  projectViewsListed.rememberTheListing(NIGHT_SHOW, "views", projectViewsListed.startAListing(), new Map());
+  expect(projectViewsListed.passedExtensionFolder(NIGHT_SHOW, DECK_VERSION, "views/deck")).toBeNull();
+});
+
+test("a module's node UI folder is served like a view's, and its listing and the views listing are kept apart", () => {
+  const knobFolderUrl = projectViewFolderUrl(NIGHT_SHOW, A_VERSION, "node_ui");
+  expect(projectViewFileOfTheRequest(new URL("knob.ts", knobFolderUrl).href)).toEqual({
+    open_project_folder: NIGHT_SHOW,
+    folder_version: A_VERSION,
+    view_folder_in_the_project: "node_ui",
+    path_in_the_project: "node_ui/knob.ts",
+  });
+  expect(projectViewFileOfTheRequest(new URL("fader.ts", projectViewFolderUrl(NIGHT_SHOW, A_VERSION, "imports/lobby-wall/node_ui")).href)?.view_folder_in_the_project).toBe("imports/lobby-wall/node_ui");
+  expect(projectViewFileOfTheRequest(new URL("../nodes/camera.py", knobFolderUrl).href)).toBeNull();
+
+  const projectViewsListed = new ProjectViewsListedToTheWindows();
+  const knobFiles = new Map([["node_ui/knob.ts", Buffer.from("export default class Knob extends HTMLElement {}\n")]]);
+  const knobVersion = folderVersionOf(knobFiles);
+  projectViewsListed.rememberTheListing(NIGHT_SHOW, "node_ui_elements", projectViewsListed.startAListing(), new Map([["node_ui", { kind: "passed", folder_version: knobVersion, files: knobFiles }]]));
+  projectViewsListed.rememberTheListing(NIGHT_SHOW, "views", projectViewsListed.startAListing(), new Map([["views/deck", passed(DECK_FILES)]]));
+  expect(projectViewsListed.passedExtensionFolder(NIGHT_SHOW, knobVersion, "node_ui")?.files).toBe(knobFiles);
+  expect(projectViewsListed.passedExtensionFolder(NIGHT_SHOW, DECK_VERSION, "views/deck")?.files).toBe(DECK_FILES);
+
+  projectViewsListed.rememberTheListing(NIGHT_SHOW, "views", projectViewsListed.startAListing(), new Map());
+  expect(projectViewsListed.passedExtensionFolder(NIGHT_SHOW, knobVersion, "node_ui")?.files).toBe(knobFiles);
 });
