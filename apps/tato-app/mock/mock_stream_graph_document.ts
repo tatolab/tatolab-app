@@ -101,7 +101,7 @@ function familyTheInterfaceNodeCarries(node: MockGraphNode): string | null {
   return (node.type === "tatolab.stream:GraphInput" ? node.output_ports[0]?.family : node.input_ports[0]?.family) ?? null;
 }
 
-/** The port `node` declares as the runtime renders its `graph_interface`: a top-level Input a client writes, while it reads `nodeState` `Running`, carrying what its `value` input reads, else its `default`; `null` for a node that is no interface node. */
+/** The port `node` declares as the runtime renders its `graph_interface`: a top-level Input a client writes, while it reads `nodeState` `Running`, carrying what its `value` input reads, else the `value` its config holds, saved as `default` before it was an input; `null` for a node that is no interface node. */
 function graphInterfacePortAsTheRuntimeRendersIt(node: MockGraphNode, nodeState: string | null, isTopLevel: boolean): StreamGraphInterfacePort | null {
   const direction = node.type === "tatolab.stream:GraphInput" ? "input" : node.type === "tatolab.stream:GraphOutput" ? "output" : null;
   const { port } = node.config;
@@ -109,7 +109,7 @@ function graphInterfacePortAsTheRuntimeRendersIt(node: MockGraphNode, nodeState:
   const family = familyTheInterfaceNodeCarries(node);
   const carriesAValue = isTopLevel && nodeState === "Running" && isAGraphInputAClientWrites(node);
   const valueRead = node.input_ports.find((input) => input.name === "value")?.value_read?.value ?? null;
-  const currentValue = carriesAValue ? (valueRead ?? node.config["default"] ?? null) : null;
+  const currentValue = carriesAValue ? (valueRead ?? node.config["value"] ?? node.config["default"] ?? null) : null;
   return { direction, port, family, ...(currentValue === null ? {} : { current_value: currentValue }) };
 }
 
@@ -143,6 +143,7 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
     ...valuesCheckedAsTheRuntimeRendersIt(port),
     ...(arePortFamiliesServed && port.family !== null ? { family: { family: port.family } } : {}),
     ...pinAsTheRuntimeRendersIt(port),
+    ...(port.annotations === undefined ? {} : { annotations: port.annotations }),
   });
   const linkAsTheRuntimeRendersIt = (link: MockGraphLink): StreamGraphLink => ({
     id: link.id,

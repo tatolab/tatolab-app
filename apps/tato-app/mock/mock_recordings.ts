@@ -103,6 +103,7 @@ function mockGraphPortOfTheRecordedPort(port: StreamGraphPort, direction: "input
     values_checked: port.values_checked ?? null,
     pin: pinOfThePort(port),
     value_read: direction === "input" ? inputValueReadOfThePort(port) : null,
+    ...(port.annotations === undefined ? {} : { annotations: port.annotations }),
   };
 }
 

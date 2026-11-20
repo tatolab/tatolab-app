@@ -27,10 +27,14 @@ export function descriptionWords(description: string | undefined): string | null
   return description === undefined || description.trim() === "" ? null : description.trim();
 }
 
-/** What a node type's description says and annotates of its port `portName`: its documentation, `null` for none, and its annotations, empty for none. */
-function describedWordsOfThePort(ports: readonly NodeTypePortDescribed[] | undefined, portName: string): Pick<NodePin, "description" | "annotations"> {
-  const port = ports?.find((describedPort) => describedPort.name === portName);
-  return { description: descriptionWords(port?.documentation), annotations: port?.annotations ?? {} };
+/**
+ * What `port` says and annotates: its documentation as its node type's description, among `ports`, says it, `null` for none, and
+ * its annotations as `graph` serves them on the port, which on a Graph Input's `value` are those its settings state, else as
+ * that description annotates it, empty for none.
+ */
+function describedWordsOfThePort(ports: readonly NodeTypePortDescribed[] | undefined, port: Pick<StreamGraphPort, "name" | "annotations">): Pick<NodePin, "description" | "annotations"> {
+  const described = ports?.find((describedPort) => describedPort.name === port.name);
+  return { description: descriptionWords(described?.documentation), annotations: port.annotations ?? described?.annotations ?? {} };
 }
 
 /**
@@ -85,8 +89,8 @@ function wireIntoTheInput(graph: Pick<StreamGraph, "nodes" | "links">, node: Str
 }
 
 /**
- * The inputs of `node` in `graph`, its settings first: each described and annotated as `described`, its node type's description,
- * describes it, with the stream facts it receives, and addressed at `valuesAt`, the level of the graph it is at, where it holds a
+ * The inputs of `node` in `graph`, its settings first: each described as `described`, its node type's description, describes it,
+ * annotated as `graph` serves it, else as that description does, with the stream facts it receives, and addressed at `valuesAt`, the level of the graph it is at, where it holds a
  * value of its own; a link renders on every input it feeds, so an input the runtime reads from a wire is addressed by none, and
  * `null` addresses none. Each input that takes a wire reads it at `wiresAt`, `null` reading none, and carries what the runtime
  * marks on the link that feeds it. A setting the graph lists among no port of the node follows those it does.
@@ -122,7 +126,7 @@ export function nodeInputs(
       member: null,
       pin,
       family: familyOfThePort(port),
-      ...describedWordsOfThePort(described?.inputs, port.name),
+      ...describedWordsOfThePort(described?.inputs, port),
       stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)),
       value_address: valueAddressOfTheInput(valuesAt, node.id, port),
       setting,
@@ -135,7 +139,7 @@ export function nodeInputs(
   return [...ofThePorts.filter((pin) => pin.setting !== null), ...settingsNotAmongThePorts, ...ofThePorts.filter((pin) => pin.setting === null)];
 }
 
-/** The outputs of `node`, each described and annotated as `described`, its node type's description, describes its port, with the stream facts it states, and a row for each member of a bundle it carries, shown where the node keeps it open. */
+/** The outputs of `node`, each described as `described`, its node type's description, describes its port, and annotated as `graph` serves it, else as that description does, with the stream facts it states, and a row for each member of a bundle it carries, shown where the node keeps it open. */
 export function nodeOutputs(node: StreamGraphNode, described: NodeTypeDescription | undefined): NodePin[] {
   const openOutputs = openBundlesOfTheMetadata(studioFieldsOfTheNode(node).metadata).outputs;
   return node.ports.outputs.map((port): NodePin => {
@@ -159,7 +163,7 @@ export function nodeOutputs(node: StreamGraphNode, described: NodeTypeDescriptio
       member: null,
       pin,
       family: familyOfThePort(port),
-      ...describedWordsOfThePort(described?.outputs, port.name),
+      ...describedWordsOfThePort(described?.outputs, port),
       stream_facts_words: portStreamFactsWords(port),
       value_address: null,
       setting: null,

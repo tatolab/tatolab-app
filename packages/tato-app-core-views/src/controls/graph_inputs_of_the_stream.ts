@@ -1,7 +1,9 @@
 // A stream's inputs as Perform lists them: each top-level `GraphInput` the runtime's `graph` renders
 // back, by the port it declares and the family it carries, with its own `value` input, where Perform
-// sets its value with `set_node_input_value` as every surface sets a node's, and the control Perform
-// draws there while the control table has none for it.
+// sets its value with `set_node_input_value` as every surface sets a node's. The control table picks
+// that input's control by the pin type the Graph Input chose and the annotations `graph` serves on
+// it, such as the `control` it names; while it picks none, as for an Input saved before it chose a
+// type, Perform draws its own field.
 
 import type { GraphAddress, InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { PinAnnotations } from "@tatolab/tato-app-view-sdk/pin_type_readings";
@@ -13,6 +15,9 @@ export const GRAPH_INPUT_NODE_TYPE = "tatolab.stream:GraphInput";
 
 /** The input of a `GraphInput` that holds the value it carries, a setting that takes no wire. */
 export const GRAPH_INPUT_VALUE_INPUT = "value";
+
+/** The name a `GraphInput`'s document held its value under before it was an input. */
+export const GRAPH_INPUT_FORMER_VALUE_SETTING = "default";
 
 /** Whether a value set live on an Input is kept across Stop, or reset at Stop, as the `GraphInput`'s `lifetime` setting says. */
 export type GraphInputLifetime = "kept" | "reset";
@@ -45,7 +50,7 @@ export interface GraphInputOfTheStream {
   readonly value_address: InputAddress | null;
   /** The exact type and flow of its `value` input; `null` while the runtime serves none. */
   readonly value_pin: StreamGraphPortPin | null;
-  /** What the node type annotates of its `value` input, as every surface reads a node's inputs. */
+  /** What `graph` serves as the annotations of its `value` input, those its settings state, as every surface reads a node's inputs. */
   readonly value_annotations: PinAnnotations;
   readonly lifetime: GraphInputLifetime;
   readonly range: GraphInputRange | null;
@@ -59,12 +64,12 @@ export function graphInputsOfTheStream(graph: StreamGraph, valuesAt: GraphAddres
     .map((node) => {
       const config = jsonObjectMembersOf(node.config);
       const { port, family, range, lifetime } = config;
-      // A document saved before the Input's value was an input holds it as `default`; one saved since, as `value`.
-      const declaredDefault = config["default"] ?? config[GRAPH_INPUT_VALUE_INPUT] ?? null;
+      // A document saved since the Input's value was an input holds it as `value`; one saved before, as `default`.
+      const declaredDefault = config[GRAPH_INPUT_VALUE_INPUT] ?? config[GRAPH_INPUT_FORMER_VALUE_SETTING] ?? null;
       const declared = graphInterfacePortOfTheNode(node);
       const familyDeclared = declared?.family ?? (typeof family === "string" ? family : null);
-      const rangeDeclared = graphInputRangeFrom(range);
       const valueInput = nodeInputs(graph, node, undefined, valuesAt, null).find((input) => input.name === GRAPH_INPUT_VALUE_INPUT);
+      const rangeDeclared = graphInputRangeOfTheAnnotations(valueInput?.annotations ?? {}) ?? graphInputRangeFrom(range);
       return {
         node_id: node.id,
         port_name: declared?.port ?? (typeof port === "string" && port !== "" ? port : node.name),
@@ -83,11 +88,21 @@ export function graphInputsOfTheStream(graph: StreamGraph, valuesAt: GraphAddres
 function graphInputRangeFrom(range: JsonValue | undefined): GraphInputRange | null {
   if (!Array.isArray(range) || range.length !== 2) return null;
   const [lowest, highest] = range;
+  return graphInputRangeBetween(lowest, highest);
+}
+
+/** The span the `range` annotation `graph` serves on a Graph Input's `value` states, `null` unless it states both ends, the lowest first. */
+function graphInputRangeOfTheAnnotations(annotations: PinAnnotations): GraphInputRange | null {
+  return graphInputRangeBetween(annotations.range?.minimum, annotations.range?.maximum);
+}
+
+/** The span from `lowest` to `highest`, `null` unless both are finite numbers, the lowest first. */
+function graphInputRangeBetween(lowest: unknown, highest: unknown): GraphInputRange | null {
   if (typeof lowest !== "number" || typeof highest !== "number" || !Number.isFinite(lowest) || !Number.isFinite(highest) || highest <= lowest) return null;
   return { lowest, highest };
 }
 
-/** The control that writes an Input of `family` as its config declares it, by its `default` and its `range`, whatever value was written to it since. */
+/** The control that writes an Input of `family` as its config declares it, by the value it saves, as `value` or formerly `default`, and its `range`, whatever value was written to it since. */
 function controlForTheInput(family: string | null, declaredDefault: JsonValue | null, range: GraphInputRange | null): GraphInputControlKind {
   if (!isAFamilyAClientWrites(family)) return "not_written";
   if (family === "records") return "json";

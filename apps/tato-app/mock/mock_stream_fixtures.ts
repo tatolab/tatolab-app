@@ -15,6 +15,7 @@ import type {
   StreamGraphNodeKind,
   StreamGraphNodeStudioFields,
   StreamGraphNote,
+  StreamGraphPort,
   StreamGraphPortPin,
   StreamLocation,
   TatolabPlatform,
@@ -123,6 +124,8 @@ export interface MockGraphPort {
   value_read: StreamGraphInputValueRead | null;
   /** On a bundle input, what each of its members reads while unlinked, in the order the bundle declares them, in place of `value_read`; absent on every other port. */
   member_reads?: MockMemberRead[];
+  /** What its pin states besides its type, as `graph` serves it; absent where it states none. */
+  annotations?: NonNullable<StreamGraphPort["annotations"]>;
 }
 
 /** What one member of a bundle input reads while unlinked and where that comes from, and the default it reads while none is set. */

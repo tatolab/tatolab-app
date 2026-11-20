@@ -1,9 +1,12 @@
 // What Properties sends the runtime for each edit of the graph, and what it shows of a node's links. A
 // value set on an input or a setting goes through the frame's store of input values, never from here.
 
-import type { PinAnnotations } from "@tatolab/tato-app-view-sdk/pin_type_readings";
-import { familyOfThePort, type JsonValue, type NodeTypeDescription, type StreamGraph, type StreamGraphAction, type StreamGraphLink, type StreamGraphNode, type StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { GRAPH_INPUT_NODE_TYPE } from "../controls/graph_inputs_of_the_stream";
+import { BUILT_IN_PIN_TYPES } from "@tatolab/tato-app-view-sdk/built_in_pin_types";
+import type { BuiltInPinTypeName, PinAnnotations, PinType } from "@tatolab/tato-app-view-sdk/pin_type_readings";
+import type { PinAnnotationName, PinTypeDescription } from "@tatolab/tato-app-view-sdk/pin_types";
+import { FAMILY_CARRYING_A_PIN_OF } from "@tatolab/tato-app-view-sdk/port_families";
+import { familyOfThePort, isAJsonValue, type JsonValue, type NodeTypeDescription, type StreamGraph, type StreamGraphAction, type StreamGraphLink, type StreamGraphNode, type StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { GRAPH_INPUT_FORMER_VALUE_SETTING, GRAPH_INPUT_NODE_TYPE, GRAPH_INPUT_VALUE_INPUT } from "../controls/graph_inputs_of_the_stream";
 import { recordsOfAListField, type ConfigFormField, type JsonObject } from "./config_form_fields";
 
 /** A value read from what the person typed into a field, or why it is not one the field takes. */
@@ -145,9 +148,8 @@ export interface ConfigFieldToExpose {
 export function exposeTheConfigFieldAsAGraphInput(stream: string, node: Pick<StreamGraphNode, "id" | "name" | "exposed_config_fields">, setting: ConfigFieldToExpose): StreamGraphAction[] {
   const graphInputName = `${node.name}_${setting.name}`;
   const graphInputConfig: JsonObject = { port: graphInputName, family: "channels" };
-  const minimum = setting.annotations.range?.minimum;
-  const maximum = setting.annotations.range?.maximum;
-  if (typeof minimum === "number" && typeof maximum === "number") graphInputConfig["range"] = [minimum, maximum];
+  const range = rangeOfBothEnds(setting.annotations.range);
+  if (range !== null) graphInputConfig["range"] = range;
   return [
     { operation: "set_exposed_config_fields", stream, node: node.id, exposed_config_fields: [...(node.exposed_config_fields ?? []), setting.name] },
     { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
@@ -158,7 +160,7 @@ export function exposeTheConfigFieldAsAGraphInput(stream: string, node: Pick<Str
 /** What a promotion reads of the input it promotes, and of the level of the graph it is at. */
 export interface InputToPromote {
   node: Pick<StreamGraphNode, "id" | "name">;
-  input: Pick<StreamGraphPort, "name" | "family">;
+  input: Pick<StreamGraphPort, "name" | "family" | "pin_type" | "annotations">;
   /** The value the input shows now, which a value set live since the graph was read has changed in no reading. */
   valueShown: JsonValue | null;
   /** Whether the node is on the stream's own level, where a Graph Input is written by a client and carries a default. */
@@ -168,19 +170,69 @@ export interface InputToPromote {
 }
 
 /**
+ * The built-in types a Graph Input chooses for an input it is promoted from: each that stores a value, as the contract's table of
+ * built-in types states it, and that a stream's port carries. A type that stores none, such as a Trigger or a Texture, or that no
+ * port carries, such as a List, leaves the Graph Input to its family.
+ */
+const PIN_TYPES_A_GRAPH_INPUT_CHOOSES: ReadonlyMap<BuiltInPinTypeName, PinTypeDescription> = new Map(
+  BUILT_IN_PIN_TYPES.filter((builtInPinType) => builtInPinType.value_component !== undefined && FAMILY_CARRYING_A_PIN_OF[builtInPinType.name] !== null).map((builtInPinType) => [builtInPinType.name, builtInPinType]),
+);
+
+/** The pin type a Graph Input fed into `input` chooses, with its row of the contract's table: `input`'s own, where it is one of `PIN_TYPES_A_GRAPH_INPUT_CHOOSES`, and no String naming a project asset, which only Properties' asset field picks; `null` for none. */
+function pinTypeAGraphInputChooses(input: Pick<StreamGraphPort, "pin_type" | "annotations">): { pin_type: PinType & JsonValue; described: PinTypeDescription } | null {
+  const pinType = input.pin_type;
+  const described = pinType === undefined ? undefined : PIN_TYPES_A_GRAPH_INPUT_CHOOSES.get(pinType.type);
+  if (pinType === undefined || described === undefined || !isAJsonValue(pinType)) return null;
+  const namesAProjectAsset = input.annotations?.project_asset !== undefined && input.annotations.project_asset !== null;
+  return namesAProjectAsset ? null : { pin_type: pinType, described };
+}
+
+/** `[lowest, highest]` of `range` where it states both ends, `null` where it leaves either open. */
+function rangeOfBothEnds(range: PinAnnotations["range"]): [number, number] | null {
+  const minimum = range?.minimum;
+  const maximum = range?.maximum;
+  return typeof minimum === "number" && typeof maximum === "number" ? [minimum, maximum] : null;
+}
+
+/**
+ * The settings of a Graph Input of the type `described` describes that state `annotations` of its `value`, each by the annotation's
+ * name: a range of both ends as `[lowest, highest]`, a step, a unit, a meaning and a control, each only where the type takes it, as
+ * the runtime refuses one it does not.
+ */
+function graphInputSettingsOfTheAnnotations(annotations: PinAnnotations, described: PinTypeDescription): JsonObject {
+  const takes = new Set<PinAnnotationName>(described.annotations);
+  const settings: JsonObject = {};
+  const range = rangeOfBothEnds(annotations.range);
+  if (takes.has("range") && range !== null) settings["range"] = range;
+  if (takes.has("step") && typeof annotations.step === "number") settings["step"] = annotations.step;
+  for (const key of ["unit", "meaning", "control"] as const) {
+    const annotated = annotations[key];
+    if (takes.has(key) && typeof annotated === "string") settings[key] = annotated;
+  }
+  return settings;
+}
+
+/**
  * One transaction that feeds an input from a new Graph Input of its level, named `<node>_<input>`, or with the first
  * free number after it, so a promotion never takes a name a node already goes by. The Graph Input declares the input's
- * family where it names one, otherwise the link gives it its own; on a stream's own level, a Channels input's number
- * value becomes the Graph Input's default, so promoting it changes nothing the node reads.
+ * family where it names one, otherwise the link gives it its own, and chooses the input's pin type where it is one a
+ * client sets a value of on a stream's port. On a stream's own level, such a Graph Input states as its settings the
+ * input's annotations its type takes, so its `value` takes the control the input's author named, and saves the value
+ * the input shows as its `value`; one of no type saves a Channels input's number as its `default`. Either way promoting
+ * it changes nothing the node reads.
  */
 export function promoteToGraphInput(stream: string, { node, input, valueShown, isOnTheStreamsOwnLevel, nodeNamesTaken }: InputToPromote): StreamGraphAction[] {
   const nameWanted = `${node.name}_${input.name}`;
   let graphInputName = nameWanted;
   for (let number = 2; nodeNamesTaken.has(graphInputName); number += 1) graphInputName = `${nameWanted}_${number}`;
   const graphInputConfig: JsonObject = { port: graphInputName };
+  const chosen = pinTypeAGraphInputChooses(input);
+  if (chosen !== null) graphInputConfig["pin_type"] = chosen.pin_type;
   const family = familyOfThePort(input);
   if (family !== null) graphInputConfig["family"] = family;
-  if (isOnTheStreamsOwnLevel && family === "channels" && typeof valueShown === "number") graphInputConfig["default"] = valueShown;
+  if (chosen !== null && isOnTheStreamsOwnLevel) Object.assign(graphInputConfig, graphInputSettingsOfTheAnnotations(input.annotations ?? {}, chosen.described));
+  const valueToSave = !isOnTheStreamsOwnLevel ? null : chosen !== null ? valueShown : family === "channels" && typeof valueShown === "number" ? valueShown : null;
+  if (valueToSave !== null) graphInputConfig[chosen === null ? GRAPH_INPUT_FORMER_VALUE_SETTING : GRAPH_INPUT_VALUE_INPUT] = valueToSave;
   return [
     { operation: "add_node", stream, type: GRAPH_INPUT_NODE_TYPE, name: graphInputName, config: graphInputConfig, as: "graph_input" },
     { operation: "connect", stream, source: { node: "graph_input", port: "value" }, target: { node: node.id, port: input.name } },

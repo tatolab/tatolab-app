@@ -15,7 +15,10 @@ import { mockRecordedMarksOfTheLink } from "./mock_replayed_link_candidates";
 import { mockGraphNodeIdOf, mockUuidOf, type MockGraphLink, type MockGraphNode, type MockGraphPort, type MockStreamGraph } from "./mock_stream_fixtures";
 import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
 import { echoTheInputValueSet, echoTheMemberValueSet } from "./mock_value_echo";
+import { BUILT_IN_PIN_TYPES } from "@tatolab/tato-app-view-sdk/built_in_pin_types";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import type { PinType } from "@tatolab/tato-app-view-sdk/pin_type_readings";
+import { FAMILY_CARRYING_A_PIN_OF } from "@tatolab/tato-app-view-sdk/port_families";
 import { membersOfTheBundle } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
 import { familyOfThePort, fragmentKindOfTheNode, isAJsonValue, NODE_STUDIO_FIELDS_NONE_SET, type NodeTypePortDescribed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { PORT_FAMILIES, type JsonValue, type NodeTypeDescription, type PortFamily, type ProjectGraphTransaction, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
@@ -153,10 +156,43 @@ function whyTheNodeHasNoInsideToEdit(subgraph: MockGraphNode | undefined, subgra
   return `node ${subgraphId} \`${subgraph.name}\` is no subgraph, so it has no inside to edit`;
 }
 
-/** The one port `value` a Graph Input declares as its output and a Graph Output as its input, of the family its config names, as the runtime builds an interface node no registry lists. */
-function portsOfTheInterfaceNode(type: typeof GRAPH_INPUT_NODE_TYPE | typeof GRAPH_OUTPUT_NODE_TYPE, family: PortFamily | null): Pick<MockGraphNode, "input_ports" | "output_ports"> {
+/** Whether `held`, a `pin_type` setting's value, is a pin type of a built-in type, as the mock trusts the Studio to send one. */
+function isAPinTypeOfABuiltInType(held: JsonValue | undefined): held is JsonValue & PinType {
+  return isAJsonObject(held) && BUILT_IN_PIN_TYPES.some((builtInPinType) => builtInPinType.name === held["type"]);
+}
+
+/** The annotations of a Graph Input's `value` its settings state, as the runtime serves them on that input: its `range` as `[lowest, highest]`, `step`, `unit`, `meaning` and `control`. */
+function annotationsOfTheGraphInputSettings(config: Readonly<Record<string, JsonValue>>): NonNullable<MockGraphPort["annotations"]> {
+  const range = config["range"];
+  const [minimum, maximum] = Array.isArray(range) && range.length === 2 ? range : [];
+  const { step, unit, meaning, control } = config;
+  return {
+    ...(typeof minimum === "number" && typeof maximum === "number" ? { range: { minimum, maximum } } : {}),
+    ...(typeof step === "number" ? { step } : {}),
+    ...(typeof unit === "string" ? { unit } : {}),
+    ...(typeof meaning === "string" ? { meaning } : {}),
+    ...(typeof control === "string" ? { control } : {}),
+  };
+}
+
+/**
+ * The one port `value` a Graph Input declares as its output and a Graph Output as its input, of the family its config names, as the
+ * runtime builds an interface node no registry lists. A Graph Input whose `config` chooses a `pin_type` carries a value of that
+ * type on its `value` ports, its input reading the value its config saves, as `value` or formerly `default`, and serving the
+ * annotations its settings state.
+ */
+function portsOfTheInterfaceNode(type: typeof GRAPH_INPUT_NODE_TYPE | typeof GRAPH_OUTPUT_NODE_TYPE, family: PortFamily | null, config: Readonly<Record<string, JsonValue>> = {}): Pick<MockGraphNode, "input_ports" | "output_ports"> {
   const valuePort: MockGraphPort = { name: "value", family, stream_facts: null, values_checked: null, pin: null, value_read: null };
-  return type === GRAPH_INPUT_NODE_TYPE ? { input_ports: [], output_ports: [valuePort] } : { input_ports: [valuePort], output_ports: [] };
+  if (type === GRAPH_OUTPUT_NODE_TYPE) return { input_ports: [valuePort], output_ports: [] };
+  const pinType = config["pin_type"];
+  if (!isAPinTypeOfABuiltInType(pinType)) return { input_ports: [], output_ports: [valuePort] };
+  const typedPort: MockGraphPort = { ...valuePort, family: FAMILY_CARRYING_A_PIN_OF[pinType.type] ?? family, pin: { pin_type: pinType, flow: "value" } };
+  const saved = config["value"] ?? config["default"] ?? null;
+  const annotations = annotationsOfTheGraphInputSettings(config);
+  return {
+    input_ports: [{ ...typedPort, value_read: saved === null ? { value: null, comes_from: null } : { value: saved, comes_from: "saved" }, ...(Object.keys(annotations).length === 0 ? {} : { annotations }) }],
+    output_ports: [typedPort],
+  };
 }
 
 /** The port a Graph Input or Output node inside a subgraph stands for: its config's `port`, else its name; `null` for any other node. */
@@ -501,7 +537,7 @@ export function applyMockGraphTransaction(
           config,
           pins,
           ...(interfaceType !== null
-            ? portsOfTheInterfaceNode(interfaceType, PORT_FAMILIES.find((family) => family === declaredFamily) ?? null)
+            ? portsOfTheInterfaceNode(interfaceType, PORT_FAMILIES.find((family) => family === declaredFamily) ?? null, config)
             : described !== undefined
               ? { input_ports: described.inputs.filter((input) => input.mode !== "setting_only").map(graphPortOfTheDescribedPort), output_ports: described.outputs.map(graphPortOfTheDescribedPort) }
               : structuredClone(portsItHadBeforeItsRemoval ?? { input_ports: [], output_ports: [] })),
