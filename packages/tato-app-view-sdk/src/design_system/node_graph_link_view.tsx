@@ -1,5 +1,7 @@
 import { BaseEdge, getBezierPath, type EdgeProps } from "@xyflow/react";
 import { cn } from "cn";
+import { useContext } from "react";
+import { ProtoRoutesContext } from "./support/proto_wire_routing";
 import type { NodeGraphLinkFlowEdge } from "./support/node_graph_flow_elements";
 
 /** A link on the canvas, drawn in the colour of the pin it starts from and in its look, amber while the runtime warns of it. */
@@ -23,6 +25,8 @@ export function NodeGraphLinkView({
     targetPosition,
     curvature: 0.4,
   });
+  const protoRoutes = useContext(ProtoRoutesContext);
+  const routed = protoRoutes?.get(id);
   if (data === undefined) return null;
   const { look, description, warning_words: warningWords } = data.graphLink;
   return (
@@ -36,7 +40,7 @@ export function NodeGraphLinkView({
       <title>{description}</title>
       <BaseEdge
         id={id}
-        path={linkPath}
+        path={routed ?? linkPath}
         interactionWidth={14}
         className={cn("node-graph-link", `node-graph-link-${look}`, selected === true && "node-graph-link-selected")}
       />

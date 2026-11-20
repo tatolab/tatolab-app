@@ -5,6 +5,7 @@ import { layOutNodeGraph, nodeGraphCardHeight, type NodeGraphLayoutLink, type No
 import type { NodeGraphCanvasCardMove, NodeGraphCanvasEditing, NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCanvasNote, NodeGraphCanvasViewport } from "./node_graph_canvas_contract";
 import type { NodeGraphFlowNode } from "./node_graph_flow_elements";
 import { type HeldPositionById, type NodeGraphNoteSize, samePosition, onTheCanvasPixel, inCanvasPixels, sameSize, heldValuesNotShownYet, withEntriesSet, withoutTheIds } from "./node_graph_held_layout";
+import { protoFlag, protoTidy } from "./proto_wire_routing";
 import { nodePinsShown, nodePinRowKey, rowKeyOfTheLinkEnd } from "../../pin_model/node_pins";
 
 /** The narrowest a card is drawn; a card with longer names grows to fit them. */
@@ -111,10 +112,31 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
           ),
     [isEveryCardPlaced, nodes, links, nodeById, isLaidOutOnMeasuredSizes, measuredCardSizes],
   );
+  const isProtoTidy = protoFlag("tidy");
+  const protoTidied = useMemo(() => {
+    if (!isProtoTidy || !nodes.every((node) => cardSizeByNode.has(node.node_id))) return null;
+    const frameOrder = [...new Set(nodes.flatMap((node) => (node.frame_id === null ? [] : [node.frame_id])))];
+    return protoTidy(
+      nodes.map((node) => ({
+        node_id: node.node_id,
+        frame_id: node.frame_id,
+        old: node.saved_position ?? { x: 0, y: 0 },
+        input_pin_names: nodePinsShown(node.inputs).map(nodePinRowKey),
+        output_pin_names: nodePinsShown(node.outputs).map(nodePinRowKey),
+        shows_failure_words: failureWordsTheCardShows(node) !== null,
+        is_collapsed: node.is_collapsed,
+        card_width: cardSizeByNode.get(node.node_id)?.width ?? NODE_GRAPH_CARD_SMALLEST_WIDTH,
+        card_height: cardSizeByNode.get(node.node_id)?.height ?? null,
+      })),
+      links.map((link) => layoutLinkOf(link, nodeById)),
+      frameOrder,
+      notes,
+    );
+  }, [isProtoTidy, nodes, links, notes, nodeById, cardSizeByNode]);
   const positionOfTheCard = useCallback(
     (node: NodeGraphCanvasNode): NodeGraphPosition =>
-      heldCardPositions.get(node.node_id) ?? node.saved_position ?? laidOutPositionByNode.get(node.node_id) ?? { x: 0, y: 0 },
-    [heldCardPositions, laidOutPositionByNode],
+      heldCardPositions.get(node.node_id) ?? protoTidied?.cards.get(node.node_id) ?? node.saved_position ?? laidOutPositionByNode.get(node.node_id) ?? { x: 0, y: 0 },
+    [heldCardPositions, laidOutPositionByNode, protoTidied],
   );
   const frameOfTheCard = useCallback((node: NodeGraphCanvasNode): string | null => (heldCardFrames.has(node.node_id) ? (heldCardFrames.get(node.node_id) ?? null) : node.frame_id), [heldCardFrames]);
   const sizeOfTheCard = useCallback(
@@ -139,7 +161,7 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
     setHasBeenFramed(true);
   }, [isLaidOutOnMeasuredSizes, hasBeenFramed, reactFlow, viewportWhereItWasLeft]);
 
-  const positionOfTheNote = useCallback((note: NodeGraphCanvasNote): NodeGraphPosition => heldNotePositions.get(note.note_id) ?? note.position, [heldNotePositions]);
+  const positionOfTheNote = useCallback((note: NodeGraphCanvasNote): NodeGraphPosition => heldNotePositions.get(note.note_id) ?? protoTidied?.notes.get(note.note_id) ?? note.position, [heldNotePositions, protoTidied]);
   const sizeOfTheNote = useCallback((note: NodeGraphCanvasNote): NodeGraphNoteSize => heldNoteSizes.get(note.note_id) ?? note.size, [heldNoteSizes]);
 
   const followTheLayoutChanges = useCallback(

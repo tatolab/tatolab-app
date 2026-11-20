@@ -27,6 +27,7 @@ import { useNodeGraphNodeFind } from "./support/use_node_graph_node_find";
 import { useNodeGraphSelection } from "./support/use_node_graph_selection";
 import { FIT_TO_VIEW_OPTIONS, useNodeGraphCardLayout } from "./support/use_node_graph_card_layout";
 import { onTheCanvasPixel } from "./support/node_graph_held_layout";
+import { ProtoRoutesContext, protoFlag, useProtoRoutes } from "./support/proto_wire_routing";
 
 /** The room a card or note placed from a tool takes, so the view shows it whole. */
 const NODE_GRAPH_PLACED_ROOM = { width: 240, height: 120 };
@@ -101,6 +102,7 @@ function NodeGraphFlow({
   overlay?: ReactNode;
 }) {
   const reactFlow = useReactFlow();
+  const protoRoutes = useProtoRoutes(protoFlag("route"));
   const canvasElement = useRef<HTMLDivElement>(null);
   const isTheMapShown = useStore(isPartOfTheGraphOutsideTheView);
   const areTheInlineControlsHidden = useStore(isZoomedOutPastTheInlineControls);
@@ -483,6 +485,7 @@ function NodeGraphFlow({
                   onClosed={closeTheNodeFind}
                 />
               )}
+              <ProtoRoutesContext value={protoRoutes}>
               <ReactFlow<NodeGraphFlowNode, NodeGraphLinkFlowEdge>
                 aria-label={label}
                 className={cn(
@@ -540,6 +543,7 @@ function NodeGraphFlow({
                 )}
                 {overlay}
               </ReactFlow>
+              </ProtoRoutesContext>
             </div>
             </RightClickMenu>
             </div>
