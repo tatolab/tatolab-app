@@ -5,6 +5,7 @@ import { MenuItem, MenuSeparator, MenuSingleChoiceGroup, RightClickMenuItem, typ
 import { ProjectAssetCard } from "@tatolab/tato-app-view-sdk/design_system/project_asset_card";
 import { CardGrid } from "@tatolab/tato-app-view-sdk/design_system/card_grid";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
+import { putTheNodeTypeOnTheDrag } from "@tatolab/tato-app-view-sdk/design_system/support/node_type_drag";
 import { SectionNavigationList } from "@tatolab/tato-app-view-sdk/design_system/section_navigation_list";
 import { StudioAreaHeaderChoiceMenu } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
@@ -374,6 +375,10 @@ function DeclarationsOfTheProject({
           }}
           onExpansionToggled={toggleTheRow}
           rightClickChoicesOfRow={rightClickChoicesOfRow}
+          dragOfTheRow={(rowId) => {
+            const meaning = meaningOfRow(rowId);
+            return meaning.kind === "node_type_declaration" ? (dataTransfer) => putTheNodeTypeOnTheDrag(dataTransfer, meaning.node_type.node_type) : null;
+          }}
         />
       </div>
       {chosenMeaning !== null && chosenMeaning.kind !== "nothing_to_select" && (

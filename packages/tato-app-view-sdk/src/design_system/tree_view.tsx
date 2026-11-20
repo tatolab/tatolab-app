@@ -114,6 +114,7 @@ export function TreeView({
   onExpansionToggled,
   columnHeadings,
   rightClickChoicesOfRow,
+  dragOfTheRow,
 }: {
   label: string;
   /** The rows that show, in order: a collapsed row's rows are left out. */
@@ -129,6 +130,8 @@ export function TreeView({
   columnHeadings?: TreeViewColumnHeadings;
   /** What a right-click on the row `rowId` offers; `null`, or left out, for a row a right-click offers nothing on. */
   rightClickChoicesOfRow?: (rowId: string) => ReactNode | null;
+  /** What dragging the row `rowId` carries, put on the drag as it starts; `null`, or left out, for a row that does not drag. */
+  dragOfTheRow?: (rowId: string) => ((dataTransfer: DataTransfer) => void) | null;
 }) {
   const treeElement = useRef<HTMLDivElement>(null);
   const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
@@ -184,6 +187,7 @@ export function TreeView({
         const isSelected = row.row_id === selectedRowId || alsoSelectedRowIds?.has(row.row_id) === true;
         const isCurrent = row.isCurrent === true;
         const rightClickChoices = rightClickChoicesOfRow?.(row.row_id) ?? null;
+        const putTheDragOn = dragOfTheRow?.(row.row_id) ?? null;
         const rowElement = (
           <div
             key={row.row_id}
@@ -194,6 +198,8 @@ export function TreeView({
             tabIndex={row.row_id === focusableRowId ? 0 : -1}
             data-tree-row-id={row.row_id}
             data-tree-row-current={isCurrent ? "" : undefined}
+            draggable={putTheDragOn === null ? undefined : true}
+            onDragStart={putTheDragOn === null ? undefined : (dragEvent) => putTheDragOn(dragEvent.dataTransfer)}
             onFocus={() => setFocusedRowId(row.row_id)}
             onClick={(clickEvent) => {
               focusRow(row.row_id);
