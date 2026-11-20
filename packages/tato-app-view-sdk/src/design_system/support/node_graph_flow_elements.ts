@@ -1,6 +1,7 @@
 import type { Edge, Node } from "@xyflow/react";
 import { createContext } from "react";
 import type { NodeGraphPosition } from "./node_graph_layout";
+import type { NodeGraphWireRoute } from "./node_graph_wire_routing";
 import type { PinTypeKey } from "../../pin_model/pin_type_words";
 import type { InputValues } from "../../pin_services/input_values";
 import type { NodeGraphCanvasNode, NodeGraphCanvasFrame, NodeGraphCanvasNote, NodeGraphCanvasLink, NodeGraphCanvasEditing, NodeGraphWireFits } from "./node_graph_canvas_contract";
@@ -46,6 +47,9 @@ export const NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE = "data-node-graph-inline-contr
 
 /** The store a card's rows read each input's value from; `null` shows no value. */
 export const NodeGraphInputValuesContext = createContext<InputValues | null>(null);
+
+/** Each wire's route around the cards in its way, by link id; a link with none is drawn as a curve. */
+export const NodeGraphWireRoutesContext = createContext<ReadonlyMap<string, NodeGraphWireRoute>>(new Map());
 
 /** Whether the canvas takes edits, which lets its pins start wires and its notes be edited. */
 export const NodeGraphEditableContext = createContext<boolean>(false);

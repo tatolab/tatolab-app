@@ -15,7 +15,7 @@ import { type NodeGraphCanvasNode, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_C
 import { NodeGraphCardView } from "./node_graph/node_card";
 import { pinTypeKeyOfTheLink } from "./support/node_graph_link_colour";
 import { rowKeyOfTheLinkEnd } from "../pin_model/node_pins";
-import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphEditableContext, NodeGraphWireFitsContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext, NodeGraphInputValuesContext } from "./support/node_graph_flow_elements";
+import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphEditableContext, NodeGraphWireFitsContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext, NodeGraphInputValuesContext, NodeGraphWireRoutesContext } from "./support/node_graph_flow_elements";
 import type { InputValues } from "../pin_services/input_values";
 import { type NodeGraphRightClicked, NodeGraphRightClickChoices } from "./node_graph_right_click_choices";
 import { NodeGraphFrameView } from "./node_graph_frame_view";
@@ -27,6 +27,7 @@ import { useNodeGraphNodeFind } from "./support/use_node_graph_node_find";
 import { useNodeGraphSelection } from "./support/use_node_graph_selection";
 import { FIT_TO_VIEW_OPTIONS, useNodeGraphCardLayout } from "./support/use_node_graph_card_layout";
 import { onTheCanvasPixel } from "./support/node_graph_held_layout";
+import { useNodeGraphWireRoutes } from "./support/use_node_graph_wire_routes";
 
 /** The room a card or note placed from a tool takes, so the view shows it whole. */
 const NODE_GRAPH_PLACED_ROOM = { width: 240, height: 120 };
@@ -101,6 +102,7 @@ function NodeGraphFlow({
   overlay?: ReactNode;
 }) {
   const reactFlow = useReactFlow();
+  const wireRoutes = useNodeGraphWireRoutes();
   const canvasElement = useRef<HTMLDivElement>(null);
   const isTheMapShown = useStore(isPartOfTheGraphOutsideTheView);
   const areTheInlineControlsHidden = useStore(isZoomedOutPastTheInlineControls);
@@ -483,63 +485,65 @@ function NodeGraphFlow({
                   onClosed={closeTheNodeFind}
                 />
               )}
-              <ReactFlow<NodeGraphFlowNode, NodeGraphLinkFlowEdge>
-                aria-label={label}
-                className={cn(
-                  "node-graph-canvas",
-                  areTheInlineControlsHidden && "node-graph-canvas-zoomed-out",
-                  !isLaidOutOnMeasuredSizes && !hasBeenFramed && "opacity-0",
-                )}
-                nodes={flowNodes}
-                edges={flowEdges}
-                nodeTypes={NODE_GRAPH_NODE_TYPES}
-                edgeTypes={NODE_GRAPH_EDGE_TYPES}
-                onNodesChange={followTheChanges}
-                onEdgesChange={followTheLinkChanges}
-                onNodeDragStop={(_event, _node, draggedNodes) => keepTheMovedCards(draggedNodes)}
-                onMoveEnd={(event, viewport) => {
-                  if (event !== null && hasBeenFramed) onViewportLeft?.({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
-                }}
-                onNodeDoubleClick={(_event, flowNode) => {
-                  if (flowNode.type === "node_graph_card" && (nodeById.get(flowNode.id)?.subgraph ?? null) !== null) onSubgraphOpened?.(flowNode.id);
-                }}
-                onConnectStart={askHowTheWireFits}
-                onConnect={wireThePins}
-                onConnectEnd={followTheWireLetGo}
-                isValidConnection={canTheConnectionBeWired}
-                onPaneClick={selectNothing}
-                nodesDraggable={editing !== null}
-                nodesConnectable={editing !== null}
-                edgesFocusable={editing !== null}
-                deleteKeyCode={null}
-                selectionKeyCode={editing === null ? null : "Shift"}
-                multiSelectionKeyCode={editing === null ? null : ["Meta", "Control"]}
-                minZoom={0.2}
-                maxZoom={2}
-                proOptions={{ hideAttribution: true }}
-                colorMode="dark"
-              >
-                <Background
-                  variant={BackgroundVariant.Lines}
-                  gap={24}
-                  lineWidth={1}
-                  color="var(--studio-graph-grid)"
-                />
-                {isTheMapShown && (
-                  <MiniMap
-                    className="node-graph-minimap"
-                    style={{ width: 168, height: 108 }}
-                    ariaLabel="Map of the whole graph"
-                    pannable
-                    zoomable
-                    nodeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--fg-3)" : "transparent")}
-                    nodeStrokeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--studio-graph-card-line)" : "transparent")}
-                    maskColor="var(--scrim)"
-                    bgColor="var(--studio-graph-tools)"
+              <NodeGraphWireRoutesContext value={wireRoutes}>
+                <ReactFlow<NodeGraphFlowNode, NodeGraphLinkFlowEdge>
+                  aria-label={label}
+                  className={cn(
+                    "node-graph-canvas",
+                    areTheInlineControlsHidden && "node-graph-canvas-zoomed-out",
+                    !isLaidOutOnMeasuredSizes && !hasBeenFramed && "opacity-0",
+                  )}
+                  nodes={flowNodes}
+                  edges={flowEdges}
+                  nodeTypes={NODE_GRAPH_NODE_TYPES}
+                  edgeTypes={NODE_GRAPH_EDGE_TYPES}
+                  onNodesChange={followTheChanges}
+                  onEdgesChange={followTheLinkChanges}
+                  onNodeDragStop={(_event, _node, draggedNodes) => keepTheMovedCards(draggedNodes)}
+                  onMoveEnd={(event, viewport) => {
+                    if (event !== null && hasBeenFramed) onViewportLeft?.({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
+                  }}
+                  onNodeDoubleClick={(_event, flowNode) => {
+                    if (flowNode.type === "node_graph_card" && (nodeById.get(flowNode.id)?.subgraph ?? null) !== null) onSubgraphOpened?.(flowNode.id);
+                  }}
+                  onConnectStart={askHowTheWireFits}
+                  onConnect={wireThePins}
+                  onConnectEnd={followTheWireLetGo}
+                  isValidConnection={canTheConnectionBeWired}
+                  onPaneClick={selectNothing}
+                  nodesDraggable={editing !== null}
+                  nodesConnectable={editing !== null}
+                  edgesFocusable={editing !== null}
+                  deleteKeyCode={null}
+                  selectionKeyCode={editing === null ? null : "Shift"}
+                  multiSelectionKeyCode={editing === null ? null : ["Meta", "Control"]}
+                  minZoom={0.2}
+                  maxZoom={2}
+                  proOptions={{ hideAttribution: true }}
+                  colorMode="dark"
+                >
+                  <Background
+                    variant={BackgroundVariant.Lines}
+                    gap={24}
+                    lineWidth={1}
+                    color="var(--studio-graph-grid)"
                   />
-                )}
-                {overlay}
-              </ReactFlow>
+                  {isTheMapShown && (
+                    <MiniMap
+                      className="node-graph-minimap"
+                      style={{ width: 168, height: 108 }}
+                      ariaLabel="Map of the whole graph"
+                      pannable
+                      zoomable
+                      nodeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--fg-3)" : "transparent")}
+                      nodeStrokeColor={(flowNode) => (flowNode.type === "node_graph_card" ? "var(--studio-graph-card-line)" : "transparent")}
+                      maskColor="var(--scrim)"
+                      bgColor="var(--studio-graph-tools)"
+                    />
+                  )}
+                  {overlay}
+                </ReactFlow>
+              </NodeGraphWireRoutesContext>
             </div>
             </RightClickMenu>
             </div>
