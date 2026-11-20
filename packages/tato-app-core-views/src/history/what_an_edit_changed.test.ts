@@ -3,11 +3,11 @@ import { expect, test } from "vitest";
 import { whatAnEditChanged } from "./what_an_edit_changed";
 
 const STREAM = "30c076a8-91cc-4340-9e15-9b89ca6c0b45";
-const INVERT = "7d1f0c2a-1111-4c1d-8e55-000000000001";
+const KALEIDOSCOPE = "7d1f0c2a-1111-4c1d-8e55-000000000001";
 const WARM_LUT = { asset: "85e64485-144d-4868-9cca-5afa5b0456dd", kind: "data", path: "media/warm.cube", content_sha256: "b0", content_byte_len: 75, import_settings: {} };
 
 function sentenceAndLinesOf(operations: JsonValue[]): [string, readonly string[]] {
-  const { what, operation_lines } = whatAnEditChanged(operations, new Map([[INVERT, "invertingeffect"]]));
+  const { what, operation_lines } = whatAnEditChanged(operations, new Map([[KALEIDOSCOPE, "kaleidoscope"]]));
   return [[what.lead, what.subject, what.rest].filter((words) => words !== null && words !== "").join(" "), operation_lines];
 }
 
@@ -33,11 +33,11 @@ test("an asset and a graph edit read by the asset's file and the node's name now
   expect(sentenceAndLinesOf([{ operation: "import_asset", asset: WARM_LUT }])[0]).toBe("Imported warm.cube");
   expect(
     sentenceAndLinesOf([
-      { stream: STREAM, operation: "rename_node", node: INVERT, from: "invert", to: "invertingeffect" },
-      { stream: STREAM, operation: "set_pin_value", node: INVERT, input: "amount", from: 1, to: 0.5 },
+      { stream: STREAM, operation: "rename_node", node: KALEIDOSCOPE, from: "fold", to: "kaleidoscope" },
+      { stream: STREAM, operation: "set_pin_value", node: KALEIDOSCOPE, input: "spin", from: 0, to: 0.5 },
       { stream: STREAM, operation: "remove_group", group: {} },
     ])[0],
-  ).toBe("Renamed invert to invertingeffect, and 2 more changes");
+  ).toBe("Renamed fold to kaleidoscope, and 2 more changes");
 });
 
 test("an operation newer than this app reads by its own name, and an edit with none changed nothing", () => {
@@ -77,8 +77,8 @@ test("an added node that carries its own links, or links to itself, reads with a
 });
 
 test("an input's value set reads as the value it was set to", () => {
-  expect(sentenceAndLinesOf([{ stream: STREAM, operation: "set_node_input_value", node: INVERT, input: "amount", from: 1, to: 0.5 }])).toEqual([
-    "Set invertingeffect.amount to 0.5",
-    ["set_node_input_value amount 1 → 0.5"],
+  expect(sentenceAndLinesOf([{ stream: STREAM, operation: "set_node_input_value", node: KALEIDOSCOPE, input: "spin", from: 0, to: 0.5 }])).toEqual([
+    "Set kaleidoscope.spin to 0.5",
+    ["set_node_input_value spin 0 → 0.5"],
   ]);
 });

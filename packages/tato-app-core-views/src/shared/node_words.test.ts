@@ -3,7 +3,7 @@ import { isANameTheCodeGave, nameInWords, nodeTitle, nodeTypeClassName, wordsFor
 
 test("a_node_type_names_its_class_after_its_module", () => {
   expect(nodeTypeClassName("tatolab.stream:TestPatternSource")).toBe("TestPatternSource");
-  expect(nodeTypeClassName("nodes.inverting_effect:InvertingEffect")).toBe("InvertingEffect");
+  expect(nodeTypeClassName("nodes.stage_shaders:Kaleidoscope")).toBe("Kaleidoscope");
 });
 
 test("a_class_name_or_a_key_reads_as_capitalised_words", () => {

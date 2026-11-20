@@ -1,23 +1,27 @@
-// What a real runtime answered with streamlib's sample project that declares each kind of pin
-// (`examples/every-pin-kind`) open and playing, each answer kept as the runtime sent it under
-// `recordings/` and read here through the readers the app uses on a real answer: the node types the
-// project lists and each one described, its stream `main`'s graph, and the refusals of `transact` a
-// scenario replays. The mock holds no node type, graph or refusal of its own for this work, but for one warning
-// on a link, one node with bundle pins and two nodes linked by a named type, which no recording carries, each named as a stand-in where it is held; a recording
-// that no longer reads fails the mock's load, as the app would fail to read the runtime's answer. They
-// were recorded from the `tatolabd` 0.68.82 built from streamlib, the sample played until its `glow` node
-// had written frames: the graph and the refusals at 6c0be0f, the node types listed and described at
-// 4b7a935, with streamlib's `tatolab-compositor` installed beside the sample and a `Spotlight` and an
-// `AlphaOverCompositor` node added to the playing stream, so a loaded stream describes every node type
-// the project lists.
+// What a real runtime answered with streamlib's sample projects open and playing, each answer kept as
+// the runtime sent it under `recordings/` and read here through the readers the app uses on a real
+// answer. Pulse Stage (`examples/pulse-stage`), the mock's open project: the node types it lists and
+// each one described, and its stream `main`'s graph, recorded from the `tatolabd` 0.68.82 built from
+// streamlib at e2c7162 with the sample playing. The sample that declares each kind of pin
+// (`examples/every-pin-kind`), which `?main_graph=` shows in its place: its node types, its stream
+// `main`'s graph and the refusals of `transact` a scenario replays, recorded from the `tatolabd` 0.68.82
+// built from streamlib, the graph and the refusals at 6c0be0f.
+// The mock holds no node type, graph or refusal of its own for this work, but for one warning on a link,
+// one node with bundle pins and two nodes linked by a named type, which no recording carries, each named
+// as a stand-in where it is held; a recording that no longer reads fails the mock's load, as the app
+// would fail to read the runtime's answer.
 
-import listNodeTypesResult from "./recordings/every-pin-kind-list-node-types-result.json?raw";
-import describeNodeTypesResult from "./recordings/every-pin-kind-describe-node-types-result.json?raw";
+import pulseStageListNodeTypesResult from "./recordings/pulse-stage-list-node-types-result.json?raw";
+import pulseStageDescribeNodeTypesResult from "./recordings/pulse-stage-describe-node-types-result.json?raw";
+import everyPinKindListNodeTypesResult from "./recordings/every-pin-kind-list-node-types-result.json?raw";
+import everyPinKindDescribeNodeTypesResult from "./recordings/every-pin-kind-describe-node-types-result.json?raw";
 import graphResultOfMain from "./recordings/every-pin-kind-graph-result-of-main.json?raw";
 import transactRefusalForALinkOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-a-records-output-into-a-float-input.json?raw";
 import transactRefusalForAValueOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-words-as-a-float-value.json?raw";
+import pulseStageGraphResultOfMain from "./recordings/pulse-stage-graph-result-of-main.json?raw";
 import { projectActionRefusalOfTheContract } from "../src/main/project_transactions_on_the_wire";
 import { controlContractRefusalOf, describeTheContractIssues, readControlContractValue } from "../src/main/tatolab_runtime_control_operation_call";
+import { isAJsonValue } from "../src/main/json_on_the_wire";
 import type { Result } from "../src/main/result";
 import {
   canvasNotesOfTheGraph,
@@ -30,7 +34,7 @@ import {
   studioFieldsOfTheNode,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { ControlContractComponentName, ControlContractComponents } from "@tatolab/runtime-client/contract";
-import type { DescribeNodeTypesToolResult, ListNodeTypesToolResult, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphLinkWarning, StreamGraphNode, StreamGraphPort, StreamGraphPortPin } from "../src/shared/tatolab_backend_contract";
+import type { DescribeNodeTypesToolResult, JsonValue, ListNodeTypesToolResult, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphLinkWarning, StreamGraphNode, StreamGraphPort, StreamGraphPortPin } from "../src/shared/tatolab_backend_contract";
 import type { MockGraphLink, MockGraphNode, MockGraphPort, MockStreamGraph } from "./mock_stream_fixtures";
 
 /** A recording the readers cannot read: the recording, or the reader, has drifted from the runtime. */
@@ -59,14 +63,36 @@ function recordedResultOfTheContractType<TypeName extends ControlContractCompone
   return recorded.value;
 }
 
-/** The node types the runtime's `list_node_types` listed for the sample project. */
-export const MOCK_RECORDED_NODE_TYPES_LISTED: ListNodeTypesToolResult = recordedResultOfTheContractType("every-pin-kind-list-node-types-result", listNodeTypesResult, "ListNodeTypesToolResult");
+/** A sample whose node types the mock holds as the runtime listed and described them. */
+type MockRecordedSample = "pulse_stage" | "every_pin_kind";
 
-/** Every node type the sample project lists, as the runtime's `describe_node_types` described it while the sample's stream `main` played. */
-export const MOCK_RECORDED_NODE_TYPES_DESCRIBED: DescribeNodeTypesToolResult = recordedResultOfTheContractType("every-pin-kind-describe-node-types-result", describeNodeTypesResult, "DescribeNodeTypesToolResult");
+/** The node types the runtime's `list_node_types` listed for a sample, and each one as its `describe_node_types` described it while the sample's stream `main` played. */
+export interface MockRecordedNodeTypes {
+  listed: ListNodeTypesToolResult;
+  described: DescribeNodeTypesToolResult;
+}
 
-/** The sample's stream `main` as the runtime's `graph` answered it while it played. */
+/**
+ * Each sample's node types as the runtime listed and described them: Pulse Stage's, and the every-pin-kind sample's, recorded
+ * at 4b7a935 with streamlib's `tatolab-compositor` installed beside it and a `Spotlight` and an `AlphaOverCompositor` node added to
+ * its playing stream, so a loaded stream describes every node type it lists.
+ */
+export const MOCK_RECORDED_NODE_TYPES: Readonly<Record<MockRecordedSample, MockRecordedNodeTypes>> = {
+  pulse_stage: {
+    listed: recordedResultOfTheContractType("pulse-stage-list-node-types-result", pulseStageListNodeTypesResult, "ListNodeTypesToolResult"),
+    described: recordedResultOfTheContractType("pulse-stage-describe-node-types-result", pulseStageDescribeNodeTypesResult, "DescribeNodeTypesToolResult"),
+  },
+  every_pin_kind: {
+    listed: recordedResultOfTheContractType("every-pin-kind-list-node-types-result", everyPinKindListNodeTypesResult, "ListNodeTypesToolResult"),
+    described: recordedResultOfTheContractType("every-pin-kind-describe-node-types-result", everyPinKindDescribeNodeTypesResult, "DescribeNodeTypesToolResult"),
+  },
+};
+
+/** The every-pin-kind sample's stream `main` as the runtime's `graph` answered it while it played. */
 const RECORDED_GRAPH_OF_MAIN: StreamGraph = recordedResultOfTheContractType("every-pin-kind-graph-result-of-main", graphResultOfMain, "StreamGraphOnTheWire");
+
+/** Pulse Stage's stream `main` as the runtime's `graph` answered it while it played. */
+const RECORDED_PULSE_STAGE_GRAPH_OF_MAIN: StreamGraph = recordedResultOfTheContractType("pulse-stage-graph-result-of-main", pulseStageGraphResultOfMain, "StreamGraphOnTheWire");
 
 /** `port`, as the runtime's graph serves it, held as the mock holds a port. */
 function mockGraphPortOfTheRecordedPort(port: StreamGraphPort, direction: "input" | "output"): MockGraphPort {
@@ -80,30 +106,44 @@ function mockGraphPortOfTheRecordedPort(port: StreamGraphPort, direction: "input
   };
 }
 
+/** What `port`, which the runtime read from its wire, reads once unlinked: its default, nothing while a value input has none, and no stored value at all on a stream or Trigger input. */
+function valueReadOfTheUnlinkedInput(port: MockGraphPort, inputDefaults: Readonly<Record<string, JsonValue>>): MockGraphPort["value_read"] {
+  if (port.name in inputDefaults) return { value: inputDefaults[port.name] ?? null, comes_from: "default" };
+  return port.pin?.flow === "value" ? { value: null, comes_from: null } : null;
+}
+
 /** `node`, as the runtime's graph read it, held as the mock holds a node: under the runtime's own id, each input reading what the runtime said it read, a value the input read by default kept as its default. */
 function mockGraphNodeOfTheRecordedNode(node: StreamGraphNode): MockGraphNode {
   const inputPorts = node.ports.inputs.map((port) => mockGraphPortOfTheRecordedPort(port, "input"));
-  const inputDefaults = Object.fromEntries(inputPorts.flatMap((port) => (port.value_read?.comes_from === "default" ? [[port.name, port.value_read.value] as const] : [])));
+  const inputDefaults: Record<string, JsonValue> = {};
+  node.ports.inputs.forEach((port, index) => {
+    const valueRead = inputPorts[index]?.value_read;
+    if (valueRead?.comes_from === "default") inputDefaults[port.name] = valueRead.value;
+    else if (port.pin_default !== null && isAJsonValue(port.pin_default)) inputDefaults[port.name] = port.pin_default;
+  });
   const { components } = node;
   return {
     name: node.name,
     id_kept_through_renames: node.id,
     type: node.type,
     ...(node.kind === undefined || node.kind === null ? {} : { kind: node.kind }),
+    ...(node.language === undefined || node.language === null ? {} : { language: node.language }),
     state: components.state ?? null,
     ...(components.failed_because === null ? {} : { failed_because: components.failed_because }),
     ...(components.process_raising_because === null ? {} : { process_raising_because: components.process_raising_because }),
     ...(components.not_ready_because === null ? {} : { not_ready_because: components.not_ready_because }),
     config: { ...jsonObjectMembersOf(node.config) },
-    pins: { ...jsonObjectMembersOf(node.pins) },
+    // An input the runtime read as `saved` holds that value, whether its graph document keeps it among the node's pins or, as a Graph Input's `value`, among its input values.
+    pins: { ...Object.fromEntries(inputPorts.flatMap((port) => (port.value_read?.comes_from === "saved" ? [[port.name, port.value_read.value] as const] : []))), ...jsonObjectMembersOf(node.pins) },
     input_defaults: inputDefaults,
     exposed_config_fields: node.exposed_config_fields ?? [],
-    // The mock reads `wire` on a linked input itself; unlinked, an input the runtime read from its wire reads its default, or nothing while it has none.
-    input_ports: inputPorts.map((port) =>
-      port.value_read?.comes_from === "wire" ? { ...port, value_read: port.name in inputDefaults ? { value: inputDefaults[port.name] ?? null, comes_from: "default" } : { value: null, comes_from: null } } : port,
-    ),
+    // The mock reads `wire` on a linked input itself; unlinked, an input the runtime read from its wire reads its default, nothing while a value input has none, and takes no stored value as a stream or Trigger input.
+    input_ports: inputPorts.map((port) => (port.value_read?.comes_from === "wire" ? { ...port, value_read: valueReadOfTheUnlinkedInput(port, inputDefaults) } : port)),
     output_ports: node.ports.outputs.map((port) => mockGraphPortOfTheRecordedPort(port, "output")),
     studio: { ...studioFieldsOfTheNode(node) },
+    ...(node.fragment === undefined || node.fragment === null
+      ? {}
+      : { fragment: { nodes: node.fragment.nodes.map(mockGraphNodeOfTheRecordedNode), links: node.fragment.links.map(mockGraphLinkOfTheRecordedLink), groups: structuredClone(node.fragment.groups ?? []) } }),
   };
 }
 
@@ -121,15 +161,25 @@ function mockGraphLinkOfTheRecordedLink(link: StreamGraphLink): MockGraphLink {
   };
 }
 
-/** A fresh copy of the sample's stream `main` as the mock holds a graph, its nodes and links as the runtime's `graph` answered them. */
-export function mockRecordedGraphOfTheEveryPinKindSample(): MockStreamGraph {
+/** A fresh copy of `recorded` as the mock holds a graph, its nodes and links as the runtime's `graph` answered them. */
+function mockGraphOfTheRecordedGraph(recorded: StreamGraph): MockStreamGraph {
   return {
-    nodes: RECORDED_GRAPH_OF_MAIN.nodes.map(mockGraphNodeOfTheRecordedNode),
-    links: RECORDED_GRAPH_OF_MAIN.links.map(mockGraphLinkOfTheRecordedLink),
+    nodes: recorded.nodes.map(mockGraphNodeOfTheRecordedNode),
+    links: recorded.links.map(mockGraphLinkOfTheRecordedLink),
     counterRates: { droppedPerSecondByLinkId: {}, refusedPerSecondByOutput: [] },
-    groups: structuredClone(RECORDED_GRAPH_OF_MAIN.groups ?? []),
-    notes: structuredClone([...canvasNotesOfTheGraph(RECORDED_GRAPH_OF_MAIN)]),
+    groups: structuredClone(recorded.groups ?? []),
+    notes: structuredClone([...canvasNotesOfTheGraph(recorded)]),
   };
+}
+
+/** A fresh copy of the every-pin-kind sample's stream `main` as the mock holds a graph. */
+export function mockRecordedGraphOfTheEveryPinKindSample(): MockStreamGraph {
+  return mockGraphOfTheRecordedGraph(RECORDED_GRAPH_OF_MAIN);
+}
+
+/** A fresh copy of Pulse Stage's stream `main` as the mock holds a graph. */
+export function mockRecordedGraphOfThePulseStageSample(): MockStreamGraph {
+  return mockGraphOfTheRecordedGraph(RECORDED_PULSE_STAGE_GRAPH_OF_MAIN);
 }
 
 function recordedRefusal(recording: string, responseText: string): ProjectActionRefusal {

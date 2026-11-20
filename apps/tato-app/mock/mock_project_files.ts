@@ -1,130 +1,53 @@
-// The mock's files of the open project as the runtime lists them: the pattern project's graph documents, its two node modules,
-// `pyproject.toml`, `tatolab-project.json` and a view's files, which the code pane reads and saves as it would on disk. A save at a version the mock no longer holds is refused as a change on disk.
+// The mock's files of the open project as the runtime lists them: streamlib's sample project Pulse Stage, mirrored under
+// `mock_pulse_stage_project/` from `examples/pulse-stage` as its files are written there, with a stopped second stream's graph
+// document and a view's files beside them, which the code pane reads and saves as it would on disk. A save at a version the
+// mock no longer holds is refused as a change on disk.
 
 import type { NodeFileCreated, ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../src/shared/tatolab_backend_contract";
+import pulseStageGitignore from "./mock_pulse_stage_project/.gitignore?raw";
+import pulseStagePythonVersion from "./mock_pulse_stage_project/.python-version?raw";
+import pulseStageBeatPy from "./mock_pulse_stage_project/nodes/beat.py?raw";
+import pulseStageClickTrackPy from "./mock_pulse_stage_project/nodes/click_track.py?raw";
+import pulseStageNodesInitPy from "./mock_pulse_stage_project/nodes/__init__.py?raw";
+import pulseStageLooksPy from "./mock_pulse_stage_project/nodes/looks.py?raw";
+import pulseStageStageShadersPy from "./mock_pulse_stage_project/nodes/stage_shaders.py?raw";
+import pulseStagePyprojectToml from "./mock_pulse_stage_project/pyproject.toml?raw";
+import pulseStageMainGraph from "./mock_pulse_stage_project/streams/main.graph.json?raw";
+import pulseStageTitleCardGraph from "./mock_pulse_stage_project/streams/title_card.graph.json?raw";
+import pulseStageTatolabProjectJson from "./mock_pulse_stage_project/tatolab-project.json?raw";
 import { mockStreamLocationOf } from "./mock_stream_fixtures";
 
-/** A graph document as the runtime writes one: the stream asset's UUID as `asset`, then its nodes and links. */
-function mockGraphDocument(asset: string, nodes: readonly { name: string; type: string; config: Record<string, unknown> }[], links: readonly [string, string, string, string][]): string {
-  return `${JSON.stringify(
-    {
-      asset,
-      links: links.map(([sourceNode, sourcePort, targetNode, targetPort]) => ({ source: { node: sourceNode, port: sourcePort }, target: { node: targetNode, port: targetPort } })),
-      nodes,
-    },
-    null,
-    2,
-  )}\n`;
-}
+/** Pulse Stage's files, by their `/`-separated path in the project, as `examples/pulse-stage` holds them. */
+const PULSE_STAGE_FILES: readonly (readonly [string, string])[] = [
+  [".gitignore", pulseStageGitignore],
+  [".python-version", pulseStagePythonVersion],
+  ["nodes/__init__.py", pulseStageNodesInitPy],
+  ["nodes/beat.py", pulseStageBeatPy],
+  ["nodes/click_track.py", pulseStageClickTrackPy],
+  ["nodes/looks.py", pulseStageLooksPy],
+  ["nodes/stage_shaders.py", pulseStageStageShadersPy],
+  ["pyproject.toml", pulseStagePyprojectToml],
+  ["streams/main.graph.json", pulseStageMainGraph],
+  ["streams/title_card.graph.json", pulseStageTitleCardGraph],
+  ["tatolab-project.json", pulseStageTatolabProjectJson],
+];
 
-/** The pattern project's stream assets' graph documents, by stream name. */
-function patternGraphDocuments(patternFolder: string): [string, string][] {
-  const assetOf = (streamName: string) => mockStreamLocationOf({ project_directory: patternFolder, stream_name: streamName }).stream_asset;
-  return [
-    [
-      "main",
-      mockGraphDocument(
-        assetOf("main"),
-        [
-          { name: "testpatternsource", type: "tatolab.testpattern:TestPatternSource", config: { width: 1280, height: 720, fps: 30 } },
-          { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", config: {} },
-          { name: "displaywindow", type: "DisplayWindow", config: { title: "Tatolab", scaling: "fit" } },
-          { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", config: {} },
-        ],
-        [
-          ["testpatternsource", "video", "invertingeffect", "video_from_upstream"],
-          ["invertingeffect", "video_to_downstream", "displaywindow", "video"],
-          ["invertingeffect", "video_to_downstream", "brightnessmeter", "video_from_upstream"],
-        ],
-      ),
-    ],
-    [
-      "pattern_two",
-      mockGraphDocument(
-        assetOf("pattern_two"),
-        [
-          { name: "testpatternsource", type: "tatolab.testpattern:TestPatternSource", config: {} },
-          { name: "displaywindow", type: "DisplayWindow", config: { title: "Pattern two" } },
-        ],
-        [["testpatternsource", "video", "displaywindow", "video"]],
-      ),
-    ],
+/** The graph document of the mock's stopped second stream `rehearsal` in the project at `projectFolder`: the lights alone, in the Program view. */
+function rehearsalGraphDocument(projectFolder: string): string {
+  const asset = mockStreamLocationOf({ project_directory: projectFolder, stream_name: "rehearsal" }).stream_asset;
+  const nodes = [
+    { name: "canvas", type: "imports/core-nodes/core_nodes.solid_color:SolidColor", input_values: { width: 1280, height: 720 } },
+    { name: "orbits", type: "nodes.stage_shaders:OrbitLights" },
+    { name: "program", type: "Core Nodes:program" },
   ];
+  const links = [
+    { source: { node: "canvas", port: "image" }, target: { node: "orbits", port: "size_from" } },
+    { source: { node: "orbits", port: "result" }, target: { node: "program", port: "video" } },
+  ];
+  return `${JSON.stringify({ asset, links, nodes }, null, 2)}\n`;
 }
 
-const INVERTING_EFFECT_PY = `from tatolab.stream import GlslPixelEffect, RuntimeContextFullAccess, RuntimeContextLimitedAccess, VideoFrame, msgpack, node
-
-INVERT_GLSL = """
-vec4 effect(vec4 source, ivec2 at) {
-    return vec4(1.0 - source.rgb, source.a);
-}
-"""
-
-
-@node
-class InvertingEffect:
-    """Inverts every frame's colours on the GPU."""
-
-    @node.input(delivery_profile="newest")
-    def video_from_upstream(self) -> VideoFrame: ...
-
-    @node.output()
-    def video_to_downstream(self) -> VideoFrame: ...
-
-    def setup(self, ctx: RuntimeContextFullAccess) -> None:
-        self.invert = GlslPixelEffect.compile(ctx.gpu_full_access, effect_glsl=INVERT_GLSL)
-
-    def process(self, ctx: RuntimeContextLimitedAccess) -> None:
-        frame = ctx.inputs.read("video_from_upstream", into=VideoFrame)
-        if frame is None:
-            return
-        ctx.outputs.write("video_to_downstream", msgpack.pack(self.invert.apply_to_frame(ctx.gpu_limited_access, frame)))
-`;
-
-const BRIGHTNESS_METER_PY = `import numpy
-from tatolab.stream import RuntimeContextLimitedAccess, VideoFrame, log, node
-
-BRIGHTNESS_REPORT_INTERVAL_NS = 1_000_000_000
-
-
-@node
-class BrightnessMeter:
-    """Logs the mean brightness of the frames it sees, once a second."""
-
-    next_report_at_ns: int = 0
-
-    @node.input(delivery_profile="newest")
-    def video_from_upstream(self) -> VideoFrame: ...
-
-    def process(self, ctx: RuntimeContextLimitedAccess) -> None:
-        frame = ctx.inputs.read("video_from_upstream", into=VideoFrame)
-        if frame is None or ctx.time < self.next_report_at_ns:
-            return
-        with frame.cpu() as pixels:
-            brightness = float(numpy.mean(pixels[:, :, :3]))
-        log.info("brightness", mean=round(brightness, 1))
-        self.next_report_at_ns = ctx.time + BRIGHTNESS_REPORT_INTERVAL_NS
-`;
-
-const PATTERN_PYPROJECT_TOML = `[project]
-name = "pattern"
-version = "0.1.0"
-requires-python = ">=3.12"
-dependencies = ["tatolab-stream>=0.55", "camera", "lobby-recorder", "stage-lights", "tatolab-testpattern>=0.3"]
-
-[tool.uv.sources]
-camera = { path = "../camera" }
-lobby-recorder = { path = "../lobby-recorder" }
-stage-lights = { path = "imports/stage-lights" }
-`;
-
-const PATTERN_TATOLAB_PROJECT_JSON = `{
-  "project": "5f0c2a9e-7b1d-4e3a-9c84-2d6f1b0a7e53",
-  "name": "pattern"
-}
-`;
-
-const PATTERN_DECK_VIEW_JSON = `{
+const DECK_VIEW_JSON = `{
   "contract": "1.0",
   "title": "Deck",
   "entry": "index.html",
@@ -132,7 +55,7 @@ const PATTERN_DECK_VIEW_JSON = `{
 }
 `;
 
-const PATTERN_DECK_VIEW_INDEX_HTML = `<!doctype html>
+const DECK_VIEW_INDEX_HTML = `<!doctype html>
 <html lang="en">
   <body>
     <div id="deck"></div>
@@ -160,34 +83,6 @@ class ${className}:
 `;
 }
 
-/** `nodes/glow.py` of streamlib's sample that declares each kind of pin, whose node types the mock's recordings list as the pattern project's own. */
-const GLOW_PY = `"""A shader node: its pictures are Textures and each of its numbers a 32-bit Float."""
-
-from __future__ import annotations
-
-from tatolab.stream import ImageFrame, node
-
-
-@node.meta(
-    category="Every pin kind",
-    description="Brighten the picture by glow and push it toward orange by warmth.",
-)
-@node.shader(
-    """
-float4 Glow(ImageInput image, float glow, float warmth)
-{
-    float3 warmed = image.pixel.rgb * (1.0 + float3(warmth, 0.4 * warmth, -warmth));
-    return float4(saturate(warmed + glow), image.pixel.a);
-}
-""",
-)
-def Glow(
-    image: ImageFrame,
-    glow: float = 0.0,
-    warmth: float = 0.0,
-) -> ImageFrame: ...
-`;
-
 interface MockProjectFile {
   text: string;
   version: number;
@@ -201,19 +96,13 @@ export class MockProjectFiles {
   private readonly importFolders: string[];
 
   constructor(streamsFolder: string) {
-    this.openProjectFolder = `${streamsFolder}/pattern`;
+    this.openProjectFolder = `${streamsFolder}/pulse-stage`;
     this.importFolders = [`${streamsFolder}/camera`, `${streamsFolder}/lobby-recorder`];
     const initialTexts: [string, string][] = [
-      ...patternGraphDocuments(this.openProjectFolder).map(([streamName, graphDocument]): [string, string] => [`${this.openProjectFolder}/streams/${streamName}.graph.json`, graphDocument]),
-      [`${this.openProjectFolder}/nodes/__init__.py`, ""],
-      [`${this.openProjectFolder}/nodes/inverting_effect.py`, INVERTING_EFFECT_PY],
-      [`${this.openProjectFolder}/nodes/brightness_meter.py`, BRIGHTNESS_METER_PY],
-      [`${this.openProjectFolder}/nodes/glow.py`, GLOW_PY],
-      [`${this.openProjectFolder}/pyproject.toml`, PATTERN_PYPROJECT_TOML],
-      [`${this.openProjectFolder}/tatolab-project.json`, PATTERN_TATOLAB_PROJECT_JSON],
-      [`${this.openProjectFolder}/.gitignore`, ".venv/\n__pycache__/\n"],
-      [`${this.openProjectFolder}/views/deck/tatolab_view.json`, PATTERN_DECK_VIEW_JSON],
-      [`${this.openProjectFolder}/views/deck/index.html`, PATTERN_DECK_VIEW_INDEX_HTML],
+      ...PULSE_STAGE_FILES.map(([pathInTheProject, text]): [string, string] => [`${this.openProjectFolder}/${pathInTheProject}`, text]),
+      [`${this.openProjectFolder}/streams/rehearsal.graph.json`, rehearsalGraphDocument(this.openProjectFolder)],
+      [`${this.openProjectFolder}/views/deck/tatolab_view.json`, DECK_VIEW_JSON],
+      [`${this.openProjectFolder}/views/deck/index.html`, DECK_VIEW_INDEX_HTML],
       [`${streamsFolder}/camera/pyproject.toml`, '[project]\nname = "camera"\nversion = "0.1.0"\n'],
       [`${streamsFolder}/camera/nodes/camera_frames.py`, "from tatolab.stream import node\n"],
       [`${streamsFolder}/lobby-recorder/pyproject.toml`, '[project]\nname = "lobby-recorder"\nversion = "0.1.0"\n'],

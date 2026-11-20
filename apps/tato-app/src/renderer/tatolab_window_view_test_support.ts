@@ -42,15 +42,15 @@ export async function cleanUpTheWindowsOfEarlierTests(): Promise<void> {
 }
 
 /**
- * The real window over the mock backend opened with `pageQuery`, mounted the way `main.ts` mounts it. The pattern project opens
+ * The real window over the mock backend opened with `pageQuery`, mounted the way `main.ts` mounts it. Pulse Stage opens
  * on the Edit layout, with the Node visualizer, on either platform, unless the test kept another layout for it or asks for the layout a project
  * first opens on with `opensOnTheFirstLayout`.
  */
 export async function mountedWindowOverTheMock(pageQuery: string, backendChanges: Partial<TatolabBackend> = {}, onTheFirstStatusDrawn?: () => void, opensOnTheFirstLayout = false) {
   removeTheKeydownListenersOfEarlierWindows();
   if (!opensOnTheFirstLayout) {
-    for (const patternFolder of PATTERN_PROJECT_ON_EACH_PLATFORM) {
-      if (localStorage.getItem(studioLayoutStorageKey(patternFolder)) === null) localStorage.setItem(studioLayoutStorageKey(patternFolder), JSON.stringify({ layout: editStudioLayout() }));
+    for (const pulseStageFolder of PULSE_STAGE_FOLDER_ON_EACH_PLATFORM) {
+      if (localStorage.getItem(studioLayoutStorageKey(pulseStageFolder)) === null) localStorage.setItem(studioLayoutStorageKey(pulseStageFolder), JSON.stringify({ layout: editStudioLayout() }));
     }
   }
   const backend: TatolabBackend = { ...createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(pageQuery))), ...backendChanges };
@@ -129,14 +129,14 @@ export function settingsRow(rowName: string): HTMLElement {
   return document.querySelector<HTMLElement>(`[data-settings-row="${rowName}"]`) ?? expect.unreachable(`no ${rowName} row`);
 }
 
-/** The mock's pattern project's folder, open by default. */
-export const PATTERN_PROJECT = "/Users/jonathanf/streams/pattern";
-/** The pattern project's folder as the mock has it on macOS and on Linux. */
-const PATTERN_PROJECT_ON_EACH_PLATFORM = [PATTERN_PROJECT, "/home/jonathanf/streams/pattern"];
+/** The folder of the mock's open project, Pulse Stage, open by default. */
+export const PULSE_STAGE_FOLDER = "/Users/jonathanf/streams/pulse-stage";
+/** Pulse Stage's folder as the mock has it on macOS and on Linux. */
+const PULSE_STAGE_FOLDER_ON_EACH_PLATFORM = [PULSE_STAGE_FOLDER, "/home/jonathanf/streams/pulse-stage"];
 /** The mock's camera project's folder. */
 export const CAMERA_PROJECT = "/Users/jonathanf/streams/camera";
-/** The id of the pattern project's `main` stream. */
-export const PATTERN_MAIN_STREAM = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "main" });
+/** The id of Pulse Stage's `main` stream. */
+export const PULSE_STAGE_MAIN_STREAM = mockStreamIdOf({ project_directory: PULSE_STAGE_FOLDER, stream_name: "main" });
 
 /** The page of the core view `viewTypeId` drawn in its frame, in the area `areaId` when one is named. */
 export function coreViewPage(viewTypeId: string, areaId?: string): Document {
@@ -203,9 +203,9 @@ export async function theAreasShownAre(areaIds: readonly string[]): Promise<void
   await waitFor(() => expect(areaIdsShown()).toEqual(areaIds));
 }
 
-/** Keeps `saved` as the pattern project's layout, for the studio to open on. */
-export function keepThePatternProjectsLayout(saved: unknown): void {
-  localStorage.setItem(studioLayoutStorageKey(PATTERN_PROJECT), JSON.stringify(saved));
+/** Keeps `saved` as Pulse Stage's layout, for the studio to open on. */
+export function keepThePulseStageLayout(saved: unknown): void {
+  localStorage.setItem(studioLayoutStorageKey(PULSE_STAGE_FOLDER), JSON.stringify(saved));
 }
 
 /**

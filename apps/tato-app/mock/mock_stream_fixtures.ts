@@ -1,4 +1,6 @@
 import { mapEachMockMainGraph, type MockMainGraph } from "./mock_main_graphs";
+import { PULSE_STAGE_FOLDER_NAME, PULSE_STAGE_PROJECT, PULSE_STAGE_STREAM_ASSETS } from "./mock_pulse_stage_sample";
+import { mockRecordedGraphOfThePulseStageSample } from "./mock_recordings";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
 import type {
   JsonValue,
@@ -60,13 +62,17 @@ export function mockUuidOf(text: string): string {
   return `${hexDigits.slice(0, 8)}-${hexDigits.slice(8, 12)}-4${hexDigits.slice(13, 16)}-8${hexDigits.slice(17, 20)}-${hexDigits.slice(20, 32)}`;
 }
 
-/** The location the runtime lists for the stream at `address`: its project directory and stand-in UUIDs for its project and its stream asset. */
+/**
+ * The location the runtime lists for the stream at `address`: its project directory, and its project's and its stream asset's
+ * UUIDs: Pulse Stage's own in a folder named for it, stand-ins for any other.
+ */
 export function mockStreamLocationOf(address: MockStreamAddress): StreamLocation {
   const projectDirectoryUnderHome = projectDirectoryUnderHomeOf(address.project_directory);
+  const isPulseStage = address.project_directory.split("/").at(-1) === PULSE_STAGE_FOLDER_NAME;
   return {
     project_directory: address.project_directory,
-    project: mockUuidOf(`project\n${projectDirectoryUnderHome}`),
-    stream_asset: mockUuidOf(`stream asset\n${projectDirectoryUnderHome}\n${address.stream_name}`),
+    project: isPulseStage ? PULSE_STAGE_PROJECT : mockUuidOf(`project\n${projectDirectoryUnderHome}`),
+    stream_asset: (isPulseStage ? PULSE_STAGE_STREAM_ASSETS[address.stream_name] : undefined) ?? mockUuidOf(`stream asset\n${projectDirectoryUnderHome}\n${address.stream_name}`),
   };
 }
 
@@ -208,16 +214,6 @@ const imageOutputAtFramesPerSecond = (name: string, framesPerSecond: number): Mo
 /** A built-in's Image input, typed as its code states it. */
 const textureInput = (name: string): MockGraphPort => ({ name, family: "image", stream_facts: null, values_checked: null, pin: TEXTURE_STREAM, value_read: null });
 
-/** A Float input read one value at a time, as the runtime types a node's `float` parameter, reading `defaultValue` while unwired and unset. */
-const floatValueInput = (name: string, defaultValue: number): MockGraphPort => ({
-  name,
-  family: "channels",
-  stream_facts: null,
-  values_checked: null,
-  pin: { pin_type: { type: "float" }, flow: "value" },
-  value_read: { value: defaultValue, comes_from: "default" },
-});
-
 /** How fast a mock stream's counters climb while it runs: messages a link's target drops, and messages an output refuses, each second. */
 export interface MockCounterRates {
   droppedPerSecondByLinkId: Record<string, number>;
@@ -340,125 +336,42 @@ function loadingLines(machine: MockMachine, streamId: string, projectDirectory: 
   ];
 }
 
-/** Why the display window failed in the stream that shows it in error, as a native processor's failed `start()` reads. */
-const DISPLAY_WINDOW_FAILED_BECAUSE = "start() failed: DisplayWindow could not open a window: no display server answered on $WAYLAND_DISPLAY or $DISPLAY";
+/** Why the speaker failed in the stream that shows it in error, as a native node's failed `start()` reads. */
+const SPEAKER_FAILED_BECAUSE = "start() failed: SpeakerSink could not open an audio output: no output device answered on 'default'";
 
-const TEST_PATTERN_NODES: MockGraphNode[] = [
-  {
-    name: "testpatternsource",
-    type: "tatolab.stream:TestPatternSource",
-    state: "Running",
-    config: { width: 1280, height: 720, fps: 30 },
-    input_ports: [],
-    output_ports: [imageOutputAtFramesPerSecond("video", 30)],
-  },
-  {
-    name: "invertingeffect",
-    type: "nodes.inverting_effect:InvertingEffect",
-    kind: "shader",
-    state: "Running",
-    config: {},
-    input_defaults: { amount: 1 },
-    input_ports: [...portsStatingNoStreamFacts("image", "video_from_upstream"), floatValueInput("amount", 1)],
-    output_ports: portsStatingNoStreamFacts("image", "video_to_downstream"),
-  },
-  {
-    name: "displaywindow",
-    type: "tatolab.stream:DisplayWindow",
-    state: "Running",
-    config: { title: "Tatolab", scaling: "fit" },
-    input_ports: [textureInput("video")],
-    output_ports: [],
-  },
-  {
-    name: "brightnessmeter",
-    type: "nodes.brightness_meter:BrightnessMeter",
-    kind: "function",
-    language: "python",
-    state: "Running",
-    config: {},
-    input_ports: portsStatingNoStreamFacts("image", "video_from_upstream"),
-    output_ports: [...portsStatingNoStreamFacts("records", "brightness"), ...portsStatingNoStreamFacts("array", "luma_points")],
-  },
+/**
+ * The extra `GraphInput`s `main` declares with `?graph_inputs=declared`, beside Pulse Stage's own `speed` and `segments`, so each
+ * family a client writes is declared once: `strobe` a Channels input reset at Stop, `tint` an Array and `cue` a Records input.
+ */
+const EXTRA_GRAPH_INPUTS: MockGraphNode[] = [
+  graphInputDeclaring("strobe_input", "channels", { port: "strobe", default: false, lifetime: "reset" }),
+  graphInputDeclaring("tint_input", "array", { port: "tint", default: [1, 0.5, 0.25], range: [0, 1] }),
+  graphInputDeclaring("cue_input", "records", { port: "cue", default: { scene: "intro" } }),
 ];
 
 /**
  * The `value` input of a top-level `GraphInput` of `family`, a setting that takes no wire, as the runtime renders it: no pin
  * type, since it carries any value of its family, reading `defaultValue`, the Input's `default`, while nothing sets it.
  */
-const graphInputValueInput = (family: PortFamily, defaultValue: JsonValue): MockGraphPort => ({
-  name: "value",
-  family,
-  stream_facts: null,
-  values_checked: family === "records" ? false : null,
-  pin: null,
-  value_read: { value: defaultValue, comes_from: "default" },
-});
+function graphInputValueInput(family: PortFamily, defaultValue: JsonValue): MockGraphPort {
+  return { name: "value", family, stream_facts: null, values_checked: family === "records" ? false : null, pin: null, value_read: { value: defaultValue, comes_from: "default" } };
+}
 
 /** A top-level `GraphInput` named `name`, declaring the input port `port` of `family` with `config`, as the runtime renders one back: running, a `value` input reading its `default` and one `value` output. */
-const graphInputOfThePattern = (name: string, family: PortFamily, config: Record<string, JsonValue> & { port: string; default: JsonValue }): MockGraphNode => ({
-  name,
-  type: "tatolab.stream:GraphInput",
-  state: "Running",
-  config: { ...config, family },
-  input_ports: [graphInputValueInput(family, config.default)],
-  input_defaults: { value: config.default },
-  output_ports: portsStatingNoStreamFacts(family, "value"),
-});
+function graphInputDeclaring(name: string, family: PortFamily, config: Record<string, JsonValue> & { port: string; default: JsonValue }): MockGraphNode {
+  return {
+    name,
+    type: "tatolab.stream:GraphInput",
+    state: "Running",
+    config: { ...config, family },
+    input_ports: [graphInputValueInput(family, config.default)],
+    input_defaults: { value: config.default },
+    output_ports: portsStatingNoStreamFacts(family, "value"),
+  };
+}
 
-/** The pattern's main stream declares four input ports, each by a top-level `GraphInput`; `strobe` is reset at Stop, the others are kept. */
-const TEST_PATTERN_GRAPH_INPUTS: MockGraphNode[] = [
-  graphInputOfThePattern("graphinput", "channels", { port: "brightness", default: 0.5, range: [0, 1] }),
-  graphInputOfThePattern("graphinput-2", "channels", { port: "strobe", default: false, lifetime: "reset" }),
-  graphInputOfThePattern("graphinput-3", "array", { port: "tint", default: [1, 0.5, 0.25], range: [0, 1] }),
-  graphInputOfThePattern("graphinput-4", "records", { port: "cue", default: { scene: "intro" } }),
-];
-
-/** A graph generator's frozen output beside the pattern: a halftone look, its dot size promoted to the subgraph's config, read only until unlocked. */
-const HALFTONE_LOOK_GENERATED_SUBGRAPH: MockGraphNode = {
-  name: "halftone-look",
-  type: "generators.looks:halftone_look",
-  state: null,
-  config: { dot_size: 6 },
-  input_ports: portsStatingNoStreamFacts("image", "video_in"),
-  output_ports: portsStatingNoStreamFacts("image", "video_out"),
-  studio: { position: [520, 380], group: null, comment: null, colour: null, collapsed: null, metadata: {} },
-  fragment: {
-    nodes: [
-      { name: "video_in", type: "tatolab.stream:GraphInput", state: null, config: { port: "video_in", family: "image" }, input_ports: [], output_ports: portsStatingNoStreamFacts("image", "value"), studio: { position: [0, 40], group: null, comment: null, colour: null, collapsed: null, metadata: {} } },
-      { name: "halftone", type: "nodes.halftone:HalftoneEffect", state: "Running", config: { dot_size: 6 }, input_ports: portsStatingNoStreamFacts("image", "video_in"), output_ports: portsStatingNoStreamFacts("image", "video_out"), studio: { position: [260, 20], group: null, comment: null, colour: null, collapsed: null, metadata: {} } },
-      { name: "video_out", type: "tatolab.stream:GraphOutput", state: null, config: { port: "video_out", family: "image" }, input_ports: portsStatingNoStreamFacts("image", "value"), output_ports: [], studio: { position: [540, 40], group: null, comment: null, colour: null, collapsed: null, metadata: {} } },
-    ],
-    links: [
-      { id: "Lhalftonelookin00000000001", source_node: "video_in", source_port: "value", target_node: "halftone", target_port: "video_in", state: "wired" },
-      { id: "Lhalftonelookout0000000001", source_node: "halftone", source_port: "video_out", target_node: "video_out", target_port: "value", state: "wired" },
-    ],
-    groups: [],
-  },
-};
-
-/** The pattern feeding the generated halftone look. */
-const HALFTONE_LOOK_LINK: MockGraphLink = { id: "Lhalftonelookfeed000000001", source_node: "testpatternsource", source_port: "video", target_node: "halftone-look", target_port: "video_in", state: "wired" };
-
-const TEST_PATTERN_LINKS: MockGraphLink[] = [
-  {
-    id: "Lj17fu4mdczivji99oua37i06",
-    source_node: "testpatternsource",
-    source_port: "video",
-    target_node: "invertingeffect",
-    target_port: "video_from_upstream",
-    state: "wired",
-  },
-  { id: "Lv5ujotcx5rnh9f4s6xewjot9", source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "wired" },
-  {
-    id: "Lizkqmkmmu5ldam8dbymcc4bc",
-    source_node: "invertingeffect",
-    source_port: "video_to_downstream",
-    target_node: "brightnessmeter",
-    target_port: "video_from_upstream",
-    state: "wired",
-  },
-];
+/** The node and port of Pulse Stage's picture each extra node reads: its Kaleidoscope's folded lights. */
+const THE_FOLDED_LIGHTS = { node: "kaleidoscope", port: "result" } as const;
 
 /** What Core Nodes' `ImageFile` reports while its `asset` config is unset, in the runtime's words. */
 const IMAGE_FILE_NOT_READY_BECAUSE = "ImageFile names no image asset. To fix: set its `asset` config to the UUID of a PNG or JPEG imported into the project";
@@ -476,9 +389,9 @@ const IMAGE_FILE_NOT_READY_NODE: MockGraphNode = {
 };
 
 /**
- * The fixture view's node, its picture wired from the effect, as a project's view stands in its stream's graph: its `fader` output, which
- * its panel writes, has an input of its name, a setting that takes no wire and holds no value until the panel sets one; its manifest's
- * `picture_fit` setting is a setting of the node, held in its config.
+ * The fixture view's node, its picture wired from the folded lights, as a project's view stands in its stream's graph: its `fader`
+ * output, which its panel writes, has an input of its name, a setting that takes no wire and holds no value until the panel sets one;
+ * its manifest's `picture_fit` setting is a setting of the node, held in its config.
  */
 const PICTURE_AND_FADER_VIEW_NODE: MockGraphNode = {
   name: "pictureandfader",
@@ -501,25 +414,18 @@ const FADER_METER_NODE: MockGraphNode = {
   output_ports: [],
 };
 
-const FADER_METER_LINK: MockGraphLink = {
-  id: "Lf4d3rm3t3rr34d5th3f4d3r0",
-  source_node: "pictureandfader",
-  source_port: "fader",
-  target_node: "fadermeter",
-  target_port: "level",
-  state: "wired",
-};
+const FADER_METER_LINK: MockGraphLink = { id: "Lf4d3rm3t3rr34d5th3f4d3r0", source_node: "pictureandfader", source_port: "fader", target_node: "fadermeter", target_port: "level", state: "wired" };
 
 const PICTURE_AND_FADER_VIEW_LINK: MockGraphLink = {
   id: "Lp1ctur3f4d3rv13wn0d3k8q2",
-  source_node: "invertingeffect",
-  source_port: "video_to_downstream",
+  source_node: THE_FOLDED_LIGHTS.node,
+  source_port: THE_FOLDED_LIGHTS.port,
   target_node: "pictureandfader",
   target_port: "picture",
   state: "wired",
 };
 
-/** An alpha-over compositor of two layers over the effect's output, the second offset and half transparent. */
+/** An alpha-over compositor of two layers over the folded lights, the second offset and half transparent. */
 const ALPHA_OVER_COMPOSITOR_NODE: MockGraphNode = {
   name: "alphaovercompositor",
   type: "tatolab.compositor.alpha_over_compositor:AlphaOverCompositor",
@@ -531,14 +437,14 @@ const ALPHA_OVER_COMPOSITOR_NODE: MockGraphNode = {
 
 const ALPHA_OVER_COMPOSITOR_LINK: MockGraphLink = {
   id: "La1ph4ov3rc0mp0s1t0rl1nk0",
-  source_node: "invertingeffect",
-  source_port: "video_to_downstream",
+  source_node: THE_FOLDED_LIGHTS.node,
+  source_port: THE_FOLDED_LIGHTS.port,
   target_node: "alphaovercompositor",
   target_port: "layer_0",
   state: "wired",
 };
 
-/** An MP4 recorder of `main`'s effect output, read across streams. */
+/** An MP4 recorder of `main`'s folded lights, read across streams. */
 const RECORDER_OF_MAIN_NODE: MockGraphNode = {
   name: "mp4writer",
   type: "tatolab.stream:Mp4Writer",
@@ -548,77 +454,84 @@ const RECORDER_OF_MAIN_NODE: MockGraphNode = {
   output_ports: [],
 };
 
-/** The recorder's link from `main`'s effect, its source named `<stream id>/<node>` as a link from another stream is. */
+/** The recorder's link from `main`'s folded lights, its source named `<stream id>/<node>` as a link from another stream is. */
 function recorderOfMainLink(mainStreamId: string): MockGraphLink {
   return {
     id: "Lr3c0rd3rm41nx7q2w9e5t1y8u",
-    source_node: `${mainStreamId}/invertingeffect`,
-    source_port: "video_to_downstream",
+    source_node: `${mainStreamId}/${THE_FOLDED_LIGHTS.node}`,
+    source_port: THE_FOLDED_LIGHTS.port,
     target_node: "mp4writer",
     target_port: "video",
     state: "wired",
   };
 }
 
-/** The test pattern's meter falling behind: its link drops frames and the effect's output refuses a few. */
-const TEST_PATTERN_METER_FALLING_BEHIND: MockCounterRates = {
-  droppedPerSecondByLinkId: { Lizkqmkmmu5ldam8dbymcc4bc: 9 },
-  refusedPerSecondByOutput: [{ node: "invertingeffect", port: "video_to_downstream", perSecond: 2 }],
-};
+/** The link of `graph` from `source`'s port `sourcePort` into `target`'s port `targetPort`; a recording without it no longer holds Pulse Stage. */
+function linkOfTheGraph(graph: MockStreamGraph, sourceNode: string, sourcePort: string, targetNode: string, targetPort: string): MockGraphLink {
+  const link = graph.links.find((candidate) => candidate.source_node === sourceNode && candidate.source_port === sourcePort && candidate.target_node === targetNode && candidate.target_port === targetPort);
+  if (link === undefined) throw new Error(`Pulse Stage's recorded graph holds no link ${sourceNode}.${sourcePort} -> ${targetNode}.${targetPort}`);
+  return link;
+}
 
-/** `tatolab new --test-pattern`'s stream asset `streamName` in `projectDirectory`, shown as `displayName`: the scaffold's four nodes, two of them Python. */
-function createTestPatternStream(
+/** Pulse Stage's glow falling behind: its link from the kaleidoscope drops frames and the kaleidoscope's output refuses a few. */
+function glowFallingBehind(graph: MockStreamGraph): MockCounterRates {
+  return {
+    droppedPerSecondByLinkId: { [linkOfTheGraph(graph, "kaleidoscope", "result", "glow", "video_in").id]: 9 },
+    refusedPerSecondByOutput: [{ node: "kaleidoscope", port: "result", perSecond: 2 }],
+  };
+}
+
+/** The node whose helper process the stream's log names, and the class it runs: Pulse Stage's click track. */
+const CLICK_TRACK = { node: "click", entrypoint: "nodes.click_track:ClickTrack" } as const;
+
+/** Pulse Stage's stream asset `streamName` in `projectDirectory`, shown as `displayName`: its stream `main` as the runtime's `graph` answered it, with the extra nodes `options` asks for. */
+function createPulseStageStream(
   machine: MockMachine,
   options: {
     projectDirectory: string;
     /** Its stream asset's name, which the stream's id is computed from. */
     streamName: string;
     displayName: string;
-    withDisplayWindowInError: boolean;
-    withTheMeterFallingBehind: boolean;
-    /** The id of the stream a recorder reads the effect output of, a link whose source is in another stream; `null` for none. */
+    withTheSpeakerInError: boolean;
+    withTheGlowFallingBehind: boolean;
+    /** The id of the stream a recorder reads the folded lights of, a link whose source is in another stream; `null` for none. */
     recordsTheStream: string | null;
     withTheFixtureViewsNode: boolean;
     withTheCompositorNode: boolean;
-    withGraphInputs: boolean;
-    withAGeneratedSubgraph: boolean;
+    withExtraGraphInputs: boolean;
     withAnImageFileNotReady: boolean;
   },
 ): MockStreamFixture {
   const { projectDirectory, recordsTheStream } = options;
-  const nodeCount = 4 + (recordsTheStream === null ? 0 : 1) + (options.withTheFixtureViewsNode ? 2 : 0) + (options.withTheCompositorNode ? 1 : 0) + (options.withAGeneratedSubgraph ? 1 : 0) + (options.withAnImageFileNotReady ? 1 : 0);
-  const listing = runningListing({ project_directory: projectDirectory, stream_name: options.streamName }, options.displayName, nodeCount);
+  const recorded = mockRecordedGraphOfThePulseStageSample();
+  const nodes: MockGraphNode[] = [
+    ...recorded.nodes.map((node) => (options.withTheSpeakerInError && node.name === "speaker" ? { ...node, state: "Error", failed_because: SPEAKER_FAILED_BECAUSE } : node)),
+    ...(recordsTheStream === null ? [] : [RECORDER_OF_MAIN_NODE]),
+    ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_NODE, FADER_METER_NODE] : []),
+    ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_NODE] : []),
+    ...(options.withExtraGraphInputs ? EXTRA_GRAPH_INPUTS : []),
+    ...(options.withAnImageFileNotReady ? [IMAGE_FILE_NOT_READY_NODE] : []),
+  ];
+  const links: MockGraphLink[] = [
+    ...recorded.links.map((link) => (options.withTheSpeakerInError && link.target_node === "speaker" ? { ...link, state: "error" as const } : link)),
+    ...(recordsTheStream === null ? [] : [recorderOfMainLink(recordsTheStream)]),
+    ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_LINK, FADER_METER_LINK] : []),
+    ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_LINK] : []),
+  ];
+  const listing = runningListing({ project_directory: projectDirectory, stream_name: options.streamName }, options.displayName, nodes.length);
   const streamId = listing.stream;
-  const brightness = (dueAt: number): MockLogRecordDraft => ({
+  const bar = (dueAt: number, index: number): MockLogRecordDraft => ({
     millisecondsAfterLoad: dueAt,
     source: "python",
     level: "info",
     target: PYTHON_HELPER_TARGET,
-    message: "brightness",
-    attrs: { height: "720", mean: "127.5", width: "1280" },
-    node: "brightnessmeter",
+    message: "bar",
+    attrs: { beat: String(4 * index) },
+    node: CLICK_TRACK.node,
   });
   return {
     listing,
-    graph: {
-      nodes: [
-        ...TEST_PATTERN_NODES.map((node) => (options.withDisplayWindowInError && node.name === "displaywindow" ? { ...node, state: "Error", failed_because: DISPLAY_WINDOW_FAILED_BECAUSE } : node)),
-        ...(recordsTheStream === null ? [] : [RECORDER_OF_MAIN_NODE]),
-        ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_NODE, FADER_METER_NODE] : []),
-        ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_NODE] : []),
-        ...(options.withGraphInputs ? TEST_PATTERN_GRAPH_INPUTS : []),
-        ...(options.withAGeneratedSubgraph ? [HALFTONE_LOOK_GENERATED_SUBGRAPH] : []),
-        ...(options.withAnImageFileNotReady ? [IMAGE_FILE_NOT_READY_NODE] : []),
-      ],
-      links: [
-        ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" as const } : link)),
-        ...(recordsTheStream === null ? [] : [recorderOfMainLink(recordsTheStream)]),
-        ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_LINK, FADER_METER_LINK] : []),
-        ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_LINK] : []),
-        ...(options.withAGeneratedSubgraph ? [HALFTONE_LOOK_LINK] : []),
-      ],
-      counterRates: options.withTheMeterFallingBehind ? TEST_PATTERN_METER_FALLING_BEHIND : NO_COUNTERS_CLIMB,
-    },
+    graph: { ...recorded, nodes, links, counterRates: options.withTheGlowFallingBehind ? glowFallingBehind(recorded) : NO_COUNTERS_CLIMB },
     startupLog: [
       ...loadingLines(machine, streamId, projectDirectory),
       {
@@ -626,27 +539,31 @@ function createTestPatternStream(
         source: "rust",
         level: "info",
         target: SPAWN_HOST_TARGET,
-        message: "[brightnessmeter] helper process started: pid=65123, entrypoint=nodes.brightness_meter:BrightnessMeter",
+        message: `[${CLICK_TRACK.node}] helper process started: pid=65123, entrypoint=${CLICK_TRACK.entrypoint}`,
       },
-      ...(options.withDisplayWindowInError
+      ...(options.withTheSpeakerInError
         ? [
             {
               millisecondsAfterLoad: 784,
               source: "rust",
               level: "error",
-              target: "streamlib_media_builtins::display_window",
-              message: "DisplayWindow: no window — running degraded (frames drained, nothing shown)",
-              node: "displaywindow",
+              target: "streamlib_media_builtins::speaker_sink",
+              message: "SpeakerSink: no audio output — running degraded (audio drained, nothing played)",
+              node: "speaker",
             } satisfies MockLogRecordDraft,
           ]
         : []),
     ],
     createLiveLogWriter: () => {
-      const brightnessReportsDue = cadence(1001, 1493);
+      const barsDue = cadence(2000, 1493);
+      let barCount = 0;
       const escalateWarningDue = once(2772);
-      const brightnessReadFailureDue = recordsTheStream === null && !options.withDisplayWindowInError ? once(4120) : once(Number.POSITIVE_INFINITY);
+      const fellBehindDue = recordsTheStream === null && !options.withTheSpeakerInError ? once(4120) : once(Number.POSITIVE_INFINITY);
       return (millisecondsSinceLoad) => [
-        ...brightnessReportsDue(millisecondsSinceLoad).map(brightness),
+        ...barsDue(millisecondsSinceLoad).map((dueAt) => {
+          barCount += 1;
+          return bar(dueAt, barCount);
+        }),
         ...escalateWarningDue(millisecondsSinceLoad).map(
           (dueAt): MockLogRecordDraft => ({
             millisecondsAfterLoad: dueAt,
@@ -657,15 +574,15 @@ function createTestPatternStream(
             attrs: { escalations_last_second: "24", thread: "br-esc-Pjbpw35x" },
           }),
         ),
-        ...brightnessReadFailureDue(millisecondsSinceLoad).map(
+        ...fellBehindDue(millisecondsSinceLoad).map(
           (dueAt): MockLogRecordDraft => ({
             millisecondsAfterLoad: dueAt,
             source: "python",
-            level: "error",
+            level: "warn",
             target: PYTHON_HELPER_TARGET,
-            message: "brightness read skipped",
-            attrs: { reason: "frame.cpu() timed out after 50 ms; the frame was recycled upstream" },
-            node: "brightnessmeter",
+            message: "ClickTrack fell behind and starts again at now",
+            attrs: { blocks_behind: "11" },
+            node: CLICK_TRACK.node,
           }),
         ),
       ];
@@ -789,15 +706,15 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
   };
 }
 
-/** The folder the test pattern's streams are run from. */
-function patternProjectDirectory(machine: MockMachine): string {
-  return `${machine.homeDirectory}/streams/pattern`;
+/** The folder Pulse Stage's streams are run from. */
+function pulseStageProjectDirectory(machine: MockMachine): string {
+  return `${machine.homeDirectory}/streams/pulse-stage`;
 }
 
-/** A stream its owner stopped with `tatolab stop`. */
-function stoppedPatternTwoListing(machine: MockMachine): ListedStream {
-  const address = { project_directory: patternProjectDirectory(machine), stream_name: "pattern_two" };
-  return { stream: mockStreamIdOf(address), display_name: "pattern-two", location: mockStreamLocationOf(address), state: "stopped", node_count: null, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], condition: null, action: null, step: null };
+/** A second stream of the project, its lights alone, that its owner stopped with `tatolab stop`. */
+function stoppedRehearsalListing(machine: MockMachine): ListedStream {
+  const address = { project_directory: pulseStageProjectDirectory(machine), stream_name: "rehearsal" };
+  return { stream: mockStreamIdOf(address), display_name: "rehearsal", location: mockStreamLocationOf(address), state: "stopped", node_count: null, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], condition: null, action: null, step: null };
 }
 
 /** A stream that could not load at the runtime's start. */
@@ -808,7 +725,7 @@ function failedLobbyRecorderListing(machine: MockMachine): ListedStream {
 
 /** Why the runtime failed `main` in the mock's `?state=refused-at-play`: a play that refused a link from a function node into a node in the app process, in the runtime's words. */
 const MOCK_MAIN_REFUSED_AT_PLAY_BECAUSE =
-  "Invalid link: link `Lkrgygd6qubqrj4jviamzuzfw` feeds a function node island into `displaywindow`, which runs in the app process; a function node runs inside the read of a node in a helper process, and the app process runs no node code";
+  "Invalid link: link `Lkrgygd6qubqrj4jviamzuzfw` feeds a function node island into `speaker`, which runs in the app process; a function node runs inside the read of a node in a helper process, and the app process runs no node code";
 
 /** `stream` with each node that reports a state stopped, as the runtime holds the graph of a stream that does not play. */
 function mockStreamWithItsNodesStopped(stream: MockStreamFixture): MockStreamFixture {
@@ -836,80 +753,77 @@ export function mockMainStreamAsTheRuntimeHoldsIt(main: MockStreamFixture, held:
 export interface MockStreamFixtures {
   machine: MockMachine;
   mainStream: MockStreamFixture;
-  mainStreamWithDisplayWindowInError: MockStreamFixture;
-  /** `main` with its meter falling behind, so a link drops frames. */
-  mainStreamWithItsMeterFallingBehind: MockStreamFixture;
-  /** `main` with the fixture view's node, its picture wired from the effect. */
+  mainStreamWithTheSpeakerInError: MockStreamFixture;
+  /** `main` with its glow falling behind, so a link drops frames. */
+  mainStreamWithItsGlowFallingBehind: MockStreamFixture;
+  /** `main` with the fixture view's node, its picture wired from the folded lights. */
   mainStreamWithTheFixtureViewsNode: MockStreamFixture;
-  /** `main` with an alpha-over compositor of two layers on the effect's output. */
+  /** `main` with an alpha-over compositor of two layers on the folded lights. */
   mainStreamWithTheCompositorNode: MockStreamFixture;
-  mainStreamDeclaringGraphInputs: MockStreamFixture;
-  /** `main` with a graph generator's frozen output wired from the pattern. */
-  mainStreamHoldingAGeneratedSubgraph: MockStreamFixture;
+  /** `main` declaring a Graph Input of each family a client writes beside its own `speed` and `segments`. */
+  mainStreamDeclaringExtraGraphInputs: MockStreamFixture;
   /** `main` with an `ImageFile` that names no asset, so it reports itself not ready. */
   mainStreamWithAnImageFileNotReady: MockStreamFixture;
-  /** `main` holding each graph `?main_graph=` names: the one recorded from the every-pin-kind sample, with a stand-in warned link or a stand-in node with bundle pins, or the large graph of the canvas measurements. */
+  /** `main` holding each graph `?main_graph=` names: one recorded from a sample, with a stand-in warned link or a stand-in node with bundle pins, or the large graph of the canvas measurements. */
   mainStreamHoldingTheGraph: Record<MockMainGraph, MockStreamFixture>;
   cameraStream: MockStreamFixture;
   /** The camera stream as the runtime re-loads it at its start before anyone has asked for camera access. */
   cameraStreamWaitingForCameraAccess: MockStreamFixture;
-  /** A recorder in the pattern folder reading `main`'s effect, a link whose source is in another stream. */
+  /** A recorder in Pulse Stage's folder reading `main`'s folded lights, a link whose source is in another stream. */
   recorderOfMainStream: MockStreamFixture;
-  stoppedPatternTwo: ListedStream;
-  /** `pattern-two` once started again. */
-  patternTwoStream: MockStreamFixture;
+  stoppedRehearsal: ListedStream;
+  /** `rehearsal` once started again. */
+  rehearsalStream: MockStreamFixture;
   failedLobbyRecorder: ListedStream;
   /** A record an earlier runtime wrote, which names no location and is listed failed until it is removed. */
   earlierRuntimesRecord: ListedStream;
-  /** The folder the test pattern's streams are run from. */
-  patternProjectDirectory: string;
+  /** The folder Pulse Stage's streams are run from. */
+  pulseStageProjectDirectory: string;
   /** The order the runtime lists its streams in, by id. */
   listingOrder: readonly string[];
+}
+
+/** The options of a Pulse Stage stream with no extra node. */
+function plainPulseStageStreamOptions(projectDirectory: string, streamName: string, displayName: string): Parameters<typeof createPulseStageStream>[1] {
+  return {
+    projectDirectory,
+    streamName,
+    displayName,
+    withTheSpeakerInError: false,
+    withTheGlowFallingBehind: false,
+    recordsTheStream: null,
+    withTheFixtureViewsNode: false,
+    withTheCompositorNode: false,
+    withExtraGraphInputs: false,
+    withAnImageFileNotReady: false,
+  };
 }
 
 /** The mock runtime's machine and streams as they look on `platform`. */
 export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamFixtures {
   const machine = MOCK_MACHINES[platform];
-  const projectDirectory = patternProjectDirectory(machine);
-  const mainStreamOptions = {
-    projectDirectory,
-    streamName: "main",
-    displayName: "main",
-    withDisplayWindowInError: false,
-    withTheMeterFallingBehind: false,
-    recordsTheStream: null,
-    withTheFixtureViewsNode: false,
-    withTheCompositorNode: false,
-    withGraphInputs: false,
-    withAGeneratedSubgraph: false,
-    withAnImageFileNotReady: false,
-  };
-  const mainStream = createTestPatternStream(machine, mainStreamOptions);
+  const projectDirectory = pulseStageProjectDirectory(machine);
+  const mainStreamOptions = plainPulseStageStreamOptions(projectDirectory, "main", "main");
+  const mainStream = createPulseStageStream(machine, mainStreamOptions);
   const cameraStream = createCameraStream(machine);
-  const recorderOfMainStream = createTestPatternStream(machine, {
-    ...mainStreamOptions,
-    streamName: "recorder",
-    displayName: "recorder",
-    recordsTheStream: mainStream.listing.stream,
-  });
-  const stoppedPatternTwo = stoppedPatternTwoListing(machine);
+  const recorderOfMainStream = createPulseStageStream(machine, { ...mainStreamOptions, streamName: "recorder", displayName: "recorder", recordsTheStream: mainStream.listing.stream });
+  const stoppedRehearsal = stoppedRehearsalListing(machine);
   const failedLobbyRecorder = failedLobbyRecorderListing(machine);
   return {
     machine,
     mainStream,
-    mainStreamWithDisplayWindowInError: createTestPatternStream(machine, { ...mainStreamOptions, withDisplayWindowInError: true }),
-    mainStreamWithItsMeterFallingBehind: createTestPatternStream(machine, { ...mainStreamOptions, withTheMeterFallingBehind: true }),
-    mainStreamWithTheFixtureViewsNode: createTestPatternStream(machine, { ...mainStreamOptions, withTheFixtureViewsNode: true }),
-    mainStreamWithTheCompositorNode: createTestPatternStream(machine, { ...mainStreamOptions, withTheCompositorNode: true }),
-    mainStreamDeclaringGraphInputs: createTestPatternStream(machine, { ...mainStreamOptions, withGraphInputs: true }),
-    mainStreamHoldingAGeneratedSubgraph: createTestPatternStream(machine, { ...mainStreamOptions, withAGeneratedSubgraph: true }),
-    mainStreamWithAnImageFileNotReady: createTestPatternStream(machine, { ...mainStreamOptions, withAnImageFileNotReady: true }),
+    mainStreamWithTheSpeakerInError: createPulseStageStream(machine, { ...mainStreamOptions, withTheSpeakerInError: true }),
+    mainStreamWithItsGlowFallingBehind: createPulseStageStream(machine, { ...mainStreamOptions, withTheGlowFallingBehind: true }),
+    mainStreamWithTheFixtureViewsNode: createPulseStageStream(machine, { ...mainStreamOptions, withTheFixtureViewsNode: true }),
+    mainStreamWithTheCompositorNode: createPulseStageStream(machine, { ...mainStreamOptions, withTheCompositorNode: true }),
+    mainStreamDeclaringExtraGraphInputs: createPulseStageStream(machine, { ...mainStreamOptions, withExtraGraphInputs: true }),
+    mainStreamWithAnImageFileNotReady: createPulseStageStream(machine, { ...mainStreamOptions, withAnImageFileNotReady: true }),
     mainStreamHoldingTheGraph: mapEachMockMainGraph((graph) => ({ ...mainStream, listing: { ...mainStream.listing, node_count: graph.nodes.length }, graph })),
     cameraStream,
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,
-    stoppedPatternTwo,
-    patternTwoStream: createTestPatternStream(machine, { ...mainStreamOptions, streamName: "pattern_two", displayName: "pattern-two" }),
+    stoppedRehearsal,
+    rehearsalStream: createPulseStageStream(machine, plainPulseStageStreamOptions(projectDirectory, "rehearsal", "rehearsal")),
     failedLobbyRecorder,
     earlierRuntimesRecord: {
       stream: "doorbell",
@@ -924,27 +838,14 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       action: null,
       step: null,
     },
-    patternProjectDirectory: projectDirectory,
-    listingOrder: [mainStream.listing.stream, cameraStream.listing.stream, recorderOfMainStream.listing.stream, stoppedPatternTwo.stream, failedLobbyRecorder.stream],
+    pulseStageProjectDirectory: projectDirectory,
+    listingOrder: [mainStream.listing.stream, cameraStream.listing.stream, recorderOfMainStream.listing.stream, stoppedRehearsal.stream, failedLobbyRecorder.stream],
   };
 }
 
-/** The stream a project folder run from the window loads from `projectDirectory`'s stream asset `streamName`, shown as `displayName`: the sample's four nodes. */
+/** The stream a project folder run from the window loads from `projectDirectory`'s stream asset `streamName`, shown as `displayName`: Pulse Stage's stream `main`. */
 export function createMockStreamRunFromAProjectFolder(machine: MockMachine, projectDirectory: string, streamName: string, displayName: string): MockStreamFixture {
-  const fixture = createTestPatternStream(machine, {
-    projectDirectory,
-    streamName,
-    displayName,
-    withDisplayWindowInError: false,
-    withTheMeterFallingBehind: false,
-    recordsTheStream: null,
-    withTheFixtureViewsNode: false,
-    withTheCompositorNode: false,
-    withGraphInputs: false,
-    withAGeneratedSubgraph: false,
-    withAnImageFileNotReady: false,
-  });
-  return { ...fixture, loadedForMillisecondsAtOpen: 0 };
+  return { ...createPulseStageStream(machine, plainPulseStageStreamOptions(projectDirectory, streamName, displayName)), loadedForMillisecondsAtOpen: 0 };
 }
 
 /** The id the mock runtime runs under, which every record it writes and every stream action id it gives carries. */

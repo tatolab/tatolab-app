@@ -27,8 +27,8 @@ describe("a code area's settings and words", () => {
   });
 
   it("names a tab by its file name, with the folders that tell two of the same name apart", () => {
-    const names = codeFileTabNames([`${PATTERN}/stream.py`, "/home/jonathanf/streams/camera/stream.py", `${PATTERN}/nodes/inverting_effect.py`]);
-    expect([...names.values()]).toEqual(["pattern/stream.py", "camera/stream.py", "inverting_effect.py"]);
+    const names = codeFileTabNames([`${PATTERN}/stream.py`, "/home/jonathanf/streams/camera/stream.py", `${PATTERN}/nodes/looks.py`]);
+    expect([...names.values()]).toEqual(["pattern/stream.py", "camera/stream.py", "looks.py"]);
   });
 
   it("writes a log record as its message then its attributes", () => {

@@ -3,9 +3,9 @@ import { expect, test } from "vitest";
 import { historyRowsOfTheFeed, historyStepsToTheRow, nodeNamesTheFeedGives, theStepReachedItsEdit, type HistoryRow } from "./history_rows_of_the_feed";
 
 const STREAM = "30c076a8-91cc-4340-9e15-9b89ca6c0b45";
-const INVERT = "7d1f0c2a-1111-4c1d-8e55-000000000001";
-const METER = "7d1f0c2a-2222-4c1d-8e55-000000000002";
-const DISPLAY = "7d1f0c2a-3333-4c1d-8e55-000000000003";
+const KALEIDOSCOPE = "7d1f0c2a-1111-4c1d-8e55-000000000001";
+const GLOW_BLUR = "7d1f0c2a-2222-4c1d-8e55-000000000002";
+const CLICK = "7d1f0c2a-3333-4c1d-8e55-000000000003";
 const SAM = { kind: "person", name: "Sam" } as const;
 const CLAUDE = { kind: "agent", name: "claude-code" } as const;
 const THE_RUNTIME = { kind: "runtime", name: "tatolab" };
@@ -41,15 +41,15 @@ function anEditedProject() {
   const warmLut = { asset: "a1", kind: "data", path: "media/warm.cube", content_sha256: "9f", content_byte_len: 75, import_settings: {} };
   const imported = transaction(SAM, [{ operation: "import_asset", asset: warmLut }]);
   const refreshed = transaction(THE_RUNTIME, [{ stream: STREAM, operation: "refresh_fragment", node: "f1", from: { type: "nodes.mic:MicLevels", config: {} }, to: { type: "nodes.mic:MicLevels", config: {} } }]);
-  const renamed = transaction(SAM, [{ stream: STREAM, operation: "rename_node", node: INVERT, from: "invert", to: "invertingeffect" }]);
-  const meter = { id: METER, name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", config: {} };
-  const link = { source: { node: INVERT, port: "video_to_downstream" }, target: { node: METER, port: "video_from_upstream" } };
+  const renamed = transaction(SAM, [{ stream: STREAM, operation: "rename_node", node: KALEIDOSCOPE, from: "fold", to: "kaleidoscope" }]);
+  const glowBlur = { id: GLOW_BLUR, name: "glowblur", type: "nodes.looks:GlowBlur", config: {} };
+  const link = { source: { node: KALEIDOSCOPE, port: "result" }, target: { node: GLOW_BLUR, port: "image" } };
   const added = transaction(CLAUDE, [
-    { stream: STREAM, operation: "add_node", node: meter, links: [] },
+    { stream: STREAM, operation: "add_node", node: glowBlur, links: [] },
     { stream: STREAM, operation: "connect", link },
   ]);
-  const fitted = transaction(SAM, [{ stream: STREAM, operation: "set_node_config", node: DISPLAY, from: { title: "Tatolab", scaling: "fill" }, to: { title: "Tatolab", scaling: "fit" } }]);
-  return { imported, refreshed, renamed, added, fitted };
+  const quieter = transaction(SAM, [{ stream: STREAM, operation: "set_node_config", node: CLICK, from: { volume: 0.8, pitch: 880 }, to: { volume: 0.4, pitch: 880 } }]);
+  return { imported, refreshed, renamed, added, quieter };
 }
 
 function newestFirst(...transactions: ProjectTransaction[]): ProjectTransaction[] {
@@ -61,21 +61,21 @@ function sentenceOf(row: HistoryRow): string {
 }
 
 test("each edit is a row, newest first, naming who made it and what it changed, its nodes by the names the graph gives", () => {
-  const { imported, refreshed, renamed, added, fitted } = anEditedProject();
-  const feed = newestFirst(imported, refreshed, renamed, added, fitted);
-  const nodeNames = new Map([...nodeNamesTheFeedGives(feed), [DISPLAY, "displaywindow"]]);
+  const { imported, refreshed, renamed, added, quieter } = anEditedProject();
+  const feed = newestFirst(imported, refreshed, renamed, added, quieter);
+  const nodeNames = new Map([...nodeNamesTheFeedGives(feed), [CLICK, "click"]]);
 
   const rows = historyRowsOfTheFeed(feed, nodeNames);
 
   expect(rows.map((row) => [row.who, sentenceOf(row), row.is_undone])).toEqual([
-    ["Sam", "Set displaywindow scaling to fit", false],
-    ["claude-code (agent)", "Added brightnessmeter and linked it to invertingeffect.video_to_downstream", false],
-    ["Sam", "Renamed invert to invertingeffect", false],
+    ["Sam", "Set click volume to 0.4", false],
+    ["claude-code (agent)", "Added glowblur and linked it to kaleidoscope.result", false],
+    ["Sam", "Renamed fold to kaleidoscope", false],
     ["Runtime", "Refreshed MicLevels from its code", false],
     ["Sam", "Imported warm.cube", false],
   ]);
-  expect(rows[0]?.operation_lines).toEqual(["set_node_config scaling fill → fit"]);
-  expect(rows[1]?.operation_lines).toEqual(["add_node BrightnessMeter", "connect invertingeffect.video_to_downstream → brightnessmeter.video_from_upstream"]);
+  expect(rows[0]?.operation_lines).toEqual(["set_node_config volume 0.8 → 0.4"]);
+  expect(rows[1]?.operation_lines).toEqual(["add_node GlowBlur", "connect kaleidoscope.result → glowblur.image"]);
 });
 
 /** `transaction` as the runtime serves it once its author's undo and redo stand at `undoState`. */
@@ -84,17 +84,17 @@ function standingAt(edit: ProjectTransaction, undoState: string): ProjectTransac
 }
 
 test("an edit the runtime holds undone and redoable is dimmed, an undo or a redo is no row of its own, and one no longer redoable is gone", () => {
-  const { imported, refreshed, renamed, added, fitted } = anEditedProject();
-  const fittedUndone = transaction(SAM, [], { undoes: fitted.transaction });
+  const { imported, refreshed, renamed, added, quieter } = anEditedProject();
+  const quieterUndone = transaction(SAM, [], { undoes: quieter.transaction });
   const renamedUndone = transaction(SAM, [], { undoes: renamed.transaction });
   const renamedRedone = transaction(SAM, [], { redoes: renamed.transaction });
   const rows = historyRowsOfTheFeed(
-    newestFirst(standingAt(imported, "undone_not_redoable"), refreshed, renamed, added, standingAt(fitted, "undone_redoable"), fittedUndone, renamedUndone, renamedRedone),
+    newestFirst(standingAt(imported, "undone_not_redoable"), refreshed, renamed, added, standingAt(quieter, "undone_redoable"), quieterUndone, renamedUndone, renamedRedone),
     new Map(),
   );
 
   expect(rows.map((row) => [row.transaction, row.is_undone])).toEqual([
-    [fitted.transaction, true],
+    [quieter.transaction, true],
     [added.transaction, false],
     [renamed.transaction, false],
     [refreshed.transaction, false],
@@ -109,43 +109,43 @@ test("an edit made in Tato Studio, recorded under its MCP client name, is yours,
 });
 
 test("choosing an earlier row undoes every later edit still applied, newest first, each by its own author", () => {
-  const { imported, refreshed, renamed, added, fitted } = anEditedProject();
-  const rows = historyRowsOfTheFeed(newestFirst(imported, refreshed, renamed, added, fitted), new Map());
+  const { imported, refreshed, renamed, added, quieter } = anEditedProject();
+  const rows = historyRowsOfTheFeed(newestFirst(imported, refreshed, renamed, added, quieter), new Map());
 
   expect(historyStepsToTheRow(rows, renamed.transaction)).toEqual({
     kind: "steps",
     steps: [
-      { undo_or_redo: "undo", author: SAM, transaction: fitted.transaction },
+      { undo_or_redo: "undo", author: SAM, transaction: quieter.transaction },
       { undo_or_redo: "undo", author: CLAUDE, transaction: added.transaction },
     ],
   });
-  expect(historyStepsToTheRow(rows, fitted.transaction)).toEqual({ kind: "steps", steps: [] });
+  expect(historyStepsToTheRow(rows, quieter.transaction)).toEqual({ kind: "steps", steps: [] });
   expect(historyStepsToTheRow(rows, imported.transaction)).toEqual({ kind: "unreachable", because: "The runtime's own edit after it (Refreshed MicLevels from its code) can't be undone." });
 });
 
 test("choosing a dimmed row redoes it and every undone row before it, oldest first", () => {
-  const { imported, refreshed, renamed, added, fitted } = anEditedProject();
-  const fittedUndone = transaction(SAM, [], { undoes: fitted.transaction });
+  const { imported, refreshed, renamed, added, quieter } = anEditedProject();
+  const quieterUndone = transaction(SAM, [], { undoes: quieter.transaction });
   const addedUndone = transaction(CLAUDE, [], { undoes: added.transaction });
-  const rows = historyRowsOfTheFeed(newestFirst(imported, refreshed, renamed, standingAt(added, "undone_redoable"), standingAt(fitted, "undone_redoable"), fittedUndone, addedUndone), new Map());
+  const rows = historyRowsOfTheFeed(newestFirst(imported, refreshed, renamed, standingAt(added, "undone_redoable"), standingAt(quieter, "undone_redoable"), quieterUndone, addedUndone), new Map());
 
-  expect(historyStepsToTheRow(rows, fitted.transaction)).toEqual({
+  expect(historyStepsToTheRow(rows, quieter.transaction)).toEqual({
     kind: "steps",
     steps: [
       { undo_or_redo: "redo", author: CLAUDE, transaction: added.transaction },
-      { undo_or_redo: "redo", author: SAM, transaction: fitted.transaction },
+      { undo_or_redo: "redo", author: SAM, transaction: quieter.transaction },
     ],
   });
   expect(historyStepsToTheRow(rows, added.transaction)).toEqual({ kind: "steps", steps: [{ undo_or_redo: "redo", author: CLAUDE, transaction: added.transaction }] });
 });
 
 test("a step reached its edit when the answer reverses it, or a redo of it, and not when it reverses another", () => {
-  const { renamed, fitted } = anEditedProject();
+  const { renamed, quieter } = anEditedProject();
   const renamedUndone = transaction(SAM, [], { undoes: renamed.transaction });
   const renamedRedone = transaction(SAM, [], { redoes: renamed.transaction });
-  const feed = newestFirst(renamed, fitted, renamedUndone, renamedRedone);
+  const feed = newestFirst(renamed, quieter, renamedUndone, renamedRedone);
   const undoTheRename = { undo_or_redo: "undo" as const, author: SAM, transaction: renamed.transaction };
 
   expect(theStepReachedItsEdit(undoTheRename, transaction(SAM, [], { undoes: renamedRedone.transaction }), feed)).toBe(true);
-  expect(theStepReachedItsEdit(undoTheRename, transaction(SAM, [], { undoes: fitted.transaction }), feed)).toBe(false);
+  expect(theStepReachedItsEdit(undoTheRename, transaction(SAM, [], { undoes: quieter.transaction }), feed)).toBe(false);
 });

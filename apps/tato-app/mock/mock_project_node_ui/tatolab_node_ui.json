@@ -2,7 +2,7 @@
   "contract": "1.1",
   "controls": [{ "type": "nodes.sweep:Sweep", "script": "sweep_on_its_wire.ts" }],
   "node_bodies": [
-    { "node_type": "nodes.inverting_effect:InvertingEffect", "script": "inverting_effect_body.ts" },
+    { "node_type": "nodes.stage_shaders:Kaleidoscope", "script": "kaleidoscope_body.ts" },
     { "node_type": "nodes.large_graph_stage:LargeGraphStage", "script": "large_graph_stage_body.ts" }
   ]
 }
