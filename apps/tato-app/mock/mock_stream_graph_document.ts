@@ -101,7 +101,7 @@ function familyTheInterfaceNodeCarries(node: MockGraphNode): string | null {
   return (node.type === "tatolab.stream:GraphInput" ? node.output_ports[0]?.family : node.input_ports[0]?.family) ?? null;
 }
 
-/** The port `node` declares as the runtime renders its `graph_interface`: a top-level Input a client writes, while it reads `nodeState` `Running`, carrying what its `value` input reads, else the `value` the mock keeps in the config of an Input it added with no `value` input; `null` for a node that is no interface node. */
+/** The port `node` declares as the runtime renders its `graph_interface`: a top-level Input a client writes, while it reads `nodeState` `Running`, carrying the pin type its `value` port carries, as its `pin_type` setting chose it, and what its `value` input reads, else the `value` the mock keeps in the config of an Input it added with no `value` input; `null` for a node that is no interface node. */
 function graphInterfacePortAsTheRuntimeRendersIt(node: MockGraphNode, nodeState: string | null, isTopLevel: boolean): StreamGraphInterfacePort | null {
   const direction = node.type === "tatolab.stream:GraphInput" ? "input" : node.type === "tatolab.stream:GraphOutput" ? "output" : null;
   const { port } = node.config;
@@ -110,7 +110,8 @@ function graphInterfacePortAsTheRuntimeRendersIt(node: MockGraphNode, nodeState:
   const carriesAValue = isTopLevel && nodeState === "Running" && isAGraphInputAClientWrites(node);
   const valueRead = node.input_ports.find((input) => input.name === "value")?.value_read?.value ?? null;
   const currentValue = carriesAValue ? (valueRead ?? node.config["value"] ?? null) : null;
-  return { direction, port, family, ...(currentValue === null ? {} : { current_value: currentValue }) };
+  const pin = (direction === "input" ? node.output_ports : node.input_ports).find((valuePort) => valuePort.name === "value")?.pin ?? null;
+  return { direction, port, family, ...(pin === null ? {} : { pin_type: pin.pin_type }), ...(currentValue === null ? {} : { current_value: currentValue }) };
 }
 
 /** How the mock node `node`'s code runs, as the runtime renders its `kind`. */

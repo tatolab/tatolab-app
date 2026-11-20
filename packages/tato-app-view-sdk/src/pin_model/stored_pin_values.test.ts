@@ -93,12 +93,26 @@ test("a Pin type choice reads each way as the pin type it chose, a narrowed one 
   }
 });
 
-test("a Pin type choice holding no pin type, a type no built-in type names, or one its `among` list leaves out reads as no value", () => {
+test("a Pin type choice holding no pin type, one the contract refuses, one the menu does not offer, or one its `among` list leaves out reads as no value", () => {
   expect(storedPinValueOfTheJson(ANY_TYPE, "float")).toBeUndefined();
   expect(storedPinValueOfTheJson(ANY_TYPE, null)).toBeUndefined();
   expect(storedPinValueOfTheJson(ANY_TYPE, [{ type: "float" }])).toBeUndefined();
   expect(storedPinValueOfTheJson(ANY_TYPE, { type: "warmth" })).toBeUndefined();
+  expect(storedPinValueOfTheJson(ANY_TYPE, { type: "texture", pixel_formats: "nv12" })).toBeUndefined();
+  expect(storedPinValueOfTheJson(ANY_TYPE, { type: "encoded_video", codecs: "h264" })).toBeUndefined();
+  expect(storedPinValueOfTheJson(ANY_TYPE, { type: "list_of" })).toBeUndefined();
+  expect(storedPinValueOfTheJson(ANY_TYPE, { type: "list_of", element_type: { type: "float" } })).toBeUndefined();
+  expect(storedPinValueOfTheJson(ANY_TYPE, { type: "pin_type_choice" })).toBeUndefined();
   expect(storedPinValueOfTheJson(A_NUMBER_TYPE, { type: "boolean" })).toBeUndefined();
   expect(jsonOfTheStoredPinValue(ANY_TYPE, { kind: "float" })).toBeUndefined();
+  expect(jsonOfTheStoredPinValue(ANY_TYPE, { type: "texture", pixel_formats: "nv12" })).toBeUndefined();
+  expect(jsonOfTheStoredPinValue(ANY_TYPE, { type: "pin_type_choice" })).toBeUndefined();
   expect(jsonOfTheStoredPinValue(A_NUMBER_TYPE, { type: "string" })).toBeUndefined();
+});
+
+test("a Pin type choice whose `among` list names narrowed types takes only an entry of it, its narrowing as listed", () => {
+  const AN_ENCODED_VIDEO_TYPE: PinType = { type: "pin_type_choice", among: [{ type: "encoded_video", codecs: ["h264"] }] };
+  expect(storedPinValueOfTheJson(AN_ENCODED_VIDEO_TYPE, { type: "encoded_video", codecs: ["h264"] })).toEqual({ type: "encoded_video", codecs: ["h264"] });
+  expect(storedPinValueOfTheJson(AN_ENCODED_VIDEO_TYPE, { type: "encoded_video", codecs: ["hevc"] })).toBeUndefined();
+  expect(jsonOfTheStoredPinValue(AN_ENCODED_VIDEO_TYPE, { type: "encoded_video" })).toBeUndefined();
 });

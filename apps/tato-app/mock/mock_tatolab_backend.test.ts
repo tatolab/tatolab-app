@@ -298,9 +298,13 @@ describe("the mock backend's stream actions", () => {
     expect(choosingOf(graphBefore)?.ports.inputs.map((port) => [port.name, port.pin_type?.type ?? null, port.value_comes_from ?? null])).toEqual([
       ["port", "string", "saved"],
       ["pin_type", "pin_type_choice", "saved"],
+      ["range", "list_of", "saved"],
       ["value", "float", "saved"],
     ]);
     expect(pinTypeOf(graphBefore)?.value).toEqual({ type: "float" });
+    expect(choosingOf(graphBefore)?.ports.inputs.find((port) => port.name === "range")?.value).toEqual([0, 1]);
+    expect(choosingOf(graphBefore)?.ports.inputs.find((port) => port.name === "value")?.annotations).toEqual({ range: { minimum: 0, maximum: 1 } });
+    expect(choosingOf(graphBefore)?.components.graph_interface).toEqual({ direction: "input", port: "warmth_base", family: "channels", pin_type: { type: "float" }, current_value: 0.1 });
     expect(choosingOf(graphBefore)?.config).not.toHaveProperty("default");
     expect(graphBefore.links.filter((link) => link.target.node === "warmth" && link.target.port === "base").map((link) => `${link.source.node}.${link.source.port}`)).toEqual(["warmth_base.value"]);
 

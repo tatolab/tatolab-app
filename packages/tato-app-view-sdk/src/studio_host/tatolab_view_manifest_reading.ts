@@ -4,7 +4,8 @@
 import { controlContractIssues } from "@tatolab/runtime-client/contract";
 import { Effect, Result, Schema, SchemaIssue, SchemaRepresentation, SchemaTransformation } from "effect";
 import { BUILT_IN_PIN_TYPES } from "../built_in_pin_types.js";
-import type { BuiltInPinTypeName, PinType } from "../pin_types.js";
+import { isAPinType } from "../pin_model/pin_type_check.js";
+import type { BuiltInPinTypeName } from "../pin_types.js";
 import { FAMILY_CARRYING_A_PIN_OF, PORT_FAMILIES, portFamilyWords } from "../port_families.js";
 import {
   FAMILIES_A_PANEL_WRITES,
@@ -72,11 +73,6 @@ function whyItIsNoPinType(written: { readonly [key: string]: unknown }): Schema.
   }
   const [firstIssue] = controlContractIssues("PinType", written, "sent");
   return firstIssue === undefined ? undefined : { path: firstIssue.path, issue: firstIssue.message };
-}
-
-/** Whether `written` is a pin type as the runtime takes it sent to it. */
-function isAPinType(written: { readonly [key: string]: unknown }): written is PinType {
-  return controlContractIssues("PinType", written, "sent").length === 0;
 }
 
 const PIN_TYPE_DEFINITION = "#/$defs/PinType";

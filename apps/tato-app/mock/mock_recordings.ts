@@ -322,25 +322,28 @@ function standInSavedInput(name: string, pinType: StreamGraphPortPin["pin_type"]
 
 /**
  * A stand-in, since the recordings were made before the every-pin-kind sample held it: the sample's `warmth_base`, a Graph Input
- * whose `pin_type` setting chooses Float, linked into `warmth.base`, served as streamlib's `test_every_pin_kind_sample` pins it: its
- * `pin_type` input a Pin type choice reading `{"type": "float"}` as saved, its `value` a Float, and no `default` in its config.
+ * whose `pin_type` setting chooses Float, linked into `warmth.base`, holding the input values the sample's `main.graph.json` saves,
+ * served as streamlib's `test_every_pin_kind_sample` pins it: its `pin_type` input a Pin type choice reading `{"type": "float"}` as
+ * saved, its `value` a Float annotated with the `range` its setting states, and no `default` in its config.
  */
 function standInGraphInputChoosingAType(): MockGraphNode {
   const port = "warmth_base";
   const pinType = { type: "float" } as const;
+  const range = [0, 1];
   const value = 0.1;
   return {
     name: "warmth_base",
     type: "tatolab.stream:GraphInput",
     state: "Running",
-    config: { port, pin_type: pinType },
-    pins: { port, pin_type: pinType, value },
+    config: { port, pin_type: pinType, range },
+    pins: { port, pin_type: pinType, range, value },
     input_defaults: {},
     exposed_config_fields: [],
     input_ports: [
       standInSavedInput("port", { type: "string" }, null, port),
       standInSavedInput("pin_type", { type: "pin_type_choice" }, null, pinType),
-      standInSavedInput("value", pinType, "channels", value),
+      standInSavedInput("range", { type: "list_of", element_type: { type: "float" } }, null, range),
+      { ...standInSavedInput("value", pinType, "channels", value), annotations: { range: { minimum: 0, maximum: 1 } } },
     ],
     output_ports: [{ name: "value", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: pinType, flow: "value" }, value_read: null }],
     studio: { ...NODE_STUDIO_FIELDS_NONE_SET },
