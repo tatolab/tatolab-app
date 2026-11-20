@@ -5,6 +5,7 @@
 export * from "./node_ui/input_control_element.js";
 export * from "./node_ui/input_control_event_reading.js";
 export * from "./node_ui/load_node_ui_element.js";
+export * from "./node_ui/node_body_element.js";
 export * from "./node_ui/node_ui_control_table.js";
 export * from "./node_ui/node_ui_element_host.js";
 export * from "./node_ui/node_ui_elements_listing.js";

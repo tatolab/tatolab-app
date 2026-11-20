@@ -46,6 +46,7 @@ function card(nodeId: string, index: number): NodeGraphCanvasNode {
     node_id: nodeId,
     title: nodeId,
     type_name: null,
+    node_type: null,
     description: null,
     condition: { look: "healthy" },
     inputs: ["gain", "offset", "mix", "threshold"].map((name) => ({ name, pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null })),

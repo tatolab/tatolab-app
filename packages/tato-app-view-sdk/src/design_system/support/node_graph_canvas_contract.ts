@@ -14,6 +14,8 @@ export interface NodeGraphCanvasNode {
   title: string;
   /** Its type's short name, quiet beside the title; `null` when the title already says it. */
   type_name: string | null;
+  /** Its node type in full, as `nodes.crossfade:Crossfade`, by which a module registers the body that draws its card; `null` where no body is drawn. */
+  node_type: string | null;
   /** Its node type's description, shown while the pointer rests on the card's header; `null` for none. */
   description: string | null;
   condition: NodeGraphCardCondition;

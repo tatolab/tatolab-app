@@ -11,9 +11,9 @@ const LARGE_GRAPH_INPUT_NAMES = ["gain", "offset", "mix", "threshold"] as const;
 /** How many links the large graph holds: every node after the first column takes one, and the first 165 of them a second. */
 const LARGE_GRAPH_LINK_COUNT = 450;
 
-/** Where the cards sit: a grid with room between the columns for the links. */
+/** Where the cards sit: a grid with room between the columns for the links, and between the rows for a card with its body. */
 const LARGE_GRAPH_COLUMN_STEP = 300;
-const LARGE_GRAPH_ROW_STEP = 170;
+const LARGE_GRAPH_ROW_STEP = 200;
 
 const channelsPort = (name: string): MockGraphPort => ({ name, family: "channels", stream_facts: null, values_checked: null, pin: null, value_read: null });
 

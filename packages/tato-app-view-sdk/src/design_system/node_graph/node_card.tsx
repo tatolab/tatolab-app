@@ -1,15 +1,16 @@
 import { Handle, Position, useStore, useStoreApi, type NodeProps } from "@xyflow/react";
 import { cn } from "cn";
 import { ChevronDown, ChevronRight, Hammer, SquareX, TriangleAlert } from "lucide-react";
-import { Fragment, memo, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
+import { Fragment, memo, useContext, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from "react";
 import { inputAddressKey, type InputAddress } from "../../pin_model/node_inputs";
-import { takesAControl } from "../../pin_model/controlled_inputs";
+import { nodeOfABody, takesAControl } from "../../pin_model/controlled_inputs";
 import { doesAChangeRebuildTheNode, nodePinRows, type NodePin } from "../../pin_model/node_pins";
 import { valueWords, wordsOfAValueOfNoType } from "../../pin_model/value_words";
 import type { PinFlow, PinType } from "../../pin_type_readings";
 import { pinTypeKey, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
 import { jsonTextOf, type StreamGraphPortPin } from "../../studio_readings";
 import { InputControlMount } from "../input_control_mount";
+import { NodeBodyMount } from "../node_body_mount";
 import { NodeGraphNodesFoundContext } from "../node_graph_find_bar";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "../support/full_strength_focus_ring";
 import { nodeGraphPinKey, type NodeGraphCardCondition, type NodeGraphCardKind, type NodeGraphCanvasNode } from "../support/node_graph_canvas_contract";
@@ -142,11 +143,14 @@ type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "
 function NodeGraphCardHeaderAndPinRows({
   graphNode,
   beforeTheTitle = null,
+  aboveTheRows = null,
   socketOfThePin,
 }: {
   graphNode: NodeGraphCardFaceNode;
   /** What leads the header, as the canvas's button that collapses the card. */
   beforeTheTitle?: ReactNode;
+  /** What an open card draws between its header and its rows, as its node body. */
+  aboveTheRows?: ReactNode;
   /** `takesNewWires` is false on a collapsed card, whose pins all meet at its header's edge. */
   socketOfThePin: (side: "input" | "output", pin: NodePin, takesNewWires: boolean) => ReactNode;
 }) {
@@ -173,6 +177,7 @@ function NodeGraphCardHeaderAndPinRows({
         <NodeGraphCardConditionTag condition={graphNode.condition} />
         {graphNode.is_collapsed && rows.filter((row) => takesASocket(row.node_pin)).map((row) => <Fragment key={`${row.side}:${row.node_pin.name}`}>{socketOfThePin(row.side, row.node_pin, false)}</Fragment>)}
       </div>
+      {!graphNode.is_collapsed && aboveTheRows}
       {!graphNode.is_collapsed && rows.length > 0 && (
         <div style={{ paddingBlock: NODE_GRAPH_CARD_PIN_ROWS_PADDING }}>
           {rows.map((row) => (
@@ -217,7 +222,7 @@ function useEveryPinSocketOfTheCardMeasured(nodeId: string, graphNode: NodeGraph
   return cardElement;
 }
 
-/** A card on the canvas: its header, a row per pin and what it says of its condition; it is drawn again only when its node, its selection or what the canvas around it shares changes. */
+/** A card on the canvas: its header, the body its node type's module draws, a row per pin and what it says of its condition; it is drawn again only when its node, its selection or what the canvas around it shares changes. */
 export function NodeGraphCardView({ id, data, selected: isSelected }: NodeProps<NodeGraphCardFlowNode>) {
   const cardElement = useEveryPinSocketOfTheCardMeasured(id, data.graphNode);
   const cardAndFrameEditing = useContext(NodeGraphCardAndFrameEditingContext);
@@ -225,6 +230,8 @@ export function NodeGraphCardView({ id, data, selected: isSelected }: NodeProps<
   const { graphNode } = data;
   const findLook = nodesFound.current_node_id === graphNode.node_id ? "current" : nodesFound.found_node_ids.has(graphNode.node_id) ? "found" : undefined;
   const failureWords = failureWordsTheCardShows(graphNode);
+  const isEditable = useContext(NodeGraphEditableContext);
+  const bodysNode = useMemo(() => (graphNode.node_type === null ? null : nodeOfABody(graphNode.node_type, graphNode.inputs)), [graphNode.node_type, graphNode.inputs]);
   return (
     <div
       ref={cardElement}
@@ -253,6 +260,7 @@ export function NodeGraphCardView({ id, data, selected: isSelected }: NodeProps<
             </button>
           )
         }
+        aboveTheRows={bodysNode !== null && <NodeBodyMount node={bodysNode} readOnly={!isEditable} />}
         socketOfThePin={(side, pin, takesNewWires) => <NodeGraphPinSocket nodeId={graphNode.node_id} side={side} pin={pin} takesNewWires={takesNewWires} />}
       />
       {failureWords !== null && !graphNode.is_collapsed && (

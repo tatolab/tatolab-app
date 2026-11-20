@@ -17,18 +17,21 @@ const tatoAppRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 // The window serves the built core views beside it, so they are built first.
 execFileSync("npm", ["run", "build", "--workspace", "@tatolab/tato-app-core-views"], { cwd: tatoAppRoot, stdio: "inherit" });
 const { config: electronViteConfig } = await loadConfigFromFile({ command: "serve", mode: "development" }, undefined, tatoAppRoot);
-// The app's page protocol serves an extension's folder, the Studio's own node UI module or a project's view, with each
+// The app's page protocol serves an extension's folder, the Studio's own node UI module, a project's node UI folder or view, with each
 // `.ts` file's types removed, the supplied modules' import map written into each page and a library in `vendor/` as it
-// is written. The mock window has no such protocol, so the Studio's node UI module and the fixture view's folder are
+// is written. The mock window has no such protocol, so the Studio's node UI module, the mock project's node UI folder and the fixture view's folder are
 // served here by the same rule, ahead of the dev server's own answer, and the fixture view is never bundled.
 const studioNodeUiModuleFolder = path.resolve(tatoAppRoot, "../../packages/tato-app-core-node-ui/node_ui");
 const mockStudioViewFolder = path.resolve(tatoAppRoot, "mock/mock_studio_view");
+// Where `mock/mock_node_ui_elements.ts` lists the mock project's node bodies as served, as a passed `node_ui` folder.
+const mockProjectNodeUiFolder = path.resolve(tatoAppRoot, "mock/mock_project_node_ui");
 // Where `mock/mock_studio_view/mock_studio_view_listing.ts` lists the fixture views' folders as served.
 const MOCK_STUDIO_VIEWS_PATH = "/mock_studio_view/";
 
 /** The extension folder and the `/`-separated path in it that `requestPath` names, or `null` when it names no file of one. */
 function extensionFileOfTheRequest(requestPath) {
   if (requestPath.startsWith("/core_node_ui/")) return { extensionFolder: studioNodeUiModuleFolder, pathInTheFolder: requestPath.slice("/core_node_ui/".length) };
+  if (requestPath.startsWith("/mock_project_node_ui/")) return { extensionFolder: mockProjectNodeUiFolder, pathInTheFolder: requestPath.slice("/mock_project_node_ui/".length) };
   if (!requestPath.startsWith(MOCK_STUDIO_VIEWS_PATH)) return null;
   const [viewFolder, ...pathInTheView] = requestPath.slice(MOCK_STUDIO_VIEWS_PATH.length).split("/");
   if (viewFolder === undefined || pathInTheView.length === 0) return null;

@@ -192,6 +192,7 @@ export function streamGraphCanvasContents(
         node_id: node.name,
         title: nodeTitle(node.name, node.type),
         type_name: typeNameOnTheCard(node),
+        node_type: node.type,
         description: descriptionWords(
           describedByType.get(node.type)?.documentation,
         ),

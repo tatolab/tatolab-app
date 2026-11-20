@@ -15,7 +15,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     ...mockProjectsAndStreamsBackendOf(simulation),
     ...mockModulesBackendOf(simulation),
     ...mockSettingsAndUpdatesBackendOf(simulation),
-    ...mockNodeUiElementsBackendOf(mockTatolabOptions.nodeUiElementsListing),
+    ...mockNodeUiElementsBackendOf(mockTatolabOptions.nodeUiElementsListing, mockTatolabOptions.projectNodeBodies),
   } satisfies TatolabBackend;
   if (mockTatolabOptions.valueAShellSetsLive !== null) setTheEffectsAmountLiveFromAShell(backend, mockTatolabOptions.valueAShellSetsLive);
   return backend;
