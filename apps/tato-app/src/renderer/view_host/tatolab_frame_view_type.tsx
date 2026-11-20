@@ -11,7 +11,6 @@ import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import { StudioAreaHeaderChoiceMenu, StudioAreaHeaderRowOfAWaitingView, StudioAreaHeaderWords } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { Plus } from "lucide-react";
 import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
