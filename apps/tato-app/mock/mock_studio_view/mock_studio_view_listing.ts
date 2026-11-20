@@ -27,6 +27,7 @@ export function mockStudioViewListing(): ListedStudioView {
     not_opened_because: null,
     manifest_json: manifestJson,
     folder_url: mockStudioViewFolderUrl("picture_and_fader"),
+    newer_version_blocked_because: null,
   };
 }
 
@@ -40,5 +41,6 @@ export function mockStudioViewListingThatDoesNotOpen(): ListedStudioView {
     not_opened_because: "`contract`: this runtime reads view contract 1.0.",
     manifest_json: { contract: "2.0", title: "Stage rig", placement: "area", entry: "index.html" },
     folder_url: mockStudioViewFolderUrl("stage_rig"),
+    newer_version_blocked_because: null,
   };
 }

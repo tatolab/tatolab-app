@@ -45,3 +45,32 @@ export function answersOfAFolderPassingTheGate(folderInTheProject: string, files
     passingCheckAnswer(Object.fromEntries(filesInTheProject.map(([filePath, fileText]) => [filePath.slice(prefixInTheOpenProject.length), fileText]))),
   ];
 }
+
+/** A finding of the runtime's TypeScript check, as the contract writes one. */
+export interface TypeErrorFound {
+  readonly path: string;
+  readonly line: number;
+  readonly column: number;
+  readonly words: string;
+}
+
+/**
+ * The runtime's answers, in order, to the gate reading the folder `folderInTheProject` holding `files` (path in the folder to text) and checking it
+ * with the type error `found`: its listing, each file's read, and a failed check.
+ */
+export function answersOfAFolderFailingTheGate(folderInTheProject: string, files: Readonly<Record<string, string>>, found: TypeErrorFound): Buffer[] {
+  const filesInTheProject = Object.entries(files).map(([fileInTheFolder, fileText]) => [`${folderInTheProject}/${fileInTheFolder}`, fileText] as const);
+  return [
+    controlOperationResultResponse({ files: filesInTheProject.map(([filePath, fileText]) => ({ path: filePath, byte_len: Buffer.byteLength(fileText) })) }),
+    ...filesInTheProject.map(([filePath, fileText]) => fileReadAnswer(filePath, fileText)),
+    controlOperationResultResponse({
+      verdict: "failed",
+      checks: [
+        { check: "extension_types", state: "failed", checked_with: ["tsc 7.0.2", sdkAsCheckedWith()] },
+        { check: "extension_lint", state: "passed", checked_with: ["oxlint 1.91.0", sdkAsCheckedWith()] },
+      ],
+      findings: [{ check: "extension_types", finding_code: "TS2322", severity: "error", words: found.words, path: found.path, line: found.line, column: found.column }],
+      files_checked: filesInTheProject.map(([filePath, fileText]) => ({ path: filePath, content_sha256: sha256OfTheText(fileText) })),
+    }),
+  ];
+}

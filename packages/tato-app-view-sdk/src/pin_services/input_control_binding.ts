@@ -8,8 +8,9 @@
 // binder never sets the element's value, and every value that arrives is set in one animation-frame
 // flush, so a surface's React tree never sees one. A control on an input of a type only a wire
 // carries is driven by its wire: it holds no value, nothing it fires is acted on, and it reads what
-// the wire carries from the port viewer of the output wired in. A card's node body binds through the
-// same binder, reading the same table and store. DOM only, no React.
+// the wire carries from the port viewer of the output wired in. A control already drawn whose newer
+// version is blocked stays drawn, marked, and the table never falls through to another control. A
+// card's node body binds through the same binder, reading the same table and store. DOM only, no React.
 
 import { inputAddressKey, type InputAddress } from "../pin_model/node_inputs.js";
 import type { ControlledInput, NodeOfABody } from "../pin_model/controlled_inputs.js";
@@ -25,11 +26,11 @@ import { ReadOnlyValueLineElement } from "../node_ui/read_only_value_line_elemen
 import type { StopWatching } from "../tato_app_view_connection.js";
 import type { ViewInputEvent } from "../view_wire_messages.js";
 import type { InputValueGesture, InputValues, ShownValue } from "./input_values.js";
-import { newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
+import { markTheNewerVersionBlocked, newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
 import { NodeBodySlot, type NodeBodyBinding, type NodeBodyShown } from "./node_body_binding.js";
 import { readWhatTheWiringCarries } from "./wire_reading.js";
 
-export { releaseOfAGestureOn, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
+export { NEWER_VERSION_BLOCKED_ATTRIBUTE, releaseOfAGestureOn, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
 
 /** Where a control is drawn, and whether the graph there can be edited. */
 export interface InputControlPlace {
@@ -226,7 +227,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       slotUnbound(this);
     }
 
-    /** Draws what the table picks now: the element it holds when the key is the same, otherwise a new one once loaded. */
+    /** Draws what the table picks now: the element it holds when the key is the same, marked while its newer version is blocked, otherwise a new one once loaded. */
     refresh(): void {
       if (this.#isUnbound) return;
       if (table === null) {
@@ -242,6 +243,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       }
       const key = keyOfTheElement(choice, this.#input, this.#place);
       if (key === this.#elementKey) {
+        this.#markWhetherTheNewerVersionIsBlocked(choice.listed);
         this.#setTheState();
         return;
       }
@@ -293,7 +295,14 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       this.#tell(element instanceof ReadOnlyValueLineElement ? "read_only_line" : "element");
     }
 
+    /** Marks the slot while the element it holds is a control and `listed`, the version it was loaded from, has a newer version blocked. */
+    #markWhetherTheNewerVersionIsBlocked(listed: ListedNodeUiElement): void {
+      const holdsAControl = this.#element !== null && !(this.#element instanceof ReadOnlyValueLineElement);
+      markTheNewerVersionBlocked(this.#host, holdsAControl && listed.script_serving.kind === "blocked" ? listed.script_serving.findings : null);
+    }
+
     #takeTheElementOff(): void {
+      markTheNewerVersionBlocked(this.#host, null);
       const element = this.#element;
       if (element === null) return;
       element.removeEventListener("input", this.#elementMoved);

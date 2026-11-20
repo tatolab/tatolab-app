@@ -42,9 +42,10 @@ describe("the views a view reads", () => {
           not_opened_because: null,
           manifest_json: { contract: "1.0", title: "DJ Deck", entry: "index.html", placement: "node", outputs: [{ name: "crossfader", family: "array" }] },
           folder_url: "tatolab-app://app/project_views/acme-dj/deck/",
+          newer_version_blocked_because: null,
         },
-        { view_type_id: "acme-dj:rig", project_name: "Acme DJ", import_folder: "acme-dj", opens: false, not_opened_because: "`contract`: this runtime reads view contract 1.0.", manifest_json: { title: "Rig" }, folder_url: "x" },
-        { view_type_id: "outliner", project_name: "Acme DJ", import_folder: null, opens: true, not_opened_because: null, manifest_json: { contract: "1.0", title: "My outliner", entry: "index.html", placement: "area" }, folder_url: "y" },
+        { view_type_id: "acme-dj:rig", project_name: "Acme DJ", import_folder: "acme-dj", opens: false, not_opened_because: "`contract`: this runtime reads view contract 1.0.", manifest_json: { title: "Rig" }, folder_url: "x", newer_version_blocked_because: null },
+        { view_type_id: "outliner", project_name: "Acme DJ", import_folder: null, opens: true, not_opened_because: null, manifest_json: { contract: "1.0", title: "My outliner", entry: "index.html", placement: "area" }, folder_url: "y", newer_version_blocked_because: null },
       ],
     });
     const reading = studioViewsReadingOf(registry);
