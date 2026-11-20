@@ -14,10 +14,10 @@ import type { StudioWindowValuesServedToViews } from "../view_host/studio_view_h
 import { WatchedStudioValue } from "../view_host/watched_studio_value";
 import { ProjectAssetPickHeldInTheWindow } from "../view_host/project_asset_pick_held_in_the_window";
 import type { JsonValue, ListedStreamsReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
-import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, type StudioAreaLayoutNode } from "./studio_area_layout";
+import { layoutShowsTheViewType, layoutWithAreaClosed, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithAreaShowingNode, layoutWithAreaSplit, layoutWithAreaSwappedWithItsNeighbour, unusedStudioAreaLayoutNodeId, type StudioAreaLayoutNode, type StudioAreaSplitDirection } from "./studio_area_layout";
 import { shippedStudioLayoutHomeOf, STUDIO_LAYOUTS_SHIPPED, type StudioLayoutKeptInStorage, type StudioLayoutOfAFolder, type StudioLayoutShipped } from "./studio_layout";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
-import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, studioLayoutShapedAs, studioLayoutWithEdgesHidden, studioLayoutWithShownSplitSizes, type StudioLayoutEdge, type StudioLayoutShape } from "./studio_layout_shapes";
+import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, studioLayoutShapedAs, viewTypeForANewAreaOf, studioLayoutWithEdgesHidden, studioLayoutWithShownSplitSizes, type StudioLayoutEdge, type StudioLayoutShape } from "./studio_layout_shapes";
 import { showViewTypeInAreaOf, watchAreasForTheViewType, type StudioViewTypeAreaSources } from "./studio_view_type_areas";
 
 /** What the window's view types are named by, and when the ones it holds change. */
@@ -441,6 +441,30 @@ export class StudioWindowModel {
     }));
   }
 
+  /** Take away the preset saved at `presetIndex`, from every project's layout menu. */
+  deleteTheSavedLayoutPreset(presetIndex: number): void {
+    this.changeTheLayout((studioLayout) => ({ ...studioLayout, presets_saved: studioLayout.presets_saved.filter((_, index) => index !== presetIndex) }));
+  }
+
+  /** Halve area `areaId`, a new area beside it (`row`) or under it (`column`) showing a view the layout doesn't show yet. */
+  splitArea(areaId: string, direction: StudioAreaSplitDirection): void {
+    this.expandedAreaId.publish(null);
+    this.changeTheLayoutTree((tree) =>
+      layoutWithAreaSplit(tree, areaId, direction, { kind: "area", area_id: unusedStudioAreaLayoutNodeId(tree, "area"), view_type_id: viewTypeForANewAreaOf(tree) }),
+    );
+  }
+
+  /** Trade the places of area `areaId` and its neighbour in the split that holds it. */
+  swapAreaWithItsNeighbour(areaId: string): void {
+    this.changeTheLayoutTree((tree) => layoutWithAreaSwappedWithItsNeighbour(tree, areaId));
+  }
+
+  /** Close area `areaId`, its room given to the parts beside it; the layout's only area stays. */
+  closeArea(areaId: string): void {
+    if (this.expandedAreaId.readLatest() === areaId) this.expandedAreaId.publish(null);
+    this.changeTheLayoutTree((tree) => layoutWithAreaClosed(tree, areaId) ?? tree);
+  }
+
   /** Grow area `areaId` of the layout to fill the window, or put the layout back. */
   expandArea(areaId: string, isExpanded: boolean): void {
     if (isExpanded) this.expandedAreaId.publish(areaId);
@@ -450,6 +474,11 @@ export class StudioWindowModel {
   /** Show `viewTypeId` in area `areaId` of the layout. */
   showViewTypeInArea(areaId: string, viewTypeId: string): void {
     this.changeTheLayoutTree((tree) => layoutWithAreaShowing(tree, areaId, viewTypeId));
+  }
+
+  /** Have area `areaId` of the layout show the node `nodeId` of the nodes of its `node` view's type. */
+  showNodeInArea(areaId: string, nodeId: string): void {
+    this.changeTheLayoutTree((tree) => layoutWithAreaShowingNode(tree, areaId, nodeId));
   }
 
   /** Keep `settings` with area `areaId` of the layout. */

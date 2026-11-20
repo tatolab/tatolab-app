@@ -1,4 +1,4 @@
-import { PictureInPicture2 } from "lucide-react";
+import { ArrowLeftRight, ArrowUpDown, Columns2, PictureInPicture2, Rows2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { OpenProjectReading, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
@@ -23,11 +23,12 @@ import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boun
 import { useWatchedStudioValue, WatchedStudioValue } from "../view_host/watched_studio_value";
 import type { ViewHeaderRow } from "../view_host/studio_view_contract";
 import type { StudioViewHostServices, StudioViewTypeSource } from "../view_host/studio_view_contract";
-import type { RegisteredStudioViewType, StudioViewNotOpened, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import type { RegisteredStudioViewType, StudioAreaOfTheView, StudioViewNotOpened, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet_view";
 import { StudioStatusBar } from "./studio_status_bar";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
-import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
+import { NO_LAYOUT_WHILE_NO_PROJECT_IS_OPEN } from "./studio_view_type_areas";
+import { areasOfTheLayout, neighbourOfTheArea, studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode, type StudioAreaNeighbour } from "./studio_area_layout";
 import { studioMenuBarMenus, studioMenusInTheSystemMenuBar, type StreamTabsInTheMenus, type StudioLayoutInTheMenus, type StudioMenuBarCommands, type StudioMenuInTheSystemMenuBar } from "./studio_menu_bar_model";
 import { NameFormDialog } from "./name_form_dialog_view";
 import { ProjectAssetPickerDialogView } from "./project_asset_picker_dialog_view";
@@ -127,6 +128,8 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
         )}
         <ViewTypesNotOpenedInTheMenu viewTypesNotOpened={projectViewTypesNotOpened} />
       </MenuGroup>
+      <MenuSeparator />
+      <AreaArrangementItems area={area} sources={sources} />
       {area.view_type_id !== null && sources.viewTypeRegistry.viewTypeWithId(area.view_type_id) !== null && (
         <>
           <MenuSeparator />
@@ -136,6 +139,38 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
         </>
       )}
     </StudioAreaHeaderMenu>
+  );
+}
+
+/** The words of Swap for an area whose neighbour lies as `neighbour` says. */
+function swapWordsOf(neighbour: Exclude<StudioAreaNeighbour, null>): string {
+  if (neighbour.direction === "row") return neighbour.lies === "after" ? "Swap with the area on the right" : "Swap with the area on the left";
+  return neighbour.lies === "after" ? "Swap with the area below" : "Swap with the area above";
+}
+
+/** An area's arrangement in the layout: split it either way, swap it with its neighbour, or close it; a popped-out view's window has no layout to arrange. */
+function AreaArrangementItems({ area, sources }: { area: StudioArea; sources: StudioWindowSources }) {
+  const studioLayout = useWatchedStudioValue(sources.model.studioLayout);
+  if (studioLayout === null) return null;
+  const neighbour = neighbourOfTheArea(studioLayout.layout, area.area_id);
+  const isTheOnlyArea = areasOfTheLayout(studioLayout.layout).length === 1;
+  return (
+    <>
+      <MenuItem icon={Columns2} onChosen={() => sources.model.splitArea(area.area_id, "row")} data-area-split={`${area.area_id}:row`}>
+        Split left and right
+      </MenuItem>
+      <MenuItem icon={Rows2} onChosen={() => sources.model.splitArea(area.area_id, "column")} data-area-split={`${area.area_id}:column`}>
+        Split top and bottom
+      </MenuItem>
+      {neighbour !== null && (
+        <MenuItem icon={neighbour.direction === "row" ? ArrowLeftRight : ArrowUpDown} onChosen={() => sources.model.swapAreaWithItsNeighbour(area.area_id)} data-area-swap={area.area_id}>
+          {swapWordsOf(neighbour)}
+        </MenuItem>
+      )}
+      <MenuItem icon={X} isDisabled={isTheOnlyArea} onChosen={() => sources.model.closeArea(area.area_id)} data-area-close={area.area_id}>
+        Close this area
+      </MenuItem>
+    </>
   );
 }
 
@@ -178,17 +213,35 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
   if (viewType === null) {
     return (
       <StudioAreaFrame label={area.view_type_id} header={<AreaViewTypeMenu area={area} sources={sources} words={area.view_type_id} />} data-studio-area={area.area_id}>
-        <WaitingState title={`This area's view, ${area.view_type_id}, isn't in this build`} explanation="Choose another view from the menu above." />
+        {projectStudioViews.kind === "listed" ? (
+          <WaitingState title={`This area's view, ${area.view_type_id}, isn't in this build or the project`} explanation="Choose another view from the menu above." />
+        ) : (
+          <WaitingState title="Waiting for the project's views" explanation={projectStudioViews.kind === "not_listed" ? projectStudioViews.because : NO_LAYOUT_WHILE_NO_PROJECT_IS_OPEN} data-studio-area-waiting-for-project-views="" />
+        )}
       </StudioAreaFrame>
     );
   }
+  const areaOfTheView: StudioAreaOfTheView = {
+    area_id: area.area_id,
+    saved_settings: area.settings,
+    rememberSettings: (nextSettings) => sources.model.keepAreaSettings(area.area_id, nextSettings),
+    header_row: headerRowInTheFrame,
+    expansion: {
+      watchIsExpanded: (listener) => sources.model.expandedAreaId.watch((expandedAreaId) => listener(expandedAreaId === area.area_id)),
+      expand: (isExpandedNext) => {
+        sources.model.expandArea(area.area_id, isExpandedNext);
+        return { kind: "done" };
+      },
+    },
+    node_shown: { node_id: area.shown_node_id ?? null, show: (nodeId) => sources.model.showNodeInArea(area.area_id, nodeId) },
+  };
   return (
     <StudioAreaOverAViewsOwnFrame
       label={viewType.title}
       viewTypeMenu={
         <>
           <AreaViewTypeMenu area={area} sources={sources} words={viewType.title} />
-          {viewType.renderWordsAfterTheViewTypeMenu?.(sources.viewHostServices)}
+          {viewType.renderWordsAfterTheViewTypeMenu?.(areaOfTheView, sources.viewHostServices)}
         </>
       }
       onHeaderRowMeasured={(headerRow) => headerRowInTheFrame.publish(headerRow)}
@@ -197,22 +250,7 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
       data-studio-area-expanded={isExpanded ? "" : undefined}
     >
       <StudioViewFailureBoundary key={viewType.view_type_id} viewTitle={viewType.title}>
-        {viewType.renderInAnArea(
-          {
-            area_id: area.area_id,
-            saved_settings: area.settings,
-            rememberSettings: (nextSettings) => sources.model.keepAreaSettings(area.area_id, nextSettings),
-            header_row: headerRowInTheFrame,
-            expansion: {
-              watchIsExpanded: (listener) => sources.model.expandedAreaId.watch((expandedAreaId) => listener(expandedAreaId === area.area_id)),
-              expand: (isExpandedNext) => {
-                sources.model.expandArea(area.area_id, isExpandedNext);
-                return { kind: "done" };
-              },
-            },
-          },
-          sources.viewHostServices,
-        )}
+        {viewType.renderInAnArea(areaOfTheView, sources.viewHostServices)}
       </StudioViewFailureBoundary>
     </StudioAreaOverAViewsOwnFrame>
   );

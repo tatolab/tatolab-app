@@ -207,6 +207,7 @@ export function mountTatolabWindow(
     shapeTheLayout: (shape) => studioWindowModel.shapeTheLayout(shape),
     applyTheShippedLayout: (layoutId) => studioWindowModel.applyTheShippedLayout(layoutId),
     applyTheSavedLayoutPreset: (presetIndex) => studioWindowModel.applyTheSavedLayoutPreset(presetIndex),
+    deleteTheSavedLayoutPreset: (presetIndex) => studioWindowModel.deleteTheSavedLayoutPreset(presetIndex),
     askToSaveTheLayoutAsAPreset: () => studioWindowModel.layoutPresetNameAsked.publish(true),
     openSettings: () => studioWindowModel.settingsSection.publish("project"),
     openAbout: () => studioWindowModel.settingsSection.publish("about"),

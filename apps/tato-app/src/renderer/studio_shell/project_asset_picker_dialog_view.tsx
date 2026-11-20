@@ -9,7 +9,7 @@ import type { JsonValue } from "../../shared/tatolab_backend_contract";
 import type { ProjectAssetPickHeldInTheWindow } from "../view_host/project_asset_pick_held_in_the_window";
 import type { StudioAreaExpansion, StudioViewHostServices, ViewHeaderRow } from "../view_host/studio_view_contract";
 import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boundary";
-import type { StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import { THE_FIRST_NODE_SHOWN, type StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { useWatchedStudioValue, WatchedStudioValue } from "../view_host/watched_studio_value";
 
 /** The view type the asset picker frames. */
@@ -54,7 +54,7 @@ export function ProjectAssetPickerDialogView({
       ) : (
         <StudioViewFailureBoundary viewTitle={libraryViewType.title}>
           {libraryViewType.renderInAnArea(
-            { area_id: null, saved_settings: settingsKept, rememberSettings: keepSettings, header_row: headerRow, expansion: EXPANSION_OF_THE_ASSET_PICKER },
+            { area_id: null, saved_settings: settingsKept, rememberSettings: keepSettings, header_row: headerRow, expansion: EXPANSION_OF_THE_ASSET_PICKER, node_shown: THE_FIRST_NODE_SHOWN },
             viewHostServicesOfThePicker,
           )}
         </StudioViewFailureBoundary>

@@ -9,7 +9,7 @@ import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
 import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import { studioLayoutStorageKey } from "./studio_shell/studio_layout";
-import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PATTERN_PROJECT, PATTERN_MAIN_STREAM, coreViewPage, inTheCoreView, libraryRow, showTheLibraryInTheViewerArea, outlinerRow, outlinerRowIds, AREAS_OF_THE_DEFAULT_LAYOUT, theAreasShownAre, keepThePatternProjectsLayout, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
+import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PATTERN_PROJECT, PATTERN_MAIN_STREAM, coreViewPage, inTheCoreView, libraryRow, showTheLibraryInTheViewerArea, outlinerRow, outlinerRowIds, AREAS_OF_THE_COMPOSITION_LAYOUT, theAreasShownAre, keepThePatternProjectsLayout, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
 // Code's editor here says Monaco didn't load; the code pane's text and saves are tested beside it.
@@ -759,11 +759,11 @@ describe("the studio", () => {
     keepThePatternProjectsLayout({ layout: { kind: "area", area_id: "venue", view_type_id: "venue-3d" } });
     await mountedWindowOverTheMock("state=running");
     await theAreasShownAre(["venue"]);
-    expect(screen.getByText("This area's view, venue-3d, isn't in this build")).toBeTruthy();
+    expect(await screen.findByText("This area's view, venue-3d, isn't in this build or the project")).toBeTruthy();
     document.body.replaceChildren();
 
     keepThePatternProjectsLayout({ layout: { kind: "split", parts: [] } });
     await mountedWindowOverTheMock("state=running");
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_COMPOSITION_LAYOUT);
   });
 });

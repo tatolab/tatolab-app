@@ -16,6 +16,11 @@ export function nodesOfTheStudioViewType(graph: StreamGraph, viewTypeId: string)
   return graph.nodes.filter((node) => node.type === viewTypeId);
 }
 
+/** The node of `viewNodes` the area keeps showing, by `shownNodeId`, or the first when it keeps none or that node is gone; `null` when there are none. */
+export function nodeShownByTheArea<Node extends Pick<StreamGraphNode, "id">>(viewNodes: readonly Node[], shownNodeId: string | null): Node | null {
+  return viewNodes.find((node) => node.id === shownNodeId) ?? viewNodes[0] ?? null;
+}
+
 /** Where a value is set on the inputs of `viewNode`, on the own level of the stream `graph` renders, named `streamWords`, in the window's project at `projectFolder`; or why none is while either is unknown. */
 export function studioViewNodeAddressOf(projectFolder: string | null, graph: StreamGraph, viewNode: StreamGraphNode, streamWords: string): StudioViewNodeAddress {
   const title = nodeTitle(viewNode.name, viewNode.type);

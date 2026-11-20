@@ -3,7 +3,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProjectTransaction } from "../shared/tatolab_backend_contract";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
-import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, systemMenuBarOverTheMock, chooseFromTheMenuBar, PATTERN_PROJECT, CAMERA_PROJECT, PATTERN_MAIN_STREAM, coreViewPage, inTheCoreView, outlinerRow, outlinerRowIds, AREAS_OF_THE_DEFAULT_LAYOUT, areaIdsShown, theAreasShownAre, keepThePatternProjectsLayout, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
+import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, systemMenuBarOverTheMock, chooseFromTheMenuBar, PATTERN_PROJECT, CAMERA_PROJECT, PATTERN_MAIN_STREAM, coreViewPage, inTheCoreView, outlinerRow, outlinerRowIds, AREAS_OF_THE_COMPOSITION_LAYOUT, AREAS_OF_THE_EDIT_LAYOUT, areaIdsShown, theAreasShownAre, keepThePatternProjectsLayout, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
 // Code's editor here says Monaco didn't load; the code pane's text and saves are tested beside it.
@@ -27,7 +27,7 @@ describe("the studio", () => {
   it("opens the project on its default layout, the outliner showing the project's streams, the open tab's stream open on its nodes, each with its type", async () => {
     await mountedWindowOverTheMock("state=running");
 
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_EDIT_LAYOUT);
     const mainNodeRowId = (node: string) => `node:${PATTERN_MAIN_STREAM}/${node}`;
     await waitFor(() => expect(outlinerRowIds()).toContain(mainNodeRowId("testpatternsource")));
     expect(outlinerRowIds()).toEqual([
@@ -262,7 +262,7 @@ describe("the studio", () => {
       ],
     });
     await mountedWindowOverTheMock("state=running");
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_COMPOSITION_LAYOUT);
 
     fireEvent.keyDown(document, { key: "2", metaKey: true });
     await theAreasShownAre(["viewer"]);
@@ -324,7 +324,7 @@ describe("the studio", () => {
         return transactionAnswered("redo");
       },
     });
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_EDIT_LAYOUT);
 
     fireEvent.keyDown(document, { key: "z", metaKey: true });
     await waitFor(() => expect(asked).toEqual(["undo by sam"]));
@@ -348,7 +348,7 @@ describe("the studio", () => {
       readThePersonEditingInStudio: async () => ({ kind: "person", name: "Sam" }),
       undoInTheOpenProject: () => Promise.reject(new Error("undo failed: Sam has no transaction left to undo")),
     });
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_EDIT_LAYOUT);
 
     fireEvent.keyDown(document, { key: "z", metaKey: true });
     const notice = await waitFor(() => document.querySelector<HTMLElement>("[data-project-edit-refusal]") ?? expect.unreachable("no notice"));
@@ -358,10 +358,11 @@ describe("the studio", () => {
 
   it("on Linux, reshapes the layout from the window's own Window › Layout", async () => {
     await mountedWindowOverTheMock("platform=linux&state=running");
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_EDIT_LAYOUT);
 
     pressAsAPointerDoes(await waitFor(() => document.querySelector<HTMLElement>('[data-studio-menu="Window"]') ?? expect.unreachable("no Window menu")));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Layout" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Single" }));
     await theAreasShownAre(["stream-graph"]);
   });
@@ -410,6 +411,7 @@ describe("the studio", () => {
     await waitFor(() => expect(areaIdsShown()).toEqual(["outliner", "stream-graph", "viewer", "properties"]));
 
     pressAsAPointerDoes(document.querySelector<HTMLElement>("[data-studio-layout-menu]") ?? expect.unreachable("no layout menu button"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Two rows" }));
     await waitFor(() => expect(areaIdsShown()).toEqual(["stream-graph", "outliner"]));
     await waitFor(() => expect(edgeButton("bottom")).not.toBeNull());
@@ -422,6 +424,7 @@ describe("the studio", () => {
     await waitFor(() => expect(document.querySelector('[data-name-form-dialog="save_layout_preset"]')).toBeNull());
 
     pressAsAPointerDoes(document.querySelector<HTMLElement>("[data-studio-layout-menu]") ?? expect.unreachable("no layout menu button"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Single" }));
     await theAreasShownAre(["stream-graph"]);
     pressAsAPointerDoes(document.querySelector<HTMLElement>("[data-studio-layout-menu]") ?? expect.unreachable("no layout menu button"));
@@ -435,7 +438,7 @@ describe("the studio", () => {
   it("on macOS, draws no menus of its own and shows them in the system menu bar, where Window › Layout reshapes the layout", async () => {
     const { backendChanges, menusShownLast, chooseFromTheSystemMenuBar } = systemMenuBarOverTheMock();
     await mountedWindowOverTheMock("state=running", backendChanges);
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_EDIT_LAYOUT);
     expect(document.querySelector("[data-studio-menu]")).toBeNull();
     expect(document.querySelector("[data-studio-title-row]")).not.toBeNull();
     expect(menusShownLast().map((menu) => [menu.label, menu.system_menu])).toEqual([
@@ -453,9 +456,12 @@ describe("the studio", () => {
     expect(menusShownLast().find((menu) => menu.label === "Window")?.entries[2]).toMatchObject({
       kind: "submenu",
       label: "Layout",
-      entries: expect.arrayContaining([{ kind: "command", entry_id: "Window › Layout › Single", label: "Single", shortcut_hint: null, unavailable_because: null }]),
+      entries: expect.arrayContaining([
+        { kind: "command", entry_id: "Window › Layout › Composition", label: "Composition", shortcut_hint: null, unavailable_because: null },
+        expect.objectContaining({ kind: "submenu", label: "Shape", entries: expect.arrayContaining([{ kind: "command", entry_id: "Window › Layout › Shape › Single", label: "Single", shortcut_hint: null, unavailable_because: null }]) }),
+      ]),
     });
-    await chooseFromTheSystemMenuBar("Window › Layout › Single");
+    await chooseFromTheSystemMenuBar("Window › Layout › Shape › Single");
     await theAreasShownAre(["stream-graph"]);
   });
 });
