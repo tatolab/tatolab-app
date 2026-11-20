@@ -2,7 +2,9 @@
 # Builds Tato Studio for Linux: the .deb and the AppImage of the Electron window and tray. Each
 # carries in its resources/ streamlib's runtime unit (tatolab-runtime/: bin/, lib/,
 # streamlib-commit), whose tatolabd the app runs as its own child process; no uv or Python of its
-# own: the runtime's uv sits beside its tatolabd.
+# own: the runtime's uv sits beside its tatolabd. Beside the unit's lend, lib/tatolab/extension-sdk/
+# holds the extension SDK kit this app's SDK build wrote, which that tatolabd checks a project's
+# views and controls against.
 # The runtime is always streamlib's main, or --streamlib-ref, fetched by
 # fetch-streamlib-for-the-app-build.sh into build/linux-streamlib. The packages' version is the
 # version of the tatolabd they carry, or --app-version.
@@ -166,6 +168,9 @@ echo "==> the runtime unit"
 carried_runtime_unit="$packaged_app_directory/resources/tatolab-runtime"
 mkdir -p "$carried_runtime_unit"
 cp -a "$runtime_unit_directory/bin" "$runtime_unit_directory/lib" "$runtime_unit_directory/streamlib-commit" "$carried_runtime_unit/"
+# Beside the lend, where the carried tatolabd finds it first to check a project's views and controls.
+"$scripts_directory/place-the-extension-sdk-kit.sh" "$tato_app_root/../../packages/tato-app-view-sdk/dist/kit" \
+  "$carried_runtime_unit/lib/tatolab/extension-sdk"
 
 # Lays the app, its desktop entry and its icons under <root>/usr.
 lay_out_the_app_under() {
@@ -276,6 +281,10 @@ grep -qE "[[:space:]]\./usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/sa
   || { echo "the .deb carries no sample project in usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/samples" >&2; exit 1; }
 grep -qF "./usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/core-projects/tatolab-core-nodes/tatolab-project.json" <<<"$deb_contents" \
   || { echo "the .deb carries no Core Nodes project in usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/core-projects" >&2; exit 1; }
+for extension_sdk_kit_part in package.json tie_lines.json oxlint.json check_folder/tsconfig.json; do
+  grep -qF "./usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/extension-sdk/$extension_sdk_kit_part" <<<"$deb_contents" \
+    || { echo "the .deb carries no usr/lib/tatolab/resources/tatolab-runtime/lib/tatolab/extension-sdk/$extension_sdk_kit_part, so its runtime checks no view" >&2; exit 1; }
+done
 ! grep -qF './usr/lib/tatolab/resources/install.sh' <<<"$deb_contents" \
   || { echo "the .deb carries streamlib's install.sh, which the app never runs" >&2; exit 1; }
 echo "    Depends: $deb_depends"
