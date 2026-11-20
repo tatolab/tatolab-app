@@ -129,7 +129,12 @@ function NodeGraphFlow({
   const { cardSizeByNode, isLaidOutOnMeasuredSizes, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, holdTheNoteMoves, releaseTheHeldNotePositions, keepTheResizedNote } = useNodeGraphCardLayout(nodes, links, notes, nodeById, editing, reactFlow, viewportWhereItWasLeft);
 
   const isACard = useCallback((flowNodeId: string) => nodeById.has(flowNodeId), [nodeById]);
-  const { pressTheCanvas, isABoxPossible, boxMarksRedrawn } = useNodeGraphBoxSelection({ reactFlow, selectedIds, selectedNoteIds, isACard, noteIdOfTheFlowNode, onBoxed: selectWhatTheBoxHolds });
+  const linkIdsJoinedTo = useCallback(
+    (cardIds: ReadonlySet<string>) => new Set(flowEdgesJoining(links, nodeById).filter((graphLink) => cardIds.has(graphLink.source_node_id) || cardIds.has(graphLink.target_node_id)).map((graphLink) => graphLink.link_id)),
+    [links, nodeById],
+  );
+  const canvasSelection = useMemo(() => ({ cardIds: selectedIds, noteIds: selectedNoteIds, linkIds: selectedLinkIds }), [selectedIds, selectedNoteIds, selectedLinkIds]);
+  const { pressTheCanvas, isABoxPossible, boxMarksRedrawn } = useNodeGraphBoxSelection({ reactFlow, selection: canvasSelection, isACard, noteIdOfTheFlowNode, linkIdsJoinedTo, onBoxed: selectWhatTheBoxHolds });
 
   // React Flow takes up again only the cards handed as new objects, and a card draws again for new data, so a card is
   // handed its object from before, or else its data from before, wherever they are unchanged.
@@ -187,8 +192,8 @@ function NodeGraphFlow({
         ariaLabel: `Node ${graphNode.title}`,
       };
       // A box marks React Flow's own copy of a card in or out of it, so a card it marked otherwise is handed to it again.
-      const isMarkedAsSelected = (reactFlowStore.getState().nodeLookup.get(graphNode.node_id)?.selected ?? false) === cardNode.selected;
-      return cardNodeBefore !== undefined && isMarkedAsSelected && isTheSameCardFlowNode(cardNodeBefore, cardNode) ? cardNodeBefore : cardNode;
+      const isReactFlowsMarkTheSelection = (reactFlowStore.getState().nodeLookup.get(graphNode.node_id)?.selected ?? false) === cardNode.selected;
+      return cardNodeBefore !== undefined && isReactFlowsMarkTheSelection && isTheSameCardFlowNode(cardNodeBefore, cardNode) ? cardNodeBefore : cardNode;
     });
     return [...frameNodes, ...noteNodes, ...cardNodes];
     // boxMarksRedrawn draws the cards again after each box step React Flow marked otherwise than the selection.
@@ -569,7 +574,7 @@ function NodeGraphFlow({
                   nodeTypes={NODE_GRAPH_NODE_TYPES}
                   edgeTypes={NODE_GRAPH_EDGE_TYPES}
                   onNodesChange={followTheChanges}
-                  onEdgesChange={followTheLinkChanges}
+                  onEdgesChange={(changes) => followTheLinkChanges(isABoxPossible() ? changes.filter((change) => change.type !== "select") : changes)}
                   onNodeDragStop={(_event, _node, draggedNodes) => keepTheMovedCards(draggedNodes)}
                   onMoveEnd={(event, viewport) => {
                     if (event !== null && hasBeenFramed) onViewportLeft?.({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
