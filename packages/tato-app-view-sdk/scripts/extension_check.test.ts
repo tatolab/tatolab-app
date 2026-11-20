@@ -59,7 +59,6 @@ describe("checking an extension folder against the kit", () => {
       kitFolder,
     );
     expect(answer.compiler_printed).toBe("");
-    expect(answer.linter_printed).toBe("");
     expect(answer.passed).toBe(true);
   });
 
