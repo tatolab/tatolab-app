@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { studioFieldsOfTheNode, type NodeTypeDescription, type StreamGraph, type StreamGraphNode, type StreamGraphNodeStudioFields } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { aGraphLink, aGraphNode, aGraphPort, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 import {
+  bundleOpenedEdits,
   cardCollapsedEdits,
   cardLetGoOverALinkEdits,
   cardsMovedEdits,
@@ -110,13 +111,13 @@ describe("moving_cards", () => {
 });
 
 test("a_wire_drawn_between_pins_connects_them_by_node_uuid", () => {
-  expect(pinsWiredEdits(edited(), { node_id: "pattern", pin: "video" }, { node_id: "halftone", pin: "frames" })).toEqual([
+  expect(pinsWiredEdits(edited(), { node_id: "pattern", pin: "video", member: null }, { node_id: "halftone", pin: "frames", member: null })).toEqual([
     { operation: "connect", stream: STREAM_ASSET, source: { node: "uuid-pattern", port: "video" }, target: { node: "uuid-halftone", port: "frames" } },
   ]);
 });
 
 test("a_wire_to_a_card_the_graph_no_longer_holds_asks_nothing_rather_than_naming_it_by_its_name", () => {
-  expect(pinsWiredEdits(edited(), { node_id: "pattern", pin: "video" }, { node_id: "gone", pin: "frames" })).toEqual([]);
+  expect(pinsWiredEdits(edited(), { node_id: "pattern", pin: "video", member: null }, { node_id: "gone", pin: "frames", member: null })).toEqual([]);
 });
 
 test("the_studio_sent_ahead_for_a_node_inside_a_subgraph_is_shown_once_the_subgraph_holds_it", () => {
@@ -131,7 +132,7 @@ test("the_studio_sent_ahead_for_a_node_inside_a_subgraph_is_shown_once_the_subgr
 
 describe("editing_inside_a_subgraph", () => {
   test("each_action_names_the_level_and_the_streams_own_level_names_none", () => {
-    const wired = pinsWiredEdits(edited(), { node_id: "pattern", pin: "video" }, { node_id: "halftone", pin: "frames" });
+    const wired = pinsWiredEdits(edited(), { node_id: "pattern", pin: "video", member: null }, { node_id: "halftone", pin: "frames", member: null });
     expect(streamGraphActionsAtTheLevel(wired, [])).toEqual(wired);
     expect(streamGraphActionsAtTheLevel(wired, ["uuid-look", "uuid-inner"])).toEqual([
       { operation: "connect", stream: STREAM_ASSET, level: ["uuid-look", "uuid-inner"], source: { node: "uuid-pattern", port: "video" }, target: { node: "uuid-halftone", port: "frames" } },
@@ -164,14 +165,14 @@ describe("placing_a_node", () => {
   });
 
   test("a_node_placed_off_an_output_wire_links_the_wire_to_the_port_the_runtime_answered_it_fits_in_the_same_transaction", () => {
-    expect(nodePlacedEdits(edited(), BLUR.node_type, { x: 0, y: 0 }, { looseWire: { node_id: "pattern", pin: "video", side: "output" }, port: "video_in" })).toEqual([
+    expect(nodePlacedEdits(edited(), BLUR.node_type, { x: 0, y: 0 }, { looseWire: { node_id: "pattern", pin: "video", member: null, side: "output" }, port: "video_in" })).toEqual([
       { operation: "add_node", stream: STREAM_ASSET, type: "nodes.blur:GaussianBlur", studio: { position: [0, 0] }, as: "placed" },
       { operation: "connect", stream: STREAM_ASSET, source: { node: "uuid-pattern", port: "video" }, target: { node: "placed", port: "video_in" } },
     ]);
   });
 
   test("a_node_placed_off_an_input_wire_feeds_it_from_the_port_the_runtime_answered_fits", () => {
-    expect(nodePlacedEdits(edited(), BLUR.node_type, { x: 0, y: 0 }, { looseWire: { node_id: "display", pin: "video", side: "input" }, port: "video_out" })[1]).toEqual({
+    expect(nodePlacedEdits(edited(), BLUR.node_type, { x: 0, y: 0 }, { looseWire: { node_id: "display", pin: "video", member: null, side: "input" }, port: "video_out" })[1]).toEqual({
       operation: "connect",
       stream: STREAM_ASSET,
       source: { node: "placed", port: "video_out" },
@@ -180,7 +181,7 @@ describe("placing_a_node", () => {
   });
 
   test("a_node_placed_off_a_wire_of_a_node_the_graph_names_no_id_for_is_placed_unlinked", () => {
-    expect(nodePlacedEdits(edited(), BLUR.node_type, { x: 0, y: 0 }, { looseWire: { node_id: "gone", pin: "video", side: "output" }, port: "video_in" })).toEqual([
+    expect(nodePlacedEdits(edited(), BLUR.node_type, { x: 0, y: 0 }, { looseWire: { node_id: "gone", pin: "video", member: null, side: "output" }, port: "video_in" })).toEqual([
       { operation: "add_node", stream: STREAM_ASSET, type: "nodes.blur:GaussianBlur", studio: { position: [0, 0] }, as: "placed" },
     ]);
   });
@@ -252,6 +253,30 @@ test("a_card_collapsed_keeps_its_other_studio_fields_and_one_already_so_asks_not
   ]);
   const collapsed = edited({ ...GRAPH, nodes: [{ ...DISPLAY, studio: studioOnTheWire({ collapsed: true }) }] });
   expect(cardCollapsedEdits(collapsed, "display", true)).toEqual([]);
+});
+
+test("a_bundle_opened_is_kept_by_side_in_its_nodes_metadata_beside_what_else_it_holds_the_key_left_out_once_none_is_open_and_one_already_so_asks_nothing", () => {
+  const opened = bundleOpenedEdits(edited(), "pattern", "output", "video", true);
+  expect(opened).toEqual([
+    { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-pattern", studio: { position: [0, 0], comment: "the source", metadata: { pinned: true, open_bundles: { inputs: [], outputs: ["video"] } } } },
+  ]);
+  const openedAhead = editedStreamGraphOf(GRAPH, studioFieldsSetBy(opened));
+  if ("because" in openedAhead) return expect.unreachable(openedAhead.because);
+  expect(bundleOpenedEdits(openedAhead, "pattern", "output", "video", true)).toEqual([]);
+  expect(bundleOpenedEdits(openedAhead, "pattern", "output", "video", false)).toEqual([
+    { operation: "set_studio_fields", stream: STREAM_ASSET, node: "uuid-pattern", studio: { position: [0, 0], comment: "the source", metadata: { pinned: true } } },
+  ]);
+  expect(bundleOpenedEdits(edited(), "gone", "input", "levels", true)).toEqual([]);
+});
+
+test("a_wire_drawn_to_or_from_a_member_names_the_member_and_a_link_at_a_member_is_deleted_by_it", () => {
+  expect(pinsWiredEdits(edited(), { node_id: "pattern", pin: "video", member: "luma" }, { node_id: "halftone", pin: "level", member: "low" })).toEqual([
+    { operation: "connect", stream: STREAM_ASSET, source: { node: "uuid-pattern", port: "video", member: "luma" }, target: { node: "uuid-halftone", port: "level", member: "low" } },
+  ]);
+  const memberLinked = edited({ ...GRAPH, links: [{ ...aGraphLink("L2", ["pattern", "video"], ["halftone", "level"]), target: { node: "halftone", port: "level", member: "low" } }] });
+  expect(deletedEdits(memberLinked, { node_ids: [], link_ids: ["L2"], note_ids: [] })).toEqual([
+    { operation: "disconnect", stream: STREAM_ASSET, source: { node: "uuid-pattern", port: "video" }, target: { node: "uuid-halftone", port: "level", member: "low" } },
+  ]);
 });
 
 test("a_second_studio_edit_sent_before_the_graph_shows_the_first_builds_on_it_instead_of_undoing_it", () => {

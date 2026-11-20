@@ -76,7 +76,7 @@ export type {
   PortViewerRecovery,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export { PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
-export { TATO_STUDIO_MCP_CLIENT_NAME, familyOfThePort, fragmentOfTheNode, inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
+export { TATO_STUDIO_MCP_CLIENT_NAME, familyOfThePort, fragmentOfTheNode, inputValueReadOfThePort, memberValueReadsOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { JsonValue, ListedStream, PortViewerMessageReading, PortViewerRecovery, ProjectFileFinding, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The platform the app runs on, which decides the window's chrome. */

@@ -72,6 +72,7 @@ export function useNodeGraphFrameEditing(editing: NodeGraphCanvasEditing | null,
             onFrameChanged: (frameId: string, change: NodeGraphCanvasFrameChange) => newestEditing.current?.onFrameChanged(frameId, change),
             onFrameRemoved: (frameId: string) => newestEditing.current?.onFrameRemoved(frameId),
             onCardCollapsed: (nodeId: string, collapsed: boolean) => newestEditing.current?.onCardCollapsed(nodeId, collapsed),
+            onBundleOpened: (nodeId: string, side: "input" | "output", pin: string, open: boolean) => newestEditing.current?.onBundleOpened(nodeId, side, pin, open),
           }
         : null,
     [isEditable],

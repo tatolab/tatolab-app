@@ -15,7 +15,7 @@ import type { NodeBodyShown } from "./node_body_binding.js";
 const PROJECT = "/projects/demo";
 const STREAM_ASSET = "11111111-2222-3333-4444-555555555555";
 const CROSSFADE = "nodes.crossfade:Crossfade";
-const addressOf = (input: string): InputAddress => ({ graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "FADE-ID", input });
+const addressOf = (input: string): InputAddress => ({ graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "FADE-ID", input, member: null });
 const declarationOf = (input: string, pinType: { type: "float" } | { type: "string" }) => ({ input_name: input, label: input, pin_type: pinType, annotations: {}, may_be_unset: false });
 
 /** A crossfade whose `mix` is set by a person and whose `caption` is fed by a wire. */
@@ -60,7 +60,7 @@ class StandInMisfitBody extends HTMLElement {
 customElements.define(MISFIT_TAG, StandInMisfitBody);
 
 function valuesRead(mix: JsonValue): StreamInputValuesReading {
-  return { kind: "values", stream_asset: STREAM_ASSET, values: [{ level: [], node_id: "FADE-ID", input: "mix", value_read: { value: mix, comes_from: "saved" } }] };
+  return { kind: "values", stream_asset: STREAM_ASSET, values: [{ level: [], node_id: "FADE-ID", input: "mix", member: null, value_read: { value: mix, comes_from: "saved" } }] };
 }
 
 /** A binder over a store whose every write applies at once, with one body slot bound for the crossfade, and the listing, the loads and the flushes in the test's hands. */

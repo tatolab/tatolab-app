@@ -169,7 +169,7 @@ export class TatolabViewBridge {
     const value = decodeJsonValue(sentPayload);
     if (Result.isFailure(value)) return { kind: "refused", because: `${output.name} takes JSON, and what the view sent is not.` };
     if (this.viewNode.kind === "not_addressed") return { kind: "refused", because: this.viewNode.because };
-    const input: InputAddress = { graph: this.viewNode.graph, node_id: this.viewNode.node_id, input: output.name };
+    const input: InputAddress = { graph: this.viewNode.graph, node_id: this.viewNode.node_id, input: output.name, member: null };
     return this.applyOnTheViewNode(input.graph.project_folder, [setNodeInputValueAction(input, value.success)], "live");
   }
 

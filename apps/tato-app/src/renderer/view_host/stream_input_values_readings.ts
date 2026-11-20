@@ -4,24 +4,25 @@
 // while a read is in flight may be missing from what that read answers, so it is applied again once
 // the read lands; one announced before the read started is in the read already.
 
-import { fragmentOfTheNode, inputValueReadOfThePort, type StreamGraph, type StreamGraphInputValueChange, type StreamGraphNode } from "../../shared/tatolab_backend_contract";
+import { fragmentOfTheNode, inputValueReadOfThePort, memberValueReadsOfThePort, type StreamGraph, type StreamGraphInputValueChange, type StreamGraphNode } from "../../shared/tatolab_backend_contract";
 import type { StreamInputValue, StreamInputValuesReading } from "./studio_view_contract";
 import { jsonTextOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 
-/** The values of one graph reading, each input's by its node and name. */
+/** The values of one graph reading, each input's by its node, its name and, on a bundle input, each member's name. */
 interface ValuesOfAReading {
   readonly stream_asset: string | null;
   readonly values: Map<string, StreamInputValue>;
 }
 
-const keyOfTheInput = (nodeId: string, input: string): string => JSON.stringify([nodeId, input]);
+const keyOfTheInput = (nodeId: string, input: string, member: string | null): string => JSON.stringify([nodeId, input, member]);
 
-/** Every input of `nodes` at `level`, and of the subgraphs inside them, that holds a value or names the link that feeds it. */
+/** Every input of `nodes` at `level`, each member of a bundle input, and those of the subgraphs inside them, that holds a value or names the link that feeds it. */
 function keepTheValuesOfTheLevel(nodes: readonly StreamGraphNode[], level: string[], kept: ValuesOfAReading): void {
   for (const node of nodes) {
     for (const port of node.ports.inputs) {
       const valueRead = inputValueReadOfThePort(port);
-      if (valueRead !== null) kept.values.set(keyOfTheInput(node.id, port.name), { level, node_id: node.id, input: port.name, value_read: valueRead });
+      if (valueRead !== null) kept.values.set(keyOfTheInput(node.id, port.name, null), { level, node_id: node.id, input: port.name, member: null, value_read: valueRead });
+      for (const { member, value_read } of memberValueReadsOfThePort(port)) kept.values.set(keyOfTheInput(node.id, port.name, member), { level, node_id: node.id, input: port.name, member, value_read });
     }
     const fragment = fragmentOfTheNode(node);
     if (fragment !== null) keepTheValuesOfTheLevel(fragment.nodes, [...level, node.id], kept);
@@ -38,7 +39,7 @@ const readTheSame = (a: StreamInputValue["value_read"], b: StreamInputValue["val
 
 /** Apply `change` to `kept`, answering the input's new value; `null` when the reading holds no such input, or it already reads that. */
 function applyTheChange(kept: ValuesOfAReading, change: StreamGraphInputValueChange): StreamInputValue | null {
-  const key = keyOfTheInput(change.node, change.input);
+  const key = keyOfTheInput(change.node, change.input, change.member);
   const before = kept.values.get(key);
   if (before === undefined || readTheSame(before.value_read, change.value_read)) return null;
   const after: StreamInputValue = { ...before, value_read: change.value_read };

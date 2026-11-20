@@ -185,8 +185,8 @@ test("a_value_change_the_runtime_pushes_reaches_every_view_watching_the_streams_
   expect([...streamsFollowed]).toEqual(["main"]);
   await vi.advanceTimersByTimeAsync(10);
   expect(reads.graph).toBe(1);
-  for (const value of [0.6, 0.7, 0.8]) pushTheStreamGraphChanged("main", { node: "P0", input: "gain", value_read: { value, comes_from: "live" } });
-  pushTheStreamGraphChanged("another-stream", { node: "P0", input: "gain", value_read: { value: 0.1, comes_from: "live" } });
+  for (const value of [0.6, 0.7, 0.8]) pushTheStreamGraphChanged("main", { node: "P0", input: "gain", member: null, value_read: { value, comes_from: "live" } });
+  pushTheStreamGraphChanged("another-stream", { node: "P0", input: "gain", member: null, value_read: { value: 0.1, comes_from: "live" } });
   await vi.advanceTimersByTimeAsync(10);
   expect(reads.graph).toBe(1);
   const changedTo = (told: StreamInputValuesReading[]) => told.map((reading) => (reading.kind === "values" ? reading.values.map((value) => value.value_read.value) : reading.change.value_read.value));
@@ -205,7 +205,7 @@ test("a_value_change_pushed_while_the_graph_is_read_again_is_kept_over_what_that
   await vi.advanceTimersByTimeAsync(10);
   served.gain = 0.6;
   pushTheStreamGraphChanged("main");
-  pushTheStreamGraphChanged("main", { node: "P0", input: "gain", value_read: { value: 0.9, comes_from: "live" } });
+  pushTheStreamGraphChanged("main", { node: "P0", input: "gain", member: null, value_read: { value: 0.9, comes_from: "live" } });
   await vi.advanceTimersByTimeAsync(10);
   const last = told.at(-1);
   expect(last?.kind === "values" && last.values[0]?.value_read).toEqual({ value: 0.9, comes_from: "live" });

@@ -39,6 +39,7 @@ import type { StreamDiagnosticLine, StreamDiagnosticLink } from "../shared/strea
 import { streamGraphCanvasContents, type StreamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
 import {
+  bundleOpenedEdits,
   cardCollapsedEdits,
   cardLetGoOverALinkEdits,
   cardsMovedEdits,
@@ -330,6 +331,7 @@ function StreamGraphOfTheTab({
       onFrameChanged: (frameId, change) => void sendTheGestureAtTheLevelShown(frameChangedEdits(editedGraph, frameId, change)),
       onFrameRemoved: (frameId) => void sendTheGestureAtTheLevelShown(frameRemovedEdits(editedGraph, frameId)),
       onCardCollapsed: (nodeId, collapsed) => void sendTheStudioGesture(cardCollapsedEdits(editedGraph, nodeId, collapsed)),
+      onBundleOpened: (nodeId, side, pin, open) => void sendTheStudioGesture(bundleOpenedEdits(editedGraph, nodeId, side, pin, open)),
     };
   }, [importedProjectName, editedGraph, sendTheGestureAtTheLevelShown, sendTheStudioGesture, select, streamTab.stream, keepWhereTheStreamWasLeft, levelOfTheEdits, connection, projectFolder]);
   const editingOfTheLevelShown = subgraphKeepingTheLevelReadOnly === null ? editing : null;

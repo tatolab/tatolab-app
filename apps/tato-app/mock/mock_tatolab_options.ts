@@ -1,7 +1,8 @@
 import { jsonValueSchema } from "@tatolab/tato-app-view-sdk/studio_host";
 import { Result, Schema } from "effect";
 import { mockWorkspaceDependenciesScenarioNamed, type MockWorkspaceDependenciesScenario } from "./mock_workspace_dependencies";
-import { mockMainGraphNamed, type MockMachine, type MockMainGraph } from "./mock_stream_fixtures";
+import { mockMainGraphNamed, type MockMainGraph } from "./mock_main_graphs";
+import type { MockMachine } from "./mock_stream_fixtures";
 import { mockReplayedRefusalNamed, type MockReplayedRefusal } from "./mock_replayed_refusals";
 import { mockOpenProjectScenarioNamed, type MockOpenProjectScenario } from "./mock_open_project";
 import { mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
@@ -193,7 +194,7 @@ export interface MockTatolabOptions {
   doesTheMainStreamHoldAGeneratedSubgraph: boolean;
   /** `?node_states=stopped`: every node of `main` that has a state reads `Stopped` once the stream settles, so none of its ports writes. */
   areTheMainStreamsNodesStopped: boolean;
-  /** `?main_graph=every_pin_kind|every_pin_kind_with_a_warned_link|large`: `main` holds the graph recorded from streamlib's sample project that declares each kind of pin, that graph with a stand-in warning on its link from `beat.count` into `warmth.count`, or 300 nodes of four inputs each and 450 links for the canvas measurements; either takes precedence over every other choice of `main`. */
+  /** `?main_graph=every_pin_kind|every_pin_kind_with_a_warned_link|every_pin_kind_with_a_bundle|large`: `main` holds the graph recorded from streamlib's sample project that declares each kind of pin, that graph with a stand-in warning on its link from `beat.count` into `warmth.count`, that graph with a stand-in node with bundle pins, a member of one linked from `warmth.result`, or 300 nodes of four inputs each and 450 links for the canvas measurements; either takes precedence over every other choice of `main`. */
   mainGraph: MockMainGraph | null;
 }
 

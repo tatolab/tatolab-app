@@ -32,11 +32,11 @@ export type NodeGraphLinkFlowEdge = Edge<
   "node_graph_link"
 >;
 
-/** The React Flow handle id of a card's input pin `pinName`. */
-export const inputPinHandleId = (pinName: string) => `input:${pinName}`;
+/** The React Flow handle id of the socket of a card's input row whose key, as `nodePinRowKey` writes it, is `rowKey`. */
+export const inputPinHandleId = (rowKey: string) => `input:${rowKey}`;
 
-/** The React Flow handle id of a card's output pin `pinName`. */
-export const outputPinHandleId = (pinName: string) => `output:${pinName}`;
+/** The React Flow handle id of the socket of a card's output row whose key, as `nodePinRowKey` writes it, is `rowKey`. */
+export const outputPinHandleId = (rowKey: string) => `output:${rowKey}`;
 
 /** The key React Flow 12 keeps a handle's links under in its store's `connectionLookup`, as its `useNodeConnections` spells it. */
 export const connectionLookupKeyOfTheHandle = (nodeId: string, handleType: "source" | "target", handleId: string) => `${nodeId}-${handleType}-${handleId}`;
@@ -60,7 +60,7 @@ export const NodeGraphNoteEditingContext = createContext<NodeGraphCanvasEditing[
 export const NodeGraphNoteResizingContext = createContext<((noteId: string, resized: NodeGraphPosition & { width: number; height: number }) => void) | null>(null);
 
 /** What a card's chevron and a frame's title ask for on an editable canvas; `null` on a read-only one. */
-export const NodeGraphCardAndFrameEditingContext = createContext<Pick<NodeGraphCanvasEditing, "onFrameChanged" | "onFrameRemoved" | "onCardCollapsed"> | null>(null);
+export const NodeGraphCardAndFrameEditingContext = createContext<Pick<NodeGraphCanvasEditing, "onFrameChanged" | "onFrameRemoved" | "onCardCollapsed" | "onBundleOpened"> | null>(null);
 
 /** The colours the canvas's frames use beyond the presets, which each frame's Color menu offers again. */
 export const NodeGraphFrameColoursUsedContext = createContext<readonly string[]>([]);

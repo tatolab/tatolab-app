@@ -29,7 +29,7 @@ it("a value set live on the fixture view node's input of its output's name is wh
   const wiredFromTheFader = graph.links.find((link) => link.source.node === "pictureandfader" && link.source.port === "fader");
   expect(wiredFromTheFader?.target.node).toBe("fadermeter");
 
-  const fader: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: viewNode.id, input: "fader" };
+  const fader: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: viewNode.id, input: "fader", member: null };
   const readingsOfTheFader: PortViewerEvent[] = [];
   backend.onPortViewerEvent((event) => readingsOfTheFader.push(event));
   await settled(backend.openPortViewer({ stream: MAIN, node_id: viewNode.id, port: "fader" }));

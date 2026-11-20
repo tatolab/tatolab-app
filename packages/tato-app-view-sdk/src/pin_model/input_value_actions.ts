@@ -3,7 +3,7 @@
 import type { JsonValue, StreamGraphAction } from "../studio_readings.js";
 import type { InputAddress } from "./node_inputs.js";
 
-/** The `set_node_input_value` action setting the input at `address` to `value`; `null` takes the value off, so the input reads its declared default. */
+/** The `set_node_input_value` action setting the input at `address`, or the member it names, to `value`; `null` takes the value off, so the input, or the member, reads its declared default. */
 export function setNodeInputValueAction(address: InputAddress, value: JsonValue | null): StreamGraphAction {
   return {
     operation: "set_node_input_value",
@@ -11,6 +11,7 @@ export function setNodeInputValueAction(address: InputAddress, value: JsonValue 
     ...(address.graph.level.length === 0 ? {} : { level: [...address.graph.level] }),
     node: address.node_id,
     input: address.input,
+    ...(address.member === null ? {} : { member: address.member }),
     value,
   };
 }

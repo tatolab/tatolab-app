@@ -91,13 +91,17 @@ export interface NodeGraphCanvasNote {
 /** How a link is drawn: carrying, not carrying yet (dashed), failed (red), or going away (dashed and faint). */
 export type NodeGraphLinkLook = "carrying" | "waiting" | "failed" | "ending";
 
-/** One link a graph canvas draws, from an output pin to an input pin. */
+/** One link a graph canvas draws, from an output pin to an input pin, or to or from one member of a bundle pin, drawn to the bundle's row while its card keeps the bundle closed. */
 export interface NodeGraphCanvasLink {
   link_id: string;
   source_node_id: string;
   source_pin: string;
+  /** The member of the bundle `source_pin` carries that the link starts at; `null` for the whole pin. */
+  source_member: string | null;
   target_node_id: string;
   target_pin: string;
+  /** The member of the bundle `target_pin` carries that the link ends at; `null` for the whole pin. */
+  target_member: string | null;
   look: NodeGraphLinkLook;
   /** What a pointer resting on the link reads, such as its state in words. */
   description: string;
@@ -105,10 +109,12 @@ export interface NodeGraphCanvasLink {
   warning_words: readonly string[];
 }
 
-/** One end of a wire a person drew: a card's pin. */
+/** One end of a wire a person drew: a card's pin, or one member of a bundle pin. */
 export interface NodeGraphCanvasPinEnd {
   node_id: string;
   pin: string;
+  /** The member of the bundle `pin` carries; `null` for the whole pin. */
+  member: string | null;
 }
 
 /** A pin a person drags a wire off: which side of its card it is on. */
@@ -128,9 +134,9 @@ export interface NodeGraphPinWireFit {
 /** How a wire dragged off a pin fits each pin it was asked about, keyed by `nodeGraphPinKey`; a pin not in it is not judged, so its socket stays as it is and the wire can be let go on it. */
 export type NodeGraphWireFits = ReadonlyMap<string, NodeGraphPinWireFit>;
 
-/** The key of the pin `pin` on side `side` of the card `nodeId` in a `NodeGraphWireFits`. */
-export function nodeGraphPinKey(nodeId: string, side: "input" | "output", pin: string): string {
-  return JSON.stringify([nodeId, side, pin]);
+/** The key of the pin `pin` on side `side` of the card `nodeId`, or of its member `member`, in a `NodeGraphWireFits`. */
+export function nodeGraphPinKey(nodeId: string, side: "input" | "output", pin: string, member: string | null): string {
+  return JSON.stringify([nodeId, side, pin, member]);
 }
 
 /** A point a person pointed at: on the canvas, where a card placed there sits, and in the canvas element's own pixels, where a menu opened there shows. */
@@ -182,6 +188,8 @@ export interface NodeGraphCanvasEditing {
   onFrameRemoved(frameId: string): void;
   /** A card's chevron pressed, to collapse it to its header or open it again. */
   onCardCollapsed(nodeId: string, collapsed: boolean): void;
+  /** A bundle pin's chevron pressed, to show a row for each of its members or fold them back into the bundle's row. */
+  onBundleOpened(nodeId: string, side: "input" | "output", pin: string, open: boolean): void;
   /** A note's text edited, or the note moved or resized. */
   onNoteChanged(noteId: string, change: { text?: string; position?: NodeGraphPosition; size?: { width: number; height: number } }): Promise<NodeGraphCanvasEditAnswer>;
 }

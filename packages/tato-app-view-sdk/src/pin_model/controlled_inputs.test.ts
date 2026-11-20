@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { nodeOfABody, takesAControl } from "./controlled_inputs.js";
 import type { InputAddress } from "./node_inputs.js";
 
-const WIDTH: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "PATTERN-ID", input: "width" };
+const WIDTH: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "PATTERN-ID", input: "width", member: null };
 
 test("a_settings_control_is_told_whether_a_change_rebuilds_its_node", () => {
   const width = { name: "width", pin: { pin_type: { type: "integer" }, flow: "value" }, annotations: {}, value_address: WIDTH, wire: null } as const;

@@ -1,6 +1,6 @@
 // Where one input of one node sits: the key every surface and the value store name it by.
 
-import { inputValueReadOfThePort, type StreamGraphPort } from "../studio_readings.js";
+import { inputValueReadOfThePort, type StreamGraphInputValueRead, type StreamGraphPort } from "../studio_readings.js";
 
 /** One level of one stream's graph a value is set on: the project it is in, the stream by its asset's UUID, and the subgraph node UUIDs from the stream's own level inward. */
 export interface GraphAddress {
@@ -16,16 +16,17 @@ export function graphAddressOfTheStreamsOwnLevel(projectFolder: string | null, s
   return projectFolder === null || streamAsset === null ? null : { project_folder: projectFolder, stream_asset: streamAsset, level: [] };
 }
 
-/** One input of one node, by the node's UUID. */
+/** One input of one node, by the node's UUID, or one member of it where it is a bundle (`member` `null` for the whole input). */
 export interface InputAddress {
   readonly graph: GraphAddress;
   readonly node_id: string;
   readonly input: string;
+  readonly member: string | null;
 }
 
-/** The text `address` is keyed by: two addresses naming the same input give the same key. */
+/** The text `address` is keyed by: two addresses naming the same input, or the same member of it, give the same key. */
 export function inputAddressKey(address: InputAddress): string {
-  return JSON.stringify([address.graph.project_folder, address.graph.stream_asset, address.graph.level, address.node_id, address.input]);
+  return JSON.stringify([address.graph.project_folder, address.graph.stream_asset, address.graph.level, address.node_id, address.input, address.member]);
 }
 
 /** Whether `address` is on a stream's own level, where a value can be set live; below it the runtime takes only a commit. */
@@ -42,5 +43,11 @@ export function valueAddressOfTheInput(valuesAt: GraphAddress | null, nodeId: st
   if (valuesAt === null) return null;
   const valueRead = inputValueReadOfThePort(port);
   const isSetHere = valueRead === null ? port.flow === "trigger" && port.value_comes_from !== "wire" : valueRead.comes_from !== "wire";
-  return isSetHere ? { graph: valuesAt, node_id: nodeId, input: port.name } : null;
+  return isSetHere ? { graph: valuesAt, node_id: nodeId, input: port.name, member: null } : null;
+}
+
+/** Where a person sets member `member` of the bundle input `input` of the node `nodeId` at `valuesAt`, which reads `valueRead`: `null` for a member a link feeds, and where no stream's graph is known. */
+export function valueAddressOfTheMember(valuesAt: GraphAddress | null, nodeId: string, input: string, member: string, valueRead: StreamGraphInputValueRead | null): InputAddress | null {
+  if (valuesAt === null || valueRead === null || valueRead.comes_from === "wire") return null;
+  return { graph: valuesAt, node_id: nodeId, input, member };
 }

@@ -41,7 +41,7 @@ it("a drag on an input's value is live while it moves, reads no graph, and is on
   const graph = await settled(backend.describeStreamGraph(MAIN));
   const invert = graph.nodes.find((node) => node.name === "invertingeffect");
   if (invert === undefined || typeof graph.asset !== "string") return expect.unreachable("the main stream holds the inverting effect");
-  const amount: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: invert.id, input: "amount" };
+  const amount: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: invert.id, input: "amount", member: null };
   expect(inputValues.shownValue(amount)).toEqual({ value: 1, comes_from: "default" });
   const entriesBefore = await historyLength();
   const readsBeforeTheDrag = graphReads;
@@ -86,7 +86,7 @@ it("a value set live from outside the window shows in every frame's store with n
   const graph = await reading;
   const invert = graph.nodes.find((node) => node.name === "invertingeffect");
   if (invert === undefined || typeof graph.asset !== "string") return expect.unreachable("the main stream holds the inverting effect");
-  const amount: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: invert.id, input: "amount" };
+  const amount: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: invert.id, input: "amount", member: null };
   const readsBeforeTheSet = graphReads;
 
   const setFromAShell = backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: graph.asset, node: invert.id, input: "amount", value: 0.3 }], "live", null);
@@ -117,7 +117,7 @@ it("a drag on a Graph Input's value released live in Perform leaves no history e
   const graph = await settled(backend.describeStreamGraph(MAIN));
   const brightnessInput = graph.nodes.find((node) => node.components.graph_interface?.port === "brightness");
   if (brightnessInput === undefined || typeof graph.asset !== "string") return expect.unreachable("the main stream declares brightness");
-  const brightness: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: brightnessInput.id, input: "value" };
+  const brightness: InputAddress = { graph: { project_folder: PATTERN_FOLDER, stream_asset: graph.asset, level: [] }, node_id: brightnessInput.id, input: "value", member: null };
   expect(inputValues.shownValue(brightness)).toEqual({ value: 0.5, comes_from: "default" });
   const entriesBefore = await historyLength();
 
