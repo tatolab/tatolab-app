@@ -49,8 +49,8 @@ function card(nodeId: string, index: number): NodeGraphCanvasNode {
     node_type: null,
     description: null,
     condition: { look: "healthy" },
-    inputs: ["gain", "offset", "mix", "threshold"].map((name) => ({ name, pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null })),
-    outputs: [{ name: "out", pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null }],
+    inputs: ["gain", "offset", "mix", "threshold"].map((name) => ({ name, pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null })),
+    outputs: [{ name: "out", pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null }],
     saved_position: { x: index * 300, y: 0 },
     frame_id: null,
     is_collapsed: false,
@@ -60,7 +60,7 @@ function card(nodeId: string, index: number): NodeGraphCanvasNode {
 }
 
 function link(sourceNodeId: string, targetNodeId: string, targetPin: string): NodeGraphCanvasLink {
-  return { link_id: `${sourceNodeId}->${targetNodeId}.${targetPin}`, source_node_id: sourceNodeId, source_pin: "out", target_node_id: targetNodeId, target_pin: targetPin, look: "carrying", description: "wired" };
+  return { link_id: `${sourceNodeId}->${targetNodeId}.${targetPin}`, source_node_id: sourceNodeId, source_pin: "out", target_node_id: targetNodeId, target_pin: targetPin, look: "carrying", description: "wired", warning_words: [] };
 }
 
 /** New editing, as a caller makes it again for every reading of its graph. */

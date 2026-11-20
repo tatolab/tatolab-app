@@ -136,6 +136,17 @@ g[data-pin-type="untyped"] { --node-graph-pin-colour: var(--studio-graph-link); 
   clip-path: polygon(17.5% 28.3%, 60.9% 50%, 17.5% 71.7%);
   content: "";
 }
+/* A socket whose link the runtime converts for free is two-toned: the wire's type in its ring, laid over the socket's own
+   edge, and the input's own type inside, as the socket fills while linked, with a 1px gap of the card's colour between
+   them, so the two read as two even where the types' colours are near. It takes no width the socket does not. */
+.node-graph-pin-wire-ring {
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--node-graph-pin-colour);
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--studio-graph-card);
+  pointer-events: none;
+}
 /* While a wire is dragged and the runtime has answered how it fits, a socket it connects to lights with a ring in the
    card-selected colour, and one it refuses dims; a socket it was not asked about, or not checked, stays as it is. */
 .node-graph-canvas .react-flow__handle.node-graph-pin:is([data-wire-fit="connects"], [data-wire-fit="connects_with_free_conversion"], [data-wire-fit="connects_through_convert_node"]) {
@@ -153,6 +164,8 @@ g[data-pin-type="untyped"] { --node-graph-pin-colour: var(--studio-graph-link); 
 .node-graph-link { stroke: var(--node-graph-pin-colour, var(--studio-graph-link)); stroke-width: 2.2; }
 .node-graph-link-waiting { stroke-dasharray: 6 5; }
 .node-graph-link-ending { stroke-dasharray: 6 5; opacity: 0.5; }
+/* A link the runtime warns of is amber, and never blocked; one that failed stays red. */
+g[data-warned] .node-graph-link:not(.node-graph-link-failed) { stroke: var(--warn); }
 .node-graph-link-failed { stroke: var(--danger); stroke-width: 2.5; }
 
 .node-graph-link-selected { stroke-width: 3.4; filter: drop-shadow(0 0 2px var(--studio-graph-card-selected)); }
