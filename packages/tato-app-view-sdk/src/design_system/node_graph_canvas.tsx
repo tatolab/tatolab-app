@@ -1,4 +1,4 @@
-import { Background, BackgroundVariant, MiniMap, ReactFlow, ReactFlowProvider, SelectionMode, useReactFlow, useStore, type NodeChange, type ReactFlowState } from "@xyflow/react";
+import { Background, BackgroundVariant, MiniMap, ReactFlow, ReactFlowProvider, SelectionMode, useReactFlow, useStore, useStoreApi, type NodeChange, type ReactFlowState } from "@xyflow/react";
 import { cn } from "cn";
 import { Combine, Frame, Hand, MousePointer2, Plus, Scan, Search, StickyNote, Workflow, ZoomIn, ZoomOut } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
@@ -26,6 +26,7 @@ import { useNodeGraphWiring } from "./support/use_node_graph_wiring";
 import { useNodeGraphFrameEditing } from "./support/use_node_graph_frame_editing";
 import { useNodeGraphNodeFind } from "./support/use_node_graph_node_find";
 import { useNodeGraphSelection } from "./support/use_node_graph_selection";
+import { useNodeGraphBoxSelection } from "./support/use_node_graph_box_selection";
 import { FIT_TO_VIEW_OPTIONS, useNodeGraphCardLayout } from "./support/use_node_graph_card_layout";
 import { onTheCanvasPixel } from "./support/node_graph_held_layout";
 import { useNodeGraphWireRoutes } from "./support/use_node_graph_wire_routes";
@@ -35,6 +36,8 @@ import { useNodeGraphTidyUp } from "./support/use_node_graph_tidy_up";
 const NODE_GRAPH_PLACED_ROOM = { width: 240, height: 120 };
 
 const noteFlowNodeId = (noteId: string) => `note:${noteId}`;
+
+const noteIdOfTheFlowNode = (flowNodeId: string): string | null => (flowNodeId.startsWith("note:") ? flowNodeId.slice("note:".length) : null);
 
 const frameFlowNodeId = (frameId: string) => `frame:${frameId}`;
 
@@ -107,6 +110,7 @@ function NodeGraphFlow({
   overlay?: ReactNode;
 }) {
   const reactFlow = useReactFlow();
+  const reactFlowStore = useStoreApi<NodeGraphFlowNode, NodeGraphLinkFlowEdge>();
   const wireRoutes = useNodeGraphWireRoutes();
   const canvasElement = useRef<HTMLDivElement>(null);
   const isTheMapShown = useStore(isPartOfTheGraphOutsideTheView);
@@ -120,8 +124,11 @@ function NodeGraphFlow({
     () => new Map(nodes.map((node) => [node.node_id, node])),
     [nodes],
   );
-  const { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink } = useNodeGraphSelection(selectedNodeIds, nodeById, onNodesSelected);
+  const { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, selectWhatTheBoxHolds, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink } = useNodeGraphSelection(selectedNodeIds, nodeById, onNodesSelected);
   const { cardSizeByNode, isLaidOutOnMeasuredSizes, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, holdTheNoteMoves, releaseTheHeldNotePositions, keepTheResizedNote } = useNodeGraphCardLayout(nodes, links, notes, nodeById, editing, reactFlow, viewportWhereItWasLeft);
+
+  const isACard = useCallback((flowNodeId: string) => nodeById.has(flowNodeId), [nodeById]);
+  const { pressTheCanvas, isABoxPossible, boxMarksRedrawn } = useNodeGraphBoxSelection({ reactFlow, selectedIds, selectedNoteIds, isACard, noteIdOfTheFlowNode, onBoxed: selectWhatTheBoxHolds });
 
   // React Flow takes up again only the cards handed as new objects, and a card draws again for new data, so a card is
   // handed its object from before, or else its data from before, wherever they are unchanged.
@@ -178,10 +185,13 @@ function NodeGraphFlow({
         connectable: isThePointerInUse,
         ariaLabel: `Node ${graphNode.title}`,
       };
-      return cardNodeBefore !== undefined && isTheSameCardFlowNode(cardNodeBefore, cardNode) ? cardNodeBefore : cardNode;
+      // A box marks React Flow's own copy of a card in or out of it, so a card it marked otherwise is handed to it again.
+      const isMarkedAsSelected = (reactFlowStore.getState().nodeLookup.get(graphNode.node_id)?.selected ?? false) === cardNode.selected;
+      return cardNodeBefore !== undefined && isMarkedAsSelected && isTheSameCardFlowNode(cardNodeBefore, cardNode) ? cardNodeBefore : cardNode;
     });
     return [...frameNodes, ...noteNodes, ...cardNodes];
-  }, [frames, notes, nodes, isThePointerInUse, positionOfTheCard, frameOfTheCard, sizeOfTheCard, cardSizeByNode, positionOfTheNote, sizeOfTheNote, selectedIds, selectedNoteIds]);
+    // boxMarksRedrawn draws the cards again after each box step React Flow marked otherwise than the selection.
+  }, [frames, notes, nodes, isThePointerInUse, boxMarksRedrawn, reactFlowStore, positionOfTheCard, frameOfTheCard, sizeOfTheCard, cardSizeByNode, positionOfTheNote, sizeOfTheNote, selectedIds, selectedNoteIds]);
   useLayoutEffect(() => {
     cardFlowNodesBefore.current = new Map(flowNodes.flatMap((flowNode): [string, NodeGraphCardFlowNode][] => (flowNode.type === "node_graph_card" ? [[flowNode.id, flowNode]] : [])));
   }, [flowNodes]);
@@ -208,9 +218,9 @@ function NodeGraphFlow({
   const followTheChanges = useCallback(
     (changes: NodeChange<NodeGraphFlowNode>[]) => {
       followTheLayoutChanges(changes);
-      followTheSelectionChanges(changes);
+      followTheSelectionChanges(isABoxPossible() ? changes.filter((change) => change.type !== "select") : changes);
     },
-    [followTheLayoutChanges, followTheSelectionChanges],
+    [followTheLayoutChanges, followTheSelectionChanges, isABoxPossible],
   );
 
   /** Where `clientPoint` is on the canvas and in the canvas element. */
@@ -518,6 +528,7 @@ function NodeGraphFlow({
               }}
               onPointerDownCapture={(event: ReactPointerEvent<HTMLDivElement>) => {
                 pointerRestsAt.current = canvasPointOf({ x: event.clientX, y: event.clientY });
+                if (isThePointerInUse) pressTheCanvas(event);
               }}
               data-node-graph-editable={editing !== null || undefined}
             >
