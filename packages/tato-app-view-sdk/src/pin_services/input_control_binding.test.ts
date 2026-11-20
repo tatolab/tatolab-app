@@ -7,6 +7,7 @@ import type { NodeUiElementLoading } from "../node_ui/load_node_ui_element.js";
 import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node_ui_elements_listing.js";
 import { NO_PROJECT, listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
 import type { GraphEditMode, JsonValue, StreamInputValuesReading } from "../studio_readings.js";
+import type { PinType } from "../pin_types.js";
 import { createInputControlBinder, NEWER_VERSION_BLOCKED_ATTRIBUTE, releaseOfAGestureOn, type InputControlShown } from "./input_control_binding.js";
 import { createInputValues } from "./input_values.js";
 
@@ -448,6 +449,35 @@ test("each press of a Trigger's control fires it once, live on every surface and
   ]);
   await control.pinsHanded[0]?.studio.readAssetPreview("an-asset");
   expect(previewsAsked).toEqual([[PROJECT, "an-asset"]]);
+});
+
+/** A Pin type choice's control as the binder meets one: it keeps the types it is handed, and a pick is one `change` carrying the whole type. */
+class StandInTypeChoiceControl extends HTMLElement implements InputControlElement<"pin_type_choice"> {
+  typesHanded: PinType[] = [];
+  set pin(_pin: ControlledPin<"pin_type_choice">) {}
+  set value(pinType: PinType) {
+    this.typesHanded.push(pinType);
+  }
+  set state(_state: InputControlState) {}
+  pick(pinType: PinType): void {
+    fireInputControlEvent(this, "change", pinType);
+  }
+}
+customElements.define("stand-in-type-choice-control", StandInTypeChoiceControl);
+
+test("a Pin type choice's control is handed the type its input saves, and a type picked in it is committed whole, and one it does not offer is not", async () => {
+  const PIN_TYPE: ControlledInput = { address: GAIN, declaration: { input_name: "pin_type", label: "pin_type", pin_type: { type: "pin_type_choice" }, annotations: {}, may_be_unset: false }, rebuilds_its_node: true, driven_by: null };
+  const slot = binderUnderTest({ loading: { kind: "defined", tag: "stand-in-type-choice-control" }, surface: "properties", input: PIN_TYPE });
+  slot.inputValues.takeTheInputValues(PROJECT, valuesRead({ type: "float" }));
+  slot.list([listedElementOf("studio", { kind: "control", type: "pin_type_choice", control: null }, { script: "type_choice.ts" })]);
+  await slot.settled();
+  const control = slot.host.firstElementChild;
+  if (!(control instanceof StandInTypeChoiceControl)) return expect.unreachable("the slot holds no type choice");
+  expect(control.typesHanded).toEqual([{ type: "float" }]);
+  control.pick({ type: "integer" });
+  control.pick({ type: "pin_type_choice" });
+  await slot.settled();
+  expect(slot.sent).toEqual([{ value: { type: "integer" }, mode: "commit" }]);
 });
 
 test("a_gesture_on_a_setting_that_rebuilds_its_node_ends_as_a_commit_alone_on_every_surface", () => {

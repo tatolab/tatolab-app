@@ -9,45 +9,13 @@
 // The fields are the design system's React parts, drawn from a root in the control's own children
 // as the Menu control draws its menu.
 
-import { BUILT_IN_PIN_TYPES } from "@tatolab/tato-app-view-sdk/built_in_pin_types";
+import { BUILT_IN_PIN_TYPES, PIN_TYPES_A_CHOICE_OF_ANY_TYPE_OFFERS } from "@tatolab/tato-app-view-sdk/built_in_pin_types";
 import { PropertyChoiceField, PropertyFieldsSideBySide, PropertyTextField } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
 import controlStyles from "@tatolab/tato-app-view-sdk/node_ui/input_control.css" with { type: "css" };
-import type { BuiltInPinTypeName, PinType, TexturePixelFormat } from "@tatolab/tato-app-view-sdk/pin_types";
+import type { PinType, TexturePixelFormat } from "@tatolab/tato-app-view-sdk/pin_types";
 import { createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-
-/** The type `typeName` names when written with nothing else, `null` for one that states more, as a Menu its options; a type choice chooses the type of pins that carry messages, so it never offers itself. */
-function pinTypeOfItsNameAlone(typeName: BuiltInPinTypeName): PinType | null {
-  switch (typeName) {
-    case "boolean":
-    case "integer":
-    case "float":
-    case "string":
-    case "color":
-    case "rectangle":
-    case "transform":
-    case "texture":
-    case "audio":
-    case "encoded_video":
-    case "encoded_audio":
-    case "tensor":
-    case "asset":
-    case "trigger":
-    case "node_reference":
-      return { type: typeName };
-    case "menu":
-    case "vector":
-    case "list_of":
-    case "bundle":
-    case "named":
-    case "pin_type_choice":
-      return null;
-  }
-}
-
-/** Every type a choice with an empty `among` list offers: each built-in type written by its name alone, in the contract's order. */
-const EVERY_TYPE_BY_ITS_NAME_ALONE: readonly PinType[] = BUILT_IN_PIN_TYPES.flatMap((builtInPinType) => pinTypeOfItsNameAlone(builtInPinType.name) ?? []);
 
 /** The words a person reads the type `pinType` as, from the generated list of built-in types. */
 function wordsOfTheType(pinType: PinType): string {
@@ -101,7 +69,7 @@ export default class TypeChoice extends HTMLElement implements InputControlEleme
     this.#fieldId = `type-choice-${declaration.input_name}-${crypto.randomUUID()}`;
     this.#label = declaration.label;
     const among = declaration.pin_type.among ?? [];
-    const offered = among.length === 0 ? EVERY_TYPE_BY_ITS_NAME_ALONE : among;
+    const offered = among.length === 0 ? PIN_TYPES_A_CHOICE_OF_ANY_TYPE_OFFERS : among;
     this.#offered = offered.filter((pinType, index) => offered.findIndex((earlier) => earlier.type === pinType.type) === index);
     this.#drawThePart();
   }

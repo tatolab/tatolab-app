@@ -387,12 +387,16 @@ test("a Graph Input that chooses a pin type carries it on its value ports, servi
   expect(graphInput.ports.outputs[0]).not.toHaveProperty("annotations");
 });
 
-test("a running top-level Graph Input of no type declares the value its config saves as `value` before its former `default`", () => {
+test("a running top-level Graph Input of no type declares the value its config saves as `value`, and none from a `default` in its config", () => {
   const graph = aCanvasAlone();
-  apply(graph, [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "brightness", config: { port: "brightness", family: "channels", value: 0.8, default: 0.2 } }]);
-  const brightness = graph.nodes.find((node) => node.name === "brightness") ?? expect.unreachable("no Graph Input");
-  brightness.state = "Running";
+  apply(graph, [
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "brightness", config: { port: "brightness", family: "channels", value: 0.8, default: 0.2 } },
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "contrast", config: { port: "contrast", family: "channels", default: 0.2 } },
+  ]);
+  for (const node of graph.nodes) node.state = "Running";
   const rendered = mockStreamGraphOf(LISTED, "mock-machine", graph, { hasSettled: true, secondsSinceSettled: 0 }, true);
+  const interfaceOf = (name: string) => rendered.nodes.find((node) => node.name === name)?.components.graph_interface;
 
-  expect(rendered.nodes.find((node) => node.name === "brightness")?.components.graph_interface).toEqual({ direction: "input", port: "brightness", family: "channels", current_value: 0.8 });
+  expect(interfaceOf("brightness")).toEqual({ direction: "input", port: "brightness", family: "channels", current_value: 0.8 });
+  expect(interfaceOf("contrast")).toEqual({ direction: "input", port: "contrast", family: "channels" });
 });
