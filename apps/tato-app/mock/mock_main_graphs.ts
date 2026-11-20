@@ -4,9 +4,10 @@
 // its type, and the large graph of the canvas measurements.
 
 import { largeMockStreamGraph } from "./mock_large_stream_graph";
-import { MOCK_RECORDED_NODE_TYPES, mockEveryPinKindGraphWithAStandInBundleNode, mockEveryPinKindGraphWithAStandInNamedTypeLink, mockEveryPinKindGraphWithAStandInTypeChoosingInput, mockEveryPinKindGraphWithAStandInWarnedLink, mockRecordedGraphOfTheEveryPinKindSample } from "./mock_recordings";
+import { MOCK_RECORDED_NODE_TYPES, MOCK_STAND_IN_SWEEP_POSITION_DESCRIBED, mockEveryPinKindGraphWithAStandInBundleNode, mockEveryPinKindGraphWithAStandInNamedTypeLink, mockEveryPinKindGraphWithAStandInTypeChoosingInput, mockEveryPinKindGraphWithAStandInWarnedLink, mockRecordedGraphOfTheEveryPinKindSample } from "./mock_recordings";
 import type { MockRecordedNodeTypes } from "./mock_recordings";
 import type { MockStreamGraph } from "./mock_stream_fixtures";
+import type { NodeTypeDescription } from "../src/shared/tatolab_backend_contract";
 
 /** What `?main_graph=` names `main` to hold in place of Pulse Stage's own graph. */
 export type MockMainGraph = "every_pin_kind" | "every_pin_kind_with_a_warned_link" | "every_pin_kind_with_a_bundle" | "every_pin_kind_with_a_named_type" | "every_pin_kind_with_a_type_choosing_input" | "large";
@@ -41,4 +42,10 @@ export function mapEachMockMainGraph<Made>(made: (graph: MockStreamGraph) => Mad
 /** The node types the open project lists while `main` holds `mainGraph`, as the runtime recorded them: the every-pin-kind sample's under each of its graphs, else Pulse Stage's. */
 export function recordedNodeTypesOfTheMainGraph(mainGraph: MockMainGraph | null): MockRecordedNodeTypes {
   return MOCK_RECORDED_NODE_TYPES[mainGraph !== null && mainGraph.startsWith("every_pin_kind") ? "every_pin_kind" : "pulse_stage"];
+}
+
+/** Each node type described while `main` holds `mainGraph`: those the runtime recorded, and beside the sample's named type a stand-in, its `SweepPosition`, so a refusal's suggested edit can place it. */
+export function nodeTypesDescribedWhileMainHolds(mainGraph: MockMainGraph | null): NodeTypeDescription[] {
+  const recorded = recordedNodeTypesOfTheMainGraph(mainGraph).described.node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [nodeType]));
+  return mainGraph === "every_pin_kind_with_a_named_type" ? [...recorded, MOCK_STAND_IN_SWEEP_POSITION_DESCRIBED] : recorded;
 }

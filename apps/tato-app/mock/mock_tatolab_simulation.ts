@@ -15,7 +15,7 @@ import { mockConditionOf } from "./mock_stream_conditions";
 import type { MockInputValueChanged } from "./mock_input_value_changes";
 import { mockFoldersInDocumentsTatoStudio, mockOpenProjectReading, mockRecentProjects } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
-import { recordedNodeTypesOfTheMainGraph } from "./mock_main_graphs";
+import { nodeTypesDescribedWhileMainHolds, recordedNodeTypesOfTheMainGraph } from "./mock_main_graphs";
 import { MockPortViewers } from "./mock_port_viewers";
 import { mockStudioViewListing, mockStudioViewListingThatDoesNotOpen } from "./mock_studio_view/mock_studio_view_listing";
 import { MockProjectFiles } from "./mock_project_files";
@@ -186,7 +186,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     );
   /** Commit `operations`: applied to the saved graphs, which answer, then to the running ones. */
   const recordedNodeTypes = recordedNodeTypesOfTheMainGraph(mockTatolabOptions.mainGraph);
-  const graphEditGrounds: MockGraphEditGrounds = { nodeTypesDescribed: recordedNodeTypes.described.node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [nodeType])), portsOfTheNodesRemoved: new Map() };
+  const graphEditGrounds: MockGraphEditGrounds = { nodeTypesDescribed: nodeTypesDescribedWhileMainHolds(mockTatolabOptions.mainGraph), portsOfTheNodesRemoved: new Map() };
   const nodeTypesTheProjectGains = new MockNodeTypesTheProjectGains(graphEditGrounds);
   const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo", historyOperationsReplayed: readonly JsonValue[] = []) => {
     const applied = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), graphEditGrounds, operations, applying, historyOperationsReplayed);

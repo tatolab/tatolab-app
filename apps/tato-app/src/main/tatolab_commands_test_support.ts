@@ -116,6 +116,8 @@ export interface StudioServicesOfATest {
   /** The one studio window, by its contents id, and the project it holds; a command from any other window is refused as one from the Projects window. */
   readonly studioWindow?: { readonly windowContentsId: number; readonly projectFolder: string };
   readonly streamAssetsOfTheProject?: (projectFolder: string) => ReadonlySet<string>;
+  /** Whether a name is one of a folder's streams the runtime lists; at the default, whether `streamAssetsOfTheProject` gives it. */
+  readonly namesAStreamOfTheProject?: (projectFolder: string, stream: string) => boolean;
   /** Whether the runtime lists a stream from a folder; at the default, whether `streamAssetsOfTheProject` gives it any. */
   readonly aStreamIsListedFrom?: (projectFolder: string) => boolean;
   /** Whether the runtime lists a folder's project open; none at the default. */
@@ -193,6 +195,7 @@ export function studioServicesLayerForTest(overrides: StudioServicesOfATest = {}
     Layer.succeed(ProjectViewsListed, { passedExtensionFolder: () => null, startAListing: Effect.succeed(1), rememberTheListing: () => Effect.void, extensionFolderChecks: { kitFolderOfThisCheckout: null, checksKept: new ExtensionFolderChecksKept() } }),
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: overrides.streamAssetsOfTheProject ?? (() => new Set()),
+      namesAStreamOfTheProject: overrides.namesAStreamOfTheProject ?? ((projectFolder, stream) => overrides.streamAssetsOfTheProject?.(projectFolder).has(stream) ?? false),
       aStreamIsListedFrom: overrides.aStreamIsListedFrom ?? ((projectFolder) => (overrides.streamAssetsOfTheProject?.(projectFolder).size ?? 0) > 0),
       theProjectIsListedOpen: overrides.theProjectIsListedOpen ?? (() => false),
       listedStream: overrides.listedStream ?? (() => null),
