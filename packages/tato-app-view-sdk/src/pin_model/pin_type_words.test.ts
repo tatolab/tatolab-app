@@ -33,7 +33,7 @@ test("a_pins_words_name_its_type_and_how_its_messages_are_read", () => {
   expect(pinWords({ pin_type: { type: "trigger" }, flow: "trigger" })).toBe("Trigger");
 });
 
-const pin = (name: string): NodePin => ({ name, member: null, pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null, bundle: null });
+const pin = (name: string): NodePin => ({ name, member: null, pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, bundle: null });
 
 test("a_cards_rows_are_its_outputs_then_its_inputs", () => {
   expect(nodePinRows([pin("a"), pin("b")], [pin("out")]).map((row) => `${row.side}:${row.node_pin.name}`)).toEqual(["output:out", "input:a", "input:b"]);

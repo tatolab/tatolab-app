@@ -345,6 +345,39 @@ describe("the studio", () => {
     expect(wordsAndMark("cue")).toEqual(["No exact type · Records", "untyped"]);
   });
 
+  it("draws a socket on each setting the runtime says takes a wire, hiding a wired one's control and naming what drives it in Properties, and none on a Graph Input's settings", async () => {
+    await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind_with_a_wired_setting");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    const card = (nodeName: string) => streamGraph.querySelector<HTMLElement>(`[data-node-graph-card="${nodeName}"]`) ?? expect.unreachable(`no ${nodeName} card`);
+    const inputRowsOf = (nodeName: string) =>
+      [...card(nodeName).querySelectorAll<HTMLElement>('[data-node-graph-pin-row="input"]')].map((row) => [
+        row.querySelector("[data-node-graph-input-pin]")?.textContent,
+        row.querySelector(".node-graph-pin") !== null,
+        row.querySelector("[data-node-graph-rebuilds-the-node]") !== null,
+        row.querySelector("[data-node-graph-input-value], [data-node-graph-inline-control]") !== null,
+      ]);
+    await waitFor(() => expect(inputRowsOf("channels")).toEqual([
+      ["sample_rate", true, true, false],
+      ["channel_names", false, true, true],
+      ["records", true, false, false],
+    ]));
+    expect(inputRowsOf("warmth_base").map(([name, hasASocket]) => [name, hasASocket])).toEqual([
+      ["port", false],
+      ["pin_type", false],
+      ["range", false],
+      ["value", false],
+    ]);
+
+    fireEvent.click(card("channels"));
+    const portRow = (portName: string) => coreViewPage("properties").querySelector<HTMLElement>(`[data-properties-port="${portName}"]`);
+    await waitFor(() => expect(portRow("sample_rate")).not.toBeNull());
+    const sampleRate = portRow("sample_rate") ?? expect.unreachable("no sample_rate row in Properties");
+    expect(sampleRate.querySelector(".node-graph-pin-mark")?.getAttribute("data-pin-type")).toBe("integer");
+    expect(sampleRate.querySelector("[data-node-graph-rebuilds-the-node]")).not.toBeNull();
+    expect([...sampleRate.querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"))).toEqual(["Flash › flashes"]);
+    expect(portRow("channel_names")?.querySelector(".node-graph-pin-mark")).toBeNull();
+  });
+
   it("narrows Properties to the matching properties from its toolbar's search field, and shows them all again once cleared", async () => {
     await mountedWindowOverTheMock("state=running");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));

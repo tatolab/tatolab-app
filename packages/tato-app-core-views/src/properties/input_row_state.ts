@@ -31,7 +31,7 @@ export interface InputOfARow {
 /**
  * The state of the row of `input`. A link at its level wins, since the runtime's reading of a wired input can lag the link;
  * a promotion is offered on an input of a family a Graph Input written by a client carries, since one of any other family
- * runs nothing, and never on a setting, which takes no wire.
+ * runs nothing, and never on a setting, which a Graph Input feeds once its node exposes it.
  */
 export function inputRowStateOf({ input, value_comes_from, driven_by, is_editable }: InputOfARow): InputRowState {
   if (driven_by.length > 0) return { kind: "wired", driven_by, can_be_disconnected: is_editable };

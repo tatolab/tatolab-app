@@ -386,9 +386,14 @@ interface InputRowsOfTheNode {
   searchWords: string;
 }
 
-/** The mark beside an input's name: the socket its card draws, or for a setting, which takes no wire, the mark of one a change of which rebuilds its node. */
+/** The marks beside an input's name: the socket its card draws, on one that takes a wire, and on a setting a change of which rebuilds its node, the mark that says so. */
 function InputMarkOfTheRow({ pin }: { pin: NodePin }) {
-  return pin.setting === null ? <NodeGraphPinMark pin={pin.pin} /> : <NodeGraphRebuildsTheNodeMark pin={pin} />;
+  return (
+    <>
+      {pin.takes_a_wire && <NodeGraphPinMark pin={pin.pin} />}
+      <NodeGraphRebuildsTheNodeMark pin={pin} />
+    </>
+  );
 }
 
 /** Where the runtime reads an input's value from: as its port states, or for a setting the graph lists among no port, as the node's graph document holds it. */

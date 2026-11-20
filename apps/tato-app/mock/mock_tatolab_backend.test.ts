@@ -351,6 +351,46 @@ describe("the mock backend's stream actions", () => {
     expect(pinTypeOf(await settled(backend.describeStreamGraph(MAIN)))?.value).toEqual({ type: "float" });
   });
 
+  it("marks each input it serves with whether a link may end at it as the runtime does, and refuses a link into one that takes none", async () => {
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind_with_a_wired_setting");
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(200);
+      return answering;
+    };
+    const graph = await settled(backend.describeStreamGraph(MAIN));
+    const marksOf = (nodeName: string) => graph.nodes.find((node) => node.name === nodeName)?.ports.inputs.map((port) => [port.name, port.takes_a_wire]);
+    expect(marksOf("warmth_base")).toEqual([
+      ["port", false],
+      ["pin_type", false],
+      ["range", false],
+      ["value", false],
+    ]);
+    expect(marksOf("channels")).toEqual([
+      ["records", true],
+      ["sample_rate", true],
+    ]);
+    expect(graph.links.filter((link) => link.target.node === "channels").map((link) => `${link.source.node}.${link.source.port} → ${link.target.port}`)).toEqual(["flash.flashes → sample_rate"]);
+    expect(graph.nodes.find((node) => node.name === "channels")?.ports.inputs.find((port) => port.name === "sample_rate")?.value_comes_from).toBe("wire");
+
+    const described = await settled(backend.describeNodeTypes(PULSE_STAGE_FOLDER, ["tatolab.stream:RecordsToChannels", "nodes.beat:Warmth"]));
+    expect(described.node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : nodeType.inputs.map((input) => [input.name, input.takes_a_wire])))).toEqual([
+      ["records", true],
+      ["channel_names", false],
+      ["sample_rate", true],
+      ["count", true],
+      ["accented", true],
+      ["beats_per_bar", true],
+      ["base", true],
+    ]);
+
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    const idOf = (name: string) => graph.nodes.find((node) => node.name === name)?.id ?? expect.unreachable(`no ${name} in the graph`);
+    const intoTheGraphInputsPort = { operation: "connect", stream: streamAsset, source: { node: idOf("caption"), port: "result" }, target: { node: idOf("warmth_base"), port: "port" } } as const;
+    const refused = expect(backend.transactInTheOpenProject([intoTheGraphInputsPort], "commit", null)).rejects.toThrow("input `port` of `warmth_base` takes no wire");
+    await vi.advanceTimersByTimeAsync(200);
+    await refused;
+  });
+
   it("serves the stand-in bundle node's members each on its own row, sets and undoes one member alone, and links and unlinks a member", async () => {
     const { backend } = await runningMockBackend("main_graph=every_pin_kind_with_a_bundle");
     const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {

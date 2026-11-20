@@ -64,14 +64,14 @@ const describedNodeType = (type: string, inputs: [string, "image" | "array" | nu
 });
 const BLUR = describedNodeType("nodes.blur:GaussianBlur", [["strength", "array"], ["video_in", "image"]], [["video_out", "image"]]);
 
-/** A node type as its description lists it once each setting is an input: its port `video_in`, then its settings, each with no family and taking no wire. */
+/** A node type as its description lists it once each setting is an input: its port `video_in`, then its settings, each with no family, `gain` taking a wire and `layers`, a field of a node type not yet typed, none. */
 const A_SETTING = { mode: "setting_only", read: "at_setup" } as const;
 const BLUR_LISTING_ITS_SETTINGS: NodeTypeDescription = {
   ...describedNodeType("nodes.blur:GaussianBlur", [["video_in", "image"]], [["video_out", "image"]]),
   inputs: [
     { name: "video_in", documentation: "the picture", family: { family: "image" }, mode: "wire_only" },
-    { name: "gain", documentation: "How loud.", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", ...A_SETTING },
-    { name: "layers", documentation: "", ...A_SETTING },
+    { name: "gain", documentation: "How loud.", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", ...A_SETTING, takes_a_wire: true },
+    { name: "layers", documentation: "", ...A_SETTING, takes_a_wire: false },
   ],
 };
 
@@ -186,8 +186,8 @@ describe("placing_a_node", () => {
     ]);
   });
 
-  test("a_setting_is_no_input_a_wire_reaches", () => {
-    expect(inputsAWireReaches(BLUR_LISTING_ITS_SETTINGS).map((input) => input.name)).toEqual(["video_in"]);
+  test("an_input_a_wire_reaches_is_one_the_runtime_says_takes_a_wire_a_setting_among_them_and_one_it_says_nothing_of", () => {
+    expect(inputsAWireReaches(BLUR_LISTING_ITS_SETTINGS).map((input) => input.name)).toEqual(["video_in", "gain"]);
   });
 });
 

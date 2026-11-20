@@ -6,12 +6,13 @@
 import type { SearchPopoverNarrowing } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import type { SearchPopoverItem } from "@tatolab/tato-app-view-sdk/design_system/support/search_popover_rows";
 import type { NodeGraphCardKind } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
-import { exactPinOfTheDeclaredPort, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import { exactPinOfTheDeclaredPort, settingOfTheDescribedInput, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import {
   familyOfThePort,
   nodeTypeDescriptionsByType,
   type ListNodeTypesToolResult,
   type NodeTypeDescription,
+  type NodeTypeInputDescribed,
   type NodeTypeListed,
   type NodeTypePortDescribed,
   type NodeTypeSourceListed,
@@ -130,9 +131,15 @@ function nodePinOfTheDescribedPort(port: NodeTypePortDescribed): NodePin {
     stream_facts_words: [],
     value_address: null,
     setting: null,
+    takes_a_wire: true,
     wire: null,
     link: null,
   };
+}
+
+/** A node type's input as a card placed now draws its pin: as its port, the setting it is, and whether a link may end at it, as its description marks it. */
+function nodePinOfTheDescribedInput(input: NodeTypeInputDescribed): NodePin {
+  return { ...nodePinOfTheDescribedPort(input), setting: settingOfTheDescribedInput(input), takes_a_wire: input.takes_a_wire ?? true };
 }
 
 /** The kind a described node type's preview card shows: how its code runs, `unknown` where its declaration source does not say; a description names no function's language. */
@@ -149,14 +156,14 @@ function previewCardKindOf(described: NodeTypeDescription): NodeGraphCardKind {
   }
 }
 
-/** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed, with its kind, a pin for each input a wire reaches and no setting; `null` for an item that is no node type `offered` describes, as a graph generator. */
+/** The card the search previews for the node type `searchItemId` names, as the graph draws that node once placed, with its kind, a pin for each input a wire reaches, a setting among them; `null` for an item that is no node type `offered` describes, as a graph generator. */
 export function nodeTypeSearchPreviewCard(offered: readonly NodeTypeOffered[], searchItemId: string): { title: string; kind: NodeGraphCardKind; inputs: NodePin[]; outputs: NodePin[] } | null {
   const described = offered.find((nodeType) => nodeType.listed.node_type === searchItemId)?.described ?? null;
   if (described === null) return null;
   return {
     title: nameInWords(nodeTypeClassName(described.node_type)),
     kind: previewCardKindOf(described),
-    inputs: inputsAWireReaches(described).map(nodePinOfTheDescribedPort),
+    inputs: inputsAWireReaches(described).map(nodePinOfTheDescribedInput),
     outputs: described.outputs.map(nodePinOfTheDescribedPort),
   };
 }

@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { nodePinRowKey, nodePinsShown, openBundlesOfTheMetadata, openBundlesWith, pinEndOfTheRowKey, rowKeyOfTheLinkEnd, type NodePin } from "./node_pins.js";
 
 function aPin(name: string, member: string | null, bundle: NodePin["bundle"] = null): NodePin {
-  return { name, member, pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null, bundle };
+  return { name, member, pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, bundle };
 }
 
 const LEFT = aPin("levels", "left");

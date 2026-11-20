@@ -177,9 +177,9 @@ function firstPortOfTheFamily(ports: readonly Pick<NodeTypePortDescribed, "name"
   return (family === null ? ports[0] : (ports.find((port) => { const portFamily = familyOfThePort(port); return portFamily === family || portFamily === null; }) ?? null))?.name ?? null;
 }
 
-/** The inputs of `nodeType` a wire can end at: every input but a setting, which takes a stored value and no wire. */
+/** The inputs of `nodeType` a wire can end at: each its description marks as taking one, a setting among them, and each it marks neither way. */
 export function inputsAWireReaches(nodeType: Pick<NodeTypeDescription, "inputs">): readonly NodeTypeInputDescribed[] {
-  return nodeType.inputs.filter((input) => input.mode !== "setting_only");
+  return nodeType.inputs.filter((input) => input.takes_a_wire ?? true);
 }
 
 /** A pin a wire was dragged off and let go of over the canvas. */

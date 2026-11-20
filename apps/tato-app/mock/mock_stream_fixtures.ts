@@ -33,6 +33,11 @@ export function mockNodeIdOf(streamId: string, nodeName: string): string {
   return `P${fnv1aHashOf(name).toString(36).padStart(7, "0")}${name.length.toString(36)}mockgraph`.slice(0, 26);
 }
 
+/** Whether a link may end at the input `port` of `node`, as `graph` marks it: as its recording marks it, else, as the runtime marks it, at every input but one of a Graph Input, each of which is a setting taking no wire. */
+export function doesTheMockInputTakeAWire(node: Pick<MockGraphNode, "type">, port: Pick<MockGraphPort, "takes_a_wire">): boolean {
+  return port.takes_a_wire ?? node.type !== "tatolab.stream:GraphInput";
+}
+
 /** The id the graph names `node` of the stream `streamId` by: its own name's, or the one it kept through a rename. */
 export function mockGraphNodeIdOf(streamId: string, node: Pick<MockGraphNode, "name" | "id_kept_through_renames">): string {
   return node.id_kept_through_renames ?? mockNodeIdOf(streamId, node.name);
@@ -126,6 +131,8 @@ export interface MockGraphPort {
   member_reads?: MockMemberRead[];
   /** What its pin states besides its type, as `graph` serves it; absent where it states none. */
   annotations?: NonNullable<StreamGraphPort["annotations"]>;
+  /** On an input, whether a link may end at it, as a recording of `graph` marks it; absent where it marks none. */
+  takes_a_wire?: boolean;
 }
 
 /** What one member of a bundle input reads while unlinked and where that comes from, and the default it reads while none is set. */

@@ -170,15 +170,15 @@ function NodeGraphFreeConversionWordsForAScreenReader({ pin }: { pin: NodePin })
   return words === null ? null : <span className="sr-only" data-node-graph-free-conversion={pin.name}>{words}</span>;
 }
 
-/** Whether a card draws a socket for `pin`: every pin but a setting, which takes a value and no wire. */
-function takesASocket(pin: Pick<NodePin, "setting">): boolean {
-  return pin.setting === null;
+/** Whether a card draws a socket for `pin`: every pin a link may end or start at, as the runtime marks it. */
+function takesASocket(pin: Pick<NodePin, "takes_a_wire">): boolean {
+  return pin.takes_a_wire;
 }
 
 /** What a card's header and pin rows draw of a node. */
 type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "description" | "condition" | "inputs" | "outputs" | "is_collapsed" | "kind">;
 
-/** A card's header and its rows, one full-width row per pin, outputs first, then settings, then the other inputs; the canvas and a preview outside it both draw it, and `socketOfThePin` draws the socket of each pin but a setting. */
+/** A card's header and its rows, one full-width row per pin, outputs first, then settings, then the other inputs; the canvas and a preview outside it both draw it, and `socketOfThePin` draws the socket of each pin that takes a wire. */
 function NodeGraphCardHeaderAndPinRows({
   graphNode,
   beforeTheTitle = null,
