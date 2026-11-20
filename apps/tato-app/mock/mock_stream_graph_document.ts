@@ -143,6 +143,7 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
     ...valuesCheckedAsTheRuntimeRendersIt(port),
     ...(arePortFamiliesServed && port.family !== null ? { family: { family: port.family } } : {}),
     ...pinAsTheRuntimeRendersIt(port),
+    ...(port.annotations === undefined ? {} : { annotations: port.annotations }),
   });
   const linkAsTheRuntimeRendersIt = (link: MockGraphLink): StreamGraphLink => ({
     id: link.id,

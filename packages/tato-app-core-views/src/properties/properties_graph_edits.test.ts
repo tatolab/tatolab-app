@@ -133,7 +133,7 @@ test("a promotion takes the first free name, names no family where the input nam
   expect(promoteToGraphInput("asset", { node: glow, input: aPort("tint", null), valueShown: null, isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set() })[0]).not.toHaveProperty("config.family");
 });
 
-test("promoting a typed input chooses its pin type and states its annotations as the Graph Input's settings, carrying the value it shows as its default", () => {
+test("promoting an input of a type a client sets chooses that type and states its annotations as the Graph Input's settings, saving the value it shows as its `value`", () => {
   const caption = { id: "id-caption", name: "caption" };
   const lines = aGraphPort("lines", "channels", {
     pin_type: { type: "integer" },
@@ -148,32 +148,59 @@ test("promoting a typed input chooses its pin type and states its annotations as
       stream: "asset",
       type: "tatolab.stream:GraphInput",
       name: "caption_lines",
-      config: { port: "caption_lines", pin_type: { type: "integer" }, family: "channels", range: [1, 8], step: 1, unit: "lines", meaning: "count", control: "dial", default: 3 },
+      config: { port: "caption_lines", pin_type: { type: "integer" }, family: "channels", range: [1, 8], step: 1, unit: "lines", meaning: "count", control: "dial", value: 3 },
       as: "graph_input",
     },
     { operation: "connect", stream: "asset", source: { node: "graph_input", port: "value" }, target: { node: "id-caption", port: "lines" } },
   ]);
 
   const align = aGraphPort("align", "records", { pin_type: { type: "menu", option_names: ["left", "centre", "right"] }, flow: "value", annotations: { control: "segmented" } });
-  expect(promoteToGraphInput("asset", { node: caption, input: align, valueShown: "centre", isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set() })[0]).toMatchObject({
-    config: { port: "caption_align", pin_type: { type: "menu", option_names: ["left", "centre", "right"] }, family: "records", control: "segmented", default: "centre" },
+  expect(promoteToGraphInput("asset", { node: caption, input: align, valueShown: "centre", isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set() })[0]).toEqual({
+    operation: "add_node",
+    stream: "asset",
+    type: "tatolab.stream:GraphInput",
+    name: "caption_align",
+    config: { port: "caption_align", pin_type: { type: "menu", option_names: ["left", "centre", "right"] }, family: "records", control: "segmented", value: "centre" },
+    as: "graph_input",
   });
 });
 
-test("a promoted input's annotations are left out where a Graph Input takes none: a range of one end, below a stream's own level, and on a type no client sets or no port carries", () => {
+test("a promoted input's annotations are each left out where its type takes none, the range where it states one end, and all of them below a stream's own level", () => {
   const caption = { id: "id-caption", name: "caption" };
-  const size = aGraphPort("size", "channels", { pin_type: { type: "float" }, flow: "value", annotations: { range: { maximum: 2 }, control: "dial" } });
-  const configOf = (input: StreamGraphPort, isOnTheStreamsOwnLevel: boolean) => promoteToGraphInput("asset", { node: caption, input, valueShown: 1, isOnTheStreamsOwnLevel, nodeNamesTaken: new Set() })[0];
+  const configOf = (input: StreamGraphPort, isOnTheStreamsOwnLevel: boolean, valueShown: JsonValue | null = 1) =>
+    promoteToGraphInput("asset", { node: caption, input, valueShown, isOnTheStreamsOwnLevel, nodeNamesTaken: new Set() })[0];
 
-  expect(configOf(size, true)).toMatchObject({ config: { port: "caption_size", pin_type: { type: "float" }, control: "dial", default: 1 } });
+  const size = aGraphPort("size", "channels", { pin_type: { type: "float" }, flow: "value", annotations: { range: { maximum: 2 }, control: "dial" } });
+  expect(configOf(size, true)).toMatchObject({ config: { port: "caption_size", pin_type: { type: "float" }, control: "dial", value: 1 } });
   expect(configOf(size, true)).not.toHaveProperty("config.range");
   expect(configOf(size, false)).toEqual({ operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "caption_size", config: { port: "caption_size", pin_type: { type: "float" }, family: "channels" }, as: "graph_input" });
 
-  const preview = aGraphPort("preview", "image", { pin_type: { type: "texture" }, flow: "stream", annotations: { control: "preview" } });
-  expect(configOf(preview, true)).toEqual({ operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "caption_preview", config: { port: "caption_preview", pin_type: { type: "texture" }, family: "image" }, as: "graph_input" });
+  const anchor = aGraphPort("anchor", "channels", { pin_type: { type: "vector", component_count: "two" }, flow: "value", annotations: { range: { minimum: -1, maximum: 1 }, step: 0.1, unit: "frames", control: "xy_pad" } });
+  expect(configOf(anchor, true, [0, -0.5])).toEqual({
+    operation: "add_node",
+    stream: "asset",
+    type: "tatolab.stream:GraphInput",
+    name: "caption_anchor",
+    config: { port: "caption_anchor", pin_type: { type: "vector", component_count: "two" }, family: "channels", control: "xy_pad", value: [0, -0.5] },
+    as: "graph_input",
+  });
+});
 
+test("an input of a type that stores no value, of one no port carries, or a String naming a project asset is promoted by its family alone, as before", () => {
+  const caption = { id: "id-caption", name: "caption" };
+  const configOf = (input: StreamGraphPort, valueShown: JsonValue | null) => promoteToGraphInput("asset", { node: caption, input, valueShown, isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set() })[0];
+  const addedWith = (config: JsonValue) => ({ operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: expect.any(String), config, as: "graph_input" });
+
+  const cue = aGraphPort("cue", "records", { pin_type: { type: "trigger" }, flow: "trigger", annotations: { control: "button" } });
+  expect(configOf(cue, null)).toEqual(addedWith({ port: "caption_cue", family: "records" }));
+  const preview = aGraphPort("preview", "image", { pin_type: { type: "texture" }, flow: "stream", annotations: { control: "preview" } });
+  expect(configOf(preview, null)).toEqual(addedWith({ port: "caption_preview", family: "image" }));
   const points = aGraphPort("points", "records", { pin_type: { type: "list_of", element_type: { type: "float" } }, flow: "value", annotations: { control: "list" } });
-  expect(configOf(points, true)).toEqual({ operation: "add_node", stream: "asset", type: "tatolab.stream:GraphInput", name: "caption_points", config: { port: "caption_points", family: "records" }, as: "graph_input" });
+  expect(configOf(points, [1, 2])).toEqual(addedWith({ port: "caption_points", family: "records" }));
+  const font = aGraphPort("font", "records", { pin_type: { type: "string" }, flow: "value", annotations: { project_asset: {}, control: "file_picker" } });
+  expect(configOf(font, "a1b2")).toEqual(addedWith({ port: "caption_font", family: "records" }));
+  const gain = aGraphPort("gain", "channels", { pin_type: { type: "audio" }, flow: "stream" });
+  expect(configOf(gain, 0.5)).toEqual(addedWith({ port: "caption_gain", family: "channels", default: 0.5 }));
 });
 
 test("taking out the link that drives an input disconnects it by both nodes' UUIDs", () => {

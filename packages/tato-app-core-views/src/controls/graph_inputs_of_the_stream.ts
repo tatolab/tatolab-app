@@ -16,6 +16,9 @@ export const GRAPH_INPUT_NODE_TYPE = "tatolab.stream:GraphInput";
 /** The input of a `GraphInput` that holds the value it carries, a setting that takes no wire. */
 export const GRAPH_INPUT_VALUE_INPUT = "value";
 
+/** The name a `GraphInput`'s document held its value under before it was an input. */
+export const GRAPH_INPUT_FORMER_VALUE_SETTING = "default";
+
 /** Whether a value set live on an Input is kept across Stop, or reset at Stop, as the `GraphInput`'s `lifetime` setting says. */
 export type GraphInputLifetime = "kept" | "reset";
 
@@ -61,8 +64,8 @@ export function graphInputsOfTheStream(graph: StreamGraph, valuesAt: GraphAddres
     .map((node) => {
       const config = jsonObjectMembersOf(node.config);
       const { port, family, range, lifetime } = config;
-      // A document saved before the Input's value was an input holds it as `default`; one saved since, as `value`.
-      const declaredDefault = config["default"] ?? config[GRAPH_INPUT_VALUE_INPUT] ?? null;
+      // A document saved since the Input's value was an input holds it as `value`; one saved before, as `default`.
+      const declaredDefault = config[GRAPH_INPUT_VALUE_INPUT] ?? config[GRAPH_INPUT_FORMER_VALUE_SETTING] ?? null;
       const declared = graphInterfacePortOfTheNode(node);
       const familyDeclared = declared?.family ?? (typeof family === "string" ? family : null);
       const valueInput = nodeInputs(graph, node, undefined, valuesAt, null).find((input) => input.name === GRAPH_INPUT_VALUE_INPUT);
@@ -99,7 +102,7 @@ function graphInputRangeBetween(lowest: unknown, highest: unknown): GraphInputRa
   return { lowest, highest };
 }
 
-/** The control that writes an Input of `family` as its config declares it, by its `default` and its `range`, whatever value was written to it since. */
+/** The control that writes an Input of `family` as its config declares it, by the value it saves, as `value` or formerly `default`, and its `range`, whatever value was written to it since. */
 function controlForTheInput(family: string | null, declaredDefault: JsonValue | null, range: GraphInputRange | null): GraphInputControlKind {
   if (!isAFamilyAClientWrites(family)) return "not_written";
   if (family === "records") return "json";

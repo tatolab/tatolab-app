@@ -2,8 +2,9 @@ import { expect, test } from "vitest";
 import { applyMockGraphTransaction, configHoldingTheDefaultNameOfAGraphPortOrVariable, graphActionApplyingTheHistoryOperation, isAHistoryOperationTheMockMakesAgainFromTheEditInside, isAJsonObject, MockGraphEditNotApplicable, thePlacementsOfTheStream, type MockStreamGraphTarget } from "./mock_graph_transactions";
 import { MOCK_RECORDED_NODE_TYPES } from "./mock_recordings";
 import { nodeTypeDescriptionsByType } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { JsonValue, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
+import type { JsonValue, ListedStream, StreamGraphAction } from "../src/shared/tatolab_backend_contract";
 import { mockNodeIdOf, type MockGraphNode, type MockStreamGraph } from "./mock_stream_fixtures";
+import { mockStreamGraphOf } from "./mock_stream_graph_document";
 
 const STREAM_ASSET = "a-stream-asset";
 const STREAM_ID = "pulse-stage-main-1a2b3c";
@@ -346,4 +347,52 @@ test("a Trigger input is fired by a live set with no value, which stores nothing
   expect(() => fire(null, "a_transaction")).toThrow(/holds no value to save/);
   graph.links.push({ id: "Lflashfeed0000000000000001", source_node: "canvas", source_port: "image", target_node: "canvas", target_port: "flash", state: "wired" });
   expect(() => fire(null)).toThrow(/is a Trigger a link feeds/);
+});
+
+/** The listing of the stream `apply` edits, as `list_streams` lists it while it plays. */
+const LISTED: ListedStream = {
+  stream: STREAM_ID,
+  display_name: "main",
+  location: null,
+  state: "running",
+  node_count: null,
+  failed_because: null,
+  capture_devices_whose_access_was_never_asked_for: [],
+  condition: null,
+  action: null,
+  step: null,
+};
+
+test("a Graph Input that chooses a pin type carries it on its value ports, serving the annotations its settings state on its value input, which reads the value it saves", () => {
+  const graph = aCanvasAlone();
+  apply(graph, [
+    { operation: "add_node", stream: STREAM_ASSET, type: CLICK_CUE, as: "cue" },
+    {
+      operation: "add_node",
+      stream: STREAM_ASSET,
+      type: "tatolab.stream:GraphInput",
+      name: "clickcue_count",
+      config: { port: "clickcue_count", pin_type: { type: "integer" }, family: "channels", range: [1, 8], step: 1, control: "dial", value: 4 },
+      as: "graph_input",
+    },
+    { operation: "connect", stream: STREAM_ASSET, source: { node: "graph_input", port: "value" }, target: { node: "cue", port: "count" } },
+  ]);
+  const rendered = mockStreamGraphOf(LISTED, "mock-machine", graph, { hasSettled: true, secondsSinceSettled: 0 }, true);
+  const graphInput = rendered.nodes.find((node) => node.name === "clickcue_count") ?? expect.unreachable("no Graph Input");
+
+  expect(graphInput.ports.inputs).toMatchObject([
+    { name: "value", pin_type: { type: "integer" }, flow: "value", annotations: { range: { minimum: 1, maximum: 8 }, step: 1, control: "dial" }, value: 4, value_comes_from: "saved" },
+  ]);
+  expect(graphInput.ports.outputs).toMatchObject([{ name: "value", pin_type: { type: "integer" }, flow: "value", family: { family: "channels" } }]);
+  expect(graphInput.ports.outputs[0]).not.toHaveProperty("annotations");
+});
+
+test("a running top-level Graph Input of no type declares the value its config saves as `value` before its former `default`", () => {
+  const graph = aCanvasAlone();
+  apply(graph, [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "brightness", config: { port: "brightness", family: "channels", value: 0.8, default: 0.2 } }]);
+  const brightness = graph.nodes.find((node) => node.name === "brightness") ?? expect.unreachable("no Graph Input");
+  brightness.state = "Running";
+  const rendered = mockStreamGraphOf(LISTED, "mock-machine", graph, { hasSettled: true, secondsSinceSettled: 0 }, true);
+
+  expect(rendered.nodes.find((node) => node.name === "brightness")?.components.graph_interface).toEqual({ direction: "input", port: "brightness", family: "channels", current_value: 0.8 });
 });

@@ -86,6 +86,18 @@ test("a Graph Input that chose a pin type takes its value's type and annotations
   expect(brightness).toMatchObject({ value_pin: null, range: { lowest: 0, highest: 1 }, control: "slider" });
 });
 
+test("the range graph serves on an Input's value wins over the range its config holds, and its saved `value` over its former `default`", () => {
+  const servedValue = aGraphPort("value", "channels", { pin_type: { type: "float" }, flow: "value", annotations: { range: { minimum: 0, maximum: 100 } }, value: 50, value_comes_from: "saved" });
+  const graph = graphOf([
+    node("a1", "volume", "tatolab.stream:GraphInput", { port: "volume", pin_type: { type: "float" }, family: "channels", range: [0, 1], value: 50 }, null, [servedValue]),
+    node("b2", "strobe", "tatolab.stream:GraphInput", { port: "strobe", family: "channels", value: false, default: 0.5 }),
+  ]);
+
+  const [volume, strobe] = graphInputsOfTheStream(graph, STREAM_LEVEL);
+  expect(volume?.range).toEqual({ lowest: 0, highest: 100 });
+  expect(strobe?.control).toBe("toggle");
+});
+
 test("an Input no control writes says why, by its family", () => {
   expect(whyNoControlWritesTheInput("packets")).toBe("This packets Input carries only what the graph wires into it, so no control writes it.");
   expect(whyNoControlWritesTheInput("image")).toBe("This image Input carries only what the graph wires into it, so no control writes it.");
