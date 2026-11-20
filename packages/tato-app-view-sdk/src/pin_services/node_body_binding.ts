@@ -19,7 +19,7 @@ import type { NodeUiControlTable } from "../node_ui/node_ui_control_table.js";
 import type { NodeUiElementHost } from "../node_ui/node_ui_element_host.js";
 import type { ListedNodeUiElement } from "../node_ui/node_ui_elements_listing.js";
 import type { StopWatching } from "../tato_app_view_connection.js";
-import { newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, type ProjectAControlReaches } from "./element_slot_support.js";
+import { markTheNewerVersionBlocked, newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, type ProjectAControlReaches } from "./element_slot_support.js";
 import type { InputValueGesture, InputValues } from "./input_values.js";
 import { readWhatTheWiringCarries } from "./wire_reading.js";
 
@@ -120,7 +120,7 @@ export class NodeBodySlot implements NodeBodyBinding {
     this.#sources.whenUnbound(this);
   }
 
-  /** Draws the body the table holds for the node type now: the one it holds when the key is the same, otherwise a new one once loaded. */
+  /** Draws the body the table holds for the node type now: the one it holds when the key is the same, kept and marked while its newer version is blocked, otherwise a new one once loaded. */
   refresh(): void {
     if (this.#isUnbound) return;
     const table = this.#sources.table();
@@ -129,13 +129,19 @@ export class NodeBodySlot implements NodeBodyBinding {
       return;
     }
     const listed = table.nodeBodyForTheNodeType(this.#node.node_type);
-    if (listed === null || listed.script_serving.kind === "blocked") {
+    const key = listed === null ? null : JSON.stringify([listed.module, listed.script, listed.folder_version, this.#node.node_type, this.#node.inputs.map((input) => input.declaration)]);
+    if (listed !== null && key === this.#elementKey && this.#element !== null) {
+      markTheNewerVersionBlocked(this.#host, listed.script_serving.kind === "blocked" ? listed.script_serving.findings : null);
+      this.#watchTheValues();
+      this.setTheShownValues();
+      return;
+    }
+    if (listed === null || key === null || listed.script_serving.kind === "blocked") {
       this.#takeTheBodyOff();
       this.#elementKey = null;
       this.#tell("no_body");
       return;
     }
-    const key = JSON.stringify([listed.module, listed.script, listed.folder_version, this.#node.node_type, this.#node.inputs.map((input) => input.declaration)]);
     if (key === this.#elementKey) {
       this.#watchTheValues();
       this.setTheShownValues();
@@ -220,6 +226,7 @@ export class NodeBodySlot implements NodeBodyBinding {
   }
 
   #takeTheBodyOff(): void {
+    markTheNewerVersionBlocked(this.#host, null);
     this.#cancelEveryGesture();
     this.#stopWatchingTheValues();
     this.#stopWatchingTheValues = () => undefined;

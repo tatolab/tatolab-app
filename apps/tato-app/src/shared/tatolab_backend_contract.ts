@@ -576,6 +576,8 @@ export interface ListedStudioViewFacts {
   manifest_json: JsonValue | null;
   /** The URL its folder is served under; empty for a project view that does not open, of which nothing is served. */
   folder_url: string;
+  /** Why the newest version of a project view is blocked while the Studio keeps serving the version that last passed, its line then the gate's words; `null` while the newest is served. */
+  newer_version_blocked_because: string | null;
 }
 
 /** The facts beside an Image frame a port viewer hands the window as a shared texture. */

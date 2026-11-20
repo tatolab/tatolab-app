@@ -6,11 +6,12 @@ import {
   ExtensionFolderChecksKept,
   folderVersionOf,
   gateDecisionOf,
+  LAST_PASSED_VERSION_KEPT,
   NOTHING_UNCHECKED_IS_LOADED,
   STUDIO_EXTENSION_SDK_VERSION,
   type ExtensionFolderChecksSources,
 } from "./extension_check_gate.js";
-import { answersOfAFolderPassingTheGate, fileReadAnswer, passingCheckAnswer, sdkAsCheckedWith, sha256OfTheText } from "./extension_check_gate_test_support.js";
+import { answersOfAFolderFailingTheGate, answersOfAFolderPassingTheGate, fileReadAnswer, passingCheckAnswer, sdkAsCheckedWith, sha256OfTheText } from "./extension_check_gate_test_support.js";
 import { controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { controlOperationCallsReceivedBy } from "./runtime_operations_test_support.js";
@@ -180,6 +181,41 @@ test("a passing folder is read, checked and served at its version, kept until a 
   gate.checksKept.forgetTheFoldersHolding(NIGHT_SHOW, ["views/meter/meter.ts"]);
   expect(await gate.gated("views/meter")).toEqual(firstGated);
   expect(gate.methodsCalled()).toHaveLength(8);
+});
+
+test("a folder blocked after a version of it passed is held at that version with why the newer one is blocked, and passes again when fixed", async () => {
+  const brokenScript = 'export const level: number = "loud";\n';
+  const fixedScript = "export const level: number = 3;\n";
+  const gate = await gateOver([
+    ...answersOfAFolderPassingTheGate("views/meter", { "meter.ts": METER_SCRIPT }),
+    ...answersOfAFolderFailingTheGate("views/meter", { "meter.ts": brokenScript }, { path: "views/meter/meter.ts", line: 1, column: 14, words: "Type 'string' is not assignable to type 'number'." }),
+    ...answersOfAFolderPassingTheGate("views/meter", { "meter.ts": fixedScript }),
+  ]);
+
+  const passed = await gate.gated("views/meter");
+  gate.checksKept.forgetTheFoldersHolding(NIGHT_SHOW, ["views/meter/meter.ts"]);
+  const held = await gate.gated("views/meter");
+
+  expect(held).toEqual({
+    kind: "held",
+    last_passed: passed,
+    newer_version_blocked_because: [
+      LAST_PASSED_VERSION_KEPT,
+      "The newer version of this view's code is blocked.",
+      "views/meter/meter.ts:1:14: error: Type 'string' is not assignable to type 'number'. (TS2322)",
+    ].join("\n"),
+  });
+  expect(await gate.gated("views/meter")).toEqual(held);
+  gate.checksKept.forgetTheFoldersHolding(NIGHT_SHOW, ["views/meter/meter.ts"]);
+  expect(await gate.gated("views/meter")).toMatchObject({ kind: "passed", files: new Map([["views/meter/meter.ts", Buffer.from(fixedScript)]]) });
+});
+
+test("a folder whose only version this session is blocked, as after a restart, is blocked and not held", async () => {
+  const gate = await gateOver(
+    answersOfAFolderFailingTheGate("views/meter", { "meter.ts": METER_SCRIPT }, { path: "views/meter/meter.ts", line: 1, column: 14, words: "Type 'string' is not assignable to type 'number'." }),
+  );
+
+  expect(await gate.gated("views/meter")).toMatchObject({ kind: "blocked", checked_to_its_end: true });
 });
 
 test("a file that changed between the read and the check reads the folder again and serves the bytes the check passed", async () => {

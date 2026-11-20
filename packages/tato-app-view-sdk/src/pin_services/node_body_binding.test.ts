@@ -8,7 +8,7 @@ import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node
 import { ReadOnlyValueLineElement } from "../node_ui/read_only_value_line_element.js";
 import { NO_PROJECT, listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
 import type { GraphEditMode, JsonValue, StreamInputValuesReading } from "../studio_readings.js";
-import { createInputControlBinder } from "./input_control_binding.js";
+import { createInputControlBinder, NEWER_VERSION_BLOCKED_ATTRIBUTE } from "./input_control_binding.js";
 import { createInputValues } from "./input_values.js";
 import type { NodeBodyShown } from "./node_body_binding.js";
 
@@ -225,6 +225,26 @@ test("a node type with no body, and a body that did not pass its checks, show no
   await slot.settled();
   expect(slot.loadsAsked).toEqual([]);
   expect(slot.host.childElementCount).toBe(0);
+});
+
+test("a drawn body whose newer version is blocked stays drawn and marked with why", async () => {
+  const findings = ["Tato Studio keeps showing the version that last passed.", "node_ui/crossfade_body.ts:3:1: error: TS2322"];
+  const slot = bodySlotUnderTest();
+  slot.list([CROSSFADE_BODY]);
+  await slot.settled();
+  const drawn = slot.body();
+
+  slot.list([{ ...CROSSFADE_BODY, script_serving: { kind: "blocked", findings } }]);
+  await slot.settled();
+  expect(slot.body()).toBe(drawn);
+  expect(slot.loadsAsked).toHaveLength(1);
+  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(true);
+  expect(slot.host.title).toBe(findings.join("\n"));
+
+  slot.list([CROSSFADE_BODY]);
+  await slot.settled();
+  expect(slot.body()).toBe(drawn);
+  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(false);
 });
 
 test("a body whose inputTypes do not fit the node, and one that does not load, are the read-only line with why", async () => {

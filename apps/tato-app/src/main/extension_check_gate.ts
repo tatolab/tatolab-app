@@ -6,7 +6,10 @@
 // reads the folder again. A folder that does not pass is blocked with the Studio's one line and
 // the runtime's own words; nothing unchecked is served. An outcome is kept until the runtime names
 // a file of its folder among the project's changed files, so a folder is checked when its project
-// is listed and after each change to it, never as one of its views opens.
+// is listed and after each change to it, never as one of its views opens. A folder that passed once
+// in this session and is blocked after a change is held: the Studio keeps serving the version that
+// last passed, at its own version, and says the newer one is blocked. Passed versions are kept in
+// memory only, so after a restart a folder with only a blocked version is blocked.
 
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -24,6 +27,9 @@ export const STUDIO_EXTENSION_SDK_VERSION = viewSdkPackageJson.version;
 
 /** The variable naming the kit a runtime checks extensions against when it carries none. */
 export const EXTENSION_SDK_KIT_ENVIRONMENT_VARIABLE = "TATOLAB_EXTENSION_SDK_KIT";
+
+/** The Studio's line over the words of a folder held at the version that last passed. */
+export const LAST_PASSED_VERSION_KEPT = "Tato Studio keeps showing the version that last passed.";
 
 /** The line that closes the words of a folder the runtime did not finish checking. */
 export const NOTHING_UNCHECKED_IS_LOADED = "Nothing unchecked is loaded.";
@@ -53,8 +59,18 @@ export interface ExtensionFolderBlocked {
   readonly checked_to_its_end: boolean;
 }
 
+/** A folder whose newest version is blocked while a version that passed earlier in this session is kept: the version still served, and why the newer one is not, the Studio's line then the gate's words. */
+export interface ExtensionFolderHeld {
+  readonly kind: "held";
+  readonly last_passed: ExtensionFolderPassed;
+  readonly newer_version_blocked_because: string;
+}
+
 /** How the gate left one folder. */
-export type ExtensionFolderGated = ExtensionFolderPassed | ExtensionFolderBlocked;
+export type ExtensionFolderGated = ExtensionFolderPassed | ExtensionFolderHeld | ExtensionFolderBlocked;
+
+/** How the gate left one folder from one check, before a version that passed earlier is held. */
+export type ExtensionFolderChecked = ExtensionFolderPassed | ExtensionFolderBlocked;
 
 /** What the gate needs beside the runtime: its kept outcomes, and the kit folder a person starting the runtime by hand names. */
 export interface ExtensionFolderChecksSources {
@@ -171,10 +187,10 @@ const folderReadAndChecked = Effect.fn("extension_folder_read_and_checked")(func
 });
 
 /** The folder `folder` of the project in `openProjectFolder` through the gate, read again while a file changes under its check. */
-function folderGated(openProjectFolder: string, folder: ExtensionFolderToGate, kitFolderOfThisCheckout: string | null): Effect.Effect<ExtensionFolderGated, never, RuntimeControl> {
-  const readAndCheck = (readsLeft: number): Effect.Effect<ExtensionFolderGated, RuntimeControlFailure, RuntimeControl> =>
+function folderGated(openProjectFolder: string, folder: ExtensionFolderToGate, kitFolderOfThisCheckout: string | null): Effect.Effect<ExtensionFolderChecked, never, RuntimeControl> {
+  const readAndCheck = (readsLeft: number): Effect.Effect<ExtensionFolderChecked, RuntimeControlFailure, RuntimeControl> =>
     folderReadAndChecked(openProjectFolder, folder, kitFolderOfThisCheckout).pipe(
-      Effect.flatMap(({ holder, filesRead, decision }): Effect.Effect<ExtensionFolderGated, RuntimeControlFailure, RuntimeControl> => {
+      Effect.flatMap(({ holder, filesRead, decision }): Effect.Effect<ExtensionFolderChecked, RuntimeControlFailure, RuntimeControl> => {
         switch (decision.kind) {
           case "passed": {
             const files = new Map([...filesRead].map(([filePath, fileBytes]) => [`${holder.prefix_in_the_open_project}${filePath}`, fileBytes]));
@@ -189,16 +205,29 @@ function folderGated(openProjectFolder: string, folder: ExtensionFolderToGate, k
         }
       }),
     );
-  return readAndCheck(READS_OF_A_CHANGING_FOLDER).pipe(Effect.catch((failure) => Effect.succeed<ExtensionFolderGated>({ kind: "blocked", words: wordsOfACheckThatDidNotAnswer(failure, codeWordsOfTheFolder(folder.folder_in_the_project)), checked_to_its_end: false })));
+  return readAndCheck(READS_OF_A_CHANGING_FOLDER).pipe(Effect.catch((failure) => Effect.succeed<ExtensionFolderChecked>({ kind: "blocked", words: wordsOfACheckThatDidNotAnswer(failure, codeWordsOfTheFolder(folder.folder_in_the_project)), checked_to_its_end: false })));
 }
 
-/** The outcome of each folder the gate checked, by project, kept until the runtime names a file of the folder as changed. */
+/**
+ * The words of the folder `folderInTheProject` held at the version that last passed while `blocked` blocks its newest: the Studio's
+ * lines, then what the gate gave after its own line, or that line where it gave nothing more.
+ */
+function wordsOfANewerVersionBlocked(folderInTheProject: string, blocked: ExtensionFolderBlocked): string {
+  const [gatesLine = "", ...gatesWords] = blocked.words.split("\n").filter((line) => line !== NOTHING_UNCHECKED_IS_LOADED);
+  return [LAST_PASSED_VERSION_KEPT, `The newer version of ${codeWordsOfTheFolder(folderInTheProject)} is blocked.`, ...(gatesWords.length > 0 ? gatesWords : [gatesLine])].join("\n");
+}
+
+/**
+ * The outcome of each folder the gate checked, by project, kept until the runtime names a file of the folder as changed, and
+ * the version of each folder that last passed in this session, kept for as long as the Studio runs.
+ */
 export class ExtensionFolderChecksKept {
-  private readonly outcomesByOpenProjectFolder = new Map<string, Map<string, ExtensionFolderGated>>();
+  private readonly outcomesByOpenProjectFolder = new Map<string, Map<string, ExtensionFolderChecked>>();
+  private readonly lastPassedByOpenProjectFolder = new Map<string, Map<string, ExtensionFolderPassed>>();
   private readonly changesNoticedByOpenProjectFolder = new Map<string, number>();
 
   /** The outcome kept for `folderInTheProject` of the project in `openProjectFolder`; `null` when it is to be checked. */
-  kept(openProjectFolder: string, folderInTheProject: string): ExtensionFolderGated | null {
+  kept(openProjectFolder: string, folderInTheProject: string): ExtensionFolderChecked | null {
     return this.outcomesByOpenProjectFolder.get(openProjectFolder)?.get(folderInTheProject) ?? null;
   }
 
@@ -208,11 +237,23 @@ export class ExtensionFolderChecksKept {
   }
 
   /** Keep `gated` for `folderInTheProject`, checked from the mark `changesNoticedAtTheStart`, unless a change was noticed since or the runtime did not finish: those are checked again. */
-  keep(openProjectFolder: string, folderInTheProject: string, gated: ExtensionFolderGated, changesNoticedAtTheStart: number): void {
+  keep(openProjectFolder: string, folderInTheProject: string, gated: ExtensionFolderChecked, changesNoticedAtTheStart: number): void {
     if ((gated.kind === "blocked" && !gated.checked_to_its_end) || this.changesNoticed(openProjectFolder) !== changesNoticedAtTheStart) return;
-    const outcomes = this.outcomesByOpenProjectFolder.get(openProjectFolder) ?? new Map<string, ExtensionFolderGated>();
+    const outcomes = this.outcomesByOpenProjectFolder.get(openProjectFolder) ?? new Map<string, ExtensionFolderChecked>();
     outcomes.set(folderInTheProject, gated);
     this.outcomesByOpenProjectFolder.set(openProjectFolder, outcomes);
+  }
+
+  /** `checked` as the Studio serves it: a version that passed, kept as the one that last passed; a blocked one held at the version that last passed in this session, when one did. */
+  heldAtTheLastPassedVersion(openProjectFolder: string, folderInTheProject: string, checked: ExtensionFolderChecked): ExtensionFolderGated {
+    const lastPassedByFolder = this.lastPassedByOpenProjectFolder.get(openProjectFolder) ?? new Map<string, ExtensionFolderPassed>();
+    this.lastPassedByOpenProjectFolder.set(openProjectFolder, lastPassedByFolder);
+    if (checked.kind === "passed") {
+      lastPassedByFolder.set(folderInTheProject, checked);
+      return checked;
+    }
+    const lastPassed = lastPassedByFolder.get(folderInTheProject);
+    return lastPassed === undefined ? checked : { kind: "held", last_passed: lastPassed, newer_version_blocked_because: wordsOfANewerVersionBlocked(folderInTheProject, checked) };
   }
 
   /** Forget the outcome of each folder holding one of `changedFiles` of the project in `openProjectFolder`, or of every folder when `changedFiles` is `null`, as when changes may have gone untold. */
@@ -230,14 +271,17 @@ export class ExtensionFolderChecksKept {
   }
 }
 
-/** The folder `folder` of the project in `openProjectFolder` through the gate: its kept outcome, or a check of it kept for next time. */
+/** The folder `folder` of the project in `openProjectFolder` through the gate: its kept outcome, or a check of it kept for next time; held at the version that last passed when it is blocked after one did. */
 export function extensionFolderGated(openProjectFolder: string, folder: ExtensionFolderToGate, sources: ExtensionFolderChecksSources): Effect.Effect<ExtensionFolderGated, never, RuntimeControl> {
   return Effect.suspend(() => {
     const kept = sources.checksKept.kept(openProjectFolder, folder.folder_in_the_project);
-    if (kept !== null) return Effect.succeed(kept);
     const changesNoticedAtTheStart = sources.checksKept.changesNoticed(openProjectFolder);
-    return folderGated(openProjectFolder, folder, sources.kitFolderOfThisCheckout).pipe(
-      Effect.tap((gated) => Effect.sync(() => sources.checksKept.keep(openProjectFolder, folder.folder_in_the_project, gated, changesNoticedAtTheStart))),
-    );
+    const checked =
+      kept !== null
+        ? Effect.succeed(kept)
+        : folderGated(openProjectFolder, folder, sources.kitFolderOfThisCheckout).pipe(
+            Effect.tap((gated) => Effect.sync(() => sources.checksKept.keep(openProjectFolder, folder.folder_in_the_project, gated, changesNoticedAtTheStart))),
+          );
+    return checked.pipe(Effect.map((gated) => sources.checksKept.heldAtTheLastPassedVersion(openProjectFolder, folder.folder_in_the_project, gated)));
   });
 }

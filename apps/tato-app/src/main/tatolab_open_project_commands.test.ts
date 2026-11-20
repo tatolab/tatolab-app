@@ -454,9 +454,10 @@ test("the open project's views are the runtime's list_project_views of its folde
       opens: false,
       not_opened_because: "`contract`: this runtime reads view contract 1.0.",
       folder_url: "",
+      newer_version_blocked_because: null,
       has_its_manifest: true,
     },
-    { view_type_id: "night-show:deck", project_name: "night-show", import_folder: null, opens: true, not_opened_because: null, folder_url: projectViewFolderUrl(recordedNightShowFolder, deckVersion, "views/deck"), has_its_manifest: true },
+    { view_type_id: "night-show:deck", project_name: "night-show", import_folder: null, opens: true, not_opened_because: null, folder_url: projectViewFolderUrl(recordedNightShowFolder, deckVersion, "views/deck"), newer_version_blocked_because: null, has_its_manifest: true },
     {
       view_type_id: "lobby-wall:meter",
       project_name: "lobby-wall",
@@ -464,6 +465,7 @@ test("the open project's views are the runtime's list_project_views of its folde
       opens: true,
       not_opened_because: null,
       folder_url: projectViewFolderUrl(recordedNightShowFolder, meterVersion, "imports/lobby-wall/views/meter"),
+      newer_version_blocked_because: null,
       has_its_manifest: true,
     },
   ]);

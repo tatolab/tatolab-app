@@ -44,7 +44,7 @@ export function RefusalLine({
       {...controlDataAttributes}
     >
       <ToneIcon className={cn("mt-px shrink-0", layout === "under_field" ? "size-3" : "size-3.5", tone === "failure" ? "text-danger" : "text-warn")} strokeWidth={1.75} aria-hidden />
-      <span className="min-w-0 break-words select-text">
+      <span className={cn("min-w-0 break-words select-text", layout === "bar" && "whitespace-pre-line")}>
         {lead !== undefined && <span className={tone === "failure" ? "text-danger-text" : "text-warn-text"}>{lead} </span>}
         <span className={layout === "bar" ? "text-fg" : undefined}>{words}</span>
         {whatRecoversFromIt !== undefined && <span className="block">{whatRecoversFromIt}</span>}
