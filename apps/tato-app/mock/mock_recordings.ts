@@ -149,10 +149,10 @@ export const MOCK_RECORDED_REFUSAL_OF_A_VALUE_OF_ANOTHER_TYPE: ProjectActionRefu
 
 /**
  * A stand-in, since no recording of the every-pin-kind sample holds a warned link: the warning streamlib's engine test
- * `a_connected_link_carries_the_warnings_its_verdict_gives` pins for a link between two stated meanings, given to the
+ * `a_connected_link_carries_the_warnings_its_verdict_gives` pins for a link between two stated meanings, with its words, given to the
  * sample's link from `beat.count` into `warmth.count`, so the canvas shows a warned link as the runtime serves one.
  */
-const STAND_IN_WARNING_OF_A_LINK: StreamGraphLinkWarning = { warning: "meanings_differ", output_meaning: "seconds", input_meaning: "frames" };
+const STAND_IN_WARNING_OF_A_LINK: StreamGraphLinkWarning = { warning: "meanings_differ", output_meaning: "seconds", input_meaning: "frames", words: "the output carries `seconds` and the input takes `frames`" };
 
 /** The every-pin-kind sample's graph with `STAND_IN_WARNING_OF_A_LINK` on its link from `beat.count` into `warmth.count`. */
 export function mockEveryPinKindGraphWithAStandInWarnedLink(): MockStreamGraph {

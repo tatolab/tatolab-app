@@ -309,8 +309,8 @@ test("an_input_that_takes_a_wire_reads_it_where_wires_are_read_through_the_port_
   expect(inputsOf(streamGraphCanvasContents(graph, NONE_DESCRIBED, null, level), "invert")).toEqual([["video_in", null]]);
 });
 
-test("a_link_the_runtime_marks_free_or_warns_of_carries_its_marks_on_the_input_it_feeds_and_a_warned_link_says_why_in_the_runtimes_words", () => {
-  const meaningsDiffer = { warning: "meanings_differ", output_meaning: "seconds", input_meaning: "frames" } as const;
+test("a_link_the_runtime_marks_free_or_warns_of_carries_its_marks_on_the_input_it_feeds_and_a_warned_link_says_why_in_the_words_the_runtime_gave", () => {
+  const meaningsDiffer = { warning: "meanings_differ", output_meaning: "seconds", input_meaning: "frames", words: "the output carries `seconds` and the input takes `frames`" } as const;
   const graph = aStreamGraph(
     [
       graphNode("clock", [], [], { outputs: [aGraphPort("elapsed", "channels", { pin_type: { type: "float" }, flow: "value" }), aGraphPort("beat", "channels", { pin_type: { type: "integer" }, flow: "value" })] }),
@@ -328,7 +328,7 @@ test("a_link_the_runtime_marks_free_or_warns_of_carries_its_marks_on_the_input_i
     ["rate", null],
   ]);
   expect(contents.links.map((link) => [link.link_id, link.warning_words, link.description])).toEqual([
-    ["Lwarned", ["The output carries `seconds` and the input takes `frames`"], "clock.elapsed → counter.count, wired\nThe output carries `seconds` and the input takes `frames`"],
+    ["Lwarned", ["the output carries `seconds` and the input takes `frames`"], "clock.elapsed → counter.count, wired\nthe output carries `seconds` and the input takes `frames`"],
     ["Lfree", [], "clock.beat → counter.level, wired"],
   ]);
 });

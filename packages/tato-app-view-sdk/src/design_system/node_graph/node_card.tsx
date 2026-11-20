@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, Hammer, SquareX, TriangleAlert, type LucideI
 import { Fragment, memo, useContext, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { inputAddressKey, type InputAddress } from "../../pin_model/node_inputs";
 import { takesAControl } from "../../pin_model/controlled_inputs";
-import { freeConversionWords, wordsOfTheLinkWarnings } from "../../pin_model/node_input_link";
+import { freeConversionWords } from "../../pin_model/node_input_link";
 import { doesAChangeRebuildTheNode, nodePinRows, type NodePin } from "../../pin_model/node_pins";
 import { valueWords, wordsOfAValueOfNoType } from "../../pin_model/value_words";
 import type { PinFlow, PinType } from "../../pin_type_readings";
@@ -23,7 +23,7 @@ import { isAPinSocketOfTheCardUnmeasured } from "../support/node_graph_pin_socke
 function nodeGraphPinTooltip(pin: NodePin): string {
   const facts = [pin.name, pinWords(pin.pin), ...pin.stream_facts_words].join(" · ");
   const freeConversion = freeConversionWords(pin.link, pin.pin);
-  return [facts, pin.description, freeConversion, ...wordsOfTheLinkWarnings(pin.link?.warnings)].filter((line) => line !== null).join("\n");
+  return [facts, pin.description, freeConversion, ...(pin.link?.warnings ?? []).map((warning) => warning.words)].filter((line) => line !== null).join("\n");
 }
 
 /** The attributes a socket's shape and colour are picked by: its flow (round while it has none) and its type's key. */
@@ -145,7 +145,7 @@ export function NodeGraphRebuildsTheNodeMark({ pin }: { pin: NodePin }) {
 
 /** The amber triangle beside the name of an input whose link the runtime warns of, saying each warning in its words; none on any other pin. */
 function NodeGraphLinkWarningMark({ pin }: { pin: NodePin }) {
-  const warningWords = wordsOfTheLinkWarnings(pin.link?.warnings);
+  const warningWords = (pin.link?.warnings ?? []).map((warning) => warning.words);
   if (warningWords.length === 0) return null;
   return <NodeGraphPinRowMark icon={TriangleAlert} words={warningWords.join("\n")} toneClassName="text-warn-text" markAttributes={{ "data-node-graph-link-warning": pin.name }} />;
 }

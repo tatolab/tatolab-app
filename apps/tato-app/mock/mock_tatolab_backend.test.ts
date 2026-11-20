@@ -279,7 +279,7 @@ describe("the mock backend's stream actions", () => {
     const warned = backendWithAWarnedLink.describeStreamGraph(MAIN);
     await vi.advanceTimersByTimeAsync(100);
     expect(marksOf(await warned)).toEqual([
-      ["beat.count → warmth.count", null, [{ warning: "meanings_differ", output_meaning: "seconds", input_meaning: "frames" }]],
+      ["beat.count → warmth.count", null, [{ warning: "meanings_differ", output_meaning: "seconds", input_meaning: "frames", words: "the output carries `seconds` and the input takes `frames`" }]],
       ["beat.glow → glow.glow", true, null],
       ["warmth.result → glow.warmth", true, null],
     ]);
