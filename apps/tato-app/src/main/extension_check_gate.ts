@@ -34,7 +34,7 @@ type ProjectCodeCheckFinding = ControlContractComponents["ProjectCodeCheckFindin
 /** How many times a folder is read and checked before a folder still changing under the check is blocked. */
 const READS_OF_A_CHANGING_FOLDER = 3;
 
-/** An extension folder of an open project: its path in the open project, as `views/deck` or `imports/levels/views/meter`. */
+/** An extension folder of an open project: its path in the open project, a view's as `views/deck` or `imports/levels/views/meter`, a module's node UI folder's as `node_ui` or `imports/levels/node_ui`. */
 export interface ExtensionFolderToGate {
   readonly folder_in_the_project: string;
 }
@@ -71,6 +71,21 @@ function theProjectThatHoldsTheFolder(openProjectFolder: string, folderInTheProj
     : { project_directory: path.join(openProjectFolder, "imports", importFolder), prefix_in_the_open_project: `imports/${importFolder}/` };
 }
 
+/** Whether `folderInTheProject` is a module's node UI folder, its own `node_ui` or an import's `imports/<import>/node_ui`, rather than a view's. */
+export function isANodeUiFolder(folderInTheProject: string): boolean {
+  return folderInTheProject === "node_ui" || /^imports\/[^/]+\/node_ui$/.test(folderInTheProject);
+}
+
+/** What the words call the code of the folder `folderInTheProject`: a module's node UI folder's controls and node bodies, or a view's. */
+export function codeWordsOfTheFolder(folderInTheProject: string): string {
+  return isANodeUiFolder(folderInTheProject) ? "this module's node UI code" : "this view's code";
+}
+
+/** `words` with its first letter a capital. */
+function capitalized(words: string): string {
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+}
+
 /** The version naming `files`, by path and bytes: two folders with the same version hold the same files. */
 export function folderVersionOf(files: ReadonlyMap<string, Buffer>): string {
   const versionHash = createHash("sha256");
@@ -92,13 +107,14 @@ export type GateDecision = { readonly kind: "passed" } | ExtensionFolderBlocked 
 /**
  * What the gate decides of `checked`, the runtime's check of the folder whose bytes it read as `filesRead` (by path in the project it
  * asked about): passed only on a `passed` verdict over those very bytes, checked with this Studio's SDK; `kitFolderOfThisCheckout`
- * named in the words when no kit was found.
+ * named in the words when no kit was found, and the folder's code called `codeWords` in them.
  */
 export function gateDecisionOf(
   checked: ProjectCodeCheckResult,
   filesRead: ReadonlyMap<string, Buffer>,
   prefixInTheOpenProject: string,
   kitFolderOfThisCheckout: string | null,
+  codeWords = "this view's code",
 ): GateDecision {
   const hashesChecked = new Map(checked.files_checked.map((fileChecked) => [fileChecked.path, fileChecked.content_sha256]));
   for (const [filePath, fileBytes] of filesRead) {
@@ -108,16 +124,16 @@ export function gateDecisionOf(
   if ([...hashesChecked.keys()].some((filePath) => !filesRead.has(filePath))) return { kind: "read_again" };
   const findingLines = checked.findings.map((finding) => findingLine(finding, prefixInTheOpenProject));
   if (checked.verdict === "failed") {
-    return { kind: "blocked", words: ["This view's code did not pass the runtime's check, so the Studio does not load it.", ...findingLines].join("\n"), checked_to_its_end: true };
+    return { kind: "blocked", words: [`${capitalized(codeWords)} did not pass the runtime's check, so the Studio does not load it.`, ...findingLines].join("\n"), checked_to_its_end: true };
   }
   if (checked.verdict !== "passed") {
     const notChecked = checked.checks.flatMap((run) => (run.state === "passed" || run.state === "failed" || run.not_checked_because === null || run.not_checked_because === undefined ? [] : [run.not_checked_because]));
     const noKit = notChecked.some((refusal) => refusal.refusal_code === "extension_sdk_not_found");
     const studioLine = noKit
       ? kitFolderOfThisCheckout === null
-        ? "The runtime found no extension SDK to check this view's code against, so the Studio does not load it."
-        : `The runtime found no extension SDK to check this view's code against, so the Studio does not load it. Start tatolabd with ${EXTENSION_SDK_KIT_ENVIRONMENT_VARIABLE}=${kitFolderOfThisCheckout}, the kit this checkout's SDK build wrote.`
-      : "The runtime could not finish checking this view's code, so the Studio does not load it.";
+        ? `The runtime found no extension SDK to check ${codeWords} against, so the Studio does not load it.`
+        : `The runtime found no extension SDK to check ${codeWords} against, so the Studio does not load it. Start tatolabd with ${EXTENSION_SDK_KIT_ENVIRONMENT_VARIABLE}=${kitFolderOfThisCheckout}, the kit this checkout's SDK build wrote.`
+      : `The runtime could not finish checking ${codeWords}, so the Studio does not load it.`;
     return { kind: "blocked", words: [studioLine, ...[...new Set(notChecked.map((refusal) => refusal.runtime_words))], ...findingLines, NOTHING_UNCHECKED_IS_LOADED].join("\n"), checked_to_its_end: false };
   }
   const sdkVersionsCheckedWith = new Set(
@@ -129,7 +145,7 @@ export function gateDecisionOf(
     const checkedAgainst = otherSdkVersions.length > 0 ? `${EXTENSION_SDK_PACKAGE_NAME} ${otherSdkVersions.join(", ")}` : `no ${EXTENSION_SDK_PACKAGE_NAME}`;
     return {
       kind: "blocked",
-      words: `The runtime checked this view's code against ${checkedAgainst}, and this Studio is built with ${EXTENSION_SDK_PACKAGE_NAME} ${STUDIO_EXTENSION_SDK_VERSION}, so the Studio does not load it.\n${NOTHING_UNCHECKED_IS_LOADED}`,
+      words: `The runtime checked ${codeWords} against ${checkedAgainst}, and this Studio is built with ${EXTENSION_SDK_PACKAGE_NAME} ${STUDIO_EXTENSION_SDK_VERSION}, so the Studio does not load it.\n${NOTHING_UNCHECKED_IS_LOADED}`,
       checked_to_its_end: true,
     };
   }
@@ -137,8 +153,8 @@ export function gateDecisionOf(
 }
 
 /** The words of a folder whose check `failure` stopped before the runtime answered it. */
-function wordsOfACheckThatDidNotAnswer(failure: RuntimeControlFailure): string {
-  return ["The runtime did not answer the check of this view's code, so the Studio does not load it.", failure.words, NOTHING_UNCHECKED_IS_LOADED].join("\n");
+function wordsOfACheckThatDidNotAnswer(failure: RuntimeControlFailure, codeWords: string): string {
+  return [`The runtime did not answer the check of ${codeWords}, so the Studio does not load it.`, failure.words, NOTHING_UNCHECKED_IS_LOADED].join("\n");
 }
 
 /** The folder `folder` of the project in `openProjectFolder`, read and checked once: each file it holds by path in the project the runtime checks, and the gate's decision. */
@@ -151,7 +167,7 @@ const folderReadAndChecked = Effect.fn("extension_folder_read_and_checked")(func
   }
   const runtimeControl = yield* RuntimeControl;
   const checked = yield* runtimeControl.call("check_project_code", { project_directory: holder.project_directory, paths: [...filesRead.keys()] });
-  return { holder, filesRead, decision: gateDecisionOf(checked, filesRead, holder.prefix_in_the_open_project, kitFolderOfThisCheckout) };
+  return { holder, filesRead, decision: gateDecisionOf(checked, filesRead, holder.prefix_in_the_open_project, kitFolderOfThisCheckout, codeWordsOfTheFolder(folder.folder_in_the_project)) };
 });
 
 /** The folder `folder` of the project in `openProjectFolder` through the gate, read again while a file changes under its check. */
@@ -169,11 +185,11 @@ function folderGated(openProjectFolder: string, folder: ExtensionFolderToGate, k
           case "read_again":
             return readsLeft > 1
               ? readAndCheck(readsLeft - 1)
-              : Effect.succeed({ kind: "blocked", words: `This view's files kept changing while the runtime checked them, so the Studio does not load it.\n${NOTHING_UNCHECKED_IS_LOADED}`, checked_to_its_end: false });
+              : Effect.succeed({ kind: "blocked", words: `${capitalized(codeWordsOfTheFolder(folder.folder_in_the_project))} kept changing while the runtime checked it, so the Studio does not load it.\n${NOTHING_UNCHECKED_IS_LOADED}`, checked_to_its_end: false });
         }
       }),
     );
-  return readAndCheck(READS_OF_A_CHANGING_FOLDER).pipe(Effect.catch((failure) => Effect.succeed<ExtensionFolderGated>({ kind: "blocked", words: wordsOfACheckThatDidNotAnswer(failure), checked_to_its_end: false })));
+  return readAndCheck(READS_OF_A_CHANGING_FOLDER).pipe(Effect.catch((failure) => Effect.succeed<ExtensionFolderGated>({ kind: "blocked", words: wordsOfACheckThatDidNotAnswer(failure, codeWordsOfTheFolder(folder.folder_in_the_project)), checked_to_its_end: false })));
 }
 
 /** The outcome of each folder the gate checked, by project, kept until the runtime names a file of the folder as changed. */

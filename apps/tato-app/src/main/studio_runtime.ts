@@ -23,6 +23,7 @@ import type { ProjectFolderDialogPurpose, RecentProjectFolderOpened, StudioWindo
 import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import type { ExtensionFolderChecksSources, ExtensionFolderPassed } from "./extension_check_gate.js";
+import type { ExtensionFoldersListed } from "./extension_files_served_with_types_removed.js";
 import { readThePackageCatalog } from "./package_catalog.js";
 import { controlPushesFollowedForTheWindows } from "./control_pushes_followed_for_the_windows.js";
 import { PROJECT_LOG_RECORDS_WRITTEN, tellTheWindowTheProjectLogRecordsWritten, type ProjectLogRecordsFollowedForTheWindows, type WindowFollowingProjectLogs } from "./project_log_records_followed_for_the_windows.js";
@@ -111,11 +112,11 @@ export class ProjectViewsListed extends Context.Service<
   ProjectViewsListed,
   {
     /** The view folder `viewFolderInTheProject` at `folderVersion` as the last listing of the project in `openProjectFolder` passed it; `null` when it holds none. */
-    readonly passedViewFolder: (openProjectFolder: string, folderVersion: string, viewFolderInTheProject: string) => ExtensionFolderPassed | null;
+    readonly passedExtensionFolder: (openProjectFolder: string, folderVersion: string, viewFolderInTheProject: string) => ExtensionFolderPassed | null;
     /** The mark of a listing about to be asked for, which `rememberTheListing` takes back with its answer. */
     readonly startAListing: Effect.Effect<number>;
-    /** Keep `passedViewFolders`, by view folder, as the listing of the project in `openProjectFolder` started as `listingStarted`, unless a listing started later is already kept. */
-    readonly rememberTheListing: (openProjectFolder: string, listingStarted: number, passedViewFolders: ReadonlyMap<string, ExtensionFolderPassed>) => Effect.Effect<void>;
+    /** Keep `passedFolders`, by folder, as the `listed` listing of the project in `openProjectFolder` started as `listingStarted`, unless one started later is already kept. */
+    readonly rememberTheListing: (openProjectFolder: string, listed: ExtensionFoldersListed, listingStarted: number, passedFolders: ReadonlyMap<string, ExtensionFolderPassed>) => Effect.Effect<void>;
     /** What the extension check gate keeps and names. */
     readonly extensionFolderChecks: ExtensionFolderChecksSources;
   }
@@ -515,10 +516,10 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
       forget: (folder) => commandAnswerOfPlainCode(() => sharedState.recentProjectFolders.forget(folder)),
     }),
     Layer.succeed(ProjectViewsListed, {
-      passedViewFolder: (openProjectFolder, folderVersion, viewFolderInTheProject) => sharedState.projectViewsListed.passedViewFolder(openProjectFolder, folderVersion, viewFolderInTheProject),
+      passedExtensionFolder: (openProjectFolder, folderVersion, viewFolderInTheProject) => sharedState.projectViewsListed.passedExtensionFolder(openProjectFolder, folderVersion, viewFolderInTheProject),
       startAListing: Effect.sync(() => sharedState.projectViewsListed.startAListing()),
-      rememberTheListing: (openProjectFolder, listingStarted, passedViewFolders) =>
-        Effect.sync(() => sharedState.projectViewsListed.rememberTheListing(openProjectFolder, listingStarted, passedViewFolders)),
+      rememberTheListing: (openProjectFolder, listed, listingStarted, passedFolders) =>
+        Effect.sync(() => sharedState.projectViewsListed.rememberTheListing(openProjectFolder, listed, listingStarted, passedFolders)),
       extensionFolderChecks: sharedState.extensionFolderChecks,
     }),
     Layer.succeed(ListedStreams, {

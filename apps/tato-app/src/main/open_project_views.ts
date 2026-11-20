@@ -50,6 +50,6 @@ export const studioViewsOfTheOpenProject = Effect.fn("studioViewsOfTheOpenProjec
       ...(gated?.kind === "blocked" ? { opens: false, not_opened_because: gated.words } : studioViewOpeningOf(listedView)),
     };
   });
-  yield* projectViewsListed.rememberTheListing(openProjectFolder, listingStarted, passedViewFolders);
+  yield* projectViewsListed.rememberTheListing(openProjectFolder, "views", listingStarted, passedViewFolders);
   return studioViews;
 });

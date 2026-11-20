@@ -467,8 +467,8 @@ test("the open project's views are the runtime's list_project_views of its folde
       has_its_manifest: true,
     },
   ]);
-  expect(sharedState.projectViewsListed.passedViewFolder(recordedNightShowFolder, deckVersion, "views/deck")?.files).toEqual(new Map([["views/deck/index.html", Buffer.from(NOTES_PAGE)]]));
-  expect(sharedState.projectViewsListed.passedViewFolder(recordedNightShowFolder, deckVersion, "views/broken")).toBeNull();
+  expect(sharedState.projectViewsListed.passedExtensionFolder(recordedNightShowFolder, deckVersion, "views/deck")?.files).toEqual(new Map([["views/deck/index.html", Buffer.from(NOTES_PAGE)]]));
+  expect(sharedState.projectViewsListed.passedExtensionFolder(recordedNightShowFolder, deckVersion, "views/broken")).toBeNull();
   expect(sharedState.localApiControlOperationCallsReceived().filter(([method]) => method === "check_project_code").map(([, params]) => params)).toEqual([
     { project_directory: recordedNightShowFolder, paths: ["views/deck/index.html"] },
     { project_directory: `${recordedNightShowFolder}/imports/lobby-wall`, paths: ["views/meter/index.html", "views/meter/meter.ts"] },
