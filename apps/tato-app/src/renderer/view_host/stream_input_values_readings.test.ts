@@ -25,7 +25,7 @@ const graphReading = (gain: StreamGraphInputValueRead, innerGain: StreamGraphInp
 
 const saved = (value: number): StreamGraphInputValueRead => ({ value, comes_from: "saved" });
 const live = (value: number): StreamGraphInputValueRead => ({ value, comes_from: "live" });
-const gainChanged = (value_read: StreamGraphInputValueRead, node = "MIX-ID"): StreamGraphInputValueChange => ({ node, input: "gain", value_read });
+const gainChanged = (value_read: StreamGraphInputValueRead, node = "MIX-ID"): StreamGraphInputValueChange => ({ node, input: "gain", member: null, value_read });
 
 function watched(readings: StreamInputValuesReadings): StreamInputValuesReading[] {
   const told: StreamInputValuesReading[] = [];
@@ -47,12 +47,12 @@ test("a_watcher_is_told_every_input_that_holds_a_value_at_every_level_once_the_g
       kind: "values",
       stream_asset: "STREAM-ASSET",
       values: [
-        { level: [], node_id: "MIX-ID", input: "gain", value_read: saved(0.5) },
-        { level: ["SUB-ID"], node_id: "INNER-ID", input: "gain", value_read: { value: 1, comes_from: "default" } },
+        { level: [], node_id: "MIX-ID", input: "gain", member: null, value_read: saved(0.5) },
+        { level: ["SUB-ID"], node_id: "INNER-ID", input: "gain", member: null, value_read: { value: 1, comes_from: "default" } },
       ],
     },
-    { kind: "changed", stream_asset: "STREAM-ASSET", change: { level: [], node_id: "MIX-ID", input: "gain", value_read: live(0.7) } },
-    { kind: "changed", stream_asset: "STREAM-ASSET", change: { level: ["SUB-ID"], node_id: "INNER-ID", input: "gain", value_read: live(0.3) } },
+    { kind: "changed", stream_asset: "STREAM-ASSET", change: { level: [], node_id: "MIX-ID", input: "gain", member: null, value_read: live(0.7) } },
+    { kind: "changed", stream_asset: "STREAM-ASSET", change: { level: ["SUB-ID"], node_id: "INNER-ID", input: "gain", member: null, value_read: live(0.3) } },
   ]);
   const toldLater = watched(readings);
   expect(toldLater).toHaveLength(1);
@@ -83,11 +83,39 @@ test("a_change_that_reads_what_is_kept_already_or_names_an_input_the_reading_doe
   readings.readLanded(graphReading(saved(0.5)));
   const told = watched(readings);
   readings.takeTheChange(gainChanged(saved(0.5)));
-  readings.takeTheChange({ node: "MIX-ID", input: "video", value_read: live(1) });
+  readings.takeTheChange({ node: "MIX-ID", input: "video", member: null, value_read: live(1) });
   readings.takeTheChange(gainChanged(live(1), "NEW-ID"));
   readings.readStarting();
   readings.readLanded(graphReading(saved(0.5)));
   readings.readStarting();
   readings.readLanded(null);
   expect(told).toHaveLength(1);
+});
+
+test("each_member_of_a_bundle_input_is_kept_on_its_own_and_a_change_naming_one_member_changes_that_member_alone", () => {
+  const readings = new StreamInputValuesReadings();
+  const levels = aGraphPort("levels", "channels", {
+    pin_type: { type: "bundle", members: [{ name: "left", member_type: { type: "float" } }, { name: "right", member_type: { type: "float" } }] },
+    flow: "value",
+    member_values: [
+      { member: "left", value: 0.25, value_comes_from: "saved" },
+      { member: "right", value_comes_from: "wire" },
+    ],
+  });
+  readings.readStarting();
+  readings.readLanded(aStreamGraph([aGraphNode("mix", { id: "MIX-ID", type: "nodes.mix:Mix", kind: "function", config: {}, inputs: [levels], components: { state: "Running" } })], [], { asset: "STREAM-ASSET" }));
+  const told = watched(readings);
+  readings.takeTheChange({ node: "MIX-ID", input: "levels", member: "left", value_read: live(0.75) });
+  readings.takeTheChange({ node: "MIX-ID", input: "levels", member: "middle", value_read: live(0.5) });
+  expect(told).toEqual([
+    {
+      kind: "values",
+      stream_asset: "STREAM-ASSET",
+      values: [
+        { level: [], node_id: "MIX-ID", input: "levels", member: "left", value_read: saved(0.25) },
+        { level: [], node_id: "MIX-ID", input: "levels", member: "right", value_read: { value: null, comes_from: "wire" } },
+      ],
+    },
+    { kind: "changed", stream_asset: "STREAM-ASSET", change: { level: [], node_id: "MIX-ID", input: "levels", member: "left", value_read: live(0.75) } },
+  ]);
 });

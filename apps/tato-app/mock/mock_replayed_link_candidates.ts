@@ -3,9 +3,10 @@
 // dims and names a convert node from the runtime's words with `?main_graph=every_pin_kind`. The mock judges no
 // pin: a question it holds a recording of is answered with that recording, and any other is refused in words,
 // as a runtime that answers nothing would leave the canvas judging nothing. A question is matched on its pin and
-// what it asks among, not its stream asset, which the mock names apart from the runtime.
+// what it asks among, not its stream asset, which the mock names apart from the runtime. A link the mock connects
+// takes the marks the recorded check among the placed ports gave it.
 
-import type { CheckLinkCandidatesRequest, LinkCandidatesCheckResult } from "../src/shared/tatolab_backend_contract";
+import type { CheckLinkCandidatesRequest, LinkCandidatesCheckResult, StreamGraphLinkWarning } from "../src/shared/tatolab_backend_contract";
 import { describeTheContractIssues, readControlContractValue } from "../src/main/tatolab_runtime_control_operation_call";
 import beatCountAmongPlacedPorts from "./recordings/every-pin-kind-link-candidates-of-the-beat-count-output-among-placed-ports.json?raw";
 import beatCountAmongNodeTypePorts from "./recordings/every-pin-kind-link-candidates-of-the-beat-count-output-among-node-type-ports.json?raw";
@@ -83,4 +84,24 @@ export function mockReplayedLinkCandidatesOf(request: CheckLinkCandidatesRequest
   const recorded = RECORDED_ANSWERS.find(({ asked }) => asksTheSame(request, asked));
   if (recorded === undefined) throw "The mock holds no recorded answer of check_link_candidates for this pin.";
   return structuredClone(recorded.answer);
+}
+
+/** One placed port of the sample, by its node's UUID. */
+type PlacedPort = { readonly node: string; readonly port: string };
+
+/**
+ * The marks a link from `source` into `target` takes, as the runtime's recorded check among the placed ports answered for it:
+ * `free_conversion` where it answered `connects_with_free_conversion`, and the warnings it gave; none where no recording asks
+ * about that link, as the mock judges none.
+ */
+export function mockRecordedMarksOfTheLink(source: PlacedPort, target: PlacedPort): { free_conversion?: true; warnings?: StreamGraphLinkWarning[] } {
+  const isTheEnd = (end: LinkCandidatesCheckResult["candidates"][number]["end"], placed: PlacedPort): boolean => end.kind === "placed_port" && end.node === placed.node && end.port === placed.port;
+  for (const { asked, answer } of RECORDED_ANSWERS) {
+    if (asked.among !== "placed_ports") continue;
+    const other = "output" in asked.from && asked.from.output.node === source.node && asked.from.output.port === source.port ? target : "input" in asked.from && asked.from.input.node === target.node && asked.from.input.port === target.port ? source : null;
+    const check = other === null ? undefined : answer.candidates.find(({ end }) => isTheEnd(end, other))?.check;
+    if (check === undefined) continue;
+    return { ...(check.outcome === "connects_with_free_conversion" ? { free_conversion: true } : {}), ...(check.warnings === undefined ? {} : { warnings: structuredClone(check.warnings) }) };
+  }
+  return {};
 }

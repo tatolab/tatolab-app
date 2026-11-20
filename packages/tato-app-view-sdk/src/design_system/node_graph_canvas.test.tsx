@@ -29,12 +29,12 @@ function card(nodeId: string, isCollapsed: boolean): NodeGraphCanvasNode {
     description: "Passes each frame through.",
     condition: { look: "healthy" },
     inputs: [
-      { name: "video_in", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: "The frames to pass.", annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null },
-      { name: "gain", pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null },
-      { name: "boxes", pin: { pin_type: { type: "list_of", element_type: { type: "rectangle" } }, flow: "value" }, family: "array", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null },
-      { name: "reset", pin: { pin_type: { type: "trigger" }, flow: "trigger" }, family: "records", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null },
+      { name: "video_in", member: null, bundle: null, pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: "The frames to pass.", annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null },
+      { name: "gain", member: null, bundle: null, pin: { pin_type: { type: "float" }, flow: "value" }, family: "channels", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null },
+      { name: "boxes", member: null, bundle: null, pin: { pin_type: { type: "list_of", element_type: { type: "rectangle" } }, flow: "value" }, family: "array", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null },
+      { name: "reset", member: null, bundle: null, pin: { pin_type: { type: "trigger" }, flow: "trigger" }, family: "records", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null },
     ],
-    outputs: [{ name: "video_out", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null }],
+    outputs: [{ name: "video_out", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null }],
     saved_position: { x: 0, y: 0 },
     frame_id: FRAME_ID,
     is_collapsed: isCollapsed,
@@ -47,6 +47,7 @@ function editingRecorded() {
   const onFrameChanged = vi.fn();
   const onFrameRemoved = vi.fn();
   const onCardCollapsed = vi.fn();
+  const onBundleOpened = vi.fn();
   const applied = async () => "applied" as const;
   const editing: NodeGraphCanvasEditing = {
     onCardsMoved: applied,
@@ -62,8 +63,9 @@ function editingRecorded() {
     onFrameChanged,
     onFrameRemoved,
     onCardCollapsed,
+    onBundleOpened,
   };
-  return { editing, onFrameChanged, onFrameRemoved, onCardCollapsed };
+  return { editing, onFrameChanged, onFrameRemoved, onCardCollapsed, onBundleOpened };
 }
 
 function drawnCanvas(editing: NodeGraphCanvasEditing | null, isCollapsed = false, description: string | null = null) {
@@ -139,7 +141,7 @@ describe("a card's header", () => {
 describe("a card's settings", () => {
   it("draws each setting as a row with no socket, one read at setup marked as rebuilding the node, before the other inputs", async () => {
     const pattern = card("pattern", false);
-    const setting = (name: string, read: "at_setup" | "each_run"): NodeGraphCanvasNode["inputs"][number] => ({ name, pin: { pin_type: { type: "integer" }, flow: "value" }, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: { read }, wire: null });
+    const setting = (name: string, read: "at_setup" | "each_run"): NodeGraphCanvasNode["inputs"][number] => ({ name, member: null, bundle: null, pin: { pin_type: { type: "integer" }, flow: "value" }, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: { read }, wire: null, link: null });
     const { container } = render(
       <NodeGraphCanvas
         label="Stream graph"
@@ -163,6 +165,63 @@ describe("a card's settings", () => {
     ]);
     expect([...drawnCard.querySelectorAll(".node-graph-pin")].map((socket) => socket.getAttribute("data-handleid"))).toEqual(["output:video_out", "input:video_in", "input:gain", "input:boxes", "input:reset"]);
     expect([...drawnCard.querySelectorAll("[data-node-graph-rebuilds-the-node]")].map((mark) => [mark.getAttribute("data-node-graph-rebuilds-the-node"), mark.getAttribute("title")])).toEqual([["width", "A change rebuilds the node"]]);
+  });
+});
+
+describe("what the runtime marks on a link into an input", () => {
+  it("rings the socket of a link converted for free in the wire's type, never a Trigger's arrow, names both types in its hint and to a screen reader, and marks a warned input in the runtime's words", async () => {
+    const pattern = card("pattern", false);
+    const meaningsDiffer = { warning: "meanings_differ", output_meaning: "seconds", input_meaning: "frames", words: "the output carries `seconds` and the input takes `frames`" } as const;
+    const inputs = pattern.inputs.map((input): NodePin =>
+      input.name === "gain"
+        ? { ...input, link: { converts_for_free_from: { pin_type: { type: "integer" }, flow: "value" }, warnings: [meaningsDiffer] } }
+        : input.name === "reset"
+          ? { ...input, link: { converts_for_free_from: { pin_type: { type: "trigger" }, flow: "trigger" }, warnings: [] } }
+          : input,
+    );
+    const { container } = render(
+      <NodeGraphCanvas
+        label="Stream graph"
+        nodes={[{ ...pattern, inputs }]}
+        links={[]}
+        frames={[{ frame_id: FRAME_ID, title: "Frame", description: null, colour: null }]}
+        selectedNodeIds={[]}
+        onNodesSelected={vi.fn()}
+        editing={editingRecorded().editing}
+      />,
+    );
+    const drawnCard = await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-card="pattern"]') ?? expect.unreachable("no card"));
+    const gainSocket = drawnCard.querySelector<HTMLElement>('[data-handleid="input:gain"]') ?? expect.unreachable("no gain socket");
+    expect([gainSocket.getAttribute("data-pin-type"), gainSocket.getAttribute("data-converts-for-free-from"), gainSocket.querySelector(".node-graph-pin-wire-ring")?.getAttribute("data-pin-type")]).toEqual(["float", "integer", "integer"]);
+    expect(gainSocket.getAttribute("title")).toBe("gain · Float, one value at a time\nReads Integer as Float, for free\nthe output carries `seconds` and the input takes `frames`");
+    expect([...drawnCard.querySelectorAll("[data-converts-for-free-from]")].map((socket) => socket.getAttribute("data-handleid"))).toEqual(["input:gain"]);
+    expect([...drawnCard.querySelectorAll(".node-graph-pin-wire-ring")]).toHaveLength(1);
+    expect([...drawnCard.querySelectorAll("[data-node-graph-free-conversion]")].map((words) => [words.getAttribute("data-node-graph-free-conversion"), words.className, words.textContent])).toEqual([
+      ["gain", "sr-only", "Reads Integer as Float, for free"],
+      ["reset", "sr-only", "Reads Trigger as Trigger, for free"],
+    ]);
+    expect([...drawnCard.querySelectorAll("[data-node-graph-link-warning]")].map((mark) => [mark.getAttribute("data-node-graph-link-warning"), mark.getAttribute("title")])).toEqual([["gain", "the output carries `seconds` and the input takes `frames`"]]);
+  });
+
+  it("draws a link the runtime warns of amber, its warnings read after its state", () => {
+    const { container } = render(
+      <svg>
+        <NodeGraphLinkView
+          id="L1"
+          source="a"
+          target="b"
+          sourceX={0}
+          sourceY={0}
+          targetX={100}
+          targetY={0}
+          sourcePosition={Position.Right}
+          targetPosition={Position.Left}
+          data={{ graphLink: { link_id: "L1", source_node_id: "a", source_pin: "out", source_member: null, target_node_id: "b", target_pin: "in", target_member: null, look: "carrying", description: "a.out → b.in, wired\nA Vector is read as a Color", warning_words: ["A Vector is read as a Color"] }, pin_type_key: "vector" }}
+        />
+      </svg>,
+    );
+    const link = container.querySelector('[data-node-graph-link="L1"]');
+    expect([link?.getAttribute("data-warned"), link?.querySelector("title")?.textContent]).toEqual(["true", "a.out → b.in, wired\nA Vector is read as a Color"]);
   });
 });
 
@@ -477,7 +536,7 @@ describe("finding nodes in the graph", () => {
 
 describe("a node's card previewed outside a canvas", () => {
   it("draws the card's own header with its kind and pin rows, outputs first, with a socket per pin in its type's look", () => {
-    const previewPin = (name: string, pin: NodePin["pin"]): NodePin => ({ name, pin, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null });
+    const previewPin = (name: string, pin: NodePin["pin"]): NodePin => ({ name, member: null, bundle: null, pin, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null });
     const texture = { pin_type: { type: "texture" }, flow: "stream" } as const;
     const { container } = render(<NodeGraphCardPreview title="Halftone" kind={{ look: "shader" }} inputs={[previewPin("frames", texture), previewPin("level", null)]} outputs={[previewPin("image", texture)]} />);
     const preview = container.querySelector<HTMLElement>('[data-node-graph-card-preview="Halftone"]') ?? expect.unreachable("no preview");
@@ -521,10 +580,72 @@ describe("a pin's mark and a link outside a card", () => {
           targetY={0}
           sourcePosition={Position.Right}
           targetPosition={Position.Left}
-          data={{ graphLink: { link_id: "L1", source_node_id: "a", source_pin: "out", target_node_id: "b", target_pin: "in", look: "carrying", description: "wired" }, pin_type_key: "float" }}
+          data={{ graphLink: { link_id: "L1", source_node_id: "a", source_pin: "out", source_member: null, target_node_id: "b", target_pin: "in", target_member: null, look: "carrying", description: "wired", warning_words: [] }, pin_type_key: "float" }}
         />
       </svg>,
     );
     expect(container.querySelector('[data-node-graph-link="L1"]')?.getAttribute("data-pin-type")).toBe("float");
+  });
+});
+
+describe("a bundle pin", () => {
+  const memberPin = (member: string): NodePin => ({ name: "levels", member, bundle: null, pin: { pin_type: { type: "float" }, flow: "value" }, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null });
+  const mixCard = (isOpen: boolean): NodeGraphCanvasNode => ({
+    ...card("mix", false),
+    inputs: [
+      {
+        name: "levels",
+        member: null,
+        bundle: { members: [memberPin("left"), memberPin("right")], is_open: isOpen },
+        pin: { pin_type: { type: "bundle", members: [{ name: "left", member_type: { type: "float" } }, { name: "right", member_type: { type: "float" } }] }, flow: "value" },
+        family: "channels",
+        description: null,
+        annotations: {},
+        stream_facts_words: [],
+        value_address: null,
+        setting: null,
+        wire: null,
+        link: null,
+      },
+    ],
+    outputs: [],
+  });
+  const drawnMix = (isOpen: boolean, editing: NodeGraphCanvasEditing | null) =>
+    render(<NodeGraphCanvas label="Stream graph" nodes={[mixCard(isOpen)]} links={[]} frames={[]} selectedNodeIds={[]} onNodesSelected={vi.fn()} editing={editing} />);
+
+  it("draws a doubled socket on its own row while closed, and a row and a socket of each member's type under it while open", async () => {
+    const closed = drawnMix(false, null);
+    const closedCard = await vi.waitFor(() => closed.container.querySelector<HTMLElement>('[data-node-graph-card="mix"]') ?? expect.unreachable("no card"));
+    expect([...closedCard.querySelectorAll("[data-node-graph-pin-row]")].map((row) => row.textContent)).toEqual(["levels"]);
+    expect(closedCard.querySelector('.node-graph-pin[data-handleid="input:levels"]')?.getAttribute("data-bundle")).toBe("closed");
+    cleanup();
+
+    const open = drawnMix(true, null);
+    const openCard = await vi.waitFor(() => open.container.querySelector<HTMLElement>('[data-node-graph-card="mix"]') ?? expect.unreachable("no card"));
+    expect([...openCard.querySelectorAll("[data-node-graph-pin-row]")].map((row) => [row.textContent, row.getAttribute("data-node-graph-member")])).toEqual([
+      ["levels", null],
+      ["left", "left"],
+      ["right", "right"],
+    ]);
+    expect([...openCard.querySelectorAll(".node-graph-pin")].map((socket) => [socket.getAttribute("data-handleid"), socket.getAttribute("data-pin-type"), socket.getAttribute("data-bundle")])).toEqual([
+      ["input:levels", "bundle", "open"],
+      ["input:levels/left", "float", null],
+      ["input:levels/right", "float", null],
+    ]);
+  });
+
+  it("is opened and closed by the chevron leading its row, which a read-only canvas does not draw", async () => {
+    const { editing, onBundleOpened } = editingRecorded();
+    const editable = drawnMix(false, editing);
+    const chevron = await vi.waitFor(() => editable.container.querySelector<HTMLElement>('[data-node-graph-bundle-open="levels"]') ?? expect.unreachable("no chevron"));
+    expect(chevron.getAttribute("aria-expanded")).toBe("false");
+    expect(chevron.getAttribute("aria-label")).toBe("levels members");
+    fireEvent.click(chevron);
+    expect(onBundleOpened).toHaveBeenCalledWith("mix", "input", "levels", true);
+    cleanup();
+
+    const readOnly = drawnMix(true, null);
+    await vi.waitFor(() => readOnly.container.querySelector('[data-node-graph-card="mix"]') ?? expect.unreachable("no card"));
+    expect(readOnly.container.querySelector("[data-node-graph-bundle-open]")).toBeNull();
   });
 });

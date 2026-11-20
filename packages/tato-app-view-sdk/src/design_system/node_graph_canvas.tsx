@@ -14,6 +14,7 @@ import { frameACardIsLetGoIn, frameRectangleAroundCards, linkUnderACard, placeCl
 import { type NodeGraphCanvasNode, type NodeGraphCanvasFrame, NODE_GRAPH_FRAME_COLOURS, type NodeGraphCanvasNote, type NodeGraphCanvasLink, type NodeGraphCanvasPoint, type NodeGraphCanvasViewport, type NodeGraphCanvasCardMove, type NodeGraphCanvasEditing, type NodeGraphCardCode } from "./support/node_graph_canvas_contract";
 import { NodeGraphCardView } from "./node_graph/node_card";
 import { pinTypeKeyOfTheLink } from "./support/node_graph_link_colour";
+import { rowKeyOfTheLinkEnd } from "../pin_model/node_pins";
 import { type NodeGraphCardFlowNode, type NodeGraphNoteFlowNode, type NodeGraphFrameFlowNode, type NodeGraphFlowNode, type NodeGraphLinkFlowEdge, inputPinHandleId, outputPinHandleId, NodeGraphEditableContext, NodeGraphWireFitsContext, NodeGraphNoteEditingContext, NodeGraphNoteResizingContext, NodeGraphCardAndFrameEditingContext, NodeGraphFrameColoursUsedContext, NodeGraphFrameColourPickingContext, NodeGraphFrameWordsEditingContext, NodeGraphInputValuesContext } from "./support/node_graph_flow_elements";
 import type { InputValues } from "../pin_services/input_values";
 import { type NodeGraphRightClicked, NodeGraphRightClickChoices } from "./node_graph_right_click_choices";
@@ -179,9 +180,9 @@ function NodeGraphFlow({
         id: graphLink.link_id,
         type: "node_graph_link",
         source: graphLink.source_node_id,
-        sourceHandle: outputPinHandleId(graphLink.source_pin),
+        sourceHandle: outputPinHandleId(rowKeyOfTheLinkEnd(nodeById.get(graphLink.source_node_id)?.outputs ?? [], graphLink.source_pin, graphLink.source_member)),
         target: graphLink.target_node_id,
-        targetHandle: inputPinHandleId(graphLink.target_pin),
+        targetHandle: inputPinHandleId(rowKeyOfTheLinkEnd(nodeById.get(graphLink.target_node_id)?.inputs ?? [], graphLink.target_pin, graphLink.target_member)),
         data: {
           graphLink,
           pin_type_key: pinTypeKeyOfTheLink(graphLink, nodeById),

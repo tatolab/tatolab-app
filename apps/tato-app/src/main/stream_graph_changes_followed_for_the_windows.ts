@@ -21,9 +21,9 @@ export type StreamGraphPushed = StreamGraphInputValueChange | null;
 /** Every stream graph the app's windows follow, each by its stream id. */
 export type StreamGraphChangesFollowedForTheWindows = ControlPushesFollowed<WindowFollowingStreamGraphs>;
 
-/** What an input reads after an `input_value_changed`: a value, a link feeding it, or nothing at all. */
+/** What an input, or the member of a bundle input it names, reads after an `input_value_changed`: a value, a link feeding it, or nothing at all. */
 export function inputValueChangeOnTheWire(changed: ControlNotifications["input_value_changed"]): StreamGraphInputValueChange {
-  return { node: changed.node, input: changed.input, value_read: inputValueReadOfThePort(changed) ?? { value: null, comes_from: null } };
+  return { node: changed.node, input: changed.input, member: changed.member ?? null, value_read: inputValueReadOfThePort(changed) ?? { value: null, comes_from: null } };
 }
 
 /** Stream graphs as followed on a connection: both subscriptions for each stream, each `stream_graph_changed` and each `input_value_changed`. */

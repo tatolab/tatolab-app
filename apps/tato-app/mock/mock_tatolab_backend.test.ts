@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend } from "./mock_tatolab_backend";
 import { readMockTatolabOptions } from "./mock_tatolab_options";
-import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, StreamActionFollowed } from "../src/shared/tatolab_backend_contract";
+import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, StreamActionFollowed, StreamGraph } from "../src/shared/tatolab_backend_contract";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { familyOfThePort, jsonObjectMembersOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 
@@ -251,6 +251,76 @@ describe("the mock backend's stream actions", () => {
 
     expect((await settled(backend.transactInTheOpenProject([tallyIntoBase], "commit", null))).kind).toBe("applied");
     expect((await settled(backend.describeStreamGraph(MAIN))).links.filter((link) => link.target.node === "warmth" && link.target.port === "base").map((link) => link.source.node)).toEqual(["tally"]);
+  });
+
+  it("serves the marks the runtime recorded on the sample's links, gives a link it connects the marks its recorded check gave, and serves the stand-in warning when asked", async () => {
+    const marksOf = (graph: StreamGraph) => graph.links.flatMap((link) => (link.free_conversion === undefined && link.warnings === undefined ? [] : [[`${link.source.node}.${link.source.port} → ${link.target.node}.${link.target.port}`, link.free_conversion ?? null, link.warnings ?? null]]));
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind");
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(100);
+      return answering;
+    };
+    const graphBefore = await settled(backend.describeStreamGraph(MAIN));
+    expect(marksOf(graphBefore)).toEqual([
+      ["beat.glow → glow.glow", true, null],
+      ["warmth.result → glow.warmth", true, null],
+    ]);
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    const idOf = (name: string) => graphBefore.nodes.find((node) => node.name === name)?.id ?? expect.unreachable(`no ${name} in the sample`);
+    const connect = (sourceNode: string, sourcePort: string, targetNode: string, targetPort: string) => ({ operation: "connect" as const, stream: streamAsset, source: { node: idOf(sourceNode), port: sourcePort }, target: { node: idOf(targetNode), port: targetPort } });
+    expect((await settled(backend.transactInTheOpenProject([connect("beat", "count", "warmth", "base"), connect("beat", "count", "warmth", "beats_per_bar")], "commit", null))).kind).toBe("applied");
+    expect(marksOf(await settled(backend.describeStreamGraph(MAIN)))).toEqual([
+      ["beat.glow → glow.glow", true, null],
+      ["warmth.result → glow.warmth", true, null],
+      ["beat.count → warmth.base", true, null],
+    ]);
+
+    const { backend: backendWithAWarnedLink } = await runningMockBackend("main_graph=every_pin_kind_with_a_warned_link");
+    const warned = backendWithAWarnedLink.describeStreamGraph(MAIN);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(marksOf(await warned)).toEqual([
+      ["beat.count → warmth.count", null, [{ warning: "meanings_differ", output_meaning: "seconds", input_meaning: "frames", words: "the output carries `seconds` and the input takes `frames`" }]],
+      ["beat.glow → glow.glow", true, null],
+      ["warmth.result → glow.warmth", true, null],
+    ]);
+  });
+
+  it("serves the stand-in bundle node's members each on its own row, sets and undoes one member alone, and links and unlinks a member", async () => {
+    const { backend } = await runningMockBackend("main_graph=every_pin_kind_with_a_bundle");
+    const settled = async <Answer>(answering: Promise<Answer>): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(100);
+      return answering;
+    };
+    const levelsOf = (graph: StreamGraph) => graph.nodes.find((node) => node.name === "mixer")?.ports.inputs.find((port) => port.name === "levels");
+    const memberLinksOf = (graph: StreamGraph) => graph.links.flatMap((link) => (link.target.member === undefined ? [] : [`${link.source.node}.${link.source.port} → ${link.target.node}.${link.target.port}.${link.target.member}`]));
+    const graphBefore = await settled(backend.describeStreamGraph(MAIN));
+    expect(levelsOf(graphBefore)?.member_values).toEqual([
+      { member: "left", value: 0.25, value_comes_from: "saved" },
+      { member: "right", value_comes_from: "wire" },
+    ]);
+    expect(levelsOf(graphBefore)?.value_comes_from).toBeUndefined();
+    expect(memberLinksOf(graphBefore)).toEqual(["warmth.result → mixer.levels.right"]);
+
+    const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
+    const idOf = (name: string) => graphBefore.nodes.find((node) => node.name === name)?.id ?? expect.unreachable(`no ${name} in the graph`);
+    const memberLink = { stream: streamAsset, source: { node: idOf("warmth"), port: "result" }, target: { node: idOf("mixer"), port: "levels", member: "right" } };
+    expect((await settled(backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: streamAsset, node: idOf("mixer"), input: "levels", member: "left", value: 0.75 }], "commit", null))).kind).toBe("applied");
+    expect((await settled(backend.transactInTheOpenProject([{ operation: "disconnect", ...memberLink }], "commit", null))).kind).toBe("applied");
+    const graphAfter = await settled(backend.describeStreamGraph(MAIN));
+    expect(levelsOf(graphAfter)?.member_values).toEqual([
+      { member: "left", value: 0.75, value_comes_from: "saved" },
+      { member: "right", value: 0.5, value_comes_from: "default" },
+    ]);
+    expect(memberLinksOf(graphAfter)).toEqual([]);
+
+    await settled(backend.undoInTheOpenProject({ kind: "person", name: "Sam" }));
+    await settled(backend.undoInTheOpenProject({ kind: "person", name: "Sam" }));
+    const graphUndone = await settled(backend.describeStreamGraph(MAIN));
+    expect(levelsOf(graphUndone)?.member_values).toEqual(levelsOf(graphBefore)?.member_values);
+    expect(memberLinksOf(graphUndone)).toEqual(memberLinksOf(graphBefore));
+    const refused = expect(backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: streamAsset, node: idOf("mixer"), input: "levels", member: "middle", value: 1 }], "commit", null)).rejects.toThrow("has no member `middle`");
+    await vi.advanceTimersByTimeAsync(100);
+    await refused;
   });
 
   it("saves a collapse as a placed stream, commits an edit inside it, and undoes both in turn", async () => {

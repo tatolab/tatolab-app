@@ -6,7 +6,7 @@ import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import { studioViewsOfTheOpenProject } from "./open_project_views.js";
-import { createANodeFileInTheOpenProject, listTheOpenProjectsFiles, readTheOpenProjectsFile, saveTheOpenProjectsFile } from "./open_project_files.js";
+import { checkTheOpenProjectsFile, createANodeFileInTheOpenProject, listTheOpenProjectsFiles, readTheOpenProjectsFile, saveTheOpenProjectsFile } from "./open_project_files.js";
 import { importTheFilesThePersonChooses } from "./project_assets_imported_from_chosen_files.js";
 import { deleteAsset, openProject, pausePlayback, readAssetPreview, relocateAsset, reloadProject, resumePlayback, setNodeTypeGroup, startPlayback, stopPlayback, undoOrRedo } from "./runtime_operations.js";
 import { ListedStreams, PersonEditingInStudio, StudioWindows, thenAStatusRound, type StatusRounds, type StudioServices } from "./studio_runtime.js";
@@ -125,7 +125,7 @@ function ofTheWindowsOpenProject<Answer, Failure, Services>(
   return StudioWindows.use((studioWindows) => studioWindows.openProjectReadingOfTheWindow(commandFromWindow)).pipe(Effect.flatMap(ofTheReading));
 }
 
-/** The arguments of `read_project_file` and `create_node_file`: an absolute path in the open project. */
+/** The arguments of `read_project_file`, `create_node_file` and `check_project_file`: an absolute path in the open project. */
 const ProjectFileArguments = Schema.Struct({ file: Schema.String });
 
 /** The arguments of `save_project_file`: an absolute path in the open project, its whole text, and the version it was read at, `null` for a new file. */
@@ -186,6 +186,7 @@ type OpenProjectCommandName =
   | "read_project_file"
   | "save_project_file"
   | "create_node_file"
+  | "check_project_file"
   | "list_project_files"
   | "list_studio_views_of_the_open_project"
   | "run_open_project"
@@ -229,6 +230,9 @@ export function openProjectCommandHandlersOf(
     ),
     create_node_file: windowCommand(studioRuntime, "create_node_file", ProjectFileArguments, ({ file }, commandFromWindow) =>
       ofTheWindowsOpenProject(commandFromWindow, (reading) => createANodeFileInTheOpenProject(reading, file)),
+    ),
+    check_project_file: windowCommand(studioRuntime, "check_project_file", ProjectFileArguments, ({ file }, commandFromWindow) =>
+      ofTheWindowsOpenProject(commandFromWindow, (reading) => checkTheOpenProjectsFile(reading, file)),
     ),
     list_project_files: windowCommand(studioRuntime, "list_project_files", ListProjectFilesArguments, ({ project_folder }, commandFromWindow) =>
       ofTheWindowsOpenProject(commandFromWindow, (reading) => listTheOpenProjectsFiles(reading, project_folder)),

@@ -29,10 +29,10 @@ test("a_graphs_setting_values_name_each_setting_at_its_level_inside_a_subgraph_t
   const subgraph = aGraphNode("look", { id: "LOOK-ID", fragment: { nodes: [inner], links: [], groups: [] } });
   const described = new Map([["nodes.pattern:TestPattern", TEST_PATTERN]]);
   expect(settingValuesOfTheGraph(aStreamGraph([outer, subgraph], []), described)).toEqual([
-    { level: [], node_id: "OUTER-ID", input: "width", value_read: { value: 1920, comes_from: "saved" } },
-    { level: [], node_id: "OUTER-ID", input: "height", value_read: { value: 720, comes_from: "default" } },
-    { level: ["LOOK-ID"], node_id: "INNER-ID", input: "width", value_read: { value: null, comes_from: null } },
-    { level: ["LOOK-ID"], node_id: "INNER-ID", input: "height", value_read: { value: 360, comes_from: "saved" } },
+    { level: [], node_id: "OUTER-ID", input: "width", member: null, value_read: { value: 1920, comes_from: "saved" } },
+    { level: [], node_id: "OUTER-ID", input: "height", member: null, value_read: { value: 720, comes_from: "default" } },
+    { level: ["LOOK-ID"], node_id: "INNER-ID", input: "width", member: null, value_read: { value: null, comes_from: null } },
+    { level: ["LOOK-ID"], node_id: "INNER-ID", input: "height", member: null, value_read: { value: 360, comes_from: "saved" } },
   ]);
 });
 

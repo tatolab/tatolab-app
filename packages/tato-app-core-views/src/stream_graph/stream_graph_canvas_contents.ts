@@ -1,7 +1,8 @@
 // A stream's graph as the node graph canvas draws it: a card per node keyed by its name and titled as the
 // studio writes it, where it was left and the frame it sits in, its declared ports as pins of their types,
-// a link per link of the graph drawn by its state, a frame per labelled group and the graph's canvas notes. A
-// node or link the running stream does not hold yet, and one a diagnostic of the stream names, shows it.
+// a link per link of the graph drawn by its state and the warnings the runtime gives it, a frame per
+// labelled group and the graph's canvas notes. A node or link the running stream does not hold yet, and one
+// a diagnostic of the stream names, shows it.
 
 import type {
   NodeGraphCanvasFrame,
@@ -90,16 +91,26 @@ function linkLookAndWordsOf(link: StreamGraphLink, condition: StreamCondition | 
   return linkLookAndWords(link.state);
 }
 
+/** One end of a link as its words name it: the node and port, and the member of a bundle it starts or ends at. */
+function linkEndInWords(end: StreamGraphLink["source"]): string {
+  return [end.node, end.port, ...(end.member === undefined || end.member === null ? [] : [end.member])].join(".");
+}
+
+/** How `link` is drawn and what it says: by its state or what `condition` says of it, with the warnings the runtime gives it in its words, which a pointer resting on it reads after its state. */
 function canvasLinkOf(link: StreamGraphLink, condition: StreamCondition | null): NodeGraphCanvasLink {
   const { look, words } = linkLookAndWordsOf(link, condition);
+  const warningWords = (link.warnings ?? []).map((warning) => warning.words);
   return {
     link_id: linkIdAsTheCanvasKeysIt(link),
     source_node_id: link.source.node,
     source_pin: link.source.port,
+    source_member: link.source.member ?? null,
     target_node_id: link.target.node,
     target_pin: link.target.port,
+    target_member: link.target.member ?? null,
     look,
-    description: `${link.source.node}.${link.source.port} → ${link.target.node}.${link.target.port}, ${words}`,
+    description: [`${linkEndInWords(link.source)} → ${linkEndInWords(link.target)}, ${words}`, ...warningWords].join("\n"),
+    warning_words: warningWords,
   };
 }
 

@@ -57,6 +57,10 @@ async function recordedInputValueChanges(): Promise<ControlNotifications["input_
   });
 }
 
+function firstOf<Item>(items: readonly Item[]): Item {
+  return items[0] ?? expect.unreachable("the list holds an item");
+}
+
 function windowRecordingWhatItIsSent(): WindowFollowingStreamGraphs & { sent: [string, StreamGraphInputValueChange | null][] } {
   const sent: [string, StreamGraphInputValueChange | null][] = [];
   return { sent, sendTheWindowTheStreamGraphChanged: (stream, inputValueChange) => void sent.push([stream, inputValueChange]) };
@@ -99,7 +103,7 @@ test("a_stream_whose_input_values_the_runtime_will_not_subscribe_is_not_counted_
   expect(connectionsOpened[0]?.callsMade).toHaveLength(4);
 });
 
-test("each_recorded_value_change_reaches_only_the_windows_following_its_stream_as_what_the_input_reads_and_a_graph_change_asks_for_a_read", async () => {
+test("each_recorded_value_change_reaches_only_the_windows_following_its_stream_as_what_the_input_or_its_member_reads_and_a_graph_change_asks_for_a_read", async () => {
   const { followed, connectionsOpened, layer } = streamGraphsFollowedOverAFakeRuntime();
   const patternWindow = windowRecordingWhatItIsSent();
   const lobbyWindow = windowRecordingWhatItIsSent();
@@ -112,6 +116,7 @@ test("each_recorded_value_change_reaches_only_the_windows_following_its_stream_a
       yield* streamGraphs.follow("lobby-wall-3a91f0", lobbyWindow);
       yield* settle;
       for (const notification of recorded) connectionsOpened[0]?.push("input_value_changed", notification);
+      connectionsOpened[0]?.push("input_value_changed", { ...firstOf(recorded), input: "levels", member: "left", value: 0.25, value_comes_from: "live" });
       yield* settle;
       connectionsOpened[0]?.push("stream_graph_changed", { stream: "pattern-main-bcd55b", change: "missed" });
       yield* settle;
@@ -122,15 +127,16 @@ test("each_recorded_value_change_reaches_only_the_windows_following_its_stream_a
   const MIX = "8f1e2c74-6b0a-4c1d-9a63-0d5c7e21a9b4";
   expect(patternWindow.sent).toEqual([
     ["pattern-main-bcd55b", null],
-    ["pattern-main-bcd55b", { node: MIX, input: "gain", value_read: { value: 0.6, comes_from: "live" } }],
-    ["pattern-main-bcd55b", { node: MIX, input: "gain", value_read: { value: 0.9, comes_from: "saved" } }],
-    ["pattern-main-bcd55b", { node: MIX, input: "gain", value_read: { value: null, comes_from: "wire" } }],
-    ["pattern-main-bcd55b", { node: MIX, input: "label", value_read: { value: null, comes_from: null } }],
+    ["pattern-main-bcd55b", { node: MIX, input: "gain", member: null, value_read: { value: 0.6, comes_from: "live" } }],
+    ["pattern-main-bcd55b", { node: MIX, input: "gain", member: null, value_read: { value: 0.9, comes_from: "saved" } }],
+    ["pattern-main-bcd55b", { node: MIX, input: "gain", member: null, value_read: { value: null, comes_from: "wire" } }],
+    ["pattern-main-bcd55b", { node: MIX, input: "label", member: null, value_read: { value: null, comes_from: null } }],
+    ["pattern-main-bcd55b", { node: MIX, input: "levels", member: "left", value_read: { value: 0.25, comes_from: "live" } }],
     ["pattern-main-bcd55b", null],
   ]);
   expect(lobbyWindow.sent).toEqual([
     ["lobby-wall-3a91f0", null],
-    ["lobby-wall-3a91f0", { node: "1d0b6a55-2f48-4e7c-8b19-7c3e9d04f612", input: "colour", value_read: { value: { r: 1, g: 0.5, b: 0, a: 1 }, comes_from: "live" } }],
+    ["lobby-wall-3a91f0", { node: "1d0b6a55-2f48-4e7c-8b19-7c3e9d04f612", input: "colour", member: null, value_read: { value: { r: 1, g: 0.5, b: 0, a: 1 }, comes_from: "live" } }],
   ]);
 });
 

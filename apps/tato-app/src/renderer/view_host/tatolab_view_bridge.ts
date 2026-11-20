@@ -169,7 +169,7 @@ export class TatolabViewBridge {
     const value = decodeJsonValue(sentPayload);
     if (Result.isFailure(value)) return { kind: "refused", because: `${output.name} takes JSON, and what the view sent is not.` };
     if (this.viewNode.kind === "not_addressed") return { kind: "refused", because: this.viewNode.because };
-    const input: InputAddress = { graph: this.viewNode.graph, node_id: this.viewNode.node_id, input: output.name };
+    const input: InputAddress = { graph: this.viewNode.graph, node_id: this.viewNode.node_id, input: output.name, member: null };
     return this.applyOnTheViewNode(input.graph.project_folder, [setNodeInputValueAction(input, value.success)], "live");
   }
 
@@ -386,6 +386,10 @@ export class TatolabViewBridge {
         return nodeFileCreating.kind === "created"
           ? { kind: "node_file_created", file: nodeFileCreating.file, node_type: nodeFileCreating.node_type }
           : { kind: "refused", because: nodeFileCreating.because };
+      }
+      case "check_project_file": {
+        const fileChecking = await this.hostServices.checkProjectFile(ask.file);
+        return fileChecking.kind === "checked" ? { kind: "project_file_checked", findings: fileChecking.findings } : { kind: "refused", because: fileChecking.because };
       }
       case "list_project_files": {
         const filesListing = await this.hostServices.listProjectFiles(ask.project_folder);

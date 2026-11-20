@@ -58,6 +58,6 @@ export function settingsSetOnTheViewNode(
   settings: { readonly [settingName: string]: JsonValue },
 ): StreamGraphAction[] {
   return Object.entries(settings).flatMap(([settingName, value]) =>
-    JSON.stringify(settingsHeld[settingName] ?? null) === JSON.stringify(value) ? [] : [setNodeInputValueAction({ graph: viewNode.graph, node_id: viewNode.node_id, input: settingName }, value)],
+    JSON.stringify(settingsHeld[settingName] ?? null) === JSON.stringify(value) ? [] : [setNodeInputValueAction({ graph: viewNode.graph, node_id: viewNode.node_id, input: settingName, member: null }, value)],
   );
 }

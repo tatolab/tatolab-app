@@ -28,8 +28,8 @@ test("each top-level GraphInput is listed by the port and family the graph rende
   ]);
 
   expect(graphInputsOfTheStream(graph, STREAM_LEVEL)).toEqual([
-    { node_id: "a1", port_name: "brightness", family: "channels", value_address: { graph: STREAM_LEVEL, node_id: "a1", input: "value" }, value_pin: null, value_annotations: {}, lifetime: "kept", range: { lowest: 0, highest: 1 }, control: "slider" },
-    { node_id: "c3", port_name: "cue", family: "records", value_address: { graph: STREAM_LEVEL, node_id: "c3", input: "value" }, value_pin: null, value_annotations: {}, lifetime: "reset", range: null, control: "json" },
+    { node_id: "a1", port_name: "brightness", family: "channels", value_address: { graph: STREAM_LEVEL, node_id: "a1", input: "value", member: null }, value_pin: null, value_annotations: {}, lifetime: "kept", range: { lowest: 0, highest: 1 }, control: "slider" },
+    { node_id: "c3", port_name: "cue", family: "records", value_address: { graph: STREAM_LEVEL, node_id: "c3", input: "value", member: null }, value_pin: null, value_annotations: {}, lifetime: "reset", range: null, control: "json" },
   ]);
 });
 
@@ -41,7 +41,7 @@ test("a GraphInput the graph renders no graph_interface or value input for is re
 
   expect(graphInputsOfTheStream(graph, STREAM_LEVEL)).toEqual([
     { node_id: "e5", port_name: "tint", family: "array", value_address: null, value_pin: null, value_annotations: {}, lifetime: "kept", range: { lowest: 0, highest: 1 }, control: "json" },
-    { node_id: "f6", port_name: "settings", family: "records", value_address: { graph: STREAM_LEVEL, node_id: "f6", input: "value" }, value_pin: null, value_annotations: {}, lifetime: "kept", range: null, control: "json" },
+    { node_id: "f6", port_name: "settings", family: "records", value_address: { graph: STREAM_LEVEL, node_id: "f6", input: "value", member: null }, value_pin: null, value_annotations: {}, lifetime: "kept", range: null, control: "json" },
   ]);
   expect(graphInputsOfTheStream(graph, null).map((graphInput) => graphInput.value_address)).toEqual([null, null]);
 });

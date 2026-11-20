@@ -8,14 +8,14 @@ import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node
 import { ReadOnlyValueLineElement } from "../node_ui/read_only_value_line_element.js";
 import { NO_PROJECT, listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
 import type { GraphEditMode, JsonValue, StreamInputValuesReading } from "../studio_readings.js";
-import { createInputControlBinder } from "./input_control_binding.js";
+import { createInputControlBinder, NEWER_VERSION_BLOCKED_ATTRIBUTE } from "./input_control_binding.js";
 import { createInputValues } from "./input_values.js";
 import type { NodeBodyShown } from "./node_body_binding.js";
 
 const PROJECT = "/projects/demo";
 const STREAM_ASSET = "11111111-2222-3333-4444-555555555555";
 const CROSSFADE = "nodes.crossfade:Crossfade";
-const addressOf = (input: string): InputAddress => ({ graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "FADE-ID", input });
+const addressOf = (input: string): InputAddress => ({ graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "FADE-ID", input, member: null });
 const declarationOf = (input: string, pinType: { type: "float" } | { type: "string" }) => ({ input_name: input, label: input, pin_type: pinType, annotations: {}, may_be_unset: false });
 
 /** A crossfade whose `mix` is set by a person and whose `caption` is fed by a wire. */
@@ -60,7 +60,7 @@ class StandInMisfitBody extends HTMLElement {
 customElements.define(MISFIT_TAG, StandInMisfitBody);
 
 function valuesRead(mix: JsonValue): StreamInputValuesReading {
-  return { kind: "values", stream_asset: STREAM_ASSET, values: [{ level: [], node_id: "FADE-ID", input: "mix", value_read: { value: mix, comes_from: "saved" } }] };
+  return { kind: "values", stream_asset: STREAM_ASSET, values: [{ level: [], node_id: "FADE-ID", input: "mix", member: null, value_read: { value: mix, comes_from: "saved" } }] };
 }
 
 /** A binder over a store whose every write applies at once, with one body slot bound for the crossfade, and the listing, the loads and the flushes in the test's hands. */
@@ -225,6 +225,26 @@ test("a node type with no body, and a body that did not pass its checks, show no
   await slot.settled();
   expect(slot.loadsAsked).toEqual([]);
   expect(slot.host.childElementCount).toBe(0);
+});
+
+test("a drawn body whose newer version is blocked stays drawn and marked with why", async () => {
+  const findings = ["Tato Studio keeps showing the version that last passed.", "node_ui/crossfade_body.ts:3:1: error: TS2322"];
+  const slot = bodySlotUnderTest();
+  slot.list([CROSSFADE_BODY]);
+  await slot.settled();
+  const drawn = slot.body();
+
+  slot.list([{ ...CROSSFADE_BODY, script_serving: { kind: "blocked", findings } }]);
+  await slot.settled();
+  expect(slot.body()).toBe(drawn);
+  expect(slot.loadsAsked).toHaveLength(1);
+  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(true);
+  expect(slot.host.title).toBe(findings.join("\n"));
+
+  slot.list([CROSSFADE_BODY]);
+  await slot.settled();
+  expect(slot.body()).toBe(drawn);
+  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(false);
 });
 
 test("a body whose inputTypes do not fit the node, and one that does not load, are the read-only line with why", async () => {

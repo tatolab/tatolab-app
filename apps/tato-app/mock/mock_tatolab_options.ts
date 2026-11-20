@@ -1,7 +1,8 @@
 import { jsonValueSchema } from "@tatolab/tato-app-view-sdk/studio_host";
 import { Result, Schema } from "effect";
 import { mockWorkspaceDependenciesScenarioNamed, type MockWorkspaceDependenciesScenario } from "./mock_workspace_dependencies";
-import { mockMainGraphNamed, type MockMachine, type MockMainGraph } from "./mock_stream_fixtures";
+import { mockMainGraphNamed, type MockMainGraph } from "./mock_main_graphs";
+import type { MockMachine } from "./mock_stream_fixtures";
 import { mockReplayedRefusalNamed, type MockReplayedRefusal } from "./mock_replayed_refusals";
 import { mockOpenProjectScenarioNamed, type MockOpenProjectScenario } from "./mock_open_project";
 import { mockProjectHistoryScenarioNamed, type MockProjectHistoryScenario } from "./mock_project_transactions";
@@ -179,7 +180,7 @@ export interface MockTatolabOptions {
   isTheFixtureViewListed: boolean;
   /** `?node_ui=unserved`: the Studio's own controls are listed with scripts nothing serves, so each ends at the read-only line with why; `?node_ui=refused`: listing them is refused, so each input draws its own field. They are listed and served by default. */
   nodeUiElementsListing: MockNodeUiElementsListing;
-  /** `?node_bodies=served`: the mock project brings a body for the inverting effect, a fader for its amount, and one for each stage of `?main_graph=large`, which the canvas measurements mount; `?node_bodies=blocked`: it lists them with a finding of their folder's check, so each card draws its rows alone. None by default. */
+  /** `?node_bodies=served`: the mock project brings a body for the inverting effect, a fader for its amount, one for each stage of `?main_graph=large`, which the canvas measurements mount, and the default control of `nodes.sweep:Sweep`, which `?main_graph=every_pin_kind_with_a_named_type` draws; `?node_bodies=blocked`: it lists them with a finding of their folder's check, so each card draws its rows alone. None by default. */
   projectNodeBodies: MockProjectNodeBodies;
   /** `?refusal=link_of_another_type|value_of_another_type`: the runtime's recorded refusal the mock replays for the first link made, or the first value set; none by default. */
   replayedRefusal: MockReplayedRefusal | null;
@@ -193,7 +194,7 @@ export interface MockTatolabOptions {
   doesTheMainStreamHoldAGeneratedSubgraph: boolean;
   /** `?node_states=stopped`: every node of `main` that has a state reads `Stopped` once the stream settles, so none of its ports writes. */
   areTheMainStreamsNodesStopped: boolean;
-  /** `?main_graph=every_pin_kind|large`: `main` holds the graph recorded from streamlib's sample project that declares each kind of pin, or 300 nodes of four inputs each and 450 links for the canvas measurements; either takes precedence over every other choice of `main`. */
+  /** `?main_graph=every_pin_kind|every_pin_kind_with_a_warned_link|every_pin_kind_with_a_bundle|every_pin_kind_with_a_named_type|large`: `main` holds the graph recorded from streamlib's sample project that declares each kind of pin, that graph with a stand-in warning on its link from `beat.count` into `warmth.count`, that graph with a stand-in node with bundle pins, a member of one linked from `warmth.result`, that graph with the sample's `sweep` linked by its named type `nodes.sweep:Sweep` into `sweep_position`, as stand-ins, or 300 nodes of four inputs each and 450 links for the canvas measurements; either takes precedence over every other choice of `main`. */
   mainGraph: MockMainGraph | null;
 }
 

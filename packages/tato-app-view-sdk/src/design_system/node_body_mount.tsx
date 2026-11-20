@@ -2,7 +2,7 @@ import { cn } from "cn";
 import { memo, useContext, useLayoutEffect, useRef, useState } from "react";
 import { areTheSameNodeOfABody, type NodeOfABody } from "../pin_model/controlled_inputs";
 import type { NodeBodyBinding, NodeBodyShown } from "../pin_services/node_body_binding";
-import { InputControlBinderContext } from "./input_control_mount";
+import { InputControlBinderContext, NEWER_VERSION_BLOCKED_MARK } from "./input_control_mount";
 
 /** Stops a key at the body, so a focused body owns the keyboard and no shortcut of the canvas around it acts on the key. */
 function keptByTheBody(keyEvent: KeyboardEvent): void {
@@ -44,7 +44,7 @@ export const NodeBodyMount = memo(function NodeBodyMount({ node, readOnly }: Nod
     binding.current?.update(node, readOnly);
   }, [node, readOnly]);
   const isHidden = binder === null || shown === "pending" || shown === "no_body";
-  return <div ref={hostElement} className={cn("node-graph-card-body nodrag nopan px-2 pt-1.5", isHidden && "hidden")} data-node-graph-card-body={node.node_type} data-node-body-shows={shown} />;
+  return <div ref={hostElement} className={cn("node-graph-card-body nodrag nopan px-2 pt-1.5", NEWER_VERSION_BLOCKED_MARK, isHidden && "hidden")} data-node-graph-card-body={node.node_type} data-node-body-shows={shown} />;
 }, haveTheSameNodeAndPlace);
 
 /** Whether a body is told the same node at the same place, so a new reading's equal node draws it again for nothing. */

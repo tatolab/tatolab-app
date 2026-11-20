@@ -1,5 +1,6 @@
 // What a control's slot and a node body's slot share: how a gesture on an input ends, what an element
-// reaches of the project, and the read-only line a slot draws for an element that does not load.
+// reaches of the project, the read-only line a slot draws for an element that does not load, and the
+// mark on a slot that keeps its element drawn while that element's newer version is blocked.
 
 import type { ControlledInput } from "../pin_model/controlled_inputs.js";
 import type { NodeUiSurface } from "../node_ui/input_control_element.js";
@@ -34,6 +35,20 @@ export function newReadOnlyValueLine(because: string): ReadOnlyValueLineElement 
   if (!(line instanceof ReadOnlyValueLineElement)) throw new Error(`${READ_ONLY_VALUE_LINE_TAG} is defined by another copy of the SDK`);
   line.because = because;
   return line;
+}
+
+/** The attribute a slot's host carries while it keeps its element drawn and that element's newer version is blocked; the host's `title` gives why. */
+export const NEWER_VERSION_BLOCKED_ATTRIBUTE = "data-newer-version-blocked";
+
+/** Marks `host` as keeping its element drawn while a newer version is blocked by `findings`, or takes the mark off for `null`. */
+export function markTheNewerVersionBlocked(host: HTMLElement, findings: readonly string[] | null): void {
+  if (findings === null) {
+    host.removeAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE);
+    host.removeAttribute("title");
+    return;
+  }
+  host.setAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE, "");
+  host.title = findings.join("\n");
 }
 
 /** The words a read-only line gives for an element that did not load. */

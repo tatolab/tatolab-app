@@ -25,7 +25,10 @@ export class ReadOnlyValueLineElement extends HTMLElement implements InputContro
     super();
     this.#valueWords.setAttribute("part", "value");
     this.#becauseWords.setAttribute("part", "because");
-    this.attachShadow({ mode: "open" }).append(this.#valueWords, this.#becauseWords);
+    const style = document.createElement("style");
+    // The reason follows the value words in the same run of text, set apart from them.
+    style.textContent = `[part="because"]:not([hidden])::before { content: " · "; }`;
+    this.attachShadow({ mode: "open" }).append(style, this.#valueWords, this.#becauseWords);
   }
 
   /** Names the line after its input; a `group` role is what makes a screen reader read that name. */

@@ -30,3 +30,33 @@ export function echoTheInputValueSet(node: MockGraphNode, input: string, to: Jso
   node.pins = pins;
   return from;
 }
+
+/**
+ * Stores `to` as the member `member` of `node`'s bundle input `input`, `null` taking it off, and echoes it as the value that member
+ * reads, as `echoTheInputValueSet` does an input's: live, on that member alone, or saved, as that key of the bundle its pins hold,
+ * every other member left as it is. Answers the value that key held before.
+ */
+export function echoTheMemberValueSet(node: MockGraphNode, input: string, member: string, to: JsonValue | null, applying: "a_transaction" | "a_live_transaction" | "undo_or_redo"): JsonValue | null {
+  const savedBundle = node.pins?.[input];
+  const savedMembers: Record<string, JsonValue> = typeof savedBundle === "object" && savedBundle !== null && !Array.isArray(savedBundle) ? { ...savedBundle } : {};
+  const from = savedMembers[member] ?? null;
+  const readOf = (declaredDefault: JsonValue | null): StreamGraphInputValueRead => {
+    const savedLeft = applying === "a_live_transaction" ? from : null;
+    if (to !== null) return { value: to, comes_from: applying === "a_live_transaction" ? "live" : "saved" };
+    if (savedLeft !== null) return { value: savedLeft, comes_from: "saved" };
+    return declaredDefault === null ? { value: null, comes_from: null } : { value: declaredDefault, comes_from: "default" };
+  };
+  node.input_ports = node.input_ports.map((port) =>
+    port.name === input && port.member_reads !== undefined
+      ? { ...port, member_reads: port.member_reads.map((read) => (read.member === member ? { ...read, value_read: readOf(read.default_value) } : read)) }
+      : port,
+  );
+  if (applying === "a_live_transaction") return from;
+  if (to === null) delete savedMembers[member];
+  else savedMembers[member] = to;
+  const pins = { ...node.pins };
+  if (Object.keys(savedMembers).length === 0) delete pins[input];
+  else pins[input] = savedMembers;
+  node.pins = pins;
+  return from;
+}

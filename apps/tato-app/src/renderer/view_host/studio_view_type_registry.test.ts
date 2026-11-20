@@ -10,7 +10,7 @@ function viewTypeFromItsManifest(viewTypeId: string, broughtBy: StudioViewTypeSo
   const manifestJson: JsonValue = { contract: "1.0", title: viewTypeId, entry: "index.html", placement: "area" };
   const manifestReading = readTatolabViewManifest(manifestJson);
   if (manifestReading.kind === "not_read") throw new Error(manifestReading.because);
-  return tatolabFrameViewType({ view_type_id: viewTypeId, project_name: "tests", import_folder: null, opens: true, not_opened_because: null, manifest_json: manifestJson, folder_url: `https://views.example/${viewTypeId}/` }, manifestReading.manifest, broughtBy);
+  return tatolabFrameViewType({ view_type_id: viewTypeId, project_name: "tests", import_folder: null, opens: true, not_opened_because: null, manifest_json: manifestJson, folder_url: `https://views.example/${viewTypeId}/`, newer_version_blocked_because: null }, manifestReading.manifest, broughtBy);
 }
 
 describe("the view-type registry", () => {
@@ -56,6 +56,7 @@ describe("the view-type registry", () => {
       not_opened_because: null,
       manifest_json: manifestJson,
       folder_url: `https://views.example/${viewTypeId}/`,
+      newer_version_blocked_because: null,
     });
     registry.projectStudioViews.publish({
       kind: "listed",

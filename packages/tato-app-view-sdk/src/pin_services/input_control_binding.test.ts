@@ -7,15 +7,17 @@ import type { NodeUiElementLoading } from "../node_ui/load_node_ui_element.js";
 import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node_ui_elements_listing.js";
 import { NO_PROJECT, listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
 import type { GraphEditMode, JsonValue, StreamInputValuesReading } from "../studio_readings.js";
-import { createInputControlBinder, releaseOfAGestureOn, type InputControlShown } from "./input_control_binding.js";
+import { createInputControlBinder, NEWER_VERSION_BLOCKED_ATTRIBUTE, releaseOfAGestureOn, type InputControlShown } from "./input_control_binding.js";
 import { createInputValues } from "./input_values.js";
 
 const PROJECT = "/projects/demo";
 const STREAM_ASSET = "11111111-2222-3333-4444-555555555555";
-const GAIN: InputAddress = { graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "MIX-ID", input: "gain" };
+const GAIN: InputAddress = { graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "MIX-ID", input: "gain", member: null };
 const FLOAT_GAIN: ControlledInput = { address: GAIN, declaration: { input_name: "gain", label: "gain", pin_type: { type: "float" }, annotations: {}, may_be_unset: false }, rebuilds_its_node: false, driven_by: null };
 const FLOAT_DEFAULT = listedElementOf("studio", { kind: "control", type: "float", control: null }, { script: "float_number.ts" });
 const STAND_IN_TAG = "stand-in-float-control";
+const KNOB_GAIN: ControlledInput = { ...FLOAT_GAIN, declaration: { ...FLOAT_GAIN.declaration, annotations: { control: "night-show:knob" } } };
+const NIGHT_SHOWS_KNOB = listedElementOf("night-show", { kind: "control", type: "float", control: "knob" }, { script: "knob.ts", folder_version: "v1" });
 
 /** A Float control as the binder meets one: it keeps what it is handed, and a press the host makes read only puts its value back with an `input` and no `change`. */
 class StandInFloatControl extends HTMLElement implements InputControlElement<"float"> {
@@ -55,11 +57,11 @@ class StandInFloatControl extends HTMLElement implements InputControlElement<"fl
 customElements.define(STAND_IN_TAG, StandInFloatControl);
 
 function valuesRead(gain: JsonValue, comesFrom: "saved" | "default" | "live" = "saved"): StreamInputValuesReading {
-  return { kind: "values", stream_asset: STREAM_ASSET, values: [{ level: [], node_id: "MIX-ID", input: "gain", value_read: { value: gain, comes_from: comesFrom } }] };
+  return { kind: "values", stream_asset: STREAM_ASSET, values: [{ level: [], node_id: "MIX-ID", input: "gain", member: null, value_read: { value: gain, comes_from: comesFrom } }] };
 }
 
 /** A binder over a store whose every write applies at once, with the listing, the loads and the flushes in the test's hands. */
-function binderUnderTest({ loading = { kind: "defined", tag: STAND_IN_TAG }, surface = "node" }: { loading?: NodeUiElementLoading; surface?: NodeUiSurface } = {}) {
+function binderUnderTest({ loading = { kind: "defined", tag: STAND_IN_TAG }, surface = "node", input = FLOAT_GAIN }: { loading?: NodeUiElementLoading; surface?: NodeUiSurface; input?: ControlledInput } = {}) {
   const sent: { value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
@@ -94,7 +96,7 @@ function binderUnderTest({ loading = { kind: "defined", tag: STAND_IN_TAG }, sur
   const host = document.createElement("div");
   document.body.append(host);
   const shown: InputControlShown[] = [];
-  const binding = binder.bindInputControl(host, FLOAT_GAIN, { surface, read_only: false }, (each) => shown.push(each));
+  const binding = binder.bindInputControl(host, input, { surface, read_only: false }, (each) => shown.push(each));
   const control = (): StandInFloatControl => {
     const element = host.firstElementChild;
     if (!(element instanceof StandInFloatControl)) throw new Error("the slot holds no control");
@@ -287,6 +289,40 @@ test("an input the table has no control for shows no control, and an element tha
   await blocked.settled();
   expect(blocked.shown.at(-1)).toBe("read_only_line");
   expect(blocked.host.firstElementChild?.shadowRoot?.querySelector("[part=because]")?.textContent).toBe("Its control does not pass its checks: float_number.ts:3:1 TS2322");
+});
+
+test("a drawn control whose newer version is blocked stays drawn and marked with why, and a version that passes takes the mark off with a new element", async () => {
+  const knob = NIGHT_SHOWS_KNOB;
+  const findings = ["Tato Studio keeps showing the version that last passed.", "node_ui/knob.ts:1:50: error: Type 'string' is not assignable to type 'number'. (TS2322)"];
+  const slot = binderUnderTest({ input: KNOB_GAIN });
+  slot.list([knob]);
+  await slot.settled();
+  const drawn = slot.control();
+
+  slot.list([{ ...knob, script_serving: { kind: "blocked", findings } }]);
+  await slot.settled();
+  expect(slot.control()).toBe(drawn);
+  expect(slot.loadsAsked).toHaveLength(1);
+  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(true);
+  expect(slot.host.title).toBe(findings.join("\n"));
+  drawn.commitTyped(0.3);
+  await slot.settled();
+  expect(slot.sent).toEqual([{ value: 0.3, mode: "commit" }]);
+
+  slot.list([{ ...knob, folder_version: "v3", script_serving: { kind: "served", script_url: "tatolab-app://app/node_ui/night-show/knob.js?v3" } }]);
+  await slot.settled();
+  expect(slot.control()).not.toBe(drawn);
+  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(false);
+});
+
+test("a slot with no control drawn yet whose element is blocked shows the read-only line, unmarked, and never another control", async () => {
+  const knob: ListedNodeUiElement = { ...NIGHT_SHOWS_KNOB, script_serving: { kind: "blocked", findings: ["node_ui/knob.ts:1:50 TS2322"] } };
+  const slot = binderUnderTest({ loading: { kind: "blocked", findings: ["node_ui/knob.ts:1:50 TS2322"] }, input: KNOB_GAIN });
+  slot.list([FLOAT_DEFAULT, knob]);
+  await slot.settled();
+
+  expect(slot.shown.at(-1)).toBe("read_only_line");
+  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(false);
 });
 
 test("unbinding the last slot takes its element off and stops watching the listing", async () => {

@@ -7,7 +7,7 @@ import type { NodeBodyShown } from "../pin_services/node_body_binding";
 import { InputControlBinderContext } from "./input_control_mount";
 import { NodeBodyMount } from "./node_body_mount";
 
-const MIX_ADDRESS = { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "FADE-ID", input: "mix" };
+const MIX_ADDRESS = { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "FADE-ID", input: "mix", member: null };
 const nodeWithMix = (label: string): NodeOfABody => ({
   node_type: "nodes.crossfade:Crossfade",
   project_folder: "/projects/demo",

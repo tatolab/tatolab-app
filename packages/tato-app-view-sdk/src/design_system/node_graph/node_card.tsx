@@ -1,13 +1,14 @@
 import { Handle, Position, useStore, useStoreApi, type NodeProps } from "@xyflow/react";
 import { cn } from "cn";
-import { ChevronDown, ChevronRight, Hammer, SquareX, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, Hammer, SquareX, TriangleAlert, type LucideIcon } from "lucide-react";
 import { Fragment, memo, useContext, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from "react";
 import { inputAddressKey, type InputAddress } from "../../pin_model/node_inputs";
 import { nodeOfABody, takesAControl } from "../../pin_model/controlled_inputs";
-import { doesAChangeRebuildTheNode, nodePinRows, type NodePin } from "../../pin_model/node_pins";
+import { freeConversionWords } from "../../pin_model/node_input_link";
+import { doesAChangeRebuildTheNode, nodePinLabel, nodePinRowKey, nodePinRows, nodePinsShown, type NodePin } from "../../pin_model/node_pins";
 import { valueWords, wordsOfAValueOfNoType } from "../../pin_model/value_words";
 import type { PinFlow, PinType } from "../../pin_type_readings";
-import { pinTypeKey, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
+import { pinTypeKey, pinTypeWords, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
 import { jsonTextOf, type StreamGraphPortPin } from "../../studio_readings";
 import { InputControlMount } from "../input_control_mount";
 import { NodeBodyMount } from "../node_body_mount";
@@ -19,10 +20,11 @@ import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkF
 import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "../support/node_graph_layout";
 import { isAPinSocketOfTheCardUnmeasured } from "../support/node_graph_pin_socket_measurement";
 
-/** What a pin shows while the pointer rests on it: its name, its type and flow in words and the facts of its stream, then its description. */
+/** What a pin shows while the pointer rests on it: its name, its type and flow in words and the facts of its stream, then its description, then what the runtime marks on the link that feeds it: a conversion it makes for free, naming both types, and each warning in the runtime's words. */
 function nodeGraphPinTooltip(pin: NodePin): string {
   const facts = [pin.name, pinWords(pin.pin), ...pin.stream_facts_words].join(" · ");
-  return pin.description === null ? facts : `${facts}\n${pin.description}`;
+  const freeConversion = freeConversionWords(pin.link, pin.pin);
+  return [facts, pin.description, freeConversion, ...(pin.link?.warnings ?? []).map((warning) => warning.words)].filter((line) => line !== null).join("\n");
 }
 
 /** The attributes a socket's shape and colour are picked by: its flow (round while it has none) and its type's key. */
@@ -41,7 +43,7 @@ const NODE_GRAPH_CARD_WIDTHS_PX = { narrowest: 180, widest: 360 } as const;
 /** The box every card is drawn in, in the canvas and in a preview outside it. */
 const NODE_GRAPH_CARD_CLASS_NAMES = "node-graph-card relative";
 
-/** A pin's socket at the card's edge, shaped by its flow and coloured by its type, filled while a link joins it. */
+/** A pin's socket at the card's edge, shaped by its flow and coloured by its type, filled while a link joins it, and ringed in the wire's type where the runtime converts that link for free. */
 function NodeGraphPinSocket({
   nodeId,
   side,
@@ -55,12 +57,15 @@ function NodeGraphPinSocket({
   takesNewWires: boolean;
 }) {
   const isEditable = useContext(NodeGraphEditableContext);
-  const wireFit = useContext(NodeGraphWireFitsContext)?.get(nodeGraphPinKey(nodeId, side, pin.name));
+  const wireFit = useContext(NodeGraphWireFitsContext)?.get(nodeGraphPinKey(nodeId, side, pin.name, pin.member));
   const handleType = side === "input" ? "target" : "source";
-  const handleId = side === "input" ? inputPinHandleId(pin.name) : outputPinHandleId(pin.name);
+  const handleId = side === "input" ? inputPinHandleId(nodePinRowKey(pin)) : outputPinHandleId(nodePinRowKey(pin));
   // A socket is drawn again only when it gains its first link or loses its last; `useNodeConnections` would draw it
   // again for every link it gains or loses.
   const isLinked = useStore((state) => state.connectionLookup.has(connectionLookupKeyOfTheHandle(nodeId, handleType, handleId)));
+  // A Trigger is drawn as an arrow, which has no edge to ring; the runtime converts no Trigger for free in any case.
+  const wireConvertedForFree = pin.pin?.flow === "trigger" ? null : (pin.link?.converts_for_free_from ?? null);
+  const wireTypeKeyOfAFreeConversion = wireConvertedForFree === null ? null : pinTypeKey(wireConvertedForFree);
   return (
     <Handle
       type={handleType}
@@ -73,7 +78,11 @@ function NodeGraphPinSocket({
       data-wire-fit={wireFit?.outcome}
       data-stream-facts={pin.stream_facts_words.length === 0 ? undefined : pin.stream_facts_words.join(" · ")}
       data-linked={isLinked || undefined}
-    />
+      data-bundle={pin.bundle === null ? undefined : pin.bundle.is_open ? "open" : "closed"}
+      data-converts-for-free-from={wireTypeKeyOfAFreeConversion ?? undefined}
+    >
+      {wireTypeKeyOfAFreeConversion !== null && <span aria-hidden className="node-graph-pin-wire-ring" data-pin-type={wireTypeKeyOfAFreeConversion} />}
+    </Handle>
   );
 }
 
@@ -104,13 +113,16 @@ const INLINE_CONTROL_HOST_ATTRIBUTES = { [NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE]: 
 /**
  * What an input's row shows of its value at its end: the control `takesAControl` gives it, or its value in words where the table
  * has none, and nothing for one that holds no value of its own. An input of a type only a wire carries shows only a control its
- * wire drives, such as a preview its node type names.
+ * wire drives, such as a preview its node type names; one of a named type shows its type's name where the table has no control
+ * for it.
  */
 function NodeGraphInputValueOfTheRow({ pin }: { pin: NodePin }) {
   const isEditable = useContext(NodeGraphEditableContext);
   const controlled = takesAControl(pin);
   if (controlled !== null && controlled.driven_by !== null) {
-    return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={null} className="ml-auto shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
+    const pinType = controlled.declaration.pin_type;
+    const noControl = pinType.type === "named" ? <NodeGraphNamedTypeWords pinType={pinType} /> : null;
+    return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={null} noControl={noControl} className="ml-auto shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
   }
   if (pin.value_address === null) return null;
   const wordsOfTheValue = <NodeGraphInputValueWords address={pin.value_address} pinType={pin.pin?.pin_type ?? null} />;
@@ -118,17 +130,44 @@ function NodeGraphInputValueOfTheRow({ pin }: { pin: NodePin }) {
   return <InputControlMount input={controlled} surface="node" readOnly={!isEditable} fallback={wordsOfTheValue} className="ml-auto shrink-0 pl-2" hostAttributes={INLINE_CONTROL_HOST_ATTRIBUTES} />;
 }
 
+/** The name of the named type an input takes, at its row's end, where no control draws the input. */
+function NodeGraphNamedTypeWords({ pinType }: { pinType: PinType }) {
+  return (
+    <span className="ml-auto max-w-1/2 min-w-0 truncate pl-2 text-fg-3" data-node-graph-input-type-words>
+      {pinTypeWords(pinType)}
+    </span>
+  );
+}
+
 /** What the mark beside a setting its node reads as it is set up says while the pointer rests on it. */
 const REBUILDS_THE_NODE_WORDS = "A change rebuilds the node";
+
+/** A small mark beside a pin row's name, in `toneClassName`, saying `words` while the pointer rests on it and to a screen reader; `markAttributes` name what it marks. */
+function NodeGraphPinRowMark({ icon: Icon, words, toneClassName, markAttributes }: { icon: LucideIcon; words: string; toneClassName: string; markAttributes: Record<`data-${string}`, string> }) {
+  return (
+    <span className={cn("ml-1 flex shrink-0", toneClassName)} title={words} {...markAttributes}>
+      <Icon className="size-2.5" strokeWidth={2} aria-label={words} />
+    </span>
+  );
+}
 
 /** The mark beside the name of a setting its node reads as it is set up, saying a change of it rebuilds the node; none on any other pin. */
 export function NodeGraphRebuildsTheNodeMark({ pin }: { pin: NodePin }) {
   if (!doesAChangeRebuildTheNode(pin)) return null;
-  return (
-    <span className="ml-1 flex shrink-0 text-fg-3" title={REBUILDS_THE_NODE_WORDS} data-node-graph-rebuilds-the-node={pin.name}>
-      <Hammer className="size-2.5" strokeWidth={2} aria-label={REBUILDS_THE_NODE_WORDS} />
-    </span>
-  );
+  return <NodeGraphPinRowMark icon={Hammer} words={REBUILDS_THE_NODE_WORDS} toneClassName="text-fg-3" markAttributes={{ "data-node-graph-rebuilds-the-node": pin.name }} />;
+}
+
+/** The amber triangle beside the name of an input whose link the runtime warns of, saying each warning in its words; none on any other pin. */
+function NodeGraphLinkWarningMark({ pin }: { pin: NodePin }) {
+  const warningWords = (pin.link?.warnings ?? []).map((warning) => warning.words);
+  if (warningWords.length === 0) return null;
+  return <NodeGraphPinRowMark icon={TriangleAlert} words={warningWords.join("\n")} toneClassName="text-warn-text" markAttributes={{ "data-node-graph-link-warning": pin.name }} />;
+}
+
+/** What a screen reader hears of an input whose link the runtime converts for free, which its socket shows in two tones; none on any other pin. */
+function NodeGraphFreeConversionWordsForAScreenReader({ pin }: { pin: NodePin }) {
+  const words = freeConversionWords(pin.link, pin.pin);
+  return words === null ? null : <span className="sr-only" data-node-graph-free-conversion={pin.name}>{words}</span>;
 }
 
 /** Whether a card draws a socket for `pin`: every pin but a setting, which takes a value and no wire. */
@@ -145,6 +184,7 @@ function NodeGraphCardHeaderAndPinRows({
   beforeTheTitle = null,
   aboveTheRows = null,
   socketOfThePin,
+  beforeABundlesName = () => null,
 }: {
   graphNode: NodeGraphCardFaceNode;
   /** What leads the header, as the canvas's button that collapses the card. */
@@ -153,8 +193,10 @@ function NodeGraphCardHeaderAndPinRows({
   aboveTheRows?: ReactNode;
   /** `takesNewWires` is false on a collapsed card, whose pins all meet at its header's edge. */
   socketOfThePin: (side: "input" | "output", pin: NodePin, takesNewWires: boolean) => ReactNode;
+  /** What leads a bundle pin's row, as the canvas's button that shows or folds its members. */
+  beforeABundlesName?: (side: "input" | "output", pin: NodePin) => ReactNode;
 }) {
-  const rows = nodePinRows(graphNode.inputs, graphNode.outputs);
+  const rows = nodePinRows(nodePinsShown(graphNode.inputs), nodePinsShown(graphNode.outputs));
   return (
     <>
       <div
@@ -175,27 +217,32 @@ function NodeGraphCardHeaderAndPinRows({
         )}
         <NodeGraphCardLanguageTag kind={graphNode.kind} />
         <NodeGraphCardConditionTag condition={graphNode.condition} />
-        {graphNode.is_collapsed && rows.filter((row) => takesASocket(row.node_pin)).map((row) => <Fragment key={`${row.side}:${row.node_pin.name}`}>{socketOfThePin(row.side, row.node_pin, false)}</Fragment>)}
+        {graphNode.is_collapsed && rows.filter((row) => takesASocket(row.node_pin)).map((row) => <Fragment key={`${row.side}:${nodePinRowKey(row.node_pin)}`}>{socketOfThePin(row.side, row.node_pin, false)}</Fragment>)}
       </div>
       {!graphNode.is_collapsed && aboveTheRows}
       {!graphNode.is_collapsed && rows.length > 0 && (
         <div style={{ paddingBlock: NODE_GRAPH_CARD_PIN_ROWS_PADDING }}>
           {rows.map((row) => (
             <div
-              key={`${row.side}:${row.node_pin.name}`}
-              className={cn("relative flex items-center px-3 py-0.5 text-2xs text-fg-2", row.side === "output" && "justify-end")}
+              key={`${row.side}:${nodePinRowKey(row.node_pin)}`}
+              className={cn("relative flex items-center px-3 py-0.5 text-2xs text-fg-2", row.side === "output" && "justify-end", row.node_pin.member !== null && (row.side === "input" ? "pl-6" : "pr-6"))}
               style={{ minHeight: NODE_GRAPH_PIN_ROW_HEIGHT }}
               data-node-graph-pin-row={row.side}
               data-node-graph-setting={row.node_pin.setting === null ? undefined : row.node_pin.setting.read}
+              data-node-graph-member={row.node_pin.member ?? undefined}
             >
+              {row.side === "input" && row.node_pin.bundle !== null && beforeABundlesName(row.side, row.node_pin)}
               <span
                 className={cn("truncate", row.side === "output" && "text-right")}
-                {...(row.side === "input" ? { "data-node-graph-input-pin": row.node_pin.name } : { "data-node-graph-output-pin": row.node_pin.name })}
+                {...(row.side === "input" ? { "data-node-graph-input-pin": nodePinRowKey(row.node_pin) } : { "data-node-graph-output-pin": nodePinRowKey(row.node_pin) })}
                 title={nodeGraphPinTooltip(row.node_pin)}
               >
-                {row.node_pin.name}
+                {nodePinLabel(row.node_pin)}
               </span>
+              {row.side === "output" && row.node_pin.bundle !== null && beforeABundlesName(row.side, row.node_pin)}
+              <NodeGraphFreeConversionWordsForAScreenReader pin={row.node_pin} />
               <NodeGraphRebuildsTheNodeMark pin={row.node_pin} />
+              <NodeGraphLinkWarningMark pin={row.node_pin} />
               {row.side === "input" && <NodeGraphInputValueOfTheRow pin={row.node_pin} />}
               {takesASocket(row.node_pin) && socketOfThePin(row.side, row.node_pin, true)}
             </div>
@@ -206,12 +253,29 @@ function NodeGraphCardHeaderAndPinRows({
   );
 }
 
+/** The chevron leading a bundle pin's row, which shows a row for each of its members or folds them back into the bundle's row. */
+function NodeGraphBundleOpenButton({ nodeId, side, pin, onBundleOpened }: { nodeId: string; side: "input" | "output"; pin: NodePin; onBundleOpened: (nodeId: string, side: "input" | "output", pin: string, open: boolean) => void }) {
+  const isOpen = pin.bundle?.is_open === true;
+  return (
+    <button
+      type="button"
+      className={cn("nodrag flex size-4 shrink-0 items-center justify-center rounded-sm text-fg-3 outline-none hover:bg-hover hover:text-fg", side === "input" ? "-ml-1 mr-0.5" : "-mr-1 ml-0.5", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
+      aria-label={`${pin.name} members`}
+      aria-expanded={isOpen}
+      onClick={() => onBundleOpened(nodeId, side, pin.name, !isOpen)}
+      data-node-graph-bundle-open={pin.name}
+    >
+      {isOpen ? <ChevronDown className="size-3" strokeWidth={2} aria-hidden /> : <ChevronRight className="size-3" strokeWidth={2} aria-hidden />}
+    </button>
+  );
+}
+
 /** Measures the card's pin sockets again whenever React Flow holds no place for one of them, which would leave its links undrawn and its pins unable to start a wire; React Flow measures a card only when its size changes. */
 function useEveryPinSocketOfTheCardMeasured(nodeId: string, graphNode: NodeGraphCardFaceNode): RefObject<HTMLDivElement | null> {
   const reactFlowStore = useStoreApi<NodeGraphFlowNode, NodeGraphLinkFlowEdge>();
   const cardElement = useRef<HTMLDivElement>(null);
-  const inputSocketIds = graphNode.inputs.filter(takesASocket).map((pin) => inputPinHandleId(pin.name));
-  const outputSocketIds = graphNode.outputs.map((pin) => outputPinHandleId(pin.name));
+  const inputSocketIds = nodePinsShown(graphNode.inputs).filter(takesASocket).map((pin) => inputPinHandleId(nodePinRowKey(pin)));
+  const outputSocketIds = nodePinsShown(graphNode.outputs).map((pin) => outputPinHandleId(nodePinRowKey(pin)));
   const isAPinSocketUnmeasured = useStore((state) => isAPinSocketOfTheCardUnmeasured(state.nodeLookup.get(nodeId)?.internals.handleBounds, inputSocketIds, outputSocketIds));
   useLayoutEffect(() => {
     if (!isAPinSocketUnmeasured) return;
@@ -262,6 +326,7 @@ export function NodeGraphCardView({ id, data, selected: isSelected }: NodeProps<
         }
         aboveTheRows={bodysNode !== null && <NodeBodyMount node={bodysNode} readOnly={!isEditable} />}
         socketOfThePin={(side, pin, takesNewWires) => <NodeGraphPinSocket nodeId={graphNode.node_id} side={side} pin={pin} takesNewWires={takesNewWires} />}
+        beforeABundlesName={(side, pin) => cardAndFrameEditing !== null && <NodeGraphBundleOpenButton nodeId={graphNode.node_id} side={side} pin={pin} onBundleOpened={cardAndFrameEditing.onBundleOpened} />}
       />
       {failureWords !== null && !graphNode.is_collapsed && (
         <p

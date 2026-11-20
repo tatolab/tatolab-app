@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect";
 import { afterEach, expect, test } from "vitest";
-import { ExtensionFolderChecksKept, folderVersionOf } from "./extension_check_gate.js";
-import { answersOfAFolderPassingTheGate, fileReadAnswer } from "./extension_check_gate_test_support.js";
+import { ExtensionFolderChecksKept, folderVersionOf, LAST_PASSED_VERSION_KEPT } from "./extension_check_gate.js";
+import { answersOfAFolderFailingTheGate, answersOfAFolderPassingTheGate, fileReadAnswer } from "./extension_check_gate_test_support.js";
 import { projectViewFolderUrl, ProjectViewsListedToTheWindows } from "./extension_files_served_with_types_removed.js";
 import { controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { projectNodeUiElementsOfTheOpenProject } from "./project_node_ui_elements.js";
@@ -47,27 +47,47 @@ function answersOfLobbyWallsFolderFailingTheGate(): Buffer[] {
   ];
 }
 
-/** The node UI elements of night-show listed over a fake local API answering `scriptedAnswers`, with the folders the listing kept as served. */
-async function nodeUiElementsListedOver(scriptedAnswers: readonly Buffer[]) {
+/** Listings of night-show's node UI elements over a fake local API answering `scriptedAnswers` in order, with the folders the last listing kept as served and the gate's kept checks. */
+async function nodeUiElementListingsOver(scriptedAnswers: readonly Buffer[]) {
   const server = await FakeLocalApiServer.answering(scriptedAnswers);
   cleanUps.push(() => server.close());
   const listedToTheWindows = new ProjectViewsListedToTheWindows();
-  const elements = await Effect.runPromise(
-    projectNodeUiElementsOfTheOpenProject(NIGHT_SHOW).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          runtimeControlLayer(server.localApiSocketPath, 2_000),
-          Layer.succeed(ProjectViewsListed, {
-            passedExtensionFolder: (openProjectFolder, folderVersion, folder) => listedToTheWindows.passedExtensionFolder(openProjectFolder, folderVersion, folder),
-            startAListing: Effect.sync(() => listedToTheWindows.startAListing()),
-            rememberTheListing: (openProjectFolder, listed, listingStarted, passedFolders) => Effect.sync(() => listedToTheWindows.rememberTheListing(openProjectFolder, listed, listingStarted, passedFolders)),
-            extensionFolderChecks: { kitFolderOfThisCheckout: null, checksKept: new ExtensionFolderChecksKept() },
-          }),
+  const checksKept = new ExtensionFolderChecksKept();
+  const listed = () =>
+    Effect.runPromise(
+      projectNodeUiElementsOfTheOpenProject(NIGHT_SHOW).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            runtimeControlLayer(server.localApiSocketPath, 2_000),
+            Layer.succeed(ProjectViewsListed, {
+              passedExtensionFolder: (openProjectFolder, folderVersion, folder) => listedToTheWindows.passedExtensionFolder(openProjectFolder, folderVersion, folder),
+              startAListing: Effect.sync(() => listedToTheWindows.startAListing()),
+              rememberTheListing: (openProjectFolder, listedKind, listingStarted, passedFolders) => Effect.sync(() => listedToTheWindows.rememberTheListing(openProjectFolder, listedKind, listingStarted, passedFolders)),
+              extensionFolderChecks: { kitFolderOfThisCheckout: null, checksKept },
+            }),
+          ),
         ),
       ),
-    ),
-  );
-  return { elements, listedToTheWindows };
+    );
+  return { listed, listedToTheWindows, checksKept };
+}
+
+/** The node UI elements of night-show listed once over a fake local API answering `scriptedAnswers`, with the folders the listing kept as served. */
+async function nodeUiElementsListedOver(scriptedAnswers: readonly Buffer[]) {
+  const listings = await nodeUiElementListingsOver(scriptedAnswers);
+  return { elements: await listings.listed(), listedToTheWindows: listings.listedToTheWindows };
+}
+
+/** The runtime's `list_project_node_ui_elements` answer: night-show's knob alone. */
+function listingOfNightShowsKnob(): Buffer {
+  return controlOperationResultResponse({
+    project_directory: NIGHT_SHOW,
+    project: NIGHT_SHOW_MODULE.project,
+    project_name: "night-show",
+    elements: [{ module: NIGHT_SHOW_MODULE, script_path: "node_ui/knob.ts", element: { kind: "control", pin_type: "float", control: "knob" } }],
+    manifests: [],
+    unreadable_manifests: [],
+  });
 }
 
 test("a project's control whose folder passes the check is listed served at its folder's version, and one whose folder fails is listed blocked with the runtime's finding", async () => {
@@ -109,6 +129,32 @@ test("a project's control whose folder passes the check is listed served at its 
   ]);
   expect(listedToTheWindows.passedExtensionFolder(NIGHT_SHOW, nodeUiVersion, "node_ui")?.files.get("node_ui/knob.ts")).toEqual(Buffer.from(KNOB_SCRIPT));
   expect(listedToTheWindows.passedExtensionFolder(NIGHT_SHOW, nodeUiVersion, "imports/lobby-wall/node_ui")).toBeNull();
+});
+
+test("a control whose folder is blocked after a version of it passed is listed blocked at that version, which stays served", async () => {
+  const brokenKnob = 'export default class Knob extends HTMLElement { level: number = "loud"; }\n';
+  const listings = await nodeUiElementListingsOver([
+    listingOfNightShowsKnob(),
+    ...answersOfAFolderPassingTheGate("node_ui", { "knob.ts": KNOB_SCRIPT }),
+    listingOfNightShowsKnob(),
+    ...answersOfAFolderFailingTheGate("node_ui", { "knob.ts": brokenKnob }, { path: "node_ui/knob.ts", line: 1, column: 50, words: "Type 'string' is not assignable to type 'number'." }),
+  ]);
+  const passedVersion = folderVersionOf(new Map([["node_ui/knob.ts", Buffer.from(KNOB_SCRIPT)]]));
+
+  await listings.listed();
+  listings.checksKept.forgetTheFoldersHolding(NIGHT_SHOW, ["node_ui/knob.ts"]);
+  const [knob] = await listings.listed();
+
+  expect(knob?.folder_version).toBe(passedVersion);
+  expect(knob?.script_serving).toEqual({
+    kind: "blocked",
+    findings: [
+      LAST_PASSED_VERSION_KEPT,
+      "The newer version of this module's node UI code is blocked.",
+      "node_ui/knob.ts:1:50: error: Type 'string' is not assignable to type 'number'. (TS2322)",
+    ],
+  });
+  expect(listings.listedToTheWindows.passedExtensionFolder(NIGHT_SHOW, passedVersion, "node_ui")?.files.get("node_ui/knob.ts")).toEqual(Buffer.from(KNOB_SCRIPT));
 });
 
 test("a runtime that does not list the project's elements leaves only the Studio's own", async () => {

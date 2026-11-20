@@ -11,10 +11,12 @@
 // links onto a port it renames or removes are carried at every placement. History names a node inside by the id its
 // first placement draws it under, where the runtime names it by the placed stream's own.
 
+import { mockRecordedMarksOfTheLink } from "./mock_replayed_link_candidates";
 import { mockGraphNodeIdOf, mockUuidOf, type MockGraphLink, type MockGraphNode, type MockGraphPort, type MockStreamGraph } from "./mock_stream_fixtures";
 import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
-import { echoTheInputValueSet } from "./mock_value_echo";
+import { echoTheInputValueSet, echoTheMemberValueSet } from "./mock_value_echo";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import { membersOfTheBundle } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
 import { familyOfThePort, fragmentKindOfTheNode, isAJsonValue, NODE_STUDIO_FIELDS_NONE_SET, type NodeTypePortDescribed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { PORT_FAMILIES, type JsonValue, type NodeTypeDescription, type PortFamily, type ProjectGraphTransaction, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
 
@@ -245,7 +247,11 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
   switch (operation) {
     case "set_node_config":
       return typeof node === "string" && typeof to === "object" && to !== null && !Array.isArray(to) ? { operation, stream, node, config: to } : null;
-    case "set_node_input_value":
+    case "set_node_input_value": {
+      const input = historyOperation["input"];
+      const member = historyOperation["member"];
+      return typeof node === "string" && typeof input === "string" ? { operation, stream, node, input, value: to, ...(typeof member === "string" ? { member } : {}) } : null;
+    }
     case "set_pin_value": {
       const input = historyOperation["input"];
       return typeof node === "string" && typeof input === "string" ? { operation, stream, node, input, value: to } : null;
@@ -306,7 +312,9 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
       const link = historyOperation["link"];
       if (typeof link !== "object" || link === null || Array.isArray(link)) return null;
       const end = (value: JsonValue | undefined): StreamGraphActionLinkEnd | null =>
-        typeof value === "object" && value !== null && !Array.isArray(value) && typeof value["node"] === "string" && typeof value["port"] === "string" ? { node: value["node"], port: value["port"] } : null;
+        typeof value === "object" && value !== null && !Array.isArray(value) && typeof value["node"] === "string" && typeof value["port"] === "string"
+          ? { node: value["node"], port: value["port"], ...(typeof value["member"] === "string" ? { member: value["member"] } : {}) }
+          : null;
       const source = end(link["source"]);
       const target = end(link["target"]);
       return source !== null && target !== null ? { operation, stream, source, target } : null;
@@ -387,7 +395,7 @@ export function applyMockGraphTransaction(
     };
     const linkEndNamed = (end: StreamGraphActionLinkEnd) => {
       const graphNode = nodeNamed(end.node);
-      return { graphNode, end: { node: nodeIdOf(graphNode), port: end.port } };
+      return { graphNode, member: end.member ?? undefined, end: { node: nodeIdOf(graphNode), port: end.port, ...(end.member === undefined || end.member === null ? {} : { member: end.member }) } };
     };
     const theReplayedFoldsPlacedStream = (): string | null => {
       const replayed = historyOperationsReplayed.filter((historyOperation) => !isAHistoryOperationTheMockMakesAgainFromTheEditInside(historyOperation))[operationIndex];
@@ -433,6 +441,15 @@ export function applyMockGraphTransaction(
           break;
         }
         const port = node.input_ports.find((candidate) => candidate.name === operation.input);
+        const member = operation.member ?? null;
+        if (member !== null) {
+          if (port?.member_reads?.some((read) => read.member === member) !== true) throw new MockGraphEditNotApplicable(`input \`${operation.input}\` of ${operation.node} has no member \`${member}\``);
+          const to = jsonTheActionCarries(operation.value ?? null, "value");
+          const from = echoTheMemberValueSet(node, operation.input, member, to, applying);
+          if (applying === "a_live_transaction") break;
+          recordInHistory({ operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, member, from, to }, { operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, member, from: to, to: from });
+          break;
+        }
         if (port?.pin?.flow === "trigger") {
           fireTheTriggerInput(graph, node, operation.input, operation.value ?? null, applying);
           break;
@@ -524,21 +541,24 @@ export function applyMockGraphTransaction(
         const studio: { studio?: JsonValue } = node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) };
         recordInHistory({ operation: "remove_node", node: nodeId }, { operation: "add_node", node: { id: nodeId, name: node.name, type: node.type, config: node.config, pins: node.pins ?? {}, ...studio } });
         for (const link of linksOfTheNode) {
-          const endOf = (nodeName: string, port: string) => {
+          const endOf = (nodeName: string, port: string, member: string | undefined) => {
             const linked = nodeName === node.name ? node : graph.nodes.find((candidate) => candidate.name === nodeName);
-            return { node: linked === undefined ? nodeName : nodeIdOf(linked), port };
+            return { node: linked === undefined ? nodeName : nodeIdOf(linked), port, ...(member === undefined ? {} : { member }) };
           };
-          inverseOperations.splice(1, 0, { stream: streamOfTheLevel, operation: "connect", link: { source: endOf(link.source_node, link.source_port), target: endOf(link.target_node, link.target_port) } });
+          inverseOperations.splice(1, 0, { stream: streamOfTheLevel, operation: "connect", link: { source: endOf(link.source_node, link.source_port, link.source_member), target: endOf(link.target_node, link.target_port, link.target_member) } });
         }
         break;
       }
       case "connect": {
         const source = linkEndNamed(operation.source);
         const targetEnd = linkEndNamed(operation.target);
-        const hasThePorts = source.graphNode.output_ports.some((port) => port.name === operation.source.port) && targetEnd.graphNode.input_ports.some((port) => port.name === operation.target.port);
+        const hasTheEnd = (ports: readonly MockGraphPort[], portName: string, member: string | undefined) =>
+          ports.some((port) => port.name === portName && (member === undefined || membersOfTheBundle(port.pin).includes(member)));
+        const hasThePorts = hasTheEnd(source.graphNode.output_ports, operation.source.port, source.member) && hasTheEnd(targetEnd.graphNode.input_ports, operation.target.port, targetEnd.member);
         if (!hasThePorts) throw new MockGraphEditNotApplicable(`no port ${source.graphNode.name}.${operation.source.port} to ${targetEnd.graphNode.name}.${operation.target.port}`);
         mockLinksMade += 1;
-        graph.links.push({ id: `Lmock${mockLinksMade.toString(36).padStart(21, "0")}`, source_node: source.graphNode.name, source_port: operation.source.port, target_node: targetEnd.graphNode.name, target_port: operation.target.port, state: "wired" });
+        const marks = mockRecordedMarksOfTheLink(source.end, targetEnd.end);
+        graph.links.push({ id: `Lmock${mockLinksMade.toString(36).padStart(21, "0")}`, source_node: source.graphNode.name, source_port: operation.source.port, ...(source.member === undefined ? {} : { source_member: source.member }), target_node: targetEnd.graphNode.name, target_port: operation.target.port, ...(targetEnd.member === undefined ? {} : { target_member: targetEnd.member }), state: "wired", ...marks });
         const link = { source: source.end, target: targetEnd.end };
         applied.connected_links.push({ stream: target.stream_id, ...link, state: "wired", error_reason: null });
         recordInHistory({ operation: "connect", link }, { operation: "disconnect", link });
@@ -550,7 +570,14 @@ export function applyMockGraphTransaction(
         const linkCount = graph.links.length;
         graph.links = graph.links.filter(
           (link) =>
-            !(link.source_node === source.graphNode.name && link.source_port === operation.source.port && link.target_node === targetEnd.graphNode.name && link.target_port === operation.target.port),
+            !(
+              link.source_node === source.graphNode.name &&
+              link.source_port === operation.source.port &&
+              link.source_member === source.member &&
+              link.target_node === targetEnd.graphNode.name &&
+              link.target_port === operation.target.port &&
+              link.target_member === targetEnd.member
+            ),
         );
         if (graph.links.length === linkCount) throw new MockGraphEditNotApplicable("no such link in the stream's graph");
         const link = { source: source.end, target: targetEnd.end };

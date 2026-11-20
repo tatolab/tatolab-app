@@ -117,10 +117,12 @@ export function nodeTypeSearchNarrowing(looseWire: LooseWire): SearchPopoverNarr
   };
 }
 
-/** A node type's port as a card placed now draws its pin: the type it states exactly, or none, and no stream yet. */
+/** A node type's port as a card placed now draws its pin: the type it states exactly, or none, no stream yet, and a bundle closed. */
 function nodePinOfTheDescribedPort(port: NodeTypePortDescribed): NodePin {
   return {
     name: port.name,
+    member: null,
+    bundle: null,
     pin: exactPinOfTheDeclaredPort(port),
     family: familyOfThePort(port),
     description: descriptionWords(port.documentation),
@@ -129,6 +131,7 @@ function nodePinOfTheDescribedPort(port: NodeTypePortDescribed): NodePin {
     value_address: null,
     setting: null,
     wire: null,
+    link: null,
   };
 }
 

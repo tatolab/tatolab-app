@@ -31,6 +31,7 @@ export type {
   StreamGraphFragment,
   StreamGraphInterfacePort,
   StreamGraphLink,
+  StreamGraphLinkWarning,
   ListNodeTypesToolResult,
   DescribeNodeTypesToolResult,
   NodeTypeDescribedOrWhyNot,
@@ -47,6 +48,7 @@ export type {
   ImportedProject,
   OpenProject,
   OpenProjectReading,
+  ProjectFileFinding,
   ProjectFileRead,
   ProjectFiles,
   ProjectLogRecord,
@@ -74,8 +76,8 @@ export type {
   PortViewerRecovery,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export { PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
-export { TATO_STUDIO_MCP_CLIENT_NAME, familyOfThePort, fragmentOfTheNode, inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { JsonValue, ListedStream, PortViewerMessageReading, PortViewerRecovery, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
+export { TATO_STUDIO_MCP_CLIENT_NAME, familyOfThePort, fragmentOfTheNode, inputValueReadOfThePort, memberValueReadsOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, ListedStream, PortViewerMessageReading, PortViewerRecovery, ProjectFileFinding, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The platform the app runs on, which decides the window's chrome. */
 export type TatolabPlatform = "macos" | "linux";
@@ -540,6 +542,11 @@ export interface ProjectFileSaved {
   version: string;
 }
 
+/** What `check_project_file` answers: each finding of the runtime's check in the file, none when it passed. */
+export interface ProjectFileChecked {
+  findings: ProjectFileFinding[];
+}
+
 /** What `create_node_file` answers: the new file, absolute, and the node type it declares, `<module>:<class>`, as a graph adds it. */
 export interface NodeFileCreated {
   file: string;
@@ -569,6 +576,8 @@ export interface ListedStudioViewFacts {
   manifest_json: JsonValue | null;
   /** The URL its folder is served under; empty for a project view that does not open, of which nothing is served. */
   folder_url: string;
+  /** Why the newest version of a project view is blocked while the Studio keeps serving the version that last passed, its line then the gate's words; `null` while the newest is served. */
+  newer_version_blocked_because: string | null;
 }
 
 /** The facts beside an Image frame a port viewer hands the window as a shared texture. */

@@ -51,6 +51,7 @@ import type {
   ProjectFileRead,
   ProjectFileSaved,
   NodeFileCreated,
+  ProjectFileChecked,
   ProjectFolderChosenFor,
   ProjectArchiveChosenToImport,
   ListedStudioView,
@@ -139,6 +140,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "read_project_file",
   "save_project_file",
   "create_node_file",
+  "check_project_file",
   "list_project_files",
   "list_studio_views_of_the_open_project",
   "list_node_ui_elements",
@@ -311,6 +313,8 @@ function isAStreamGraphInputValueChange(change: unknown): change is StreamGraphI
     typeof change.node === "string" &&
     "input" in change &&
     typeof change.input === "string" &&
+    "member" in change &&
+    (change.member === null || typeof change.member === "string") &&
     "value_read" in change &&
     isAStreamGraphInputValueRead(change.value_read)
   );
@@ -483,6 +487,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   save_project_file: { commandArguments: { file: string; text: string; based_on_version: string | null }; answer: ProjectFileSaved };
   /** From a studio window only: a new Python node file at `file`, absolute, inside the open project's own folder, from the runtime's node template as one transaction; refused for an import's file, and in the runtime's own words. */
   create_node_file: { commandArguments: { file: string }; answer: NodeFileCreated };
+  /** From a studio window only: the runtime's `check_project_code` of `file`, absolute, inside the open project's own folder, answering the findings in that file; refused for an import's file, and in the runtime's own words. */
+  check_project_file: { commandArguments: { file: string }; answer: ProjectFileChecked };
   /** `project_folder` the folder of the open project or of one of its imports. */
   list_project_files: { commandArguments: { project_folder: string }; answer: ProjectFiles };
   /** From a studio window only: the runtime's `list_project_views` of its open project, each view's folder served under the window page's scheme; refused while no project is open, and in the runtime's own words. */

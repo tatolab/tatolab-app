@@ -755,6 +755,16 @@ describe("the studio", () => {
     expect(await screen.findByText("the runtime lists no views yet")).toBeTruthy();
   });
 
+  it("says in the area why a project's view it remembers does not open, in the runtime's words", async () => {
+    keepThePatternProjectsLayout({ layout: { kind: "area", area_id: "rig", view_type_id: "lobby-wall:stage_rig" } });
+    await mountedWindowOverTheMock("state=running&studio_views=fixture");
+    await theAreasShownAre(["rig"]);
+
+    expect(await screen.findByText("Stage rig doesn't open")).toBeTruthy();
+    expect(screen.getByText("`contract`: this runtime reads view contract 1.0.")).toBeTruthy();
+    expect(screen.queryByText("This area's view, lobby-wall:stage_rig, isn't in this build")).toBeNull();
+  });
+
   it("opens a saved layout that does not parse on its default, and says when an area names a view this build lacks", async () => {
     keepThePatternProjectsLayout({ layout: { kind: "area", area_id: "venue", view_type_id: "venue-3d" } });
     await mountedWindowOverTheMock("state=running");

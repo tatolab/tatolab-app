@@ -2,14 +2,17 @@
 // then its other inputs, each carrying the pin's exact type and flow where the runtime serves them.
 
 import type { PinAnnotations } from "../pin_type_readings.js";
-import type { NodeTypeInputDescribed, NodeTypePortDescribed, SettingReadTime, StreamGraphPortPin } from "../studio_readings.js";
+import { jsonObjectMembersOf, type JsonValue, type NodeTypeInputDescribed, type NodeTypePortDescribed, type SettingReadTime, type StreamGraphPortPin } from "../studio_readings.js";
 import type { PortFamily } from "../port_families.js";
 import type { InputWiring } from "./input_wiring.js";
+import type { NodeInputLink } from "./node_input_link.js";
 import type { InputAddress } from "./node_inputs.js";
 
-/** One pin of a node: its name, its exact type and flow (`null` for a pin with none), what its node type says and annotates of it, and what it states about its stream. */
+/** One pin of a node, or one member of a bundle pin: its port's name and the member's (`null` for the whole port), its exact type and flow (`null` for a pin with none), what its node type says and annotates of it, and what it states about its stream. */
 export interface NodePin {
   readonly name: string;
+  /** The member of the bundle `name` carries that this row is; `null` on a whole port. */
+  readonly member: string | null;
   readonly pin: StreamGraphPortPin | null;
   /** The family the runtime still serves beside the type; only the canvas's own wiring check reads it, until the runtime judges a link. */
   readonly family: PortFamily | null;
@@ -24,6 +27,21 @@ export interface NodePin {
   readonly setting: NodeSetting | null;
   /** On an input that takes a wire, what it reads through it; `null` on every other pin, and where Studio reads no wire: outside a stream's graph and inside a subgraph. */
   readonly wire: NodePinWire | null;
+  /** On an input a link feeds in a stream's graph, what the runtime marks on that link; `null` on every other pin, and on a link it marks neither way. */
+  readonly link: NodeInputLink | null;
+  /** On a pin carrying a bundle, a row for each of its members, in the order the bundle declares them, and whether its card shows them; `null` on every other pin and on a member. */
+  readonly bundle: NodePinBundle | null;
+}
+
+/** A bundle pin's members, each a row of its own, and whether its card shows them, as its node keeps that under `studio.metadata.open_bundles`. */
+export interface NodePinBundle {
+  readonly members: readonly NodePin[];
+  readonly is_open: boolean;
+}
+
+/** The words a row is labelled with: its member's name on a member, its port's on any other pin. */
+export function nodePinLabel(pin: Pick<NodePin, "name" | "member">): string {
+  return pin.member ?? pin.name;
 }
 
 /** What an input reads through its wire: the input, where it is in its stream's graph, and the output wired into it, or why it reads none. */
@@ -56,6 +74,56 @@ export interface NodePinRow<Pin = NodePin> {
 /** A node's rows in the order a card draws them: its outputs first, then its inputs, which a node's inputs list with its settings first. */
 export function nodePinRows<Pin>(inputs: readonly Pin[], outputs: readonly Pin[]): readonly NodePinRow<Pin>[] {
   return [...outputs.map((node_pin): NodePinRow<Pin> => ({ side: "output", node_pin })), ...inputs.map((node_pin): NodePinRow<Pin> => ({ side: "input", node_pin }))];
+}
+
+/** The rows a card draws of `pins`, one side's: each pin, an open bundle followed by a row for each of its members. */
+export function nodePinsShown(pins: readonly NodePin[]): readonly NodePin[] {
+  return pins.flatMap((pin) => [pin, ...(pin.bundle?.is_open === true ? pin.bundle.members : [])]);
+}
+
+/** The key a card's row of `pin` goes by among its side's rows: its port's name, followed by `/` and its member's on a member, which no port's name holds. */
+export function nodePinRowKey(pin: Pick<NodePin, "name" | "member">): string {
+  return pin.member === null ? pin.name : `${pin.name}/${pin.member}`;
+}
+
+/** The port and member a row's key `rowKey` names, as `nodePinRowKey` wrote it. */
+export function pinEndOfTheRowKey(rowKey: string): Pick<NodePin, "name" | "member"> {
+  const memberAt = rowKey.indexOf("/");
+  return memberAt === -1 ? { name: rowKey, member: null } : { name: rowKey.slice(0, memberAt), member: rowKey.slice(memberAt + 1) };
+}
+
+/** The key of the row of `pins`, one side's of a card, that a link ending at member `member` of the port `name` is drawn to: the member's while its bundle is open, the port's otherwise, and the port's for a link to the whole port. */
+export function rowKeyOfTheLinkEnd(pins: readonly Pick<NodePin, "name" | "bundle">[], name: string, member: string | null): string {
+  const isTheMemberShown = member !== null && pins.find((pin) => pin.name === name)?.bundle?.is_open === true;
+  return nodePinRowKey({ name, member: isTheMemberShown ? member : null });
+}
+
+/** The pins a node's metadata keeps open, by side, as `studio.metadata.open_bundles` holds them: each side's bundle pins by name. */
+export interface OpenBundles {
+  readonly inputs: readonly string[];
+  readonly outputs: readonly string[];
+}
+
+/** The key a node's `studio.metadata` keeps its open bundle pins under. */
+export const OPEN_BUNDLES_METADATA_KEY = "open_bundles";
+
+/** The bundle pins `metadata`, a node's `studio.metadata`, keeps open; none where it keeps no such list, or one of another shape. */
+export function openBundlesOfTheMetadata(metadata: { readonly [key: string]: JsonValue }): OpenBundles {
+  const kept = jsonObjectMembersOf(metadata[OPEN_BUNDLES_METADATA_KEY]);
+  const namesUnder = (key: string): readonly string[] => {
+    const names = kept[key];
+    return Array.isArray(names) ? names.filter((name): name is string => typeof name === "string") : [];
+  };
+  return { inputs: namesUnder("inputs"), outputs: namesUnder("outputs") };
+}
+
+/** `open` with the bundle pin `name` on `side` opened or closed, each side's names sorted, so one state is written one way. */
+export function openBundlesWith(open: OpenBundles, side: "input" | "output", name: string, isOpen: boolean): OpenBundles {
+  const key = side === "input" ? "inputs" : "outputs";
+  const names = new Set(open[key]);
+  if (isOpen) names.add(name);
+  else names.delete(name);
+  return { ...open, [key]: [...names].sort() };
 }
 
 /** The exact type and flow a node type declares for a port, as a card placed now would show them: a type it states exactly, or none while another pin or a setting decides it. */

@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { nodeOfABody, takesAControl } from "./controlled_inputs.js";
 import type { InputAddress } from "./node_inputs.js";
 
-const WIDTH: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "PATTERN-ID", input: "width" };
+const WIDTH: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "PATTERN-ID", input: "width", member: null };
 
 test("a_settings_control_is_told_whether_a_change_rebuilds_its_node", () => {
   const width = { name: "width", pin: { pin_type: { type: "integer" }, flow: "value" }, annotations: {}, value_address: WIDTH, wire: null } as const;
@@ -32,6 +32,19 @@ test("a_texture_input_whose_annotation_names_a_control_takes_it_driven_by_what_i
   expect(takesAControl({ ...videoIn, annotations: { control: "preview" }, value_address: VIDEO_IN })?.driven_by).toEqual(WIRED_FROM_THE_CAMERA);
   expect(takesAControl({ ...videoIn, annotations: {} })).toBeNull();
   expect(takesAControl({ ...videoIn, annotations: { control: "preview" }, wire: null })).toBeNull();
+});
+
+test("a_named_types_input_takes_a_control_driven_by_what_its_wire_reads_with_no_annotation", () => {
+  const sweep = { name: "sweep", pin: { pin_type: { type: "named", named_pin_type: "nodes.sweep:Sweep" }, flow: "value" }, annotations: {}, value_address: null, setting: null } as const;
+  const sweepIn = { ...WIDTH, input: "sweep" };
+  expect(takesAControl({ ...sweep, wire: { into: sweepIn, wiring: WIRED_FROM_THE_CAMERA } })).toEqual({
+    address: sweepIn,
+    declaration: { input_name: "sweep", label: "sweep", pin_type: { type: "named", named_pin_type: "nodes.sweep:Sweep" }, annotations: {}, may_be_unset: false },
+    rebuilds_its_node: false,
+    driven_by: WIRED_FROM_THE_CAMERA,
+  });
+  expect(takesAControl({ ...sweep, wire: { into: sweepIn, wiring: { kind: "unwired", because: "Nothing is wired into sweep." } } })?.driven_by).toEqual({ kind: "unwired", because: "Nothing is wired into sweep." });
+  expect(takesAControl({ ...sweep, wire: null })).toBeNull();
 });
 
 test("an_input_holding_a_value_that_a_link_feeds_takes_no_control_whatever_its_annotation_names", () => {

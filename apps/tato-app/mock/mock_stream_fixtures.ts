@@ -1,5 +1,4 @@
-import { largeMockStreamGraph } from "./mock_large_stream_graph";
-import { mockRecordedGraphOfTheEveryPinKindSample } from "./mock_recordings";
+import { mapEachMockMainGraph, type MockMainGraph } from "./mock_main_graphs";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
 import type {
   JsonValue,
@@ -9,6 +8,7 @@ import type {
   ProjectLogRecord,
   StreamGraphGroup,
   StreamGraphInputValueRead,
+  StreamGraphLinkWarning,
   StreamGraphNode,
   StreamGraphNodeKind,
   StreamGraphNodeStudioFields,
@@ -115,16 +115,33 @@ export interface MockGraphPort {
   pin: StreamGraphPortPin | null;
   /** On an input, what it reads while unlinked and where that comes from; `null` on one that takes no stored value, and on every output. */
   value_read: StreamGraphInputValueRead | null;
+  /** On a bundle input, what each of its members reads while unlinked, in the order the bundle declares them, in place of `value_read`; absent on every other port. */
+  member_reads?: MockMemberRead[];
 }
 
-/** A link of a mock stream's graph: its id, the node and port at each end by name, and its state as the runtime spells it. */
+/** What one member of a bundle input reads while unlinked and where that comes from, and the default it reads while none is set. */
+export interface MockMemberRead {
+  member: string;
+  value_read: StreamGraphInputValueRead;
+  default_value: JsonValue | null;
+}
+
+/** A link of a mock stream's graph: its id, the node and port at each end by name, its state as the runtime spells it, and the marks a recording of the runtime gave it. */
 export interface MockGraphLink {
   id: string;
   source_node: string;
   source_port: string;
   target_node: string;
   target_port: string;
+  /** The member of a bundle port the link starts at, which it carries alone; absent for the whole port. */
+  source_member?: string;
+  /** The member of a bundle port the link ends at; absent for the whole port. */
+  target_member?: string;
   state: "pending" | "wired" | "disconnecting" | "disconnected" | "error";
+  /** `true` where the runtime marked the link as one its input reads as its own type at no cost. */
+  free_conversion?: true;
+  /** The warnings the runtime gave the link. */
+  warnings?: StreamGraphLinkWarning[];
 }
 
 /** A node of a mock stream's graph, as the runtime's `graph` names it, with the config and ports it renders. */
@@ -789,14 +806,6 @@ function failedLobbyRecorderListing(machine: MockMachine): ListedStream {
   return { stream: mockStreamIdOf(address), display_name: "lobby-recorder", location: mockStreamLocationOf(address), state: "failed", node_count: null, failed_because: machine.cameraFailure, capture_devices_whose_access_was_never_asked_for: [], condition: null, action: null, step: null };
 }
 
-/** What `?main_graph=` names `main` to hold in place of the pattern project's own graph. */
-export type MockMainGraph = "every_pin_kind" | "large";
-
-/** The graph `?main_graph=` names, `null` when it names none. */
-export function mockMainGraphNamed(mainGraphInTheQuery: string | null): MockMainGraph | null {
-  return mainGraphInTheQuery === "every_pin_kind" || mainGraphInTheQuery === "large" ? mainGraphInTheQuery : null;
-}
-
 /** Why the runtime failed `main` in the mock's `?state=refused-at-play`: a play that refused a link from a function node into a node in the app process, in the runtime's words. */
 const MOCK_MAIN_REFUSED_AT_PLAY_BECAUSE =
   "Invalid link: link `Lkrgygd6qubqrj4jviamzuzfw` feeds a function node island into `displaywindow`, which runs in the app process; a function node runs inside the read of a node in a helper process, and the app process runs no node code";
@@ -839,7 +848,7 @@ export interface MockStreamFixtures {
   mainStreamHoldingAGeneratedSubgraph: MockStreamFixture;
   /** `main` with an `ImageFile` that names no asset, so it reports itself not ready. */
   mainStreamWithAnImageFileNotReady: MockStreamFixture;
-  /** `main` holding each graph `?main_graph=` names: the one recorded from the every-pin-kind sample, or the large graph of the canvas measurements. */
+  /** `main` holding each graph `?main_graph=` names: the one recorded from the every-pin-kind sample, with a stand-in warned link or a stand-in node with bundle pins, or the large graph of the canvas measurements. */
   mainStreamHoldingTheGraph: Record<MockMainGraph, MockStreamFixture>;
   cameraStream: MockStreamFixture;
   /** The camera stream as the runtime re-loads it at its start before anyone has asked for camera access. */
@@ -876,8 +885,6 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     withAnImageFileNotReady: false,
   };
   const mainStream = createTestPatternStream(machine, mainStreamOptions);
-  const largeGraph = largeMockStreamGraph();
-  const everyPinKindGraph = mockRecordedGraphOfTheEveryPinKindSample();
   const cameraStream = createCameraStream(machine);
   const recorderOfMainStream = createTestPatternStream(machine, {
     ...mainStreamOptions,
@@ -897,10 +904,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     mainStreamDeclaringGraphInputs: createTestPatternStream(machine, { ...mainStreamOptions, withGraphInputs: true }),
     mainStreamHoldingAGeneratedSubgraph: createTestPatternStream(machine, { ...mainStreamOptions, withAGeneratedSubgraph: true }),
     mainStreamWithAnImageFileNotReady: createTestPatternStream(machine, { ...mainStreamOptions, withAnImageFileNotReady: true }),
-    mainStreamHoldingTheGraph: {
-      every_pin_kind: { ...mainStream, listing: { ...mainStream.listing, node_count: everyPinKindGraph.nodes.length }, graph: everyPinKindGraph },
-      large: { ...mainStream, listing: { ...mainStream.listing, node_count: largeGraph.nodes.length }, graph: largeGraph },
-    },
+    mainStreamHoldingTheGraph: mapEachMockMainGraph((graph) => ({ ...mainStream, listing: { ...mainStream.listing, node_count: graph.nodes.length }, graph })),
     cameraStream,
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,

@@ -65,6 +65,7 @@ export const viewAskSchema = schemaOfThePublicType<ViewAsk>()(
     Schema.Struct({ kind: Schema.Literal("read_project_file"), file: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("save_project_file"), file: Schema.String, text: Schema.String, based_on_version: Schema.NullOr(Schema.String) }),
     Schema.Struct({ kind: Schema.Literal("create_node_file"), file: Schema.String }),
+    Schema.Struct({ kind: Schema.Literal("check_project_file"), file: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("list_project_files"), project_folder: Schema.String }),
     Schema.Struct({ kind: Schema.Literal("send_to_python_language_server"), watch_id: watchOrAskIdSchema, message: jsonValueSchema }),
     Schema.Struct({ kind: Schema.Literal("send_output"), output: Schema.String }),

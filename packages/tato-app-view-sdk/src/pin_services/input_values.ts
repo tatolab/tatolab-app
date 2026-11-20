@@ -172,8 +172,8 @@ export function createInputValues(sending: InputValuesSending): InputValues {
    * Takes what one input of the stream at `stream` reads, answering its key, or `null` when it is not taken: a link renders
    * on every input it feeds, one that takes no stored value too, so a wired input is taken only where the store holds it.
    */
-  const takeTheValue = (stream: Omit<GraphAddress, "level">, { level, node_id, input, value_read }: StreamInputValue): string | null => {
-    const address: InputAddress = { graph: { ...stream, level }, node_id, input };
+  const takeTheValue = (stream: Omit<GraphAddress, "level">, { level, node_id, input, member, value_read }: StreamInputValue): string | null => {
+    const address: InputAddress = { graph: { ...stream, level }, node_id, input, member };
     const key = inputAddressKey(address);
     const known = statesByKey.get(key);
     if (value_read.comes_from === "wire" && known === undefined) return null;

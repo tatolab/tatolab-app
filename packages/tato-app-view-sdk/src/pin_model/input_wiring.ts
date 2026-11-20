@@ -4,17 +4,18 @@
 
 import type { PortFamily } from "../port_families.js";
 import { familyOfThePort, type PortViewerTarget, type StreamGraph } from "../studio_readings.js";
+import { isTheLinkInto } from "./node_input_link.js";
 
 /** What one input reads: the output wired into it, named as `Node › port`, or why it reads nothing. */
 export type InputWiring = { kind: "wired"; target: PortViewerTarget; wired_from_words: string } | { kind: "unwired"; because: string };
 
 /**
  * What the input `inputName` of the node `nodeName` reads in `graph`, the graph of the stream `stream`: the output a link
- * wires into it, unless that output is in another stream, or carries another family than `family`, the one the input takes;
- * `null` takes any.
+ * wires into the whole input, unless that output is in another stream, or carries another family than `family`, the one the
+ * input takes; `null` takes any.
  */
 export function wiringOfTheInput(stream: string, graph: Pick<StreamGraph, "nodes" | "links">, nodeName: string, inputName: string, family: PortFamily | null): InputWiring {
-  const link = graph.links.find((graphLink) => graphLink.target.node === nodeName && graphLink.target.port === inputName);
+  const link = graph.links.find((graphLink) => isTheLinkInto(graphLink, nodeName, inputName, null));
   if (link === undefined) return { kind: "unwired", because: `Nothing is wired into ${inputName}.` };
   const sourceNode = graph.nodes.find((node) => node.name === link.source.node);
   if (sourceNode === undefined) return { kind: "unwired", because: `${inputName} is wired from ${link.source.node}, in another stream, which Studio does not read.` };

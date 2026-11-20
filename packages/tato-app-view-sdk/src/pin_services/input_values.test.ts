@@ -5,21 +5,21 @@ import { createInputValues, type ShownValue } from "./input_values.js";
 
 const PROJECT = "/projects/demo";
 const STREAM_ASSET = "11111111-2222-3333-4444-555555555555";
-const GAIN: InputAddress = { graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "MIX-ID", input: "gain" };
-const INSIDE: InputAddress = { graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: ["SUB-ID"] }, node_id: "INNER-ID", input: "gain" };
+const GAIN: InputAddress = { graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "MIX-ID", input: "gain", member: null };
+const INSIDE: InputAddress = { graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: ["SUB-ID"] }, node_id: "INNER-ID", input: "gain", member: null };
 
 /** Every input's value as the host keeps it: Mix's gain on the stream's own level, and the gain of a node inside a subgraph. */
 const valuesRead = (gain: StreamGraphInputValueRead | null, innerGain: StreamGraphInputValueRead | null = null): StreamInputValuesReading => ({
   kind: "values",
   stream_asset: STREAM_ASSET,
   values: [
-    ...(gain === null ? [] : [{ level: [], node_id: "MIX-ID", input: "gain", value_read: gain }]),
-    ...(innerGain === null ? [] : [{ level: ["SUB-ID"], node_id: "INNER-ID", input: "gain", value_read: innerGain }]),
+    ...(gain === null ? [] : [{ level: [], node_id: "MIX-ID", input: "gain", member: null, value_read: gain }]),
+    ...(innerGain === null ? [] : [{ level: ["SUB-ID"], node_id: "INNER-ID", input: "gain", member: null, value_read: innerGain }]),
   ],
 });
 
 /** A change the runtime announced of Mix's gain. */
-const gainChanged = (value_read: StreamGraphInputValueRead): StreamInputValuesReading => ({ kind: "changed", stream_asset: STREAM_ASSET, change: { level: [], node_id: "MIX-ID", input: "gain", value_read } });
+const gainChanged = (value_read: StreamGraphInputValueRead): StreamInputValuesReading => ({ kind: "changed", stream_asset: STREAM_ASSET, change: { level: [], node_id: "MIX-ID", input: "gain", member: null, value_read } });
 
 const saved = (value: JsonValue): StreamGraphInputValueRead => ({ value, comes_from: "saved" });
 
@@ -329,7 +329,7 @@ test("a_change_the_runtime_announces_shows_at_once_and_one_for_an_input_the_stor
     { value: 0.5, comes_from: "saved" },
   ]);
   const OTHER: InputAddress = { ...GAIN, node_id: "OTHER-ID" };
-  inputValues.takeTheInputValues(PROJECT, { kind: "changed", stream_asset: STREAM_ASSET, change: { level: [], node_id: "OTHER-ID", input: "gain", value_read: { value: null, comes_from: "wire" } } });
+  inputValues.takeTheInputValues(PROJECT, { kind: "changed", stream_asset: STREAM_ASSET, change: { level: [], node_id: "OTHER-ID", input: "gain", member: null, value_read: { value: null, comes_from: "wire" } } });
   expect(inputValues.shownValue(OTHER)).toEqual({ value: null, comes_from: null });
 });
 

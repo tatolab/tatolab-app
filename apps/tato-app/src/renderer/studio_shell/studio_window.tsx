@@ -210,6 +210,14 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
       </StudioAreaFrame>
     );
   }
+  const viewTypeNotOpened = viewType === null ? [...sources.viewTypeRegistry.studioViewTypesNotOpened(), ...sources.viewTypeRegistry.projectViewTypesNotOpened()].find((notOpened) => notOpened.view_type_id === area.view_type_id) : undefined;
+  if (viewTypeNotOpened !== undefined) {
+    return (
+      <StudioAreaFrame label={viewTypeNotOpened.title} header={<AreaViewTypeMenu area={area} sources={sources} words={viewTypeNotOpened.title} />} data-studio-area={area.area_id}>
+        <WaitingState isFailure title={`${viewTypeNotOpened.title} doesn't open`} explanation={viewTypeNotOpened.because} data-studio-area-view-not-opened={viewTypeNotOpened.view_type_id} />
+      </StudioAreaFrame>
+    );
+  }
   if (viewType === null) {
     return (
       <StudioAreaFrame label={area.view_type_id} header={<AreaViewTypeMenu area={area} sources={sources} words={area.view_type_id} />} data-studio-area={area.area_id}>

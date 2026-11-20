@@ -3,6 +3,8 @@
 // folder passed through the extension check gate as a view's folder is. An element of a folder that
 // passes is served under the folder's versioned URL; one whose folder does not pass is listed
 // blocked, with the gate's words, so its input shows the read-only line and never another control.
+// One whose folder is held at the version that last passed is listed blocked at that version, so a
+// control of that version already drawn stays drawn, and its folder is still served.
 
 import type {
   ListedNodeUiElement,
@@ -44,7 +46,7 @@ function registrationOfTheElement(
     : { kind: "node_body", node_type: listed.element.node_type };
 }
 
-/** How the element whose script sits at `scriptInTheFolder` of `nodeUiFolder` is served, by how the gate left that folder of the project in `openProjectFolder`. */
+/** How the element whose script sits at `scriptInTheFolder` of `nodeUiFolder` is served, by how the gate left that folder of the project in `openProjectFolder`: blocked by the newer version's words when it is held. */
 function scriptServingOf(
   openProjectFolder: string,
   nodeUiFolder: string,
@@ -63,7 +65,21 @@ function scriptServingOf(
           ),
         ).href,
       }
-    : { kind: "blocked", findings: gated.words.split("\n") };
+    : {
+        kind: "blocked",
+        findings: (gated.kind === "held"
+          ? gated.newer_version_blocked_because
+          : gated.words
+        ).split("\n"),
+      };
+}
+
+/** The version of a folder the Studio serves: the one that passed, or the one that last passed while its newer one is blocked; `null` for a folder that is blocked. */
+function servedVersionOf(
+  gated: ExtensionFolderGated,
+): ExtensionFolderPassed | null {
+  if (gated.kind === "passed") return gated;
+  return gated.kind === "held" ? gated.last_passed : null;
 }
 
 /**
@@ -105,9 +121,10 @@ export const projectNodeUiElementsOfTheOpenProject = Effect.fn(
     );
   }
   const passedFolders = new Map<string, ExtensionFolderPassed>(
-    [...gatedByFolder].flatMap(([nodeUiFolder, gated]) =>
-      gated.kind === "passed" ? [[nodeUiFolder, gated] as const] : [],
-    ),
+    [...gatedByFolder].flatMap(([nodeUiFolder, gated]) => {
+      const served = servedVersionOf(gated);
+      return served === null ? [] : [[nodeUiFolder, served] as const];
+    }),
   );
   yield* projectViewsListed.rememberTheListing(
     openProjectFolder,
@@ -125,7 +142,7 @@ export const projectNodeUiElementsOfTheOpenProject = Effect.fn(
         module: listed.module.project_name,
         brought_by: "project",
         script: scriptInTheFolder,
-        folder_version: gated.kind === "passed" ? gated.folder_version : "",
+        folder_version: servedVersionOf(gated)?.folder_version ?? "",
         registration: registrationOfTheElement(listed),
         script_serving: scriptServingOf(
           openProjectFolder,

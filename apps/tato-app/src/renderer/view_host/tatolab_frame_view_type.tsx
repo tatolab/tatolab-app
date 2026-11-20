@@ -1,6 +1,8 @@
 // A view made with the view SDK, drawn in a frame of its own so its styles and the window's never
 // mix, its one channel to Studio the MessagePort its bridge answers. Every view runs with full access,
-// framed on the window's origin so its Image frames cross as `VideoFrame`s with no copy.
+// framed on the window's origin so its Image frames cross as `VideoFrame`s with no copy. A project
+// view whose newer version is blocked keeps its frame on the version that last passed, over a bar
+// saying why the newer one is blocked; the frame keeps its URL, so it does not reload.
 
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { VIEW_PORT_HANDOVER, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
@@ -12,6 +14,7 @@ import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_bu
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { Plus } from "lucide-react";
 import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
+import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { JsonValue, StopWatching, StreamGraph, StreamGraphNode, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewNodeAddress, StudioViewTypeSource } from "./studio_view_contract";
 import type { InputWiring } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
@@ -238,6 +241,25 @@ function WhereTheNodeViewsNodeIs({ viewTypeId, nodeShown, hostServices }: { view
   return <WhereTheNodeViewsNodeIsInTheTab key={activeStreamTab.stream} streamTab={activeStreamTab} viewTypeId={viewTypeId} nodeShown={nodeShown} hostServices={hostServices} />;
 }
 
+/**
+ * The area of the view `listed` around `children`: the bar saying its newer version is blocked under them, while the Studio keeps
+ * serving the version that last passed, clear of the area's header row over the frame. The frame's place in the tree is the same
+ * with the bar or without, so it never reloads.
+ */
+function TatolabViewOverItsNotice({ listed, children }: { listed: ListedStudioView; children: ReactNode }) {
+  const [keptLine = "", ...blockedLines] = listed.newer_version_blocked_because?.split("\n") ?? [];
+  return (
+    <div className="flex size-full flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
+      {listed.newer_version_blocked_because !== null && (
+        <div className="border-t">
+          <RefusalLine tone="warning" layout="bar" lead={keptLine} words={blockedLines.join("\n")} data-newer-version-blocked={listed.view_type_id} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** The view type `listed`, declared by `manifest` and brought by `broughtBy`: an `area` view's frame fills its area, and a `node` view's shows the active tab's node of its type. */
 export function tatolabFrameViewType(listed: ListedStudioView, manifest: TatolabViewManifest, broughtBy: StudioViewTypeSource): RegisteredStudioViewType {
   return {
@@ -246,12 +268,15 @@ export function tatolabFrameViewType(listed: ListedStudioView, manifest: Tatolab
     icon: manifest.icon === undefined ? "project_view" : { image_url: new URL(manifest.icon, listed.folder_url).href },
     brought_by: broughtBy,
     manifest,
-    renderInAnArea: (area, hostServices) =>
-      manifest.placement === "area" ? (
-        <TatolabViewFrame listed={listed} manifest={manifest} area={area} hostServices={hostServices} inputWiring={{}} viewNode={null} settingsHeld={area.saved_settings} />
-      ) : (
-        <TatolabNodeView listed={listed} manifest={manifest} area={area} hostServices={hostServices} />
-      ),
+    renderInAnArea: (area, hostServices) => (
+      <TatolabViewOverItsNotice listed={listed}>
+        {manifest.placement === "area" ? (
+          <TatolabViewFrame listed={listed} manifest={manifest} area={area} hostServices={hostServices} inputWiring={{}} viewNode={null} settingsHeld={area.saved_settings} />
+        ) : (
+          <TatolabNodeView listed={listed} manifest={manifest} area={area} hostServices={hostServices} />
+        )}
+      </TatolabViewOverItsNotice>
+    ),
     renderWordsAfterTheViewTypeMenu:
       manifest.placement === "node" ? (area, hostServices) => <WhereTheNodeViewsNodeIs viewTypeId={listed.view_type_id} nodeShown={area.node_shown} hostServices={hostServices} /> : undefined,
   };

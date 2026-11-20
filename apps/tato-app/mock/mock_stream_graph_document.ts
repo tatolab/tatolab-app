@@ -52,6 +52,21 @@ function inputValueAsTheRuntimeRendersIt(port: MockGraphPort): Pick<StreamGraphP
   return { value: port.value_read.value, value_comes_from: port.value_read.comes_from };
 }
 
+/**
+ * A bundle input's members as the runtime renders them in place of its value: a row for each, in the order the bundle declares
+ * them, each reading `wire` while a link feeds the whole input or that member, and what it reads unlinked otherwise.
+ */
+function memberValuesAsTheRuntimeRendersThem(port: MockGraphPort, linksIntoThePort: readonly MockGraphLink[]): Pick<StreamGraphPort, "member_values"> {
+  const isWholeInputLinked = linksIntoThePort.some((link) => link.target_member === undefined);
+  return {
+    member_values: (port.member_reads ?? []).map(({ member, value_read: valueRead }) => {
+      if (isWholeInputLinked || linksIntoThePort.some((link) => link.target_member === member)) return { member, value_comes_from: "wire" };
+      if (valueRead.comes_from === null) return { member, value: null };
+      return { member, value: valueRead.value, value_comes_from: valueRead.comes_from };
+    }),
+  };
+}
+
 /** A port's pin type and flow as the runtime renders them: both beside its family on a typed port, neither on an untyped one. */
 function pinAsTheRuntimeRendersIt(port: MockGraphPort): Pick<StreamGraphPort, "pin_type" | "flow"> {
   return port.pin === null ? {} : { pin_type: port.pin.pin_type, flow: port.pin.flow };
@@ -131,17 +146,19 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
   });
   const linkAsTheRuntimeRendersIt = (link: MockGraphLink): StreamGraphLink => ({
     id: link.id,
-    source: { node: link.source_node, port: link.source_port },
-    target: { node: link.target_node, port: link.target_port },
+    source: { node: link.source_node, port: link.source_port, ...(link.source_member === undefined ? {} : { member: link.source_member }) },
+    target: { node: link.target_node, port: link.target_port, ...(link.target_member === undefined ? {} : { member: link.target_member }) },
     capacity: 4,
     state: linkState(link.state),
+    ...(link.free_conversion === undefined ? {} : { free_conversion: link.free_conversion }),
+    ...(link.warnings === undefined ? {} : { warnings: link.warnings }),
     components: { state: LINK_COMPONENT_STATE[linkState(link.state)] },
   });
   const nodesOfTheLevel = (levelNodes: MockGraphNode[], levelLinks: MockGraphLink[], isTopLevel: boolean): StreamGraphNode[] =>
     levelNodes.map((node) => {
       const state = nodeState(node.state);
       const graphInterface = graphInterfacePortAsTheRuntimeRendersIt(node, state, isTopLevel);
-      const isFedByALink = (port: MockGraphPort) => levelLinks.some((link) => link.target_node === node.name && link.target_port === port.name);
+      const linksInto = (port: MockGraphPort) => levelLinks.filter((link) => link.target_node === node.name && link.target_port === port.name);
       return {
         id: mockGraphNodeIdOf(streamId, node),
         type: node.type,
@@ -154,11 +171,13 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
         ...(node.exposed_config_fields === undefined || node.exposed_config_fields.length === 0 ? {} : { exposed_config_fields: node.exposed_config_fields }),
         ...(node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) }),
         ports: {
-          // As the runtime renders it, a link reads `wire` on every input it feeds, one that takes no stored value too.
+          // As the runtime renders it, a link reads `wire` on every input it feeds, one that takes no stored value too, and on each member of a bundle it feeds.
           inputs: node.input_ports.map((port) => ({
             ...portAsTheRuntimeRendersIt(port),
             delivery_profile: "newest",
-            ...inputValueAsTheRuntimeRendersIt(isFedByALink(port) ? { ...port, value_read: { value: null, comes_from: "wire" } } : port),
+            ...(port.member_reads === undefined
+              ? inputValueAsTheRuntimeRendersIt(linksInto(port).length > 0 ? { ...port, value_read: { value: null, comes_from: "wire" } } : port)
+              : memberValuesAsTheRuntimeRendersThem(port, linksInto(port))),
           })),
           outputs: node.output_ports.map((port) => ({ ...portAsTheRuntimeRendersIt(port), delivery_profile: null })),
         },
