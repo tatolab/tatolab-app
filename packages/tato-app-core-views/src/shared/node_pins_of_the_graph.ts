@@ -4,7 +4,7 @@
 // graph lists among its ports or one of a node type not yet typed that it lists among none.
 
 import { wiringOfTheInput } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
-import { nodeInputLinkOfTheGraph, pinOfTheEnd } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
+import { membersOfTheBundle, nodeInputLinkOfTheGraph, pinOfTheEnd } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
 import { valueAddressOfTheInput, valueAddressOfTheMember, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import { exactPinOfTheDeclaredPort, openBundlesOfTheMetadata, settingOfTheDescribedInput, type NodePin, type NodePinBundle, type NodePinWire } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { settingsOfTheNodeNotAmongItsPorts } from "@tatolab/tato-app-view-sdk/pin_model/node_settings";
@@ -19,7 +19,6 @@ import {
   type StreamGraph,
   type StreamGraphNode,
   type StreamGraphPort,
-  type StreamGraphPortPin,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { portStreamFactsWords, streamFactsAnInputReceives } from "./port_stream_facts_words";
 
@@ -60,11 +59,6 @@ function nodePinOfTheSettingNotAmongThePorts(node: Pick<StreamGraphNode, "id">, 
     link: null,
     bundle: null,
   };
-}
-
-/** The members of the bundle `pin` carries, by name in the order it declares them; none for a pin that carries no bundle. */
-function membersOfTheBundle(pin: StreamGraphPortPin | null): readonly string[] {
-  return pin?.pin_type.type === "bundle" ? pin.pin_type.members.map((member) => member.name) : [];
 }
 
 /** The rows of the bundle `whole`, a pin carrying one, each member built by `memberRow`, open where `openNames` names its pin; `null` for a pin that carries no bundle. */

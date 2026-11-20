@@ -28,6 +28,11 @@ export function isTheLinkInto(link: Pick<StreamGraphLink, "target">, nodeName: s
   return link.target.node === nodeName && link.target.port === inputName && (link.target.member ?? null) === member;
 }
 
+/** The members of the bundle `pin` carries, by name in the order it declares them; none for a pin that carries no bundle. */
+export function membersOfTheBundle(pin: StreamGraphPortPin | null): readonly string[] {
+  return pin?.pin_type.type === "bundle" ? pin.pin_type.members.map((member) => member.name) : [];
+}
+
 /** The type and flow of member `member` of the bundle `pin` carries, the bundle's flow kept; `pin` itself where `member` is `null`, and `null` where `pin` carries no such member. */
 export function pinOfTheEnd(pin: StreamGraphPortPin | null, member: string | null): StreamGraphPortPin | null {
   if (member === null || pin === null) return pin;
