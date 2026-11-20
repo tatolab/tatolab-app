@@ -53,6 +53,17 @@ export function useNodeGraphSelection(selectedNodeIds: readonly string[], nodeBy
     [onNodesSelected, nodeById, selectedIds],
   );
 
+  const selectWhatTheBoxHolds = useCallback(
+    (cardIds: ReadonlySet<string>, noteIds: ReadonlySet<string>) => {
+      setSelectedNoteIds((selectedBefore) => (selectedBefore.size === noteIds.size && [...noteIds].every((noteId) => selectedBefore.has(noteId)) ? selectedBefore : noteIds));
+      const cardIdsInTheGraph = [...cardIds].filter((nodeId) => nodeById.has(nodeId));
+      if (holdsTheSameNodes(selectedIds, cardIdsInTheGraph)) return;
+      setSelectedIds(new Set(cardIdsInTheGraph));
+      onNodesSelected(cardIdsInTheGraph);
+    },
+    [nodeById, selectedIds, onNodesSelected],
+  );
+
   const followTheLinkChanges = useCallback((changes: EdgeChange<NodeGraphLinkFlowEdge>[]) => {
     const selectionChanges = changes.flatMap((change) => (change.type === "select" ? [change] : []));
     if (selectionChanges.length === 0) return;
@@ -115,5 +126,5 @@ export function useNodeGraphSelection(selectedNodeIds: readonly string[], nodeBy
     [selectedIds, selectedLinkIds, onNodesSelected],
   );
 
-  return { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink };
+  return { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, selectWhatTheBoxHolds, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink };
 }
