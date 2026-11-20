@@ -2,7 +2,7 @@
 // manifest, the manifest read from source with the contract's checker, each script served by the
 // mock's dev server beside the window with its types removed, as the app's page protocol serves it.
 // `?node_ui=unserved` serves none, so each control ends at the read-only line; `?node_ui=refused`
-// refuses the listing. `?node_bodies=served|blocked` adds the mock project's node bodies, from
+// refuses the listing. `?node_bodies=served|blocked` adds the mock project's node bodies and its control of a named type, from
 // `mock/mock_project_node_ui/`, served beside the window as a project's node UI folder is, or blocked.
 
 import studioNodeUiManifestText from "../../../packages/tato-app-core-node-ui/node_ui/tatolab_node_ui.json?raw";

@@ -5,6 +5,9 @@
 // while its control moves, since each value it takes rebuilds the node: it commits on release alone.
 // An input of a type only a wire carries, such as a Texture, holds no value: it takes a control only
 // where its node type's annotation names one, such as a preview, which shows what its wire carries.
+// An input of a named type holds none either, and takes the control the module declaring its type
+// registers, which shows what its wire carries; the table answers whether that module registers one,
+// and where none does, the row draws no control.
 // A node body draws whichever of its node's inputs it states, each input whose type is exact, wired or not.
 
 import type { BuiltInPinTypeName, PinAnnotations, PinValues } from "../pin_types.js";
@@ -48,15 +51,17 @@ function declarationOfTheInput(input: InputAControlMayDraw, pin: StreamGraphPort
 
 /**
  * The input a control draws for `input`, or `null` where it takes none: one with no exact type, a String holding a project
- * asset's UUID, an input a link feeds that holds a value, and one of a type only a wire carries, which holds none whatever the
- * runtime reads of it, that its node type's annotation names no control for, or that Studio reads no wire into. The control reads the annotations its node type states;
- * an input that may be unset is not told apart.
+ * asset's UUID, an input a link feeds that holds a value, one of a type only a wire carries, which holds none whatever the
+ * runtime reads of it, that its node type's annotation names no control for, and one of a named type or a type only a wire
+ * carries that Studio reads no wire into. The control reads the annotations its node type states; an input that may be unset
+ * is not told apart.
  */
 export function takesAControl(input: InputAControlMayDraw): ControlledInput | null {
   if (input.pin === null) return null;
-  if (PIN_TYPES_ONLY_A_WIRE_CARRIES.has(input.pin.pin_type.type)) {
-    const control = input.annotations.control ?? null;
-    if (control === null || input.wire === null) return null;
+  const pinTypeName = input.pin.pin_type.type;
+  if (pinTypeName === "named" || PIN_TYPES_ONLY_A_WIRE_CARRIES.has(pinTypeName)) {
+    const takesOne = pinTypeName === "named" || (input.annotations.control ?? null) !== null;
+    if (!takesOne || input.wire === null) return null;
     return { address: input.wire.into, declaration: declarationOfTheInput(input, input.pin), rebuilds_its_node: false, driven_by: input.wire.wiring };
   }
   if (input.value_address === null) return null;

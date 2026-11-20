@@ -259,8 +259,10 @@ test("a named control and a node body are listed by what they register", async (
   ]);
 });
 
-test("a manifest that is not the contract's, naming a pin type the contract does not hold, is not listed and says why", async () => {
-  const listing = await Effect.runPromise(Effect.result(studioNodeUiElementsListed({ contract: "1.1", controls: [{ type: "float32", script: "float_number.ts" }] }, "v1")));
+// The contract reads a control's pin type as a built-in type's name or a named type's import path, which it holds as any words, so
+// a misspelt name such as `float32` is the runtime's own read to refuse; a pin type that is no words is not the contract's.
+test("a manifest that is not the contract's, naming a pin type that is no words, is not listed and says why", async () => {
+  const listing = await Effect.runPromise(Effect.result(studioNodeUiElementsListed({ contract: "1.1", controls: [{ type: 3, script: "float_number.ts" }] }, "v1")));
   expect(listing._tag).toBe("Failure");
   expect(listing._tag === "Failure" ? listing.failure.words : "").toContain("is not a node UI manifest");
 });

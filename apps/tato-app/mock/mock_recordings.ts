@@ -3,7 +3,7 @@
 // `recordings/` and read here through the readers the app uses on a real answer: the node types the
 // project lists and each one described, its stream `main`'s graph, and the refusals of `transact` a
 // scenario replays. The mock holds no node type, graph or refusal of its own for this work, but for one warning
-// on a link and one node with bundle pins, which no recording carries, each named as a stand-in where it is held; a recording
+// on a link, one node with bundle pins and two nodes linked by a named type, which no recording carries, each named as a stand-in where it is held; a recording
 // that no longer reads fails the mock's load, as the app would fail to read the runtime's answer. They
 // were recorded from the `tatolabd` 0.68.82 built from streamlib, the sample played until its `glow` node
 // had written frames: the graph and the refusals at 6c0be0f, the node types listed and described at
@@ -211,5 +211,54 @@ export function mockEveryPinKindGraphWithAStandInBundleNode(): MockStreamGraph {
     ...graph,
     nodes: [...graph.nodes, standInBundleNode()],
     links: [...graph.links, { id: "Lmockstandinmemberlink0001", source_node: "warmth", source_port: "result", target_node: "mixer", target_port: "levels", target_member: "right", state: "wired" }],
+  };
+}
+
+/** The pin of the sample's own named type, `nodes.sweep:Sweep`, which `sweep.py` declares. */
+const STAND_IN_SWEEP_PIN: StreamGraphPortPin = { pin_type: { type: "named", named_pin_type: "nodes.sweep:Sweep" }, flow: "value" };
+
+/**
+ * A stand-in, since the recordings were made before the every-pin-kind sample declared its named type: the sample's `sweep`, a
+ * `SweepAt` writing a `Sweep`, linked into `sweep_position`, a `SweepPosition` reading it back, as the sample's stream holds them.
+ */
+function standInSweepNodes(): readonly MockGraphNode[] {
+  const floatPort = (name: string, value: number): MockGraphPort => ({ name, family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "float" }, flow: "value" }, value_read: { value, comes_from: "default" } });
+  return [
+    {
+      name: "sweep",
+      type: "nodes.sweep:SweepAt",
+      kind: "process",
+      state: "Running",
+      config: {},
+      pins: {},
+      input_defaults: { position: 0.5, width: 0.1 },
+      exposed_config_fields: [],
+      input_ports: [floatPort("position", 0.5), floatPort("width", 0.1)],
+      output_ports: [{ name: "result", family: "channels", stream_facts: null, values_checked: null, pin: STAND_IN_SWEEP_PIN, value_read: null }],
+      studio: { ...NODE_STUDIO_FIELDS_NONE_SET },
+    },
+    {
+      name: "sweep_position",
+      type: "nodes.sweep:SweepPosition",
+      kind: "process",
+      state: "Running",
+      config: {},
+      pins: {},
+      input_defaults: {},
+      exposed_config_fields: [],
+      input_ports: [{ name: "sweep", family: "channels", stream_facts: null, values_checked: null, pin: STAND_IN_SWEEP_PIN, value_read: { value: null, comes_from: null } }],
+      output_ports: [{ name: "result", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "float" }, flow: "value" }, value_read: null }],
+      studio: { ...NODE_STUDIO_FIELDS_NONE_SET },
+    },
+  ];
+}
+
+/** The every-pin-kind sample's graph with the stand-in `sweep` beside it, its `result` linked into `sweep_position.sweep`. */
+export function mockEveryPinKindGraphWithAStandInNamedTypeLink(): MockStreamGraph {
+  const graph = mockRecordedGraphOfTheEveryPinKindSample();
+  return {
+    ...graph,
+    nodes: [...graph.nodes, ...standInSweepNodes()],
+    links: [...graph.links, { id: "Lmockstandinnamedtypelink01", source_node: "sweep", source_port: "result", target_node: "sweep_position", target_port: "sweep", state: "wired" }],
   };
 }
