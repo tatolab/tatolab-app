@@ -156,6 +156,6 @@ test("a refused pin whose refusal suggests an edit takes the wire, so its connec
     },
   };
   const fits = wireFitsOfTheAnswer(EDITED, BEAT_COUNT, checking);
-  expect(fits.get(nodeGraphPinKey("warmth", "input", "base", null))?.takes_the_wire_though_refused).toBe(true);
-  expect(fits.get(nodeGraphPinKey("tally", "input", "picture", null))?.takes_the_wire_though_refused).toBe(false);
+  expect(fits.get(nodeGraphPinKey("warmth", "input", "base", null))).toEqual({ outcome: "refused", words: "To fix: place a `nodes.sweep:SweepPosition` node between them", takes_the_wire_though_refused: true });
+  expect(fits.get(nodeGraphPinKey("tally", "input", "picture", null))).toEqual({ outcome: "refused", words: "To fix: place a `nodes.sweep:SweepPosition` node between them", takes_the_wire_though_refused: false });
 });

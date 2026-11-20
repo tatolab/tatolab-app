@@ -17,9 +17,10 @@ const PLACING_THE_SWEEP_POSITION: SuggestedCall = {
   },
 };
 
-test("a suggested transact is a graph edit of its operations as the runtime named them, in the mode it names or commit", () => {
+test("a suggested transact that commits is a graph edit of its operations as the runtime named them; a live one is none, since Undo would not take it back", () => {
   expect(suggestedGraphEditOf(PLACING_THE_SWEEP_POSITION)).toEqual({ operations: PLACING_THE_SWEEP_POSITION.params["operations"], mode: "commit" });
-  expect(suggestedGraphEditOf({ operation: "transact", params: { ...PLACING_THE_SWEEP_POSITION.params, mode: "live" } })?.mode).toBe("live");
+  expect(suggestedGraphEditOf({ operation: "transact", params: { ...PLACING_THE_SWEEP_POSITION.params, mode: "commit" } })?.mode).toBe("commit");
+  expect(suggestedGraphEditOf({ operation: "transact", params: { ...PLACING_THE_SWEEP_POSITION.params, mode: "live" } })).toBeNull();
 });
 
 test("a suggested read, a call naming no operation, or one the graph-edit command would not send as given is no graph edit", () => {
