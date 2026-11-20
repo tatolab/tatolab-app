@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { NodeChange, ReactFlowInstance } from "@xyflow/react";
 import { failureWordsTheCardShows } from "../node_graph/node_card";
-import { layOutNodeGraph, nodeGraphCardHeight, type NodeGraphPosition } from "./node_graph_layout";
+import { layOutNodeGraph, nodeGraphCardHeight, type NodeGraphLayoutLink, type NodeGraphPosition } from "./node_graph_layout";
 import type { NodeGraphCanvasCardMove, NodeGraphCanvasEditing, NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCanvasNote, NodeGraphCanvasViewport } from "./node_graph_canvas_contract";
 import type { NodeGraphFlowNode } from "./node_graph_flow_elements";
 import { type HeldPositionById, type NodeGraphNoteSize, samePosition, onTheCanvasPixel, inCanvasPixels, sameSize, heldValuesNotShownYet, withEntriesSet, withoutTheIds } from "./node_graph_held_layout";
-import { nodePinsShown, nodePinRowKey } from "../../pin_model/node_pins";
+import { nodePinsShown, nodePinRowKey, rowKeyOfTheLinkEnd } from "../../pin_model/node_pins";
 
 /** The narrowest a card is drawn; a card with longer names grows to fit them. */
 const NODE_GRAPH_CARD_SMALLEST_WIDTH = 180;
@@ -29,10 +29,22 @@ function nodeGraphShapeKey(
     links.map((link) => [
       link.source_node_id,
       link.source_pin,
+      link.source_member,
       link.target_node_id,
       link.target_pin,
+      link.target_member,
     ]),
   ]);
+}
+
+/** A link as the layout reads it: from the row it starts at to the row it ends at, a member's while its card shows the member. */
+function layoutLinkOf(link: NodeGraphCanvasLink, nodeById: ReadonlyMap<string, NodeGraphCanvasNode>): NodeGraphLayoutLink {
+  return {
+    source_node_id: link.source_node_id,
+    source_pin: rowKeyOfTheLinkEnd(nodeById.get(link.source_node_id)?.outputs ?? [], link.source_pin, link.source_member),
+    target_node_id: link.target_node_id,
+    target_pin: rowKeyOfTheLinkEnd(nodeById.get(link.target_node_id)?.inputs ?? [], link.target_pin, link.target_member),
+  };
 }
 
 /** The shape key while every card has a saved place, when no card is laid out and so no shape decides anything. */
@@ -95,9 +107,9 @@ export function useNodeGraphCardLayout(nodes: readonly NodeGraphCanvasNode[], li
               card_width: (isLaidOutOnMeasuredSizes ? measuredCardSizes.sizeByNode.get(node.node_id)?.width : undefined) ?? NODE_GRAPH_CARD_SMALLEST_WIDTH,
               card_height: (isLaidOutOnMeasuredSizes ? measuredCardSizes.sizeByNode.get(node.node_id)?.height : undefined) ?? null,
             })),
-            links,
+            links.map((link) => layoutLinkOf(link, nodeById)),
           ),
-    [isEveryCardPlaced, nodes, links, isLaidOutOnMeasuredSizes, measuredCardSizes],
+    [isEveryCardPlaced, nodes, links, nodeById, isLaidOutOnMeasuredSizes, measuredCardSizes],
   );
   const positionOfTheCard = useCallback(
     (node: NodeGraphCanvasNode): NodeGraphPosition =>

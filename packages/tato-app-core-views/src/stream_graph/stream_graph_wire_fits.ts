@@ -15,7 +15,7 @@ export type LinkCandidatesAsked = "placed_ports" | "node_type_ports";
 export function linkCandidatesRequestOf(edited: EditedStreamGraph, draggedOff: NodeGraphCanvasDraggedPin, level: readonly string[], among: LinkCandidatesAsked): CheckLinkCandidatesRequest | null {
   const node = edited.nodeIdByName.get(draggedOff.node_id);
   if (node === undefined) return null;
-  const end = { node, port: draggedOff.pin };
+  const end = { node, port: draggedOff.pin, ...(draggedOff.member === null ? {} : { member: draggedOff.member }) };
   return {
     stream: edited.streamAsset,
     ...(level.length === 0 ? {} : { level: [...level] }),
@@ -46,7 +46,7 @@ export function wireFitsOfTheAnswer(edited: EditedStreamGraph, draggedOff: NodeG
   const otherSide = draggedOff.side === "output" ? "input" : "output";
   const keyOfThePlacedPin = (end: LinkCandidateEnd): string | null => {
     const nodeName = end.kind === "placed_port" ? nodeNameById.get(end.node) : undefined;
-    return nodeName === undefined ? null : nodeGraphPinKey(nodeName, otherSide, end.port);
+    return nodeName === undefined ? null : nodeGraphPinKey(nodeName, otherSide, end.port, end.member ?? null);
   };
   for (const { end, check } of checking.result.candidates) {
     const key = keyOfThePlacedPin(end);
@@ -59,12 +59,12 @@ export function wireFitsOfTheAnswer(edited: EditedStreamGraph, draggedOff: NodeG
   return fits;
 }
 
-/** The port of each node type a wire let go over empty canvas fits, the first the runtime did not refuse, by type; `null` when the runtime was not asked or refused the question, so the search judges nothing. */
+/** The port of each node type a wire let go over empty canvas fits, the first whole port the runtime did not refuse, by type, since a node placed from the wire is linked by a whole port; `null` when the runtime was not asked or refused the question, so the search judges nothing. */
 export function portsALooseWireFits(checking: LinkCandidatesChecking): ReadonlyMap<string, string> | null {
   if (checking.kind !== "checked") return null;
   const portByNodeType = new Map<string, string>();
   for (const { end, check } of checking.result.candidates) {
-    if (end.kind === "node_type_port" && check.outcome !== "refused" && !portByNodeType.has(end.node_type)) portByNodeType.set(end.node_type, end.port);
+    if (end.kind === "node_type_port" && (end.member ?? null) === null && check.outcome !== "refused" && !portByNodeType.has(end.node_type)) portByNodeType.set(end.node_type, end.port);
   }
   return portByNodeType;
 }

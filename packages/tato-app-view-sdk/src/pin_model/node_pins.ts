@@ -86,6 +86,18 @@ export function nodePinRowKey(pin: Pick<NodePin, "name" | "member">): string {
   return pin.member === null ? pin.name : `${pin.name}/${pin.member}`;
 }
 
+/** The port and member a row's key `rowKey` names, as `nodePinRowKey` wrote it. */
+export function pinEndOfTheRowKey(rowKey: string): Pick<NodePin, "name" | "member"> {
+  const memberAt = rowKey.indexOf("/");
+  return memberAt === -1 ? { name: rowKey, member: null } : { name: rowKey.slice(0, memberAt), member: rowKey.slice(memberAt + 1) };
+}
+
+/** The key of the row of `pins`, one side's of a card, that a link ending at member `member` of the port `name` is drawn to: the member's while its bundle is open, the port's otherwise, and the port's for a link to the whole port. */
+export function rowKeyOfTheLinkEnd(pins: readonly Pick<NodePin, "name" | "bundle">[], name: string, member: string | null): string {
+  const isTheMemberShown = member !== null && pins.find((pin) => pin.name === name)?.bundle?.is_open === true;
+  return nodePinRowKey({ name, member: isTheMemberShown ? member : null });
+}
+
 /** The pins a node's metadata keeps open, by side, as `studio.metadata.open_bundles` holds them: each side's bundle pins by name. */
 export interface OpenBundles {
   readonly inputs: readonly string[];

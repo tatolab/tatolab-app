@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { NodeTypeDescription, StreamCondition, StreamGraph, StreamGraphNode } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { NodeTypeDescription, StreamCondition, StreamGraph, StreamGraphNode, StreamGraphPortPin } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { aGraphLink, aGraphNode, aGraphPort, aStreamGraph, type GraphNodeFields } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 
@@ -355,4 +355,31 @@ test("a_convert_node_the_runtime_inserted_on_a_link_is_an_ordinary_card_collapse
     ["camera", "video", "texturetotensor", "image"],
     ["texturetotensor", "array", "model", "tensor"],
   ]);
+});
+
+test("a_bundle_pin_carries_a_row_for_each_member_each_input_member_set_at_its_own_address_unless_a_link_feeds_it_and_a_link_to_a_member_names_it", () => {
+  const levelsType: StreamGraphPortPin["pin_type"] = { type: "bundle", members: [{ name: "left", member_type: { type: "float" } }, { name: "right", member_type: { type: "float" } }] };
+  const graph = aStreamGraph(
+    [
+      graphNode("beat", [], [], { outputs: [aGraphPort("count", "channels", { pin_type: { type: "float" }, flow: "value" })] }),
+      graphNode("mix", [], [], {
+        inputs: [aGraphPort("levels", "channels", { pin_type: levelsType, flow: "value", member_values: [{ member: "left", value: 0.25, value_comes_from: "saved" }, { member: "right", value_comes_from: "wire" }] })],
+        outputs: [aGraphPort("meters", "channels", { pin_type: levelsType, flow: "value" })],
+        studio: { contract: 1, metadata: { open_bundles: { inputs: ["levels"], outputs: [] } } },
+      }),
+    ],
+    [{ ...aGraphLink("L1", ["beat", "count"], ["mix", "levels"]), target: { node: "mix", port: "levels", member: "right" } }],
+  );
+  const level = { project_folder: "/projects/demo", stream_asset: "stream-asset", level: [] };
+  const contents = streamGraphCanvasContents(graph, NONE_DESCRIBED, null, level);
+  const mix = contents.nodes.find((node) => node.node_id === "mix");
+  const levels = mix?.inputs[0];
+  expect(levels?.bundle?.is_open).toBe(true);
+  expect(levels?.value_address).toBeNull();
+  expect(levels?.bundle?.members.map((member) => [member.name, member.member, member.pin, member.value_address])).toEqual([
+    ["levels", "left", { pin_type: { type: "float" }, flow: "value" }, { graph: level, node_id: "MIX", input: "levels", member: "left" }],
+    ["levels", "right", { pin_type: { type: "float" }, flow: "value" }, null],
+  ]);
+  expect(mix?.outputs[0]?.bundle).toEqual({ is_open: false, members: [expect.objectContaining({ name: "meters", member: "left" }), expect.objectContaining({ name: "meters", member: "right" })] });
+  expect(contents.links.map((link) => [link.target_pin, link.target_member, link.source_member, link.description])).toEqual([["levels", "right", null, "beat.count → mix.levels.right, wired"]]);
 });

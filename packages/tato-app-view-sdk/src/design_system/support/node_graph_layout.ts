@@ -16,7 +16,7 @@ const NODE_GRAPH_COLUMN_GAP = 72;
 const NODE_GRAPH_ROW_GAP = 28;
 const CROSSING_REDUCTION_SWEEPS = 4;
 
-/** What the layout reads of one node: its id, how many pins each side, whether its card shows why it failed or is collapsed to its header, and its card's width and height as drawn, its height `null` until measured. */
+/** What the layout reads of one node: its id, the key of each row each side draws, as `nodePinRowKey` writes it, whether its card shows why it failed or is collapsed to its header, and its card's width and height as drawn, its height `null` until measured. */
 export interface NodeGraphLayoutNode {
   node_id: string;
   input_pin_names: readonly string[];
@@ -27,7 +27,7 @@ export interface NodeGraphLayoutNode {
   card_height: number | null;
 }
 
-/** What the layout reads of one link. */
+/** What the layout reads of one link: the key of the row it starts at and of the row it ends at. */
 export interface NodeGraphLayoutLink {
   source_node_id: string;
   source_pin: string;

@@ -85,11 +85,11 @@ test("a_node_type_is_named_for_the_open_project_its_import_or_its_distribution_a
 });
 
 test("a_loose_wire_narrows_the_search_to_what_takes_or_feeds_its_pin_and_says_placing_one_links_it", () => {
-  expect(nodeTypeSearchNarrowing({ node_id: "camera", pin: "video", side: "output" })).toEqual({
+  expect(nodeTypeSearchNarrowing({ node_id: "camera", pin: "video", member: null, side: "output" })).toEqual({
     heading: "Can take video",
     footnote: "Placing one adds it and links video to the first input the runtime says it fits, in one edit. One undo takes both back.",
   });
-  expect(nodeTypeSearchNarrowing({ node_id: "meter", pin: "level", side: "input" }).heading).toBe("Can feed level");
+  expect(nodeTypeSearchNarrowing({ node_id: "meter", pin: "level", member: null, side: "input" }).heading).toBe("Can feed level");
 });
 
 test("offers each node type the listing names once, in the order of its sources, with its description, and nothing before the project is listed", () => {
@@ -148,7 +148,7 @@ test("each_graph_generator_of_the_projects_own_source_is_offered_under_this_proj
   ]);
   expect(generatorsOffered.map((item) => graphGeneratorOfTheSearchItem(item.item_id))).toEqual(["generators.mics:mic_levels"]);
   expect(graphGeneratorOfTheSearchItem("nodes.blur:GaussianBlur")).toBeNull();
-  expect(graphGeneratorSearchItems(listing, { node_id: "camera", pin: "video", side: "output" })).toEqual([]);
+  expect(graphGeneratorSearchItems(listing, { node_id: "camera", pin: "video", member: null, side: "output" })).toEqual([]);
   expect(graphGeneratorSearchItems(null, null)).toEqual([]);
 });
 

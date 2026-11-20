@@ -29,25 +29,26 @@ function wiringAnsweredByTheTest() {
     onFrameChanged: vi.fn(),
     onFrameRemoved: vi.fn(),
     onCardCollapsed: vi.fn(),
+    onBundleOpened: vi.fn(),
     onNoteChanged: applied,
   };
   const canvasPointOf = (point: { x: number; y: number }) => ({ on_the_canvas: point, in_the_element: point });
   const { result } = renderHook(() => useNodeGraphWiring(editing, canvasPointOf));
-  return { result, answers, fitsOfAWireFrom };
+  return { result, answers, fitsOfAWireFrom, onPinsWired: editing.onPinsWired };
 }
 
 const connection = (source: [string, string], target: [string, string]): Connection => ({ source: source[0], sourceHandle: `output:${source[1]}`, target: target[0], targetHandle: `input:${target[1]}` });
 
 const FITS_OF_THE_PATTERN_OUTPUT: NodeGraphWireFits = new Map([
-  [nodeGraphPinKey("blur", "input", "video_in"), { outcome: "connects", words: null }],
-  [nodeGraphPinKey("blur", "input", "gain"), { outcome: "refused", words: "cannot link pattern.video (Image) to blur.gain (Channels)" }],
+  [nodeGraphPinKey("blur", "input", "video_in", null), { outcome: "connects", words: null }],
+  [nodeGraphPinKey("blur", "input", "gain", null), { outcome: "refused", words: "cannot link pattern.video (Image) to blur.gain (Channels)" }],
 ]);
 
 test("a wire dragged off a pin asks once how it fits, judges nothing until the answer arrives, then refuses only the pins the answer refuses", async () => {
   const { result, answers, fitsOfAWireFrom } = wiringAnsweredByTheTest();
 
   act(() => result.current.askHowTheWireFits(MOUSE_UP, { nodeId: "pattern", handleId: "output:video", handleType: "source" }));
-  expect(fitsOfAWireFrom).toHaveBeenCalledWith({ node_id: "pattern", side: "output", pin: "video" });
+  expect(fitsOfAWireFrom).toHaveBeenCalledWith({ node_id: "pattern", side: "output", pin: "video", member: null });
   expect(result.current.wireFits).toBeNull();
   expect(result.current.canTheConnectionBeWired(connection(["pattern", "video"], ["blur", "gain"]))).toBe(true);
 
@@ -67,7 +68,7 @@ test("a wire dragged off an input is judged by the output at its other end", asy
   const { result, answers } = wiringAnsweredByTheTest();
 
   act(() => result.current.askHowTheWireFits(MOUSE_UP, { nodeId: "glow", handleId: "input:image", handleType: "target" }));
-  await act(async () => answers[0]?.(new Map([[nodeGraphPinKey("tally", "output", "tally"), { outcome: "refused", words: "a link joins two ports of one family" }]])));
+  await act(async () => answers[0]?.(new Map([[nodeGraphPinKey("tally", "output", "tally", null), { outcome: "refused", words: "a link joins two ports of one family" }]])));
 
   expect(result.current.canTheConnectionBeWired(connection(["tally", "tally"], ["glow", "image"]))).toBe(false);
   expect(result.current.canTheConnectionBeWired(connection(["glow", "result"], ["glow", "image"]))).toBe(true);
@@ -85,4 +86,17 @@ test("an answer that arrives after its wire is let go is dropped, and a later dr
   const fitsOfTheSecondDrag: NodeGraphWireFits = new Map();
   await act(async () => answers[1]?.(fitsOfTheSecondDrag));
   expect(result.current.wireFits).toBe(fitsOfTheSecondDrag);
+});
+
+test("a wire dragged off a member's socket asks from the member, is judged at the member it ends on, and wires the members it joins", async () => {
+  const { result, answers, fitsOfAWireFrom, onPinsWired } = wiringAnsweredByTheTest();
+
+  act(() => result.current.askHowTheWireFits(MOUSE_UP, { nodeId: "meter", handleId: "output:levels/left", handleType: "source" }));
+  expect(fitsOfAWireFrom).toHaveBeenCalledWith({ node_id: "meter", side: "output", pin: "levels", member: "left" });
+  await act(async () => answers[0]?.(new Map([[nodeGraphPinKey("mix", "input", "levels", "right"), { outcome: "refused", words: "a Float member does not take a Texture" }]])));
+
+  expect(result.current.canTheConnectionBeWired(connection(["meter", "levels/left"], ["mix", "levels/right"]))).toBe(false);
+  expect(result.current.canTheConnectionBeWired(connection(["meter", "levels/left"], ["mix", "levels/left"]))).toBe(true);
+  act(() => result.current.wireThePins(connection(["meter", "levels/left"], ["mix", "levels/left"])));
+  expect(onPinsWired).toHaveBeenCalledWith({ node_id: "meter", pin: "levels", member: "left" }, { node_id: "mix", pin: "levels", member: "left" });
 });

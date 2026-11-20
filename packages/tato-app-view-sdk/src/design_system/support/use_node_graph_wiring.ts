@@ -2,13 +2,15 @@ import { useCallback, useRef, useState } from "react";
 import type { Connection, FinalConnectionState, OnConnectStartParams } from "@xyflow/react";
 import { nodeGraphPinKey, type NodeGraphCanvasDraggedPin, type NodeGraphCanvasEditing, type NodeGraphCanvasPoint, type NodeGraphWireFits } from "./node_graph_canvas_contract";
 import type { NodeGraphLinkFlowEdge } from "./node_graph_flow_elements";
+import { pinEndOfTheRowKey } from "../../pin_model/node_pins";
 
-/** A pin's name and side from the handle id React Flow reports. */
-function pinOfAHandleId(handleId: string | null | undefined): { side: "input" | "output"; pin: string } | null {
+/** A pin's side, name and member from the handle id React Flow reports. */
+function pinOfAHandleId(handleId: string | null | undefined): { side: "input" | "output"; pin: string; member: string | null } | null {
   if (handleId === null || handleId === undefined) return null;
-  if (handleId.startsWith("input:")) return { side: "input", pin: handleId.slice("input:".length) };
-  if (handleId.startsWith("output:")) return { side: "output", pin: handleId.slice("output:".length) };
-  return null;
+  const side = handleId.startsWith("input:") ? "input" : handleId.startsWith("output:") ? "output" : null;
+  if (side === null) return null;
+  const { name, member } = pinEndOfTheRowKey(handleId.slice(`${side}:`.length));
+  return { side, pin: name, member };
 }
 
 /**
@@ -38,7 +40,7 @@ export function useNodeGraphWiring(editing: NodeGraphCanvasEditing | null, canva
       if (source?.side !== "output" || target?.side !== "input") return false;
       const draggedOff = pinDraggedOff.current;
       const farEnd = draggedOff?.side === "input" ? { node_id: connection.source, ...source } : { node_id: connection.target, ...target };
-      return wireFits?.get(nodeGraphPinKey(farEnd.node_id, farEnd.side, farEnd.pin))?.outcome !== "refused";
+      return wireFits?.get(nodeGraphPinKey(farEnd.node_id, farEnd.side, farEnd.pin, farEnd.member))?.outcome !== "refused";
     },
     [wireFits],
   );
@@ -47,7 +49,7 @@ export function useNodeGraphWiring(editing: NodeGraphCanvasEditing | null, canva
       const source = pinOfAHandleId(connection.sourceHandle);
       const target = pinOfAHandleId(connection.targetHandle);
       if (editing === null || source === null || target === null) return;
-      editing.onPinsWired({ node_id: connection.source, pin: source.pin }, { node_id: connection.target, pin: target.pin });
+      editing.onPinsWired({ node_id: connection.source, pin: source.pin, member: source.member }, { node_id: connection.target, pin: target.pin, member: target.member });
     },
     [editing],
   );

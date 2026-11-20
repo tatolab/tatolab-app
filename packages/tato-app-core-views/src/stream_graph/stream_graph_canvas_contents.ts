@@ -91,6 +91,11 @@ function linkLookAndWordsOf(link: StreamGraphLink, condition: StreamCondition | 
   return linkLookAndWords(link.state);
 }
 
+/** One end of a link as its words name it: the node and port, and the member of a bundle it starts or ends at. */
+function linkEndInWords(end: StreamGraphLink["source"]): string {
+  return [end.node, end.port, ...(end.member === undefined || end.member === null ? [] : [end.member])].join(".");
+}
+
 /** How `link` is drawn and what it says: by its state or what `condition` says of it, with the warnings the runtime gives it in its words, which a pointer resting on it reads after its state. */
 function canvasLinkOf(link: StreamGraphLink, condition: StreamCondition | null): NodeGraphCanvasLink {
   const { look, words } = linkLookAndWordsOf(link, condition);
@@ -99,10 +104,12 @@ function canvasLinkOf(link: StreamGraphLink, condition: StreamCondition | null):
     link_id: linkIdAsTheCanvasKeysIt(link),
     source_node_id: link.source.node,
     source_pin: link.source.port,
+    source_member: link.source.member ?? null,
     target_node_id: link.target.node,
     target_pin: link.target.port,
+    target_member: link.target.member ?? null,
     look,
-    description: [`${link.source.node}.${link.source.port} → ${link.target.node}.${link.target.port}, ${words}`, ...warningWords].join("\n"),
+    description: [`${linkEndInWords(link.source)} → ${linkEndInWords(link.target)}, ${words}`, ...warningWords].join("\n"),
     warning_words: warningWords,
   };
 }

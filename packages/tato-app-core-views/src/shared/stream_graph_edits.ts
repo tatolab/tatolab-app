@@ -15,12 +15,14 @@ import {
   type NodeTypeInputDescribed,
   type NodeTypePortDescribed,
   type StreamGraphAction,
+  type StreamGraphActionLinkEnd,
   type StreamGraphNode,
   type StreamGraphNodeStudioFields,
   type StudioCanvasPair,
   type StreamGraph,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { castAsTheRuntimeNamesAnUnnamedNode, nodeTypeClassName } from "./node_words";
+import { OPEN_BUNDLES_METADATA_KEY, openBundlesOfTheMetadata, openBundlesWith } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 
 /** A point on the canvas. */
 export interface StreamGraphCanvasPosition {
@@ -151,11 +153,23 @@ export function cardsMovedEdits(edited: EditedStreamGraph, moves: readonly { nod
 }
 
 /** A link from `source`'s output pin to `target`'s input pin. */
-export function pinsWiredEdits(edited: EditedStreamGraph, source: { node_id: string; pin: string }, target: { node_id: string; pin: string }): StreamGraphAction[] {
+export function pinsWiredEdits(edited: EditedStreamGraph, source: WiredPinEnd, target: WiredPinEnd): StreamGraphAction[] {
   const sourceNode = nodeIdOf(edited, source.node_id);
   const targetNode = nodeIdOf(edited, target.node_id);
   if (sourceNode === null || targetNode === null) return [];
-  return [{ operation: "connect", stream: edited.streamAsset, source: { node: sourceNode, port: source.pin }, target: { node: targetNode, port: target.pin } }];
+  return [{ operation: "connect", stream: edited.streamAsset, source: linkEndOfThePin(sourceNode, source), target: linkEndOfThePin(targetNode, target) }];
+}
+
+/** One end of a wire a person drew: a pin by its node's name, or one member of a bundle pin. */
+export interface WiredPinEnd {
+  node_id: string;
+  pin: string;
+  member: string | null;
+}
+
+/** The link end `connect` takes for `end` on the node `node`, by its id: the port, and the member it names. */
+function linkEndOfThePin(node: string, end: WiredPinEnd): StreamGraphActionLinkEnd {
+  return { node, port: end.pin, ...(end.member === null ? {} : { member: end.member }) };
 }
 
 /** The first port of `ports` that can take or give `family`; any port when the family is unknown, or one the port does not state. */
@@ -169,9 +183,7 @@ export function inputsAWireReaches(nodeType: Pick<NodeTypeDescription, "inputs">
 }
 
 /** A pin a wire was dragged off and let go of over the canvas. */
-export interface LooseWire {
-  node_id: string;
-  pin: string;
+export interface LooseWire extends WiredPinEnd {
   side: "input" | "output";
 }
 
@@ -186,7 +198,7 @@ export function nodePlacedEdits(edited: EditedStreamGraph, nodeType: string, pos
   };
   const wiredNode = wired === null ? null : nodeIdOf(edited, wired.looseWire.node_id);
   if (wired === null || wiredNode === null) return [placed];
-  const wiredEnd = { node: wiredNode, port: wired.looseWire.pin };
+  const wiredEnd = linkEndOfThePin(wiredNode, wired.looseWire);
   const placedEnd = { node: NODE_PLACED_IN_THIS_TRANSACTION, port: wired.port };
   return [placed, { operation: "connect", stream: edited.streamAsset, ...(wired.looseWire.side === "output" ? { source: wiredEnd, target: placedEnd } : { source: placedEnd, target: wiredEnd }) }];
 }
@@ -196,7 +208,11 @@ export function deletedEdits(edited: EditedStreamGraph, deleted: { node_ids: rea
   const removedNodeNames = new Set(deleted.node_ids);
   const disconnected: StreamGraphAction[] = edited.graph.links
     .filter((link) => deleted.link_ids.includes(linkIdAsTheCanvasKeysIt(link)) && !removedNodeNames.has(link.source.node) && !removedNodeNames.has(link.target.node))
-    .flatMap((link) => linkDisconnectedEdits(edited, { from_node: link.source.node, from_port: link.source.port, to_node: link.target.node, to_port: link.target.port }));
+    .flatMap((link) => {
+      const source = linkEndByNodeId(edited, link.source);
+      const target = linkEndByNodeId(edited, link.target);
+      return source === null || target === null ? [] : [{ operation: "disconnect", stream: edited.streamAsset, source, target } satisfies StreamGraphAction];
+    });
   const removedNodes: StreamGraphAction[] = edited.graph.nodes.filter((node) => removedNodeNames.has(node.name)).map((node) => ({ operation: "remove_node", stream: edited.streamAsset, node: node.id }));
   const removedNotes: StreamGraphAction[] = deleted.note_ids.map((note) => ({ operation: "remove_note", stream: edited.streamAsset, note }));
   return [...disconnected, ...removedNodes, ...removedNotes];
@@ -210,9 +226,16 @@ export function linkDisconnectedEdits(edited: EditedStreamGraph, link: { from_no
   return [{ operation: "disconnect", stream: edited.streamAsset, source: { node: sourceNode, port: link.from_port }, target: { node: targetNode, port: link.to_port } }];
 }
 
-/** A link's id as the canvas keys it: the runtime's id, or its ends while the runtime gives it none. */
+/** A link end of the graph, its node by name, as an action names it: its node by id, its port, and the member it names; `null` for a node the graph holds no id for. */
+function linkEndByNodeId(edited: EditedStreamGraph, end: StreamGraph["links"][number]["source"]): StreamGraphActionLinkEnd | null {
+  const node = nodeIdOf(edited, end.node);
+  return node === null ? null : linkEndOfThePin(node, { node_id: end.node, pin: end.port, member: end.member ?? null });
+}
+
+/** A link's id as the canvas keys it: the runtime's id, or its ends, each member it names after its port, while the runtime gives it none. */
 export function linkIdAsTheCanvasKeysIt(link: StreamGraph["links"][number]): string {
-  return link.id === "" ? `${link.source.node}.${link.source.port}->${link.target.node}.${link.target.port}` : link.id;
+  const endWords = (end: StreamGraph["links"][number]["source"]) => [end.node, end.port, ...(end.member === undefined || end.member === null ? [] : [end.member])].join(".");
+  return link.id === "" ? `${endWords(link.source)}->${endWords(link.target)}` : link.id;
 }
 
 /** `nodeName`'s node spliced into the link `linkId`: the link's source feeds its first input of that family, its first output of that family feeds the link's target, and the link goes; nothing when it has no such ports. */
@@ -225,11 +248,9 @@ export function cardLetGoOverALinkEdits(edited: EditedStreamGraph, nodeName: str
   const familyOfEach = (ports: StreamGraphNode["ports"]["inputs"]) => ports.map((port) => ({ name: port.name, family: familyOfThePort(port) }));
   const input = firstPortOfTheFamily(familyOfEach(node.ports.inputs), family);
   const output = firstPortOfTheFamily(familyOfEach(node.ports.outputs), family);
-  const linkSourceNode = nodeIdOf(edited, link.source.node);
-  const linkTargetNode = nodeIdOf(edited, link.target.node);
-  if (input === null || output === null || linkSourceNode === null || linkTargetNode === null) return [];
-  const linkSource = { node: linkSourceNode, port: link.source.port };
-  const linkTarget = { node: linkTargetNode, port: link.target.port };
+  const linkSource = linkEndByNodeId(edited, link.source);
+  const linkTarget = linkEndByNodeId(edited, link.target);
+  if (input === null || output === null || linkSource === null || linkTarget === null) return [];
   return [
     { operation: "disconnect", stream: edited.streamAsset, source: linkSource, target: linkTarget },
     { operation: "connect", stream: edited.streamAsset, source: linkSource, target: { node: node.id, port: input } },
@@ -263,6 +284,20 @@ export function frameChangedEdits(edited: EditedStreamGraph, group: string, chan
 /** A frame taken out, its nodes left where they are, ungrouped. */
 export function frameRemovedEdits(edited: EditedStreamGraph, group: string): StreamGraphAction[] {
   return (edited.graph.groups ?? []).some((graphGroup) => graphGroup.id === group) ? [{ operation: "remove_group", stream: edited.streamAsset, group }] : [];
+}
+
+/** A bundle pin `pin` on `side` of the node `nodeName`'s card shown as a row for each of its members, or folded back into its own row: its node's studio fields as they are, with the bundle pins `studio.metadata.open_bundles` keeps open, the key left out once none is. */
+export function bundleOpenedEdits(edited: EditedStreamGraph, nodeName: string, side: "input" | "output", pin: string, open: boolean): StreamGraphAction[] {
+  const node = edited.graph.nodes.find((graphNode) => graphNode.name === nodeName);
+  if (node === undefined) return [];
+  const studio = studioToBuildOn(edited, node);
+  const openBefore = openBundlesOfTheMetadata(studio.metadata);
+  const openAfter = openBundlesWith(openBefore, side, pin, open);
+  if (JSON.stringify(openAfter) === JSON.stringify(openBefore)) return [];
+  const isAnyOpen = openAfter.inputs.length > 0 || openAfter.outputs.length > 0;
+  const { [OPEN_BUNDLES_METADATA_KEY]: _openBefore, ...metadataBesides } = studio.metadata;
+  const metadata = isAnyOpen ? { ...metadataBesides, [OPEN_BUNDLES_METADATA_KEY]: { inputs: [...openAfter.inputs], outputs: [...openAfter.outputs] } } : metadataBesides;
+  return [{ operation: "set_studio_fields", stream: edited.streamAsset, node: node.id, studio: studioObjectOf({ ...studio, metadata }) }];
 }
 
 /** A card collapsed to its header, or opened again: its node's studio fields as they are, with `collapsed`. */

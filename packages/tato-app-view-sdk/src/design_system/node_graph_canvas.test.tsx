@@ -47,6 +47,7 @@ function editingRecorded() {
   const onFrameChanged = vi.fn();
   const onFrameRemoved = vi.fn();
   const onCardCollapsed = vi.fn();
+  const onBundleOpened = vi.fn();
   const applied = async () => "applied" as const;
   const editing: NodeGraphCanvasEditing = {
     onCardsMoved: applied,
@@ -62,8 +63,9 @@ function editingRecorded() {
     onFrameChanged,
     onFrameRemoved,
     onCardCollapsed,
+    onBundleOpened,
   };
-  return { editing, onFrameChanged, onFrameRemoved, onCardCollapsed };
+  return { editing, onFrameChanged, onFrameRemoved, onCardCollapsed, onBundleOpened };
 }
 
 function drawnCanvas(editing: NodeGraphCanvasEditing | null, isCollapsed = false, description: string | null = null) {
@@ -214,7 +216,7 @@ describe("what the runtime marks on a link into an input", () => {
           targetY={0}
           sourcePosition={Position.Right}
           targetPosition={Position.Left}
-          data={{ graphLink: { link_id: "L1", source_node_id: "a", source_pin: "out", target_node_id: "b", target_pin: "in", look: "carrying", description: "a.out → b.in, wired\nA Vector is read as a Color", warning_words: ["A Vector is read as a Color"] }, pin_type_key: "vector" }}
+          data={{ graphLink: { link_id: "L1", source_node_id: "a", source_pin: "out", source_member: null, target_node_id: "b", target_pin: "in", target_member: null, look: "carrying", description: "a.out → b.in, wired\nA Vector is read as a Color", warning_words: ["A Vector is read as a Color"] }, pin_type_key: "vector" }}
         />
       </svg>,
     );
@@ -578,10 +580,72 @@ describe("a pin's mark and a link outside a card", () => {
           targetY={0}
           sourcePosition={Position.Right}
           targetPosition={Position.Left}
-          data={{ graphLink: { link_id: "L1", source_node_id: "a", source_pin: "out", target_node_id: "b", target_pin: "in", look: "carrying", description: "wired", warning_words: [] }, pin_type_key: "float" }}
+          data={{ graphLink: { link_id: "L1", source_node_id: "a", source_pin: "out", source_member: null, target_node_id: "b", target_pin: "in", target_member: null, look: "carrying", description: "wired", warning_words: [] }, pin_type_key: "float" }}
         />
       </svg>,
     );
     expect(container.querySelector('[data-node-graph-link="L1"]')?.getAttribute("data-pin-type")).toBe("float");
+  });
+});
+
+describe("a bundle pin", () => {
+  const memberPin = (member: string): NodePin => ({ name: "levels", member, bundle: null, pin: { pin_type: { type: "float" }, flow: "value" }, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null });
+  const mixCard = (isOpen: boolean): NodeGraphCanvasNode => ({
+    ...card("mix", false),
+    inputs: [
+      {
+        name: "levels",
+        member: null,
+        bundle: { members: [memberPin("left"), memberPin("right")], is_open: isOpen },
+        pin: { pin_type: { type: "bundle", members: [{ name: "left", member_type: { type: "float" } }, { name: "right", member_type: { type: "float" } }] }, flow: "value" },
+        family: "channels",
+        description: null,
+        annotations: {},
+        stream_facts_words: [],
+        value_address: null,
+        setting: null,
+        wire: null,
+        link: null,
+      },
+    ],
+    outputs: [],
+  });
+  const drawnMix = (isOpen: boolean, editing: NodeGraphCanvasEditing | null) =>
+    render(<NodeGraphCanvas label="Stream graph" nodes={[mixCard(isOpen)]} links={[]} frames={[]} selectedNodeIds={[]} onNodesSelected={vi.fn()} editing={editing} />);
+
+  it("draws a doubled socket on its own row while closed, and a row and a socket of each member's type under it while open", async () => {
+    const closed = drawnMix(false, null);
+    const closedCard = await vi.waitFor(() => closed.container.querySelector<HTMLElement>('[data-node-graph-card="mix"]') ?? expect.unreachable("no card"));
+    expect([...closedCard.querySelectorAll("[data-node-graph-pin-row]")].map((row) => row.textContent)).toEqual(["levels"]);
+    expect(closedCard.querySelector('.node-graph-pin[data-handleid="input:levels"]')?.getAttribute("data-bundle")).toBe("closed");
+    cleanup();
+
+    const open = drawnMix(true, null);
+    const openCard = await vi.waitFor(() => open.container.querySelector<HTMLElement>('[data-node-graph-card="mix"]') ?? expect.unreachable("no card"));
+    expect([...openCard.querySelectorAll("[data-node-graph-pin-row]")].map((row) => [row.textContent, row.getAttribute("data-node-graph-member")])).toEqual([
+      ["levels", null],
+      ["left", "left"],
+      ["right", "right"],
+    ]);
+    expect([...openCard.querySelectorAll(".node-graph-pin")].map((socket) => [socket.getAttribute("data-handleid"), socket.getAttribute("data-pin-type"), socket.getAttribute("data-bundle")])).toEqual([
+      ["input:levels", "bundle", "open"],
+      ["input:levels/left", "float", null],
+      ["input:levels/right", "float", null],
+    ]);
+  });
+
+  it("is opened and closed by the chevron leading its row, which a read-only canvas does not draw", async () => {
+    const { editing, onBundleOpened } = editingRecorded();
+    const editable = drawnMix(false, editing);
+    const chevron = await vi.waitFor(() => editable.container.querySelector<HTMLElement>('[data-node-graph-bundle-open="levels"]') ?? expect.unreachable("no chevron"));
+    expect(chevron.getAttribute("aria-expanded")).toBe("false");
+    expect(chevron.getAttribute("aria-label")).toBe("levels members");
+    fireEvent.click(chevron);
+    expect(onBundleOpened).toHaveBeenCalledWith("mix", "input", "levels", true);
+    cleanup();
+
+    const readOnly = drawnMix(true, null);
+    await vi.waitFor(() => readOnly.container.querySelector('[data-node-graph-card="mix"]') ?? expect.unreachable("no card"));
+    expect(readOnly.container.querySelector("[data-node-graph-bundle-open]")).toBeNull();
   });
 });

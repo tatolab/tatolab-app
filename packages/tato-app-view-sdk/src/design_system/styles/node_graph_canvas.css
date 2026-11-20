@@ -229,3 +229,7 @@ g[data-warned] .node-graph-link:not(.node-graph-link-failed) { stroke: var(--war
   border-radius: var(--radius-sm);
   background: var(--studio-control);
 }
+/* A bundle's socket is doubled: a second ring of its colour, a gap of the card's colour inside it, says it carries members. */
+.node-graph-canvas .react-flow__handle.node-graph-pin[data-bundle] {
+  box-shadow: 0 0 0 1.5px var(--studio-graph-card), 0 0 0 3px var(--node-graph-pin-colour, var(--studio-graph-pin));
+}

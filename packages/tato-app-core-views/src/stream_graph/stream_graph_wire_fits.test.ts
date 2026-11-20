@@ -27,17 +27,17 @@ const EDITED: EditedStreamGraph = (() => {
   return edited;
 })();
 
-const BEAT_COUNT = { node_id: "beat", pin: "count", side: "output" } as const;
+const BEAT_COUNT = { node_id: "beat", pin: "count", member: null, side: "output" } as const;
 
 test("a wire dragged off a pin asks the runtime from the pin by its node's id, among the placed pins with their refusals or among every node type's ports, at the level shown", () => {
   expect(linkCandidatesRequestOf(EDITED, BEAT_COUNT, [], "placed_ports")).toEqual({ stream: STREAM_ASSET, from: { output: { node: BEAT, port: "count" } }, among: "placed_ports", include_refused: true });
-  expect(linkCandidatesRequestOf(EDITED, { node_id: "tally", pin: "picture", side: "input" }, [WARMTH], "node_type_ports")).toEqual({
+  expect(linkCandidatesRequestOf(EDITED, { node_id: "tally", pin: "picture", member: null, side: "input" }, [WARMTH], "node_type_ports")).toEqual({
     stream: STREAM_ASSET,
     level: [WARMTH],
     from: { input: { node: TALLY, port: "picture" } },
     among: "node_type_ports",
   });
-  expect(linkCandidatesRequestOf(EDITED, { node_id: "gone", pin: "video", side: "output" }, [], "placed_ports")).toBeNull();
+  expect(linkCandidatesRequestOf(EDITED, { node_id: "gone", pin: "video", member: null, side: "output" }, [], "placed_ports")).toBeNull();
 });
 
 test("the runtime's answer lights each placed pin by name with its outcome, a refusal and a pin not checked in the runtime's words and a convert node by its name", () => {
@@ -68,11 +68,11 @@ test("the runtime's answer lights each placed pin by name with its outcome, a re
   } satisfies LinkCandidatesChecking;
 
   expect([...wireFitsOfTheAnswer(EDITED, BEAT_COUNT, checking)]).toEqual([
-    [nodeGraphPinKey("warmth", "input", "beats_per_bar"), { outcome: "connects", words: null }],
-    [nodeGraphPinKey("warmth", "input", "base"), { outcome: "connects_with_free_conversion", words: null }],
-    [nodeGraphPinKey("warmth", "input", "count"), { outcome: "connects_through_convert_node", words: "Connects through a Tensor To Texture node" }],
-    [nodeGraphPinKey("tally", "input", "picture"), { outcome: "refused", words: "cannot link `beat.count` (Integer) to `tally.picture` (Texture): a Integer output does not connect to a Texture input" }],
-    [nodeGraphPinKey("warmth", "input", "level"), { outcome: "not_checked", words: "the link closes a loop of function nodes no `PreviousValue` node is in, which `connect` closes through a `PreviousValue` node it adds" }],
+    [nodeGraphPinKey("warmth", "input", "beats_per_bar", null), { outcome: "connects", words: null }],
+    [nodeGraphPinKey("warmth", "input", "base", null), { outcome: "connects_with_free_conversion", words: null }],
+    [nodeGraphPinKey("warmth", "input", "count", null), { outcome: "connects_through_convert_node", words: "Connects through a Tensor To Texture node" }],
+    [nodeGraphPinKey("tally", "input", "picture", null), { outcome: "refused", words: "cannot link `beat.count` (Integer) to `tally.picture` (Texture): a Integer output does not connect to a Texture input" }],
+    [nodeGraphPinKey("warmth", "input", "level", null), { outcome: "not_checked", words: "the link closes a loop of function nodes no `PreviousValue` node is in, which `connect` closes through a `PreviousValue` node it adds" }],
   ]);
 });
 
@@ -100,4 +100,36 @@ test("a loose wire fits each node type the runtime did not refuse, by the first 
     ["nodes.beat:Beat", "level"],
     ["nodes.glow:Glow", "glow"],
   ]);
+});
+
+test("a wire dragged off a member asks from the member, each member the runtime answers lights its own socket, and a loose wire places a node by a whole port alone", () => {
+  expect(linkCandidatesRequestOf(EDITED, { node_id: "warmth", pin: "level", member: "low", side: "input" }, [], "placed_ports")).toEqual({
+    stream: STREAM_ASSET,
+    from: { input: { node: WARMTH, port: "level", member: "low" } },
+    among: "placed_ports",
+    include_refused: true,
+  });
+  const checking = {
+    kind: "checked",
+    result: {
+      candidates: [
+        { end: { kind: "placed_port", node: WARMTH, port: "level" }, check: { outcome: "connects" } },
+        { end: { kind: "placed_port", node: WARMTH, port: "level", member: "low" }, check: { outcome: "connects_with_free_conversion" } },
+      ],
+    },
+  } satisfies LinkCandidatesChecking;
+  expect([...wireFitsOfTheAnswer(EDITED, BEAT_COUNT, checking)]).toEqual([
+    [nodeGraphPinKey("warmth", "input", "level", null), { outcome: "connects", words: null }],
+    [nodeGraphPinKey("warmth", "input", "level", "low"), { outcome: "connects_with_free_conversion", words: null }],
+  ]);
+  const looseWireChecking = {
+    kind: "checked",
+    result: {
+      candidates: [
+        { end: { kind: "node_type_port", node_type: "nodes.mix:Mix", port: "levels", member: "left" }, check: { outcome: "connects" } },
+        { end: { kind: "node_type_port", node_type: "nodes.mix:Mix", port: "gain" }, check: { outcome: "connects" } },
+      ],
+    },
+  } satisfies LinkCandidatesChecking;
+  expect(portsALooseWireFits(looseWireChecking)).toEqual(new Map([["nodes.mix:Mix", "gain"]]));
 });

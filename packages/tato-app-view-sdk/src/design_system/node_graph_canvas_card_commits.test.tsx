@@ -60,7 +60,7 @@ function card(nodeId: string, index: number): NodeGraphCanvasNode {
 }
 
 function link(sourceNodeId: string, targetNodeId: string, targetPin: string): NodeGraphCanvasLink {
-  return { link_id: `${sourceNodeId}->${targetNodeId}.${targetPin}`, source_node_id: sourceNodeId, source_pin: "out", target_node_id: targetNodeId, target_pin: targetPin, look: "carrying", description: "wired", warning_words: [] };
+  return { link_id: `${sourceNodeId}->${targetNodeId}.${targetPin}`, source_node_id: sourceNodeId, source_pin: "out", source_member: null, target_node_id: targetNodeId, target_pin: targetPin, target_member: null, look: "carrying", description: "wired", warning_words: [] };
 }
 
 /** New editing, as a caller makes it again for every reading of its graph. */
@@ -80,6 +80,7 @@ function editingOfAReading(): NodeGraphCanvasEditing {
     onFrameChanged: vi.fn(),
     onFrameRemoved: vi.fn(),
     onCardCollapsed: vi.fn(),
+    onBundleOpened: vi.fn(),
   };
 }
 

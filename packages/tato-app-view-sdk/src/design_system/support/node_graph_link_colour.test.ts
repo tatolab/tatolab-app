@@ -9,8 +9,8 @@ test("a_link_takes_the_type_key_of_the_output_it_starts_from_not_the_input_it_en
     ["source", { outputs: [pin("video", { pin_type: { type: "texture" }, flow: "stream" }), pin("level", null)] }],
     ["effect", { outputs: [pin("out", { pin_type: { type: "float" }, flow: "value" })] }],
   ]);
-  expect(pinTypeKeyOfTheLink({ source_node_id: "source", source_pin: "video" }, nodeById)).toBe("texture");
-  expect(pinTypeKeyOfTheLink({ source_node_id: "effect", source_pin: "out" }, nodeById)).toBe("float");
-  expect(pinTypeKeyOfTheLink({ source_node_id: "source", source_pin: "level" }, nodeById)).toBe("untyped");
-  expect(pinTypeKeyOfTheLink({ source_node_id: "gone", source_pin: "video" }, nodeById)).toBe("untyped");
+  expect(pinTypeKeyOfTheLink({ source_node_id: "source", source_pin: "video", source_member: null }, nodeById)).toBe("texture");
+  expect(pinTypeKeyOfTheLink({ source_node_id: "effect", source_pin: "out", source_member: null }, nodeById)).toBe("float");
+  expect(pinTypeKeyOfTheLink({ source_node_id: "source", source_pin: "level", source_member: null }, nodeById)).toBe("untyped");
+  expect(pinTypeKeyOfTheLink({ source_node_id: "gone", source_pin: "video", source_member: null }, nodeById)).toBe("untyped");
 });
