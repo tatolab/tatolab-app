@@ -22,7 +22,7 @@ import {
   type StreamGraph,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { castAsTheRuntimeNamesAnUnnamedNode, nodeTypeClassName } from "./node_words";
-import { OPEN_BUNDLES_METADATA_KEY, openBundlesOfTheMetadata, openBundlesWith } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import { doesTheDescribedInputTakeAWire, OPEN_BUNDLES_METADATA_KEY, openBundlesOfTheMetadata, openBundlesWith } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 
 /** A point on the canvas. */
 export interface StreamGraphCanvasPosition {
@@ -179,7 +179,7 @@ function firstPortOfTheFamily(ports: readonly Pick<NodeTypePortDescribed, "name"
 
 /** The inputs of `nodeType` a wire can end at: each its description marks as taking one, a setting among them, and each it marks neither way. */
 export function inputsAWireReaches(nodeType: Pick<NodeTypeDescription, "inputs">): readonly NodeTypeInputDescribed[] {
-  return nodeType.inputs.filter((input) => input.takes_a_wire ?? true);
+  return nodeType.inputs.filter(doesTheDescribedInputTakeAWire);
 }
 
 /** A pin a wire was dragged off and let go of over the canvas. */
@@ -238,7 +238,7 @@ export function linkIdAsTheCanvasKeysIt(link: StreamGraph["links"][number]): str
   return link.id === "" ? `${endWords(link.source)}->${endWords(link.target)}` : link.id;
 }
 
-/** `nodeName`'s node spliced into the link `linkId`: the link's source feeds its first input of that family, its first output of that family feeds the link's target, and the link goes; nothing when it has no such ports. */
+/** `nodeName`'s node spliced into the link `linkId`: the link's source feeds its first input of that family that the runtime does not mark as taking no wire, its first output of that family feeds the link's target, and the link goes; nothing when it has no such ports. */
 export function cardLetGoOverALinkEdits(edited: EditedStreamGraph, nodeName: string, linkId: string): StreamGraphAction[] {
   const node = edited.graph.nodes.find((graphNode) => graphNode.name === nodeName);
   const link = edited.graph.links.find((graphLink) => linkIdAsTheCanvasKeysIt(graphLink) === linkId);
@@ -246,7 +246,7 @@ export function cardLetGoOverALinkEdits(edited: EditedStreamGraph, nodeName: str
   const sourcePort = edited.graph.nodes.find((graphNode) => graphNode.name === link.source.node)?.ports.outputs.find((port) => port.name === link.source.port);
   const family = sourcePort === undefined ? null : familyOfThePort(sourcePort);
   const familyOfEach = (ports: StreamGraphNode["ports"]["inputs"]) => ports.map((port) => ({ name: port.name, family: familyOfThePort(port) }));
-  const input = firstPortOfTheFamily(familyOfEach(node.ports.inputs), family);
+  const input = firstPortOfTheFamily(familyOfEach(node.ports.inputs.filter((port) => port.takes_a_wire !== false)), family);
   const output = firstPortOfTheFamily(familyOfEach(node.ports.outputs), family);
   const linkSource = linkEndByNodeId(edited, link.source);
   const linkTarget = linkEndByNodeId(edited, link.target);

@@ -386,11 +386,13 @@ interface InputRowsOfTheNode {
   searchWords: string;
 }
 
-/** The marks beside an input's name: the socket its card draws, on one that takes a wire, and on a setting a change of which rebuilds its node, the mark that says so. */
+/** The marks beside an input's name: in a slot as wide as a socket, so every input's name lines up, the socket its card draws on one that takes a wire; and on a setting a change of which rebuilds its node, the mark that says so. */
 function InputMarkOfTheRow({ pin }: { pin: NodePin }) {
   return (
     <>
-      {pin.takes_a_wire && <NodeGraphPinMark pin={pin.pin} />}
+      <span className="flex w-2.5 shrink-0 justify-center" data-properties-socket-slot>
+        {pin.takes_a_wire && <NodeGraphPinMark pin={pin.pin} />}
+      </span>
       <NodeGraphRebuildsTheNodeMark pin={pin} />
     </>
   );

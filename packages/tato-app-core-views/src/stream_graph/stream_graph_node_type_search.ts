@@ -6,7 +6,7 @@
 import type { SearchPopoverNarrowing } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import type { SearchPopoverItem } from "@tatolab/tato-app-view-sdk/design_system/support/search_popover_rows";
 import type { NodeGraphCardKind } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
-import { exactPinOfTheDeclaredPort, settingOfTheDescribedInput, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import { doesTheDescribedInputTakeAWire, exactPinOfTheDeclaredPort, settingOfTheDescribedInput, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import {
   familyOfThePort,
   nodeTypeDescriptionsByType,
@@ -139,7 +139,7 @@ function nodePinOfTheDescribedPort(port: NodeTypePortDescribed): NodePin {
 
 /** A node type's input as a card placed now draws its pin: as its port, the setting it is, and whether a link may end at it, as its description marks it. */
 function nodePinOfTheDescribedInput(input: NodeTypeInputDescribed): NodePin {
-  return { ...nodePinOfTheDescribedPort(input), setting: settingOfTheDescribedInput(input), takes_a_wire: input.takes_a_wire ?? true };
+  return { ...nodePinOfTheDescribedPort(input), setting: settingOfTheDescribedInput(input), takes_a_wire: doesTheDescribedInputTakeAWire(input) };
 }
 
 /** The kind a described node type's preview card shows: how its code runs, `unknown` where its declaration source does not say; a description names no function's language. */

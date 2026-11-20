@@ -211,6 +211,19 @@ test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_ports_of_the_links_fa
   expect(cardLetGoOverALinkEdits(meterOnly, "meter", "L1")).toEqual([]);
 });
 
+test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_input_of_the_links_family_that_takes_a_wire", () => {
+  const setting = aGraphPort("source_frames", "image", { takes_a_wire: false });
+  const withASettingFirst = aGraphNode("lens", { id: "uuid-lens", kind: "process", config: {}, inputs: [setting, aGraphPort("frames", "image", { takes_a_wire: true })], outputs: [aGraphPort("image", "image")], components: { state: "Running" } });
+  expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, withASettingFirst] }), "lens", "L1")[1]).toEqual({
+    operation: "connect",
+    stream: STREAM_ASSET,
+    source: { node: "uuid-pattern", port: "video" },
+    target: { node: "uuid-lens", port: "frames" },
+  });
+  const takingNoWire = aGraphNode("still", { id: "uuid-still", kind: "process", config: {}, inputs: [setting], outputs: [aGraphPort("image", "image")], components: { state: "Running" } });
+  expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, takingNoWire] }), "still", "L1")).toEqual([]);
+});
+
 test("framing_the_selection_makes_one_labelled_group_of_its_nodes", () => {
   expect(selectionFramedEdits(edited(), ["pattern", "halftone"])).toEqual([{ operation: "add_group", stream: STREAM_ASSET, title: "Frame", nodes: ["uuid-pattern", "uuid-halftone"] }]);
   expect(selectionFramedEdits(edited(), [])).toEqual([]);

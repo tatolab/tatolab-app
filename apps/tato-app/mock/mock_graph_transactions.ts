@@ -12,7 +12,7 @@
 // first placement draws it under, where the runtime names it by the placed stream's own.
 
 import { mockRecordedMarksOfTheLink } from "./mock_replayed_link_candidates";
-import { doesTheMockInputTakeAWire, mockGraphNodeIdOf, mockUuidOf, type MockGraphLink, type MockGraphNode, type MockGraphPort, type MockStreamGraph } from "./mock_stream_fixtures";
+import { mockGraphNodeIdOf, mockUuidOf, type MockGraphLink, type MockGraphNode, type MockGraphPort, type MockStreamGraph } from "./mock_stream_fixtures";
 import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
 import { echoTheInputValueSet, echoTheMemberValueSet } from "./mock_value_echo";
 import { BUILT_IN_PIN_TYPES } from "@tatolab/tato-app-view-sdk/built_in_pin_types";
@@ -594,10 +594,6 @@ export function applyMockGraphTransaction(
           ports.some((port) => port.name === portName && (member === undefined || membersOfTheBundle(port.pin).includes(member)));
         const hasThePorts = hasTheEnd(source.graphNode.output_ports, operation.source.port, source.member) && hasTheEnd(targetEnd.graphNode.input_ports, operation.target.port, targetEnd.member);
         if (!hasThePorts) throw new MockGraphEditNotApplicable(`no port ${source.graphNode.name}.${operation.source.port} to ${targetEnd.graphNode.name}.${operation.target.port}`);
-        const targetPort = targetEnd.graphNode.input_ports.find((port) => port.name === operation.target.port);
-        if (targetPort !== undefined && !doesTheMockInputTakeAWire(targetEnd.graphNode, targetPort)) {
-          throw new MockGraphEditNotApplicable(`input \`${operation.target.port}\` of \`${targetEnd.graphNode.name}\` takes no wire. To fix: set its value with \`set_node_input_value\``);
-        }
         mockLinksMade += 1;
         const marks = mockRecordedMarksOfTheLink(source.end, targetEnd.end);
         graph.links.push({ id: `Lmock${mockLinksMade.toString(36).padStart(21, "0")}`, source_node: source.graphNode.name, source_port: operation.source.port, ...(source.member === undefined ? {} : { source_member: source.member }), target_node: targetEnd.graphNode.name, target_port: operation.target.port, ...(targetEnd.member === undefined ? {} : { target_member: targetEnd.member }), state: "wired", ...marks });

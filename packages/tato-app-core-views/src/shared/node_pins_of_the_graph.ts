@@ -7,7 +7,7 @@
 import { wiringOfTheInput } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
 import { membersOfTheBundle, nodeInputLinkOfTheGraph, pinOfTheEnd } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
 import { valueAddressOfTheInput, valueAddressOfTheMember, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import { exactPinOfTheDeclaredPort, openBundlesOfTheMetadata, settingOfTheDescribedInput, type NodePin, type NodePinBundle, type NodePinWire } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import { doesTheDescribedInputTakeAWire, exactPinOfTheDeclaredPort, openBundlesOfTheMetadata, settingOfTheDescribedInput, type NodePin, type NodePinBundle, type NodePinWire } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { settingsOfTheNodeNotAmongItsPorts } from "@tatolab/tato-app-view-sdk/pin_model/node_settings";
 import {
   familyOfThePort,
@@ -89,7 +89,9 @@ export function wiresReadAtTheLevel(stream: string, valuesAt: GraphAddress | nul
  * node type's description, which marks each one, and as taking one where neither says, as on a port of a subgraph's own node.
  */
 function doesTheInputTakeAWire(port: Pick<StreamGraphPort, "name" | "takes_a_wire">, described: Pick<NodeTypeDescription, "inputs"> | undefined): boolean {
-  return port.takes_a_wire ?? described?.inputs.find((describedInput) => describedInput.name === port.name)?.takes_a_wire ?? true;
+  if (port.takes_a_wire !== undefined && port.takes_a_wire !== null) return port.takes_a_wire;
+  const describedInput = described?.inputs.find((input) => input.name === port.name);
+  return describedInput === undefined || doesTheDescribedInputTakeAWire(describedInput);
 }
 
 /** What the input `port` of `node` reads through its wire in `graph`, at `wiresAt`; `null` for one that takes no wire, and where no wire is read. */

@@ -62,6 +62,11 @@ export function settingOfTheDescribedInput(input: Pick<NodeTypeInputDescribed, "
   return input.mode === "setting_only" ? { read: input.read ?? "at_setup" } : null;
 }
 
+/** Whether a link may end at `input`, as its node type's description marks it; one it marks neither way takes one. */
+export function doesTheDescribedInputTakeAWire(input: Pick<NodeTypeInputDescribed, "takes_a_wire">): boolean {
+  return input.takes_a_wire ?? true;
+}
+
 /** Whether a change of `pin` rebuilds its node: a setting its node reads as it is set up. */
 export function doesAChangeRebuildTheNode(pin: Pick<NodePin, "setting">): boolean {
   return pin.setting?.read === "at_setup";

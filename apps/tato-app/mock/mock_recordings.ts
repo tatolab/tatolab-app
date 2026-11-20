@@ -11,7 +11,7 @@
 // type and a setting a link feeds, which no recording carries, each named
 // as a stand-in where it is held; a recording that no longer reads fails the mock's load, as the app
 // would fail to read the runtime's answer. The recordings predate the mark `takes_a_wire` the runtime
-// serves on each input, which the mock gives each one by the rule the runtime marks it by.
+// serves on each input, which the mock gives each one as the runtime marks it.
 
 import pulseStageListNodeTypesResult from "./recordings/pulse-stage-list-node-types-result.json?raw";
 import pulseStageDescribeNodeTypesResult from "./recordings/pulse-stage-describe-node-types-result.json?raw";
@@ -67,23 +67,15 @@ function recordedResultOfTheContractType<TypeName extends ControlContractCompone
 }
 
 /**
- * Whether a link may end at the input `input` of the node type `nodeType` describes, as the runtime marks it: `false` on a
- * setting read each run, on a setting of a Graph Input, on one of a type
- * no message carries, a node reference or a pin type choice, and on one stating no exact type, a field of a node type not yet
- * typed, which is no port; `true` on every other input.
+ * `described`, each input marked as the runtime marks whether a link may end at it, where its recording, made before the
+ * runtime served the mark, marks none: every setting these recordings describe is a config field of a node type not yet typed,
+ * which is no port, and which the runtime describes as taking no wire whatever its type; every other input takes one.
  */
-function doesTheDescribedInputTakeAWire(nodeType: string, input: NodeTypeDescription["inputs"][number]): boolean {
-  if (input.mode !== "setting_only") return true;
-  const pinType = input.pin_type?.kind === "is" ? input.pin_type.pin_type.type : null;
-  return input.read !== "each_run" && nodeType !== "tatolab.stream:GraphInput" && pinType !== null && pinType !== "node_reference" && pinType !== "pin_type_choice";
-}
-
-/** `described`, each input of each node type it describes marked as the runtime marks whether a link may end at it, where its recording marks none. */
 function describedWithEachInputsWireMark(described: DescribeNodeTypesToolResult): DescribeNodeTypesToolResult {
   return {
     ...described,
     node_types: described.node_types.map((nodeType) =>
-      "not_described_because" in nodeType ? nodeType : { ...nodeType, inputs: nodeType.inputs.map((input) => ({ ...input, takes_a_wire: input.takes_a_wire ?? doesTheDescribedInputTakeAWire(nodeType.node_type, input) })) },
+      "not_described_because" in nodeType ? nodeType : { ...nodeType, inputs: nodeType.inputs.map((input) => ({ ...input, takes_a_wire: input.takes_a_wire ?? input.mode !== "setting_only" })) },
     ),
   };
 }
@@ -437,35 +429,89 @@ export function mockEveryPinKindGraphWithAStandInTypeChoosingInput(): MockStream
   };
 }
 
+/** The node type of Core Nodes' `Oscillator`, as an installed `tatolab-core-nodes` lists it. */
+const STAND_IN_OSCILLATOR_NODE_TYPE = "core_nodes.oscillator:Oscillator";
+
+const STAND_IN_OSCILLATOR_DOCUMENTATION = "A steady tone: a sine, square, saw or triangle wave at the pitch you set. Wire it into the Audio Video Preview, or to a Speaker, to hear it.";
+
+/** An Integer setting of the stand-in `Oscillator` read at setup, at least 1, reading `defaultValue` while none is set. */
+function standInOscillatorSetting(name: string, documentation: string, defaultValue: number): NodeTypeDescription["inputs"][number] {
+  return {
+    name,
+    documentation,
+    pin_type: { kind: "is", pin_type: { type: "integer" } },
+    flow: "value",
+    annotations: { range: { minimum: 1 } },
+    mode: "setting_only",
+    read: "at_setup",
+    takes_a_wire: true,
+    default_value: defaultValue,
+    lifetime: "kept",
+  };
+}
+
 /**
- * A stand-in, since no recording holds a setting a link feeds: a `RecordsToChannels` the sample's stream does not hold, `channels`,
- * whose `sample_rate`, an Integer setting read at setup, takes a link from `flash.flashes`, a Value output, and whose `channel_names`, a field of its node type not yet typed, is no port and saved in its config.
+ * A stand-in, since no recording describes a typed node's setting: Core Nodes' `Oscillator` as streamlib's `oscillator.py`
+ * declares it in the typed grammar, its `sample_rate`, `channels` and `block_size` settings read at setup, each a port that the
+ * runtime marks as taking a wire.
+ */
+export const MOCK_STAND_IN_OSCILLATOR_DESCRIBED: NodeTypeDescription = {
+  node_type: STAND_IN_OSCILLATOR_NODE_TYPE,
+  source: "installed_distribution",
+  distribution: "tatolab-core-nodes",
+  distribution_version: "0.1.0",
+  described_from: "interpreter",
+  documentation: STAND_IN_OSCILLATOR_DOCUMENTATION,
+  category: "Audio",
+  kind: "process",
+  inputs: [
+    { name: "frequency", documentation: "", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", annotations: { range: { minimum: 0 } }, mode: "wire_or_value", takes_a_wire: true, default_value: 220, lifetime: "kept" },
+    { name: "amplitude", documentation: "", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", annotations: { range: { minimum: 0, maximum: 1 } }, mode: "wire_or_value", takes_a_wire: true, default_value: 0.2, lifetime: "kept" },
+    standInOscillatorSetting("sample_rate", "Samples per second; a change builds the oscillator again.", 48_000),
+    standInOscillatorSetting("channels", "How many channels carry the tone.", 2),
+    standInOscillatorSetting("block_size", "Samples in each block it publishes.", 512),
+  ],
+  outputs: [{ name: "audio", documentation: "The tone, the same on every channel", pin_type: { kind: "is", pin_type: { type: "audio" } }, flow: "stream" }],
+};
+
+/** The stand-in `Oscillator` listed as an installed `tatolab-core-nodes` lists it. */
+export const MOCK_STAND_IN_OSCILLATOR_SOURCE: ListNodeTypesToolResult["sources"][number] = {
+  source: "installed_distribution",
+  distribution: "tatolab-core-nodes",
+  distribution_version: "0.1.0",
+  node_types: [{ node_type: STAND_IN_OSCILLATOR_NODE_TYPE, documentation: STAND_IN_OSCILLATOR_DOCUMENTATION, category: "Audio", kind: "process", described_from: "interpreter" }],
+  graph_generators: [],
+  unreadable_modules: [],
+};
+
+/**
+ * The stand-in `Oscillator` placed as `oscillator`, its `sample_rate` fed by a link from `flash.flashes`, a Value output, and its
+ * other inputs reading their defaults.
  */
 function standInNodeWithAWiredSetting(): MockGraphNode {
+  const integerPort = (name: string, value: number): MockGraphPort => ({ name, family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "integer" }, flow: "value" }, value_read: { value, comes_from: "default" }, annotations: { range: { minimum: 1 } } });
+  const floatPort = (name: string, value: number): MockGraphPort => ({ name, family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "float" }, flow: "value" }, value_read: { value, comes_from: "default" } });
   return {
-    name: "channels",
-    type: "tatolab.stream:RecordsToChannels",
+    name: "oscillator",
+    type: STAND_IN_OSCILLATOR_NODE_TYPE,
     kind: "process",
     state: "Running",
-    config: { channel_names: ["level"] },
+    config: {},
     pins: {},
-    input_defaults: { sample_rate: 48000 },
+    input_defaults: { frequency: 220, amplitude: 0.2, sample_rate: 48_000, channels: 2, block_size: 512 },
     exposed_config_fields: [],
-    input_ports: [
-      { name: "records", family: "records", stream_facts: null, values_checked: false, pin: null, value_read: null },
-      { name: "sample_rate", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "integer" }, flow: "value" }, value_read: { value: 48000, comes_from: "default" } },
-    ],
-    output_ports: [{ name: "channels", family: "channels", stream_facts: null, values_checked: null, pin: null, value_read: null }],
+    input_ports: [floatPort("frequency", 220), floatPort("amplitude", 0.2), integerPort("sample_rate", 48_000), integerPort("channels", 2), integerPort("block_size", 512)],
+    output_ports: [{ name: "audio", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "audio" }, flow: "stream" }, value_read: null }],
     studio: { ...NODE_STUDIO_FIELDS_NONE_SET },
   };
 }
 
-/** The every-pin-kind sample's graph with the stand-in `warmth_base` linked into `warmth.base`, and the stand-in `channels` beside it, `flash.flashes` linked into its `sample_rate`. */
+/** The every-pin-kind sample's graph with the stand-in `warmth_base` linked into `warmth.base`, and the stand-in `oscillator` beside it, `flash.flashes` linked into its `sample_rate`. */
 export function mockEveryPinKindGraphWithAStandInWiredSetting(): MockStreamGraph {
   const graph = mockEveryPinKindGraphWithAStandInTypeChoosingInput();
   return {
     ...graph,
     nodes: [...graph.nodes, standInNodeWithAWiredSetting()],
-    links: [...graph.links, { id: "Lmockstandinwiredsetting01", source_node: "flash", source_port: "flashes", target_node: "channels", target_port: "sample_rate", state: "wired" }],
+    links: [...graph.links, { id: "Lmockstandinwiredsetting01", source_node: "flash", source_port: "flashes", target_node: "oscillator", target_port: "sample_rate", state: "wired" }],
   };
 }
