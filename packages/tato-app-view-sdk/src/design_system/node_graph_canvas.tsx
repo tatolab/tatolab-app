@@ -1,11 +1,12 @@
-import { Background, BackgroundVariant, MiniMap, ReactFlow, ReactFlowProvider, useReactFlow, useStore, type NodeChange, type ReactFlowState } from "@xyflow/react";
+import { Background, BackgroundVariant, MiniMap, ReactFlow, ReactFlowProvider, SelectionMode, useReactFlow, useStore, useStoreApi, type NodeChange, type ReactFlowState } from "@xyflow/react";
 import { cn } from "cn";
-import { Combine, Frame, Plus, Scan, Search, StickyNote, Workflow, ZoomIn, ZoomOut } from "lucide-react";
+import { Combine, Frame, Hand, MousePointer2, Plus, Scan, Search, StickyNote, Workflow, ZoomIn, ZoomOut } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { RightClickMenu } from "./menus";
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { IconButton } from "./icon_button";
+import { ToggleIconButton } from "./toggle_icon_button";
 import { ToolbarDivider, ToolbarGroup } from "./toolbar";
 import { StudioViewToolbarTools } from "./studio_area_frame";
 import { NodeGraphFindBar, NodeGraphNodesFoundContext } from "./node_graph_find_bar";
@@ -25,6 +26,7 @@ import { useNodeGraphWiring } from "./support/use_node_graph_wiring";
 import { useNodeGraphFrameEditing } from "./support/use_node_graph_frame_editing";
 import { useNodeGraphNodeFind } from "./support/use_node_graph_node_find";
 import { useNodeGraphSelection } from "./support/use_node_graph_selection";
+import { useNodeGraphBoxSelection } from "./support/use_node_graph_box_selection";
 import { FIT_TO_VIEW_OPTIONS, useNodeGraphCardLayout } from "./support/use_node_graph_card_layout";
 import { onTheCanvasPixel } from "./support/node_graph_held_layout";
 import { useNodeGraphWireRoutes } from "./support/use_node_graph_wire_routes";
@@ -34,6 +36,8 @@ import { useNodeGraphTidyUp } from "./support/use_node_graph_tidy_up";
 const NODE_GRAPH_PLACED_ROOM = { width: 240, height: 120 };
 
 const noteFlowNodeId = (noteId: string) => `note:${noteId}`;
+
+const noteIdOfTheFlowNode = (flowNodeId: string): string | null => (flowNodeId.startsWith("note:") ? flowNodeId.slice("note:".length) : null);
 
 const frameFlowNodeId = (frameId: string) => `frame:${frameId}`;
 
@@ -45,6 +49,9 @@ const NODE_GRAPH_EDGE_TYPES = { node_graph_link: memo(NodeGraphLinkView) };
 const NODE_GRAPH_INLINE_CONTROLS_SHOWN_FROM_ZOOM = 0.5;
 
 const isZoomedOutPastTheInlineControls = (state: ReactFlowState) => state.transform[2] < NODE_GRAPH_INLINE_CONTROLS_SHOWN_FROM_ZOOM;
+
+/** What a left-drag on an editable canvas does: the pointer draws a box that selects what it touches, the hand pans the view. */
+type NodeGraphCanvasTool = "pointer" | "hand";
 
 /** Whether React Flow would draw `before` and `after` the same: the same node, place, size and selection, and the same edits allowed. */
 function isTheSameCardFlowNode(before: NodeGraphCardFlowNode, after: NodeGraphCardFlowNode): boolean {
@@ -103,17 +110,30 @@ function NodeGraphFlow({
   overlay?: ReactNode;
 }) {
   const reactFlow = useReactFlow();
+  const reactFlowStore = useStoreApi<NodeGraphFlowNode, NodeGraphLinkFlowEdge>();
   const wireRoutes = useNodeGraphWireRoutes();
   const canvasElement = useRef<HTMLDivElement>(null);
   const isTheMapShown = useStore(isPartOfTheGraphOutsideTheView);
   const areTheInlineControlsHidden = useStore(isZoomedOutPastTheInlineControls);
   const pointerRestsAt = useRef<NodeGraphCanvasPoint | null>(null);
+  const [canvasTool, setCanvasTool] = useState<NodeGraphCanvasTool>("pointer");
+  // A canvas that cannot be edited keeps React Flow's own drag, which pans, whatever tool its editable levels chose.
+  const isThePointerInUse = editing !== null && canvasTool === "pointer";
+  const isTheHandInUse = editing !== null && canvasTool === "hand";
   const nodeById = useMemo(
     () => new Map(nodes.map((node) => [node.node_id, node])),
     [nodes],
   );
-  const { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink } = useNodeGraphSelection(selectedNodeIds, nodeById, onNodesSelected);
+  const { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, selectWhatTheBoxHolds, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink } = useNodeGraphSelection(selectedNodeIds, nodeById, onNodesSelected);
   const { cardSizeByNode, isLaidOutOnMeasuredSizes, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, holdTheNoteMoves, releaseTheHeldNotePositions, keepTheResizedNote } = useNodeGraphCardLayout(nodes, links, notes, nodeById, editing, reactFlow, viewportWhereItWasLeft);
+
+  const isACard = useCallback((flowNodeId: string) => nodeById.has(flowNodeId), [nodeById]);
+  const linkIdsJoinedTo = useCallback(
+    (cardIds: ReadonlySet<string>) => new Set(flowEdgesJoining(links, nodeById).filter((graphLink) => cardIds.has(graphLink.source_node_id) || cardIds.has(graphLink.target_node_id)).map((graphLink) => graphLink.link_id)),
+    [links, nodeById],
+  );
+  const canvasSelection = useMemo(() => ({ cardIds: selectedIds, noteIds: selectedNoteIds, linkIds: selectedLinkIds }), [selectedIds, selectedNoteIds, selectedLinkIds]);
+  const { pressTheCanvas, isABoxPossible, boxMarksRedrawn } = useNodeGraphBoxSelection({ reactFlow, selection: canvasSelection, isACard, noteIdOfTheFlowNode, linkIdsJoinedTo, onBoxed: selectWhatTheBoxHolds });
 
   // React Flow takes up again only the cards handed as new objects, and a card draws again for new data, so a card is
   // handed its object from before, or else its data from before, wherever they are unchanged.
@@ -151,8 +171,8 @@ function NodeGraphFlow({
         height: size.height,
         data: { graphNote },
         selected: selectedNoteIds.has(graphNote.note_id),
-        draggable: editing !== null,
-        selectable: editing !== null,
+        draggable: isThePointerInUse,
+        selectable: isThePointerInUse,
         connectable: false,
         ariaLabel: `Note ${graphNote.text}`,
       };
@@ -166,14 +186,17 @@ function NodeGraphFlow({
         measured: cardSizeByNode.get(graphNode.node_id),
         selected: selectedIds.has(graphNode.node_id),
         data: cardNodeBefore?.data.graphNode === graphNode ? cardNodeBefore.data : { graphNode },
-        draggable: editing !== null,
-        connectable: editing !== null,
+        draggable: isThePointerInUse,
+        connectable: isThePointerInUse,
         ariaLabel: `Node ${graphNode.title}`,
       };
-      return cardNodeBefore !== undefined && isTheSameCardFlowNode(cardNodeBefore, cardNode) ? cardNodeBefore : cardNode;
+      // A box marks React Flow's own copy of a card in or out of it, so a card it marked otherwise is handed to it again.
+      const isReactFlowsMarkTheSelection = (reactFlowStore.getState().nodeLookup.get(graphNode.node_id)?.selected ?? false) === cardNode.selected;
+      return cardNodeBefore !== undefined && isReactFlowsMarkTheSelection && isTheSameCardFlowNode(cardNodeBefore, cardNode) ? cardNodeBefore : cardNode;
     });
     return [...frameNodes, ...noteNodes, ...cardNodes];
-  }, [frames, notes, nodes, editing, positionOfTheCard, frameOfTheCard, sizeOfTheCard, cardSizeByNode, positionOfTheNote, sizeOfTheNote, selectedIds, selectedNoteIds]);
+    // boxMarksRedrawn draws the cards again after each box step React Flow marked otherwise than the selection.
+  }, [frames, notes, nodes, isThePointerInUse, boxMarksRedrawn, reactFlowStore, positionOfTheCard, frameOfTheCard, sizeOfTheCard, cardSizeByNode, positionOfTheNote, sizeOfTheNote, selectedIds, selectedNoteIds]);
   useLayoutEffect(() => {
     cardFlowNodesBefore.current = new Map(flowNodes.flatMap((flowNode): [string, NodeGraphCardFlowNode][] => (flowNode.type === "node_graph_card" ? [[flowNode.id, flowNode]] : [])));
   }, [flowNodes]);
@@ -191,18 +214,18 @@ function NodeGraphFlow({
           pin_type_key: pinTypeKeyOfTheLink(graphLink, nodeById),
         },
         focusable: editing !== null,
-        selectable: editing !== null,
+        selectable: isThePointerInUse,
         selected: selectedLinkIds.has(graphLink.link_id),
       })),
-    [links, nodeById, editing, selectedLinkIds],
+    [links, nodeById, editing, isThePointerInUse, selectedLinkIds],
   );
 
   const followTheChanges = useCallback(
     (changes: NodeChange<NodeGraphFlowNode>[]) => {
       followTheLayoutChanges(changes);
-      followTheSelectionChanges(changes);
+      followTheSelectionChanges(isABoxPossible() ? changes.filter((change) => change.type !== "select") : changes);
     },
-    [followTheLayoutChanges, followTheSelectionChanges],
+    [followTheLayoutChanges, followTheSelectionChanges, isABoxPossible],
   );
 
   /** Where `clientPoint` is on the canvas and in the canvas element. */
@@ -382,6 +405,9 @@ function NodeGraphFlow({
       } else if (selectedIds.size > 0 && (event.key === "g" || event.key === "G") && (event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey) {
         event.preventDefault();
         collapseTheSelectionIntoASubgraph();
+      } else if ((event.key === "v" || event.key === "V" || event.key === "h" || event.key === "H") && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        setCanvasTool(event.key === "h" || event.key === "H" ? "hand" : "pointer");
       } else if ((event.key === "t" || event.key === "T") && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();
         tidyUp();
@@ -408,6 +434,27 @@ function NodeGraphFlow({
             <StudioViewToolbarTools label={`${label} tools`}>
               {editing !== null && (
                 <>
+                  <ToolbarGroup>
+                    <ToggleIconButton
+                      icon={MousePointer2}
+                      label="Select"
+                      tooltipWhileOn="Select: drag a box to select (V)"
+                      tooltipWhileOff="Select: drag a box to select (V)"
+                      isOn={canvasTool === "pointer"}
+                      onToggled={() => setCanvasTool("pointer")}
+                      data-node-graph-tool="pointer"
+                    />
+                    <ToggleIconButton
+                      icon={Hand}
+                      label="Hand"
+                      tooltipWhileOn="Hand: drag to move around (H)"
+                      tooltipWhileOff="Hand: drag to move around (H)"
+                      isOn={canvasTool === "hand"}
+                      onToggled={() => setCanvasTool("hand")}
+                      data-node-graph-tool="hand"
+                    />
+                  </ToolbarGroup>
+                  <ToolbarDivider />
                   <ToolbarGroup>
                     <IconButton icon={Plus} label="Add node" tooltip="Add node (Tab)" onPressed={() => editing.onNodeAskedFor(clearPlaceBroughtIntoView())} data-node-graph-tool="add_node" />
                     <IconButton
@@ -486,6 +533,7 @@ function NodeGraphFlow({
               }}
               onPointerDownCapture={(event: ReactPointerEvent<HTMLDivElement>) => {
                 pointerRestsAt.current = canvasPointOf({ x: event.clientX, y: event.clientY });
+                if (isThePointerInUse) pressTheCanvas(event);
               }}
               data-node-graph-editable={editing !== null || undefined}
             >
@@ -506,6 +554,7 @@ function NodeGraphFlow({
                     "node-graph-canvas",
                     areTheInlineControlsHidden && "node-graph-canvas-zoomed-out",
                     isGliding && "node-graph-canvas-tidying",
+                    isTheHandInUse && "node-graph-canvas-hand",
                     !isLaidOutOnMeasuredSizes && !hasBeenFramed && "opacity-0",
                   )}
                   nodes={flowNodes}
@@ -513,7 +562,7 @@ function NodeGraphFlow({
                   nodeTypes={NODE_GRAPH_NODE_TYPES}
                   edgeTypes={NODE_GRAPH_EDGE_TYPES}
                   onNodesChange={followTheChanges}
-                  onEdgesChange={followTheLinkChanges}
+                  onEdgesChange={(changes) => followTheLinkChanges(isABoxPossible() ? changes.filter((change) => change.type !== "select") : changes)}
                   onNodeDragStop={(_event, _node, draggedNodes) => keepTheMovedCards(draggedNodes)}
                   onMoveEnd={(event, viewport) => {
                     if (event !== null && hasBeenFramed) onViewportLeft?.({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
@@ -525,13 +574,17 @@ function NodeGraphFlow({
                   onConnect={wireThePins}
                   onConnectEnd={followTheWireLetGo}
                   isValidConnection={canTheConnectionBeWired}
-                  onPaneClick={selectNothing}
-                  nodesDraggable={editing !== null}
-                  nodesConnectable={editing !== null}
+                  onPaneClick={isTheHandInUse ? undefined : selectNothing}
+                  nodesDraggable={isThePointerInUse}
+                  nodesConnectable={isThePointerInUse}
                   edgesFocusable={editing !== null}
+                  elementsSelectable={!isTheHandInUse}
                   deleteKeyCode={null}
-                  selectionKeyCode={editing === null ? null : "Shift"}
-                  multiSelectionKeyCode={editing === null ? null : ["Meta", "Control"]}
+                  panOnDrag={isThePointerInUse ? [1] : true}
+                  selectionOnDrag={isThePointerInUse}
+                  selectionMode={SelectionMode.Partial}
+                  selectionKeyCode={isThePointerInUse ? "Shift" : null}
+                  multiSelectionKeyCode={isThePointerInUse ? ["Meta", "Control"] : null}
                   minZoom={0.2}
                   maxZoom={2}
                   proOptions={{ hideAttribution: true }}

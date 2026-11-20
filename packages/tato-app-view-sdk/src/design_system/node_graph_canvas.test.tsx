@@ -360,18 +360,65 @@ describe("the node graph canvas while it takes edits", () => {
     expect(onNodeAskedFor).toHaveBeenCalledWith(expect.objectContaining({ in_the_element: { x: 120, y: 480 } }));
   });
 
-  it("draws Add node, Frame, Note, Subgraph and Tidy up, then Frame the whole graph and the zooms, in the graph's ribbon, Frame and Subgraph saying why they wait for a selection", async () => {
+  it("draws Select and Hand, then Add node, Frame, Note, Subgraph and Tidy up, then Frame the whole graph and the zooms, in the graph's ribbon, Frame and Subgraph saying why they wait for a selection", async () => {
     const { editing } = editingRecorded();
     const onNodeAskedFor = vi.fn();
     const { container } = drawnCanvas({ ...editing, onNodeAskedFor });
     const tool = (name: string) => container.querySelector<HTMLElement>(`[data-node-graph-tool="${name}"]`) ?? expect.unreachable(`no ${name}`);
     await vi.waitFor(() => tool("add_node"));
     expect(tool("add_note").closest('[role="toolbar"]')?.getAttribute("aria-label")).toBe("Stream graph tools");
-    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["add_node", "frame_selection", "add_note", "add_subgraph", "tidy_up", "frame_all", "zoom_in", "zoom_out", "find"]);
+    expect([...container.querySelectorAll("[data-node-graph-tool]")].map((button) => button.getAttribute("data-node-graph-tool"))).toEqual(["pointer", "hand", "add_node", "frame_selection", "add_note", "add_subgraph", "tidy_up", "frame_all", "zoom_in", "zoom_out", "find"]);
     expect(tool("frame_selection").getAttribute("aria-disabled")).toBe("true");
     expect(tool("add_subgraph").getAttribute("aria-label")).toBe("Collapse the selection into a subgraph: Select the nodes to collapse into a subgraph first");
     fireEvent.click(tool("add_node"));
     expect(onNodeAskedFor).toHaveBeenCalledTimes(1);
+  });
+
+  it("drags a selection box with Select, the default, and pans from anywhere, the cards included, with Hand, chosen by its button or by V and H", async () => {
+    const { container } = drawnCanvas(editingRecorded().editing);
+    const tool = (name: string) => container.querySelector<HTMLElement>(`[data-node-graph-tool="${name}"]`) ?? expect.unreachable(`no ${name}`);
+    const pane = () => container.querySelector<HTMLElement>(".react-flow__pane") ?? expect.unreachable("no pane");
+    const patternCard = () => container.querySelector<HTMLElement>('.react-flow__node[data-id="pattern"]') ?? expect.unreachable("no card");
+    await vi.waitFor(() => patternCard());
+    expect([tool("pointer").getAttribute("aria-pressed"), tool("hand").getAttribute("aria-pressed")]).toEqual(["true", "false"]);
+    expect(pane().classList.contains("selection")).toBe(true);
+    expect(patternCard().classList.contains("nopan")).toBe(true);
+
+    fireEvent.click(tool("hand"));
+    expect([tool("pointer").getAttribute("aria-pressed"), tool("hand").getAttribute("aria-pressed")]).toEqual(["false", "true"]);
+    expect(pane().classList.contains("selection")).toBe(false);
+    expect(pane().classList.contains("draggable")).toBe(true);
+    expect(patternCard().classList.contains("nopan")).toBe(false);
+    fireEvent.click(tool("hand"));
+    expect(tool("hand").getAttribute("aria-pressed")).toBe("true");
+
+    const canvas = container.querySelector<HTMLElement>("[data-node-graph-editable]") ?? expect.unreachable("no editable canvas");
+    fireEvent.keyDown(canvas, { key: "v" });
+    expect(tool("pointer").getAttribute("aria-pressed")).toBe("true");
+    expect(pane().classList.contains("selection")).toBe(true);
+    fireEvent.keyDown(canvas, { key: "h" });
+    expect(tool("hand").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("keeps the selection with Hand when the canvas or a card is clicked", async () => {
+    const onNodesSelected = vi.fn();
+    const { container } = render(
+      <NodeGraphCanvas
+        label="Stream graph"
+        nodes={[card("pattern", false)]}
+        links={[]}
+        frames={[{ frame_id: FRAME_ID, title: "Frame", description: null, colour: null }]}
+        selectedNodeIds={["pattern"]}
+        onNodesSelected={onNodesSelected}
+        editing={editingRecorded().editing}
+      />,
+    );
+    const patternCard = await vi.waitFor(() => container.querySelector<HTMLElement>('.react-flow__node[data-id="pattern"]') ?? expect.unreachable("no card"));
+    fireEvent.click(container.querySelector<HTMLElement>('[data-node-graph-tool="hand"]') ?? expect.unreachable("no Hand"));
+    fireEvent.click(container.querySelector<HTMLElement>(".react-flow__pane") ?? expect.unreachable("no pane"));
+    fireEvent.click(patternCard);
+    expect(onNodesSelected).not.toHaveBeenCalled();
+    expect(patternCard.classList.contains("selected")).toBe(true);
   });
 
   it("asks for every card's new place in its frame as one edit when Tidy up or Shift T is pressed with nothing selected", async () => {

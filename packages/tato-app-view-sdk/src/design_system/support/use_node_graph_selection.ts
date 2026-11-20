@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EdgeChange, NodeChange } from "@xyflow/react";
 import type { NodeGraphCanvasNode } from "./node_graph_canvas_contract";
 import type { NodeGraphFlowNode, NodeGraphLinkFlowEdge } from "./node_graph_flow_elements";
+import type { NodeGraphCanvasSelection } from "./use_node_graph_box_selection";
 
 /** Whether `selectedIds` holds exactly the nodes of `nodeIds`, in any order. */
 function holdsTheSameNodes(selectedIds: ReadonlySet<string>, nodeIds: readonly string[]): boolean {
   return selectedIds.size === nodeIds.length && nodeIds.every((nodeId) => selectedIds.has(nodeId));
+}
+
+/** Whether `selectedBefore` and `selectedAfter` hold the same ids. */
+function holdsTheSameIds(selectedBefore: ReadonlySet<string>, selectedAfter: ReadonlySet<string>): boolean {
+  return selectedBefore.size === selectedAfter.size && [...selectedAfter].every((id) => selectedBefore.has(id));
 }
 
 /** What is selected on the canvas, its cards, notes and links, kept to the cards the caller selects and to the cards in the graph; the cards' changes reach `onNodesSelected`, the one picked last at the end. */
@@ -51,6 +57,23 @@ export function useNodeGraphSelection(selectedNodeIds: readonly string[], nodeBy
       }
     },
     [onNodesSelected, nodeById, selectedIds],
+  );
+
+  // A box can step more than once between two renders, so it is compared with the cards it selected last, not the render's.
+  const cardIdsSelectedLast = useRef(selectedIds);
+  cardIdsSelectedLast.current = selectedIds;
+  const selectWhatTheBoxHolds = useCallback(
+    ({ cardIds, noteIds, linkIds }: NodeGraphCanvasSelection) => {
+      setSelectedNoteIds((selectedBefore) => (holdsTheSameIds(selectedBefore, noteIds) ? selectedBefore : noteIds));
+      setSelectedLinkIds((selectedBefore) => (holdsTheSameIds(selectedBefore, linkIds) ? selectedBefore : linkIds));
+      const cardIdsInTheGraph = [...cardIds].filter((nodeId) => nodeById.has(nodeId));
+      if (holdsTheSameNodes(cardIdsSelectedLast.current, cardIdsInTheGraph)) return;
+      const cardIdsSelected = new Set(cardIdsInTheGraph);
+      cardIdsSelectedLast.current = cardIdsSelected;
+      setSelectedIds(cardIdsSelected);
+      onNodesSelected(cardIdsInTheGraph);
+    },
+    [nodeById, onNodesSelected],
   );
 
   const followTheLinkChanges = useCallback((changes: EdgeChange<NodeGraphLinkFlowEdge>[]) => {
@@ -115,5 +138,5 @@ export function useNodeGraphSelection(selectedNodeIds: readonly string[], nodeBy
     [selectedIds, selectedLinkIds, onNodesSelected],
   );
 
-  return { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink };
+  return { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, selectWhatTheBoxHolds, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink };
 }
