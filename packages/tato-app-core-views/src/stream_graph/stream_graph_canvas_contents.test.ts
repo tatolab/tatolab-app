@@ -36,11 +36,12 @@ const GRAPH: StreamGraph = aStreamGraph(
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_types_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, wire: null, link: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null, kind: { look: "process" } },
+    { node_id: "camera", title: "camera", type_name: "Effect", node_type: "nodes.camera:Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, wire: null, link: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null, kind: { look: "process" } },
     {
       node_id: "invert",
       title: "invert",
       type_name: "Effect",
+      node_type: "nodes.invert:Effect",
       description: null,
       condition: { look: "healthy" },
       inputs: [{ name: "video_in", pin: null, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, wire: null, link: null }],

@@ -387,6 +387,10 @@ export class TatolabViewBridge {
           ? { kind: "node_file_created", file: nodeFileCreating.file, node_type: nodeFileCreating.node_type }
           : { kind: "refused", because: nodeFileCreating.because };
       }
+      case "check_project_file": {
+        const fileChecking = await this.hostServices.checkProjectFile(ask.file);
+        return fileChecking.kind === "checked" ? { kind: "project_file_checked", findings: fileChecking.findings } : { kind: "refused", because: fileChecking.because };
+      }
       case "list_project_files": {
         const filesListing = await this.hostServices.listProjectFiles(ask.project_folder);
         return filesListing.kind === "listed" ? { kind: "project_files_listed", project_files: filesListing.project_files } : { kind: "refused", because: filesListing.because };

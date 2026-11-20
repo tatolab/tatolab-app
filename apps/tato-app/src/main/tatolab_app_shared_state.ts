@@ -3,6 +3,7 @@
 
 import type { StreamActionsNoticed } from "./stream_action_changes_followed_for_the_status.js";
 import type { StudioWarningsOfThisRun } from "./studio_warnings.js";
+import type { ExtensionFolderChecksSources } from "./extension_check_gate.js";
 import type { ProjectViewsListedToTheWindows } from "./extension_files_served_with_types_removed.js";
 import { describeCaughtFailure, type Result } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
@@ -90,6 +91,8 @@ export interface TatolabAppSharedState {
   thePersonEditingInStudio: ProjectTransactionAuthor;
   /** The views each studio window listed as ones that open, the only ones whose files are served. */
   projectViewsListed: ProjectViewsListedToTheWindows;
+  /** What the extension check gate keeps of each folder it checked, and the kit it names to whoever starts a runtime by hand. */
+  extensionFolderChecks: ExtensionFolderChecksSources;
   /** Asks the system for the camera and the microphone as a listed view declaring one arrives, never at its first use. */
   systemMediaAccessAskedAheadForViews: SystemMediaAccessAskedAheadForViews;
   tatolabAppLog: TatolabAppLog;

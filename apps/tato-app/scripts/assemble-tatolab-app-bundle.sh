@@ -38,13 +38,18 @@
 #   <helper>/Contents/Resources/python-downloads/         the CPython archive tatolabd installs from as a
 #                                                         uv mirror, and uv-python-downloads.json, which
 #                                                         names its sha256 to uv
+#   <helper>/Contents/Resources/extension-sdk/            the extension SDK kit this app's SDK build
+#                                                         wrote, beside the lend, where tatolabd finds it
+#                                                         first to check a project's views and controls
+#                                                         against; it is data, so it holds no code
 #   <helper>/Contents/Resources/streamlib-commit          the streamlib commit the runtime was built from
 # Code signing requires code under MacOS/ or Frameworks/; the lend keeps its shape through the links.
 #
 # Usage: assemble-tatolab-app-bundle.sh <Tatolab.app> <runtime unit dir> --streamlib-commit SHA
-#                                      [--local-proof-test-root]
+#                                      --extension-sdk-kit DIR [--local-proof-test-root]
 #   --streamlib-commit SHA   the streamlib commit the build resolved; the unit's streamlib-commit
 #                            must name it
+#   --extension-sdk-kit DIR  the kit this app's SDK build wrote, placed beside the lend
 #   --local-proof-test-root  the unit must carry the machine-directories-under-a-test-root marker,
 #                            which the helper carries too
 set -euo pipefail
@@ -56,15 +61,18 @@ runtime_unit_directory="$(cd "$2" && pwd)"
 shift 2
 local_proof_test_root=false
 resolved_streamlib_commit=""
+extension_sdk_kit=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --streamlib-commit) [ $# -ge 2 ] || usage; resolved_streamlib_commit="$2"; shift ;;
+    --extension-sdk-kit) [ $# -ge 2 ] || usage; extension_sdk_kit="$2"; shift ;;
     --local-proof-test-root) local_proof_test_root=true ;;
     *) usage ;;
   esac
   shift
 done
 [[ "$resolved_streamlib_commit" =~ ^[0-9a-f]{40}$ ]] || usage
+[ -n "$extension_sdk_kit" ] || usage
 
 tato_app_root="$(cd "$(dirname "$0")/.." && pwd)"
 runtime_helper_info_plist_template="$tato_app_root/packaging/runtime-helper/Info.plist"
@@ -166,6 +174,7 @@ while IFS= read -r -d '' core_project_file; do
     exit 1
   fi
 done < <(find "$core_projects_source" -type f -print0)
+"$(dirname "$0")/place-the-extension-sdk-kit.sh" "$extension_sdk_kit" >/dev/null
 unit_streamlib_commit="$(cat "$runtime_unit_directory/$streamlib_commit_file_name" 2>/dev/null || true)"
 [ -n "$unit_streamlib_commit" ] || {
   echo "runtime unit $runtime_unit_directory names no streamlib commit ($streamlib_commit_file_name): build it with build-tatolab-runtime-unit.sh" >&2
@@ -242,6 +251,7 @@ ditto "$sample_projects_source" "$helper_contents/Resources/samples"
 ditto "$core_projects_source" "$helper_contents/Resources/core-projects"
 ditto "$carried_wheels_source" "$helper_contents/Resources/carried-wheels"
 ditto "$carried_python_downloads_source" "$helper_contents/Resources/python-downloads"
+extension_sdk_kit_placed="$("$(dirname "$0")/place-the-extension-sdk-kit.sh" "$extension_sdk_kit" "$helper_contents/Resources/extension-sdk")"
 # A CEF app bundle is code, which signing takes only under MacOS/ or Frameworks/.
 ditto "$runtime_unit_directory/$browser_host_app_bundle_relative_to_the_unit" "$helper_contents/Frameworks/tatolab-browser-host.app"
 carried_wheel_count="$(find "$helper_contents/Resources/carried-wheels" -name '*.whl' -type f | wc -l | tr -d ' ')"
@@ -279,4 +289,4 @@ if $local_proof_test_root; then
   cp "$runtime_unit_directory/$marker_file_name" "$helper_contents/Resources/$marker_file_name"
 fi
 
-echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, uv, tatolab-video-poster-frame, $($unit_carries_the_code_checkers && echo 'oxlint and typescript/tsc with its library files in Resources/typescript, ')$relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, the lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) $first_party_module_wheel_count first-party module wheel(s) in Resources/imports, $sample_project_count sample project(s) in Resources/samples, the core projects in Resources/core-projects, and $carried_wheel_count carried wheel(s) and the carried Python in Resources/carried-wheels and Resources/python-downloads$($local_proof_test_root && echo ' (local proof)')"
+echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, uv, tatolab-video-poster-frame, $($unit_carries_the_code_checkers && echo 'oxlint and typescript/tsc with its library files in Resources/typescript, ')$relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, the lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) $first_party_module_wheel_count first-party module wheel(s) in Resources/imports, $sample_project_count sample project(s) in Resources/samples, the core projects in Resources/core-projects, and $carried_wheel_count carried wheel(s) and the carried Python in Resources/carried-wheels and Resources/python-downloads, and the extension SDK kit in Resources/extension-sdk ($extension_sdk_kit_placed)$($local_proof_test_root && echo ' (local proof)')"

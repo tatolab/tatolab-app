@@ -49,7 +49,7 @@ export interface CodeEditorCompletion {
 }
 
 /** The language a document is coloured as. */
-export type CodeEditorLanguage = "python" | "ini" | "plaintext";
+export type CodeEditorLanguage = "python" | "typescript" | "ini" | "plaintext";
 
 /** Where the editor asks what to suggest and what a symbol is, at a line and character both counted from 0. */
 export interface CodeEditorLanguageHelp {
@@ -61,6 +61,7 @@ export interface CodeEditorLanguageHelp {
 /** The language a file's name says it is written in. */
 export function codeEditorLanguageOfFile(file: string): CodeEditorLanguage {
   if (file.endsWith(".py") || file.endsWith(".pyi")) return "python";
+  if (file.endsWith(".ts") || file.endsWith(".mts")) return "typescript";
   if (file.endsWith(".toml") || file.endsWith(".ini") || file.endsWith(".cfg")) return "ini";
   return "plaintext";
 }

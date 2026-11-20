@@ -3,7 +3,10 @@
 // states both ends of its range, then the Studio's default for its built-in type, then the read-only
 // line with its reason. Each key has one candidate, because the table reads a type's
 // default only from the module that declares the type, which for a built-in type is the Studio's,
-// and a node body only from the module that brings the node type. A control registers for a pin
+// and a node body only from the module that brings the node type. A node type's name does not say
+// which module brings it, so the runtime judges that: a body of another module's node type is an
+// error of its folder's check, which leaves the body unserved. The table therefore keys a body by its
+// node type and lets one the Studio serves take the key from one it does not. A control registers for a pin
 // type by its name alone, so one registered for `named` would draw every named type; the table
 // uses none, and a named type's input ends at the read-only line.
 
@@ -41,12 +44,6 @@ function namedControlKey(type: BuiltInPinTypeName, controlName: string): string 
 /** The key of the Studio's control named `slider` for `type`, which draws an input of it whose range has both ends; a project's control is keyed by its qualified name, so it is never this one. */
 function studioSliderKey(type: BuiltInPinTypeName): string {
   return namedControlKey(type, "slider");
-}
-
-/** The module part of a qualified name such as `acme:Crossfade`, or `null` when it has none. */
-function moduleOfTheQualifiedName(qualifiedName: string): string | null {
-  const colon = qualifiedName.indexOf(":");
-  return colon > 0 ? qualifiedName.slice(0, colon) : null;
 }
 
 /** Whether `annotations` state both the lowest and the highest number an input holds. */
@@ -121,7 +118,12 @@ export class NodeUiControlTable {
   #whyTheTableDoesNotUse(listed: ListedNodeUiElement): string | null {
     const registration = listed.registration;
     if (registration.kind === "node_body") {
-      if (moduleOfTheQualifiedName(registration.node_type) !== listed.module) return `Only the module that brings ${registration.node_type} registers its body; ${listed.module} registers one.`;
+      const holder = this.#nodeBodies.get(registration.node_type);
+      if (holder !== undefined && holder.script_serving.kind === "blocked" && listed.script_serving.kind === "served") {
+        this.#nodeBodies.set(registration.node_type, listed);
+        this.#registrationsPassedOver.push({ listed: holder, because: `${listed.module}'s ${listed.script}, which passed its checks, registers the body of ${registration.node_type}.` });
+        return null;
+      }
       return this.#takeTheKey(this.#nodeBodies, registration.node_type, listed, `the body of ${registration.node_type}`);
     }
     if (registration.type === "named") return `A control cannot be registered for one named type, so ${listed.module}'s ${listed.script} draws none.`;

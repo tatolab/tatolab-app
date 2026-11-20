@@ -16,6 +16,7 @@ import type {
   ProjectFileReading,
   ProjectFileSaving,
   NodeFileCreating,
+  ProjectFileChecking,
   ProjectFilesListing,
   ProjectGraphTransactionApplying,
   ProjectLogReading,
@@ -149,6 +150,8 @@ export interface TatoAppViewConnection {
   saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaving>;
   /** A new Python node file at `file` in the open project's own folder, from the runtime's node template, with the node type it declares, or why the runtime did not create it. */
   createNodeFile(file: string): Promise<NodeFileCreating>;
+  /** What the runtime's check of `file`, in the open project's own folder, finds in it: a `.py` node file's declarations, or the views or node UI folder holding a `.ts` file, the findings in that file alone. */
+  checkProjectFile(file: string): Promise<ProjectFileChecking>;
   /** The files of the project in `projectFolder`, or why they were not listed. */
   listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
@@ -335,6 +338,11 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
         ask({ kind: "create_node_file", file }).then((answer): NodeFileCreating => {
           if (answer.kind === "node_file_created") return { kind: "created", file: answer.file, node_type: answer.node_type };
           return { kind: "not_created", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
+      checkProjectFile: (file) =>
+        ask({ kind: "check_project_file", file }).then((answer): ProjectFileChecking => {
+          if (answer.kind === "project_file_checked") return { kind: "checked", findings: answer.findings };
+          return { kind: "not_checked", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
       listProjectFiles: (projectFolder) =>
         ask({ kind: "list_project_files", project_folder: projectFolder }).then((answer): ProjectFilesListing => {

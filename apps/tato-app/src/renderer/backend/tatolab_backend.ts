@@ -14,6 +14,7 @@ import type {
   ProjectFileRead,
   ProjectFileSaved,
   NodeFileCreated,
+  ProjectFileChecked,
   ProjectFiles,
   DescribeNodeTypesToolResult,
   ListNodeTypesToolResult,
@@ -248,6 +249,8 @@ export interface TatolabBackend {
   saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaved>;
   /** A new Python node file at `file` in the open project's own folder, from the runtime's node template, resolving with the node type it declares and rejecting in the runtime's own words. */
   createNodeFile(file: string): Promise<NodeFileCreated>;
+  /** What the runtime's check of `file`, in the open project's own folder, finds in it, rejecting for an import's file and in the runtime's own words. */
+  checkProjectFile(file: string): Promise<ProjectFileChecked>;
   /** Every file of `projectFolder`, the folder of the open project or of one of its imports. */
   listProjectFiles(projectFolder: string): Promise<ProjectFiles>;
   /** Start the playback of the open project's folder: `start_playback` queued, opening it first while the runtime holds it closed and reloading it first while a stream of it has failed, or `resume_playback` while it is paused; resolving once asked and rejecting in the runtime's own words. */

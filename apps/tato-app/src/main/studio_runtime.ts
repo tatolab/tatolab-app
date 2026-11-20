@@ -22,6 +22,8 @@ import { downloadTheCatalogEntrysZip, type MarketplaceDownloadFollowing } from "
 import type { ProjectFolderDialogPurpose, RecentProjectFolderOpened, StudioWindowOfTheProjectShown } from "./open_project.js";
 import type { ProjectAssetFileFilter } from "./project_asset_file_filters.js";
 import type { ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
+import type { ExtensionFolderChecksSources, ExtensionFolderPassed } from "./extension_check_gate.js";
+import type { ExtensionFoldersListed } from "./extension_files_served_with_types_removed.js";
 import { readThePackageCatalog } from "./package_catalog.js";
 import { controlPushesFollowedForTheWindows } from "./control_pushes_followed_for_the_windows.js";
 import { PROJECT_LOG_RECORDS_WRITTEN, tellTheWindowTheProjectLogRecordsWritten, type ProjectLogRecordsFollowedForTheWindows, type WindowFollowingProjectLogs } from "./project_log_records_followed_for_the_windows.js";
@@ -105,16 +107,18 @@ export class RecentProjects extends Context.Service<
   }
 >()("tatolab-app/RecentProjects") {}
 
-/** The project views the studio windows last listed as ones that open: the only view folders served. */
+/** The project views the studio windows last listed as ones that open, each through the extension check gate: the only view folders, and the only bytes, served. */
 export class ProjectViewsListed extends Context.Service<
   ProjectViewsListed,
   {
-    /** Whether the last listing of the project in `openProjectFolder` holds `viewFolderInTheProject` as a view that opens. */
-    readonly isListedAsOpening: (openProjectFolder: string, viewFolderInTheProject: string) => boolean;
+    /** The view folder `viewFolderInTheProject` at `folderVersion` as the last listing of the project in `openProjectFolder` passed it; `null` when it holds none. */
+    readonly passedExtensionFolder: (openProjectFolder: string, folderVersion: string, viewFolderInTheProject: string) => ExtensionFolderPassed | null;
     /** The mark of a listing about to be asked for, which `rememberTheListing` takes back with its answer. */
     readonly startAListing: Effect.Effect<number>;
-    /** Keep the views that open in `listedViews`, the listing of the project in `openProjectFolder` started as `listingStarted`, unless a listing started later is already kept. */
-    readonly rememberTheListing: (openProjectFolder: string, listingStarted: number, listedViews: readonly ProjectViewTheRuntimeListed[]) => Effect.Effect<void>;
+    /** Keep `passedFolders`, by folder, as the `listed` listing of the project in `openProjectFolder` started as `listingStarted`, unless one started later is already kept. */
+    readonly rememberTheListing: (openProjectFolder: string, listed: ExtensionFoldersListed, listingStarted: number, passedFolders: ReadonlyMap<string, ExtensionFolderPassed>) => Effect.Effect<void>;
+    /** What the extension check gate keeps and names. */
+    readonly extensionFolderChecks: ExtensionFolderChecksSources;
   }
 >()("tatolab-app/ProjectViewsListed") {}
 
@@ -512,10 +516,11 @@ export function studioRuntimeLayer(sharedState: TatolabAppSharedState, localApiS
       forget: (folder) => commandAnswerOfPlainCode(() => sharedState.recentProjectFolders.forget(folder)),
     }),
     Layer.succeed(ProjectViewsListed, {
-      isListedAsOpening: (openProjectFolder, viewFolderInTheProject) => sharedState.projectViewsListed.isListedAsOpening(openProjectFolder, viewFolderInTheProject),
+      passedExtensionFolder: (openProjectFolder, folderVersion, viewFolderInTheProject) => sharedState.projectViewsListed.passedExtensionFolder(openProjectFolder, folderVersion, viewFolderInTheProject),
       startAListing: Effect.sync(() => sharedState.projectViewsListed.startAListing()),
-      rememberTheListing: (openProjectFolder, listingStarted, listedViews) =>
-        Effect.sync(() => sharedState.projectViewsListed.rememberTheListing(openProjectFolder, listingStarted, listedViews)),
+      rememberTheListing: (openProjectFolder, listed, listingStarted, passedFolders) =>
+        Effect.sync(() => sharedState.projectViewsListed.rememberTheListing(openProjectFolder, listed, listingStarted, passedFolders)),
+      extensionFolderChecks: sharedState.extensionFolderChecks,
     }),
     Layer.succeed(ListedStreams, {
       streamAssetsOfTheProject: (projectFolder) => new Set(streamsLastListedFrom(projectFolder).flatMap((listedStream) => listedStream.location?.stream_asset ?? [])),

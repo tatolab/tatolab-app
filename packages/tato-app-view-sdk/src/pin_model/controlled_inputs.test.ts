@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { takesAControl } from "./controlled_inputs.js";
+import { nodeOfABody, takesAControl } from "./controlled_inputs.js";
 import type { InputAddress } from "./node_inputs.js";
 
 const WIDTH: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "PATTERN-ID", input: "width" };
@@ -37,4 +37,19 @@ test("a_texture_input_whose_annotation_names_a_control_takes_it_driven_by_what_i
 test("an_input_holding_a_value_that_a_link_feeds_takes_no_control_whatever_its_annotation_names", () => {
   const gain = { name: "gain", pin: { pin_type: { type: "float" }, flow: "value" }, annotations: { control: "slider" }, value_address: null, setting: null, wire: { into: { ...WIDTH, input: "gain" }, wiring: WIRED_FROM_THE_CAMERA } } as const;
   expect(takesAControl(gain)).toBeNull();
+});
+
+test("a_node_body_is_told_each_input_whose_type_is_exact_wired_or_not_and_no_node_outside_a_streams_graph", () => {
+  const gain = { name: "gain", pin: { pin_type: { type: "float" }, flow: "value" }, annotations: {}, value_address: null, setting: null, wire: { into: { ...WIDTH, input: "gain" }, wiring: WIRED_FROM_THE_CAMERA } } as const;
+  const width = { name: "width", pin: { pin_type: { type: "integer" }, flow: "value" }, annotations: {}, value_address: WIDTH, setting: { read: "at_setup" }, wire: null } as const;
+  const untyped = { name: "extra", pin: null, annotations: {}, value_address: { ...WIDTH, input: "extra" }, setting: null, wire: null } as const;
+  expect(nodeOfABody("nodes.pattern:Pattern", [gain, width, untyped])).toEqual({
+    node_type: "nodes.pattern:Pattern",
+    project_folder: "/projects/demo",
+    inputs: [
+      { declaration: { input_name: "gain", label: "gain", pin_type: { type: "float" }, annotations: {}, may_be_unset: false }, value_address: null, rebuilds_its_node: false, wiring: WIRED_FROM_THE_CAMERA },
+      { declaration: { input_name: "width", label: "width", pin_type: { type: "integer" }, annotations: {}, may_be_unset: false }, value_address: WIDTH, rebuilds_its_node: true, wiring: null },
+    ],
+  });
+  expect(nodeOfABody("nodes.pattern:Pattern", [{ ...width, value_address: null }])).toBeNull();
 });

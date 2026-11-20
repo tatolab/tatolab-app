@@ -42,6 +42,7 @@
   { "name": "@tatolab/tato-app-view-sdk/design_system/module_list", "served_file": "design_system/module_list.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/design_system/multi_line_text_field", "served_file": "design_system/multi_line_text_field.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/design_system/naming_dialog", "served_file": "design_system/naming_dialog.js", "imports_no_library": false },
+  { "name": "@tatolab/tato-app-view-sdk/design_system/node_body_mount", "served_file": "design_system/node_body_mount.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas", "served_file": "design_system/node_graph_canvas.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/design_system/node_graph_find_bar", "served_file": "design_system/node_graph_find_bar.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/design_system/node_graph_frame_view", "served_file": "design_system/node_graph_frame_view.js", "imports_no_library": false },

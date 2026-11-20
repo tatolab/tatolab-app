@@ -91,6 +91,14 @@ const MOCK_STREAMS_NOT_LISTED_BECAUSE = "the runtime's list_streams result could
 /** How the mock lists the Studio's own elements: served, listed with scripts nothing serves, or refused. */
 export type MockNodeUiElementsListing = "served" | "unserved" | "refused";
 
+/** Whether the mock project brings the node bodies of `mock/mock_project_node_ui/`: not, listed and served, or listed blocked by a finding of their folder's check. */
+export type MockProjectNodeBodies = "none" | "served" | "blocked";
+
+/** The node bodies `?node_bodies=` asks for, none by default. */
+export function mockProjectNodeBodiesOf(asked: string | null): MockProjectNodeBodies {
+  return asked === "served" || asked === "blocked" ? asked : "none";
+}
+
 /** The listing `?node_ui=` asks for, served by default. */
 export function mockNodeUiElementsListingOf(asked: string | null): MockNodeUiElementsListing {
   return asked === "unserved" || asked === "refused" ? asked : "served";
@@ -171,6 +179,8 @@ export interface MockTatolabOptions {
   isTheFixtureViewListed: boolean;
   /** `?node_ui=unserved`: the Studio's own controls are listed with scripts nothing serves, so each ends at the read-only line with why; `?node_ui=refused`: listing them is refused, so each input draws its own field. They are listed and served by default. */
   nodeUiElementsListing: MockNodeUiElementsListing;
+  /** `?node_bodies=served`: the mock project brings a body for the inverting effect, a fader for its amount, and one for each stage of `?main_graph=large`, which the canvas measurements mount; `?node_bodies=blocked`: it lists them with a finding of their folder's check, so each card draws its rows alone. None by default. */
+  projectNodeBodies: MockProjectNodeBodies;
   /** `?refusal=link_of_another_type|value_of_another_type`: the runtime's recorded refusal the mock replays for the first link made, or the first value set; none by default. */
   replayedRefusal: MockReplayedRefusal | null;
   /** `?shell_sets_live=<number>`: a few seconds after the page opens, a shell sets the inverting effect's `amount` in `main` live to the number, as an agent's `transact` would; nothing is set by default. */
@@ -313,6 +323,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
     isTheCompositorInMain: pageQuery.get("compositor") === "layered",
     nodeUiElementsListing: mockNodeUiElementsListingOf(pageQuery.get("node_ui")),
+    projectNodeBodies: mockProjectNodeBodiesOf(pageQuery.get("node_bodies")),
     replayedRefusal: mockReplayedRefusalNamed(pageQuery.get("refusal")),
     valueAShellSetsLive: numberInTheQuery(pageQuery.get("shell_sets_live")),
     doesTheMainStreamDeclareGraphInputs: pageQuery.get("graph_inputs") === "declared",

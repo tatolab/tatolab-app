@@ -7,13 +7,13 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { Effect } from "effect";
-import type { NodeFileCreated, OpenProjectReading, ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../shared/tatolab_backend_contract.js";
+import type { NodeFileCreated, OpenProjectReading, ProjectFileChecked, ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../shared/tatolab_backend_contract.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { createNodeFile, listProjectFiles, readProjectFile, writeProjectFile } from "./runtime_operations.js";
 import { IdempotencyKeys, PersonEditingInStudio } from "./studio_runtime.js";
-import type { RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
+import { RuntimeControl, type ControlContractComponents } from "./tatolab_runtime_control_operation_call.js";
 import { CommandRefused } from "./window_command.js";
 
 /** The folder every import's copy sits in, inside the project that imports it. */
@@ -156,6 +156,23 @@ export const createANodeFileInTheOpenProject = Effect.fn("createANodeFileInTheOp
   const { author, idempotencyKey } = yield* aChangeByThePersonEditingInStudio;
   const created = yield* createNodeFile(fileAddress.open_project_folder, fileAddress.path_in_the_open_project, author, idempotencyKey);
   return { file: path.resolve(file), node_type: created.node_type } satisfies NodeFileCreated;
+});
+
+/** Each finding of `checked`, the runtime's check of the open project, in the file at `pathInTheOpenProject`, as the runtime gave it. */
+export function findingsInTheFile(checked: ControlContractComponents["ProjectCodeCheckResult"], pathInTheOpenProject: string): ProjectFileChecked {
+  return {
+    findings: checked.findings
+      .filter((finding) => finding.path === pathInTheOpenProject)
+      .map((finding) => ({ finding_code: finding.finding_code, severity: finding.severity, words: finding.words, line: finding.line ?? null, column: finding.column ?? null })),
+  };
+}
+
+/** What the runtime's `check_project_code` finds in `file`, inside the open project's own folder: a node file's declarations, or the views or node UI folder holding it; refused for an import's file or in the runtime's words. */
+export const checkTheOpenProjectsFile = Effect.fn("checkTheOpenProjectsFile")(function* (reading: OpenProjectReading, file: string) {
+  const { open_project_folder: openProjectFolder, path_in_the_open_project: pathInTheOpenProject } = yield* addressOfAnEditableFile(reading, file);
+  const runtimeControl = yield* RuntimeControl;
+  const checked = yield* runtimeControl.call("check_project_code", { project_directory: openProjectFolder, paths: [pathInTheOpenProject] });
+  return findingsInTheFile(checked, pathInTheOpenProject);
 });
 
 /** Every file the runtime lists of `projectFolder`, the folder of the open project or of one of its imports, relative to it in name order; an import's files are left out of the open project's. */

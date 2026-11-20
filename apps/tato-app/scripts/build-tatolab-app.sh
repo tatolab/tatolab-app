@@ -188,6 +188,7 @@ done < <(plutil -convert json -o - "$info_plist" | node -e 'process.stdout.write
 
 echo "==> assemble"
 "$scripts_directory/assemble-tatolab-app-bundle.sh" "$assembled_app" "$runtime_unit_directory" --streamlib-commit "$streamlib_commit" \
+  --extension-sdk-kit "$tato_app_root/../../packages/tato-app-view-sdk/dist/kit" \
   ${local_proof_arguments[@]+"${local_proof_arguments[@]}"}
 
 echo "==> sign (Developer ID)"

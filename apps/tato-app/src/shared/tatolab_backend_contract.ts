@@ -48,6 +48,7 @@ export type {
   ImportedProject,
   OpenProject,
   OpenProjectReading,
+  ProjectFileFinding,
   ProjectFileRead,
   ProjectFiles,
   ProjectLogRecord,
@@ -76,7 +77,7 @@ export type {
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export { PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
 export { TATO_STUDIO_MCP_CLIENT_NAME, familyOfThePort, fragmentOfTheNode, inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { JsonValue, ListedStream, PortViewerMessageReading, PortViewerRecovery, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { JsonValue, ListedStream, PortViewerMessageReading, PortViewerRecovery, ProjectFileFinding, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The platform the app runs on, which decides the window's chrome. */
 export type TatolabPlatform = "macos" | "linux";
@@ -541,6 +542,11 @@ export interface ProjectFileSaved {
   version: string;
 }
 
+/** What `check_project_file` answers: each finding of the runtime's check in the file, none when it passed. */
+export interface ProjectFileChecked {
+  findings: ProjectFileFinding[];
+}
+
 /** What `create_node_file` answers: the new file, absolute, and the node type it declares, `<module>:<class>`, as a graph adds it. */
 export interface NodeFileCreated {
   file: string;
@@ -568,7 +574,7 @@ export interface ListedStudioViewFacts {
   import_folder: string | null;
   /** Its `tatolab_view.json` as written, `null` when it is not JSON. */
   manifest_json: JsonValue | null;
-  /** The URL its folder is served under. */
+  /** The URL its folder is served under; empty for a project view that does not open, of which nothing is served. */
   folder_url: string;
 }
 

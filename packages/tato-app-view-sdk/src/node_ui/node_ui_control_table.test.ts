@@ -95,18 +95,23 @@ test("a control registered for named would draw every named type, so the table u
   expect(table.registrationsPassedOver).toEqual([{ listed: spectrumView, because: "A control cannot be registered for one named type, so acme's control.ts draws none." }]);
 });
 
-test("only the Studio sets a built-in type's default, and only the module that brings a node type sets its body; each refusal is kept with why", () => {
+test("only the Studio sets a built-in type's default, and a node body is keyed by its node type, one that passed its checks taking the key from one that did not; each refusal is kept with why", () => {
   const acmeFloatDefault = listedElementOf("acme", { kind: "control", type: "float", control: null });
-  const acmeCrossfadeBody = listedElementOf("acme", { kind: "node_body", node_type: "acme:Crossfade" });
-  const otherFaderBody = listedElementOf("other", { kind: "node_body", node_type: "acme:Fader" });
-  const table = new NodeUiControlTable({ elements: [acmeFloatDefault, acmeCrossfadeBody, otherFaderBody] });
+  const otherCrossfadeBody = listedElementOf("other", { kind: "node_body", node_type: "nodes.crossfade:Crossfade" }, { script_serving: { kind: "blocked", findings: ["node_body_not_the_modules_to_register"] } });
+  const acmeCrossfadeBody = listedElementOf("acme", { kind: "node_body", node_type: "nodes.crossfade:Crossfade" }, { script: "crossfade_body.ts" });
+  const table = new NodeUiControlTable({ elements: [acmeFloatDefault, otherCrossfadeBody, acmeCrossfadeBody] });
   expect(table.controlChoiceForTheInput(inputDeclarationOf(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.float)).kind).toBe("read_only_line");
-  expect(table.nodeBodyForTheNodeType("acme:Crossfade")).toBe(acmeCrossfadeBody);
-  expect(table.nodeBodyForTheNodeType("acme:Fader")).toBeNull();
+  expect(table.nodeBodyForTheNodeType("nodes.crossfade:Crossfade")).toBe(acmeCrossfadeBody);
+  expect(table.nodeBodyForTheNodeType("nodes.fader:Fader")).toBeNull();
   expect(table.registrationsPassedOver).toEqual([
     { listed: acmeFloatDefault, because: "Only Tato Studio sets the default control of a built-in type; acme registers one for float." },
-    { listed: otherFaderBody, because: "Only the module that brings acme:Fader registers its body; other registers one." },
+    { listed: otherCrossfadeBody, because: "acme's crossfade_body.ts, which passed its checks, registers the body of nodes.crossfade:Crossfade." },
   ]);
+});
+
+test("a node body that did not pass its checks is the node type's body while no other is listed, so the card draws its rows", () => {
+  const blockedBody = listedElementOf("acme", { kind: "node_body", node_type: "nodes.crossfade:Crossfade" }, { script_serving: { kind: "blocked", findings: ["crossfade_body.ts:3:1 TS2322"] } });
+  expect(new NodeUiControlTable({ elements: [blockedBody] }).nodeBodyForTheNodeType("nodes.crossfade:Crossfade")).toBe(blockedBody);
 });
 
 test("a second element under a key already taken is passed over with a diagnostic naming the one that holds it", () => {

@@ -10,5 +10,5 @@
     "paths": { "@/*": ["./src/renderer/*"] }
   },
   "include": ["src/renderer", "src/shared", "mock"],
-  "exclude": ["mock/mock_studio_view/picture_and_fader", "mock/mock_studio_view/css_module_scripts.d.ts"]
+  "exclude": ["mock/mock_studio_view/picture_and_fader", "mock/mock_studio_view/css_module_scripts.d.ts", "mock/mock_project_node_ui"]
 }

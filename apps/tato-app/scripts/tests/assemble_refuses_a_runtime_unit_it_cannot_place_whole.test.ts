@@ -4,8 +4,8 @@
 // lib/tatolab/ holds something it does not place, a unit without the browser host's app bundle, a unit whose lib/tatolab/imports/ holds anything
 // but pure-Python wheels, a unit whose lib/tatolab/samples/ holds no sample project, a unit without the Core Nodes project, and a unit
 // built from any streamlib commit but the one the build resolved, a unit carrying one of the TypeScript compiler and the linter without
-// the other, and a unit whose compiler folder holds native code or a folder beside the compiler. Every refusal comes before it touches
-// the bundle.
+// the other, a unit whose compiler folder holds native code or a folder beside the compiler, and an extension SDK kit that holds code.
+// Every refusal comes before it touches the bundle.
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { crc32 } from "node:zlib";
 import { afterEach, beforeEach, expect, test } from "vitest";
+import { anExtensionSdkKitPlantedIn } from "./extension_sdk_kit_planted.ts";
 
 const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const ASSEMBLE_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "assemble-tatolab-app-bundle.sh");
@@ -32,7 +33,7 @@ interface AssembleScriptOutcome {
 function runTheAssembleScript(
   appBundle: string,
   runtimeUnitDirectory: string,
-  assembleFlags: string[] = ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT],
+  assembleFlags: string[] = ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT, "--extension-sdk-kit", plantedExtensionSdkKit],
 ): Promise<AssembleScriptOutcome> {
   return new Promise((resolveOutcome) => {
     execFile("bash", [ASSEMBLE_SCRIPT, appBundle, runtimeUnitDirectory, ...assembleFlags], { cwd: TATO_APP_ROOT }, (scriptFailure, _stdout, stderr) => {
@@ -44,8 +45,10 @@ function runTheAssembleScript(
 
 let scratchDirectory = "";
 let plantedAppBundle = "";
+let plantedExtensionSdkKit = "";
 beforeEach(async () => {
   scratchDirectory = await mkdtemp(path.join(tmpdir(), "tatolab-assemble-"));
+  plantedExtensionSdkKit = await anExtensionSdkKitPlantedIn(scratchDirectory);
   plantedAppBundle = path.join(scratchDirectory, "Tato Studio.app");
   await mkdir(path.join(plantedAppBundle, "Contents", "MacOS"), { recursive: true });
   await writeFile(path.join(plantedAppBundle, "Contents", "MacOS", "Tato Studio"), "");
@@ -381,4 +384,21 @@ test("a unit whose compiler folder holds native code or a folder beside the comp
     expect(assembleOutcome.stderr).toContain(`ships ${plantedEntry}, which Resources/typescript cannot carry`);
     expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
   }
+});
+
+test("an extension SDK kit that holds code is refused, naming the file, and the bundle is untouched", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
+  await writeFile(path.join(plantedExtensionSdkKit, "declarations", "helper.dylib"), MACH_O_64_BIT_MAGIC_BYTES);
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+  expect(assembleOutcome.exitCode).toBe(1);
+  expect(assembleOutcome.stderr).toContain("holds declarations/helper.dylib, which is code");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+test("assemble without an extension SDK kit is refused with its usage", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory, ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT]);
+  expect(assembleOutcome.exitCode).toBe(2);
+  expect(assembleOutcome.stderr).toContain("--extension-sdk-kit DIR");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
 });

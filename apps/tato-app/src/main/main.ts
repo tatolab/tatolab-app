@@ -51,6 +51,7 @@ import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import type { ProjectAssetFilesDialog } from "./project_assets_imported_from_chosen_files.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { projectViewFileRequestsAnsweredOn, ProjectViewsListedToTheWindows, type AnswerAProjectViewFileRequest } from "./extension_files_served_with_types_removed.js";
+import { ExtensionFolderChecksKept } from "./extension_check_gate.js";
 import { SystemMediaAccessAskedAheadForViews } from "./system_media_access_asked_ahead_for_views.js";
 import { PORT_VIEWER_REOPEN_AFTER_MS, PortViewerConnectionNotOpened, RuntimePortViewers } from "./runtime_port_viewers.js";
 import { StreamActionsNoticed } from "./stream_action_changes_followed_for_the_status.js";
@@ -112,6 +113,8 @@ export interface TatolabElectronAppShell {
   startANodeLanguageServer: StartANodeLanguageServer;
   /** Pyright's `langserver.index.js` as this build carries it. */
   pyrightLanguageServerModulePath: string;
+  /** The extension SDK kit an unpackaged app's checkout built, which a runtime started by hand is to be pointed at; `null` in a packaged app, whose runtime carries its kit. */
+  extensionSdkKitOfThisCheckout: string | null;
   /** Tato Studio's viewer addon as this build carries it. */
   runtimeViewerFrameImportAddonPath: string;
   /** The main process's id, which `open_viewer` admits to import the runtime's frames. */
@@ -188,6 +191,7 @@ export async function startTatolabApp(
     nameTheProject: (projectFolder) => answerInWordsOnTheStudioRuntime("naming the project", nameTheProject(projectFolder)),
     listTheDependencies: (projectFolder) => answerInWordsOnTheStudioRuntime("listing the project's dependencies", listDependencies(projectFolder, false)),
   };
+  const extensionFolderChecksKept = new ExtensionFolderChecksKept();
   const tatolabAppWindows = new TatolabAppWindows({
     mainWindowHostFactory: tatolabElectronAppShell.mainWindowHostFactory,
     platformItems,
@@ -199,6 +203,7 @@ export async function startTatolabApp(
       const followingFiber = studioRuntimeOnceBuilt.runFork(ProjectFeedsFollowed.use((followed) => followed.follow(following)));
       return () => followingFiber.interruptUnsafe();
     },
+    extensionFolderChecksKept,
     runAfter: (delayMs, work) => {
       const timer = setTimeout(work, delayMs);
       return () => clearTimeout(timer);
@@ -383,6 +388,7 @@ export async function startTatolabApp(
     projectAssetFilesDialog: tatolabElectronAppShell.askThePersonForFilesToImportAsAssets,
     thePersonEditingInStudio: tatolabElectronAppShell.thePersonSignedInToThisComputer,
     projectViewsListed,
+    extensionFolderChecks: { kitFolderOfThisCheckout: tatolabElectronAppShell.extensionSdkKitOfThisCheckout, checksKept: extensionFolderChecksKept },
     systemMediaAccessAskedAheadForViews: new SystemMediaAccessAskedAheadForViews(platformForThisBuild.systemMediaAccess, tatolabElectronAppShell.systemNotifications),
     tatolabAppLog,
   };

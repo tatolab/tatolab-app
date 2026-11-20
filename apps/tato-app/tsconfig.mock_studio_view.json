@@ -12,5 +12,5 @@
     "jsx": "react-jsx",
     "types": []
   },
-  "include": ["mock/mock_studio_view/picture_and_fader", "mock/mock_studio_view/css_module_scripts.d.ts"]
+  "include": ["mock/mock_studio_view/picture_and_fader", "mock/mock_studio_view/css_module_scripts.d.ts", "mock/mock_project_node_ui"]
 }

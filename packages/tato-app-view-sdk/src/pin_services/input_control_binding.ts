@@ -8,10 +8,11 @@
 // binder never sets the element's value, and every value that arrives is set in one animation-frame
 // flush, so a surface's React tree never sees one. A control on an input of a type only a wire
 // carries is driven by its wire: it holds no value, nothing it fires is acted on, and it reads what
-// the wire carries from the port viewer of the output wired in. DOM only, no React.
+// the wire carries from the port viewer of the output wired in. A card's node body binds through the
+// same binder, reading the same table and store. DOM only, no React.
 
 import { inputAddressKey, type InputAddress } from "../pin_model/node_inputs.js";
-import type { ControlledInput } from "../pin_model/controlled_inputs.js";
+import type { ControlledInput, NodeOfABody } from "../pin_model/controlled_inputs.js";
 import { jsonOfTheStoredPinValue, storedPinValueOfTheJson } from "../pin_model/stored_pin_values.js";
 import type { BuiltInPinTypeName } from "../pin_types.js";
 import type { ControlledPin, InputControlElement, InputControlState, NodeUiSurface } from "../node_ui/input_control_element.js";
@@ -21,9 +22,14 @@ import { NodeUiControlTable, type NodeUiControlChoice } from "../node_ui/node_ui
 import type { NodeUiElementHost } from "../node_ui/node_ui_element_host.js";
 import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node_ui_elements_listing.js";
 import { ReadOnlyValueLineElement } from "../node_ui/read_only_value_line_element.js";
-import type { StopWatching, TatoAppViewConnection } from "../tato_app_view_connection.js";
+import type { StopWatching } from "../tato_app_view_connection.js";
 import type { ViewInputEvent } from "../view_wire_messages.js";
 import type { InputValueGesture, InputValues, ShownValue } from "./input_values.js";
+import { newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
+import { NodeBodySlot, type NodeBodyBinding, type NodeBodyShown } from "./node_body_binding.js";
+import { readWhatTheWiringCarries } from "./wire_reading.js";
+
+export { releaseOfAGestureOn, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
 
 /** Where a control is drawn, and whether the graph there can be edited. */
 export interface InputControlPlace {
@@ -41,20 +47,6 @@ export type InputControlShown = "pending" | "element" | "read_only_line" | "no_c
 export interface InputControlBinding {
   update(input: ControlledInput, place: InputControlPlace): void;
   unbind(): void;
-}
-
-/**
- * How a gesture on an input ends: in one commit, recorded in the project's history, its moves each sent live; in one commit
- * alone, its moves shown and sent nowhere; or in its last live value, recorded nowhere. Perform plays a show, so a gesture
- * there ends live; on every other surface it ends in a commit. A setting its node reads as it is set up is rebuilt by each
- * value it takes, so a gesture on it ends in a commit alone, on every surface.
- */
-export type InputValueRelease = "commit" | "commit_alone" | "live";
-
-/** How a gesture on `input` ends on `surface`. */
-export function releaseOfAGestureOn(surface: NodeUiSurface, input: Pick<ControlledInput, "rebuilds_its_node">): InputValueRelease {
-  if (input.rebuilds_its_node) return "commit_alone";
-  return surface === "perform" ? "live" : "commit";
 }
 
 /**
@@ -76,10 +68,9 @@ export interface InputControlBinder {
   bindInputControl(host: HTMLElement, input: ControlledInput, place: InputControlPlace, whenShown?: (shown: InputControlShown) => void): InputControlBinding;
   /** Binds a surface's own field to the input at `address`, its gestures ending as `release` says. */
   bindOwnField(address: InputAddress, release: InputValueRelease): OwnFieldBinding;
+  /** Draws, inside `host`, the body `node`'s node type registers, telling `whenShown` what the slot shows each time it changes; `no_body` where it registers none. */
+  bindNodeBody(host: HTMLElement, node: NodeOfABody, readOnly: boolean, whenShown?: (shown: NodeBodyShown) => void): NodeBodyBinding;
 }
-
-/** What a control asks of the project an input's stream is in, through the frame's connection. */
-export type ProjectAControlReaches = Pick<TatoAppViewConnection, "pickAProjectAsset" | "readAssetPreviewInTheProject" | "watchProjectAssets" | "watchPortViewer">;
 
 /** What a binder reads and writes through: the frame's element listing, its store and its reach into a project, and, for tests, how an element loads and when a flush runs. */
 export interface InputControlBinderSources {
@@ -90,20 +81,8 @@ export interface InputControlBinderSources {
   readonly requestAFlush?: (flush: () => void) => void;
 }
 
-/** The tag the read-only line is defined under in a frame. */
-const READ_ONLY_VALUE_LINE_TAG = "tato-studio-read-only-value-line";
-
 /** A control element of any built-in pin type, as the binder drives it. */
 type AnyInputControl = InputControlElement<BuiltInPinTypeName>;
-
-/** A new read-only line, defined in the page the first time one is drawn. */
-function newReadOnlyValueLine(because: string): ReadOnlyValueLineElement {
-  if (customElements.get(READ_ONLY_VALUE_LINE_TAG) === undefined) customElements.define(READ_ONLY_VALUE_LINE_TAG, class extends ReadOnlyValueLineElement {});
-  const line = document.createElement(READ_ONLY_VALUE_LINE_TAG);
-  if (!(line instanceof ReadOnlyValueLineElement)) throw new Error(`${READ_ONLY_VALUE_LINE_TAG} is defined by another copy of the SDK`);
-  line.because = because;
-  return line;
-}
 
 /** Whether `element` takes what the host hands a control: its `pin`, `value` and `state`. */
 function isAnInputControl(element: HTMLElement): element is AnyInputControl {
@@ -114,11 +93,6 @@ function isAnInputControl(element: HTMLElement): element is AnyInputControl {
 function newInputControl(tag: string): AnyInputControl {
   const element = document.createElement(tag);
   return isAnInputControl(element) ? element : newReadOnlyValueLine(`${tag} is not a control: its class takes no pin, value and state.`);
-}
-
-/** The words a read-only line gives for an element that did not load. */
-function whyTheElementDidNotLoad(loading: Exclude<NodeUiElementLoading, { kind: "defined" }>): string {
-  return loading.kind === "blocked" ? `Its control does not pass its checks: ${loading.findings.join("; ")}` : loading.because;
 }
 
 /** The key a mounted element stays under: the element the table chose, the input's declaration and the surface; another key means a new element. */
@@ -139,18 +113,13 @@ interface WireWatch {
   stopReading: StopWatching | null;
 }
 
-/** Closes the frame `event` carries, for an event no element is told of any more. */
-function closeTheFrameOf(event: ViewInputEvent): void {
-  if (event.kind === "image_frame") event.video_frame.close();
-}
-
 /** A frame's binder, reading its listing and store from `sources`. */
 export function createInputControlBinder(sources: InputControlBinderSources): InputControlBinder {
   const loadElement = sources.loadElement ?? ((listed: ListedNodeUiElement) => loadNodeUiElement(listed));
   const requestAFlush = sources.requestAFlush ?? ((flush: () => void) => void requestAnimationFrame(flush));
   const { inputValues, project } = sources;
-  const bindings = new Set<SlotBinding>();
-  const bindingsToFlush = new Set<SlotBinding>();
+  const bindings = new Set<SlotBinding | NodeBodySlot>();
+  const bindingsToFlush = new Set<SlotBinding | NodeBodySlot>();
   let table: NodeUiControlTable | null = null;
   let stopWatchingTheListing: StopWatching | null = null;
   let isAFlushRequested = false;
@@ -159,13 +128,26 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
     isAFlushRequested = false;
     const flushed = [...bindingsToFlush];
     bindingsToFlush.clear();
-    for (const binding of flushed) binding.setTheShownValue();
+    for (const binding of flushed) {
+      if (binding instanceof NodeBodySlot) binding.setTheShownValues();
+      else binding.setTheShownValue();
+    }
   };
-  const flushTheValueOf = (binding: SlotBinding): void => {
+  const flushTheValueOf = (binding: SlotBinding | NodeBodySlot): void => {
     bindingsToFlush.add(binding);
     if (isAFlushRequested) return;
     isAFlushRequested = true;
     requestAFlush(flushTheValues);
+  };
+
+  /** Forgets `binding`, and the listing with the last one. */
+  const slotUnbound = (binding: SlotBinding | NodeBodySlot): void => {
+    bindingsToFlush.delete(binding);
+    bindings.delete(binding);
+    if (bindings.size > 0) return;
+    stopWatchingTheListing?.();
+    stopWatchingTheListing = null;
+    table = null;
   };
 
   /** The control the table picks for `pin`, defined and handed its pin, for a control that holds another. */
@@ -241,13 +223,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       this.#host.removeEventListener("pointerdown", this.#pressBegun, { capture: true });
       this.#host.removeEventListener("keydown", this.#keyBegun, { capture: true });
       this.#takeTheElementOff();
-      bindingsToFlush.delete(this);
-      bindings.delete(this);
-      if (bindings.size === 0) {
-        stopWatchingTheListing?.();
-        stopWatchingTheListing = null;
-        table = null;
-      }
+      slotUnbound(this);
     }
 
     /** Draws what the table picks now: the element it holds when the key is the same, otherwise a new one once loaded. */
@@ -356,22 +332,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
         watch.onEvent({ kind: "unwired", because: `${ownInput} holds a value of its own and reads no wire.` });
         return;
       }
-      if (wiring.kind === "unwired") {
-        watch.onEvent(wiring);
-        return;
-      }
-      let isReading = true;
-      const stopThePortViewer = project.watchPortViewer(
-        wiring.target,
-        (event) => (isReading ? watch.onEvent(event) : closeTheFrameOf(event)),
-        (because) => {
-          if (isReading) watch.onEvent({ kind: "ended", because: `${wiring.wired_from_words} cannot be read: ${because}`, recovery: "open_the_port_again" });
-        },
-      );
-      watch.stopReading = () => {
-        isReading = false;
-        stopThePortViewer();
-      };
+      watch.stopReading = readWhatTheWiringCarries(project, wiring, watch.onEvent);
     }
 
     #stopEveryWireWatch(): void {
@@ -508,6 +469,13 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
   };
 
   return {
+    bindNodeBody: (host, node, readOnly, whenShown = () => undefined) => {
+      const binding = new NodeBodySlot(host, node, readOnly, { table: () => table, loadElement, inputValues, project, studioOfTheProject, flushTheValuesOf: flushTheValueOf, whenUnbound: slotUnbound }, whenShown);
+      bindings.add(binding);
+      startWatchingTheListing();
+      binding.refresh();
+      return binding;
+    },
     bindInputControl: (host, input, place, whenShown = () => undefined) => {
       const binding = new SlotBinding(host, input, place, whenShown);
       bindings.add(binding);

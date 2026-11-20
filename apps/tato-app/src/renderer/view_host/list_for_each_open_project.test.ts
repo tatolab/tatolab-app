@@ -56,11 +56,39 @@ test("a project closed while its listing is asked tells none open, and its late 
   expect(outcomes).toEqual(["none open"]);
 });
 
+test("a change the listing follows asks it again while a project is read open, and nothing while none is", async () => {
+  const openProject = new WatchedStudioValue<OpenProjectReading>({ kind: "none_open" });
+  const { list, asked } = listingInTheTestsHands<string>();
+  const changeListeners: (() => void)[] = [];
+  const outcomes: string[] = [];
+  const stopWatching = listForEachOpenProject(
+    openProject.watch,
+    { list, listed: (listed) => outcomes.push(`listed ${listed}`), notListed: () => outcomes.push("not listed"), noneOpen: () => outcomes.push("none open") },
+    (listener) => {
+      changeListeners.push(listener);
+      return () => changeListeners.splice(changeListeners.indexOf(listener), 1);
+    },
+  );
+  changeListeners.forEach((listener) => listener());
+  expect(asked).toHaveLength(0);
+
+  openProject.publish(readOpen("hallways"));
+  changeListeners.forEach((listener) => listener());
+  expect(asked).toHaveLength(2);
+  asked[0]?.answer("hallways' before the edit");
+  asked[1]?.answer("hallways' after the edit");
+  await settled();
+  expect(outcomes).toEqual(["none open", "listed hallways' after the edit"]);
+
+  stopWatching();
+  expect(changeListeners).toHaveLength(0);
+});
+
 test("the window's node UI elements are published as listed, and published empty once the project closes or a later listing is refused", async () => {
   const openProject = new WatchedStudioValue<OpenProjectReading>({ kind: "none_open" });
   const { list, asked } = listingInTheTestsHands<readonly ListedNodeUiElement[]>();
   const listed = new NodeUiElementsListedForViews();
-  listed.listForEachOpenProject({ listNodeUiElements: list }, openProject.watch);
+  listed.listForEachOpenProject({ listNodeUiElements: list, onProjectFilesChanged: () => () => {} }, openProject.watch);
   const readings: NodeUiElementsReading[] = [];
   listed.watch((reading) => readings.push(reading));
   expect(readings).toEqual([]);

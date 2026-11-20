@@ -33,7 +33,7 @@ export interface StudioWindowValuesServedToViews {
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
 export interface StudioViewHostProjectServices {
-  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "setNodeTypeGroupInTheOpenProject" | "openModuleManagerWindow" | "readPackageCatalog" | "importFromTheMarketplace" | "stopOpenProject" | "runOpenProject" | "reloadProject">;
+  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "checkProjectFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "setNodeTypeGroupInTheOpenProject" | "openModuleManagerWindow" | "readPackageCatalog" | "importFromTheMarketplace" | "stopOpenProject" | "runOpenProject" | "reloadProject">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypesDescribedReadings: ProjectNodeTypesDescribedReadings;
   projectAssetReadings: ProjectListingReadingsWhileWatched<ProjectAssetListing>;
@@ -220,6 +220,11 @@ export function studioViewHostServicesOf(
       backend.createNodeFile(file).then(
         (nodeFileCreated) => ({ kind: "created", file: nodeFileCreated.file, node_type: nodeFileCreated.node_type }),
         (rejection: unknown) => ({ kind: "not_created", because: describeBackendRejection(rejection) }),
+      ),
+    checkProjectFile: (file) =>
+      backend.checkProjectFile(file).then(
+        (fileChecked) => ({ kind: "checked", findings: fileChecked.findings }),
+        (rejection: unknown) => ({ kind: "not_checked", because: describeBackendRejection(rejection) }),
       ),
     listProjectFiles: (projectFolder) =>
       backend.listProjectFiles(projectFolder).then(

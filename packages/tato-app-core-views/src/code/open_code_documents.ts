@@ -1,14 +1,17 @@
 // The files a code area has open, their edits not saved kept across the frame loading again: each one's text as
-// read from disk and as edited, the version a save is checked against, what Pyright says of it, and
-// how its last save went. One Pyright session serves each project with a Python file open, and ends
+// read from disk and as edited, the version a save is checked against, what Pyright says of it, what
+// the runtime's check found in it after its last save, and how that save went. One Pyright session serves each project with a Python file open, and ends
 // when the project's last one closes.
 
 import type { CodeEditorDiagnostic, CodeEditorLanguageHelp } from "@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_types";
-import type { PythonLanguageServerConnection, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { ProjectFileFinding, PythonLanguageServerConnection, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import { PythonLanguageClient } from "./python_language_client";
 
 /** What the open documents ask of Studio. */
-export type OpenCodeDocumentsHost = Pick<TatoAppViewConnection, "readProjectFile" | "saveProjectFile" | "connectToPythonLanguageServer">;
+export type OpenCodeDocumentsHost = Pick<TatoAppViewConnection, "readProjectFile" | "saveProjectFile" | "checkProjectFile" | "connectToPythonLanguageServer">;
+
+/** Who a mark of the runtime's check is shown as found by. */
+export const RUNTIME_CHECK_MARK_SOURCE = "Tato runtime check";
 
 /** A file's edits not saved, and the version on disk they were made over. */
 export interface CodeEditsNotSaved {
@@ -43,6 +46,8 @@ export type OpenCodeDocument =
       /** Whether the file on disk changed while it held edits not saved, so neither is taken over the other unasked. */
       is_changed_on_disk: boolean;
       diagnostics: readonly CodeEditorDiagnostic[];
+      /** What the runtime's check found in the file as last saved, each on its line; none before a save, or once it passes. */
+      runtime_check_marks: readonly CodeEditorDiagnostic[];
       save: OpenCodeDocumentSave;
       language_help: CodeEditorLanguageHelp | null;
       /** Why the project's Pyright session ended, or `null` while it serves or the file is not Python. */
@@ -56,6 +61,28 @@ export function hasEditsNotSaved(document: OpenCodeDocument | undefined): boolea
 
 function isAPythonFile(file: string): boolean {
   return file.endsWith(".py") || file.endsWith(".pyi");
+}
+
+/** Whether the runtime's check reads `file`: a Python node file, or a `.ts` file of a view or of the node UI folder. */
+function isAFileTheRuntimeChecks(file: string): boolean {
+  return file.endsWith(".py") || file.endsWith(".ts");
+}
+
+/** `finding` as a mark in `text`: at its line and column, to the end of that line; on the first line when it names none. */
+export function runtimeCheckMarkOf(finding: ProjectFileFinding, text: string): CodeEditorDiagnostic {
+  const lines = text.split("\n");
+  const line = Math.min(Math.max(finding.line ?? 1, 1), Math.max(lines.length, 1));
+  const lineLength = (lines[line - 1] ?? "").length;
+  const column = Math.min(Math.max(finding.column ?? 1, 1), lineLength + 1);
+  return {
+    start_line: line,
+    start_column: column,
+    end_line: line,
+    end_column: Math.max(lineLength + 1, column + 1),
+    severity: finding.severity,
+    message: `${finding.words} (${finding.finding_code})`,
+    source: RUNTIME_CHECK_MARK_SOURCE,
+  };
 }
 
 /** One project's Pyright session and the documents it serves. */
@@ -209,6 +236,7 @@ export class OpenCodeDocuments {
       version_on_disk: fileRead.version,
       is_changed_on_disk: keptEdits !== null && keptEdits.based_on_version !== fileRead.version,
       diagnostics: [],
+      runtime_check_marks: [],
       save: { kind: "none" },
       language_help:
         session === null
@@ -236,6 +264,16 @@ export class OpenCodeDocuments {
     }
     this.replaceTheReadDocument(file, (latest) => ({ ...latest, text_on_disk: text, version_on_disk: saving.version, is_changed_on_disk: false, save: { kind: "none" } }));
     this.languageSessionsByProjectFolder.get(document.project_folder)?.client.noteDocumentSaved(file);
+    if (isAFileTheRuntimeChecks(file)) await this.markWhatTheRuntimesCheckFinds(file, text);
+  }
+
+  /** Mark in `file` what the runtime's check finds in it as saved with `textSaved`; marks kept as they were when the check is not answered, or the file was saved again since. */
+  private async markWhatTheRuntimesCheckFinds(file: string, textSaved: string): Promise<void> {
+    const checking = await this.host.checkProjectFile(file);
+    if (checking.kind === "not_checked") return;
+    this.replaceTheReadDocument(file, (latest) =>
+      latest.text_on_disk === textSaved ? { ...latest, runtime_check_marks: checking.findings.map((finding) => runtimeCheckMarkOf(finding, textSaved)) } : latest,
+    );
   }
 
   private replaceTheReadDocument(file: string, replace: (latest: Extract<OpenCodeDocument, { kind: "read" }>) => OpenCodeDocument): void {
