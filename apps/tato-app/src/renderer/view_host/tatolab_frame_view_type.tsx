@@ -8,14 +8,17 @@ import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_re
 import { VIEW_PORT_HANDOVER, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
-import { StudioAreaHeaderRowOfAWaitingView, StudioAreaHeaderWords } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
+import { StudioAreaHeaderChoiceMenu, StudioAreaHeaderRowOfAWaitingView, StudioAreaHeaderWords } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
+import { MenuSingleChoiceGroup } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
+import { Plus } from "lucide-react";
 import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewNodeAddress, StudioViewTypeSource } from "./studio_view_contract";
+import type { JsonValue, StopWatching, StreamGraph, StreamGraphNode, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewNodeAddress, StudioViewTypeSource } from "./studio_view_contract";
 import type { InputWiring } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
-import { nodesOfTheStudioViewType, settingsTheViewNodeHolds, studioViewInputWiring, studioViewNodeAddressOf } from "./studio_view_node_wiring";
-import type { RegisteredStudioViewType, StudioAreaOfTheView } from "./studio_view_type_registry";
+import { nodeShownByTheArea, nodesOfTheStudioViewType, settingsTheViewNodeHolds, studioViewInputWiring, studioViewNodeAddressOf } from "./studio_view_node_wiring";
+import type { RegisteredStudioViewType, StudioAreaNodeShown, StudioAreaOfTheView } from "./studio_view_type_registry";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
 
@@ -117,7 +120,7 @@ function TatolabViewWaiting({ children }: { children: ReactNode }) {
   );
 }
 
-/** The `node` view of the active tab's first node of its type, or what to do while the tab's graph has none. */
+/** The `node` view of the active tab's node of its type the area shows, or what to do while the tab's graph has none. */
 function TatolabNodeViewOfTheTab({ streamTab, ...view }: TatolabViewOfAnArea & { streamTab: StreamTabAddress }) {
   const { stream } = streamTab;
   const { hostServices, listed, manifest } = view;
@@ -138,19 +141,21 @@ function TatolabNodeViewOfTheTab({ streamTab, ...view }: TatolabViewOfAnArea & {
       </TatolabViewWaiting>
     );
   }
-  const viewNode = nodesOfTheStudioViewType(graphReading.graph, listed.view_type_id)[0];
-  if (viewNode === undefined) {
+  const viewNode = nodeShownByTheArea(nodesOfTheStudioViewType(graphReading.graph, listed.view_type_id), view.area.node_shown.node_id);
+  const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
+  if (viewNode === null) {
     return (
       <TatolabViewWaiting>
         <WaitingState
           title={`${streamTab.display_name} has no ${manifest.title} node`}
-          explanation={`${manifest.title} shows its node in the stream's graph, each of its inputs reading what is wired into it.`}
+          explanation={`${manifest.title} shows its node in the stream's graph, each of its inputs reading what is wired into it. Add one, then wire into it while the stream runs.`}
           data-tatolab-view-state="no_view_node"
-        />
+        >
+          {projectFolder !== null && <AddTheViewNode projectFolder={projectFolder} graph={graphReading.graph} viewTypeId={listed.view_type_id} viewTitle={manifest.title} hostServices={hostServices} />}
+        </WaitingState>
       </TatolabViewWaiting>
     );
   }
-  const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   return (
     <TatolabViewFrame
       key={viewNode.id}
@@ -174,24 +179,65 @@ function TatolabNodeView(view: TatolabViewOfAnArea) {
   return <TatolabNodeViewOfTheTab key={activeStreamTab.stream} {...view} streamTab={activeStreamTab} />;
 }
 
-/** Where the active tab's node of the view type `viewTypeId` is, as "on the <node> node in <stream>", once the tab's graph has one; nothing before. */
-function WhereTheNodeViewsNodeIsInTheTab({ streamTab, viewTypeId, hostServices }: { streamTab: StreamTabAddress; viewTypeId: string; hostServices: StudioViewHostServices }) {
-  const { stream } = streamTab;
-  const watchTheTabsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => hostServices.watchStreamGraph(stream, listener), [hostServices, stream]);
-  const graphReading = useViewReading(watchTheTabsGraph);
-  const viewNode = graphReading?.kind === "read" ? nodesOfTheStudioViewType(graphReading.graph, viewTypeId)[0] : undefined;
-  if (viewNode === undefined) return null;
+/** A button that adds a node of the view type `viewTypeId` to `graph`'s stream, live, with the runtime's words beside it when it refuses. */
+function AddTheViewNode({ projectFolder, graph, viewTypeId, viewTitle, hostServices }: { projectFolder: string; graph: StreamGraph; viewTypeId: string; viewTitle: string; hostServices: StudioViewHostServices }) {
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const streamAsset = graph.asset ?? null;
+  if (streamAsset === null) return null;
+  const addTheNode = () => {
+    setIsAdding(true);
+    setRefusal(null);
+    void hostServices.transactInTheProject(projectFolder, [{ operation: "add_node", stream: streamAsset, type: viewTypeId }], "commit", crypto.randomUUID()).then((applying) => {
+      setIsAdding(false);
+      if (applying.kind === "refused") setRefusal(applying.refusal.runtime_words);
+      else if (applying.kind === "not_sent") setRefusal(applying.because);
+    });
+  };
   return (
-    <StudioAreaHeaderWords data-node-view-whereabouts={viewNode.id}>
-      on the {nodeTitle(viewNode.name, viewNode.type)} node in {streamTab.display_name}
-    </StudioAreaHeaderWords>
+    <div className="flex flex-col items-center gap-2">
+      <ActionButton icon={Plus} isDisabled={isAdding} onPressed={addTheNode} data-tatolab-view-add-node={viewTypeId}>
+        Add a {viewTitle} node
+      </ActionButton>
+      {refusal !== null && <RefusalLine lead={`${viewTitle} wasn't added:`} words={refusal} />}
+    </div>
   );
 }
 
-function WhereTheNodeViewsNodeIs({ viewTypeId, hostServices }: { viewTypeId: string; hostServices: StudioViewHostServices }) {
+/** Which node of the view type `viewTypeId` the area shows in the active tab, as "on the <node> node in <stream>", a menu of the others when the tab's graph has several; nothing before it has one. */
+function WhereTheNodeViewsNodeIsInTheTab({ streamTab, viewTypeId, nodeShown, hostServices }: { streamTab: StreamTabAddress; viewTypeId: string; nodeShown: StudioAreaNodeShown; hostServices: StudioViewHostServices }) {
+  const { stream } = streamTab;
+  const watchTheTabsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => hostServices.watchStreamGraph(stream, listener), [hostServices, stream]);
+  const graphReading = useViewReading(watchTheTabsGraph);
+  const viewNodes: readonly StreamGraphNode[] = graphReading?.kind === "read" ? nodesOfTheStudioViewType(graphReading.graph, viewTypeId) : [];
+  const viewNode = nodeShownByTheArea(viewNodes, nodeShown.node_id);
+  if (viewNode === null) return null;
+  const titleOf = (node: StreamGraphNode) => nodeTitle(node.name, node.type);
+  const { show } = nodeShown;
+  if (viewNodes.length === 1 || show === undefined) {
+    return (
+      <StudioAreaHeaderWords data-node-view-whereabouts={viewNode.id}>
+        on the {titleOf(viewNode)} node in {streamTab.display_name}
+      </StudioAreaHeaderWords>
+    );
+  }
+  return (
+    <StudioAreaHeaderChoiceMenu leadingWord="on" words={titleOf(viewNode)} label={`Node shown: ${titleOf(viewNode)}`} data-node-view-whereabouts={viewNode.id}>
+      <MenuSingleChoiceGroup
+        closesTheMenuOnChoice
+        choices={viewNodes.map((node) => ({ choice: node.id, label: titleOf(node) }))}
+        chosen={viewNode.id}
+        onChosen={show}
+        dataAttributeOfEachChoice="data-node-view-node-choice"
+      />
+    </StudioAreaHeaderChoiceMenu>
+  );
+}
+
+function WhereTheNodeViewsNodeIs({ viewTypeId, nodeShown, hostServices }: { viewTypeId: string; nodeShown: StudioAreaNodeShown; hostServices: StudioViewHostServices }) {
   const activeStreamTab = useViewReading(hostServices.watchActiveStreamTab);
   if (activeStreamTab === null) return null;
-  return <WhereTheNodeViewsNodeIsInTheTab key={activeStreamTab.stream} streamTab={activeStreamTab} viewTypeId={viewTypeId} hostServices={hostServices} />;
+  return <WhereTheNodeViewsNodeIsInTheTab key={activeStreamTab.stream} streamTab={activeStreamTab} viewTypeId={viewTypeId} nodeShown={nodeShown} hostServices={hostServices} />;
 }
 
 /**
@@ -231,6 +277,6 @@ export function tatolabFrameViewType(listed: ListedStudioView, manifest: Tatolab
       </TatolabViewOverItsNotice>
     ),
     renderWordsAfterTheViewTypeMenu:
-      manifest.placement === "node" ? (hostServices) => <WhereTheNodeViewsNodeIs viewTypeId={listed.view_type_id} hostServices={hostServices} /> : undefined,
+      manifest.placement === "node" ? (area, hostServices) => <WhereTheNodeViewsNodeIs viewTypeId={listed.view_type_id} nodeShown={area.node_shown} hostServices={hostServices} /> : undefined,
   };
 }
