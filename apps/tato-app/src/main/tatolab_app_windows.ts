@@ -4,6 +4,7 @@
 // and the windows it opened, first asking to stop its project while any stream of it runs; closing
 // the Projects window hides it; with every window gone the app stays in the tray. On macOS the Dock icon shows while any window is on screen.
 
+import type { ExtensionFolderChecksKept } from "./extension_check_gate.js";
 import path from "node:path";
 import type { OpenProjectReading, PoppedOutView, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import type { ModuleManagerSectionAsked } from "../shared/tatolab_electron_bridge_contract.js";
@@ -57,6 +58,8 @@ export interface TatolabAppWindowsSources {
   projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime;
   /** What runs each studio window's following of its project's change feed over the runtime. */
   followOverTheRuntime: ProjectTransactionsFeedOfAStudioWindowSources["followOverTheRuntime"];
+  /** What the extension check gate keeps of each folder, forgotten as the runtime names a file of it as changed. */
+  extensionFolderChecksKept: ExtensionFolderChecksKept;
   /** Runs `work` once after `delayMs`; the answer cancels it. */
   runAfter: (delayMs: number, work: () => void) => () => void;
   /** Queue the close of the project in `projectFolder` on the runtime as its window closes, which ends its playback and unloads its streams; refused in the runtime's own words. */
@@ -355,6 +358,7 @@ export class TatolabAppWindows {
         tatolabMainWindow.sendTheWindowTheProjectTransactions(reading);
         for (const poppedOutView of studioWindowOnceMade?.poppedOutViews.values() ?? []) poppedOutView.tatolabMainWindow.sendTheWindowTheProjectTransactions(reading);
       },
+      noticeTheProjectFilesChanged: (changedFiles) => this.sources.extensionFolderChecksKept.forgetTheFoldersHolding(projectTransactionsFeed.projectFolder, changedFiles),
       tellTheWindowTheProjectFilesChanged: () => {
         tatolabMainWindow.tellTheWindowTheProjectFilesChanged();
         for (const poppedOutView of studioWindowOnceMade?.poppedOutViews.values() ?? []) poppedOutView.tatolabMainWindow.tellTheWindowTheProjectFilesChanged();

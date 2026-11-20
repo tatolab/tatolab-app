@@ -58,8 +58,13 @@ function callsOn(connection: FakeControlConnection | undefined): string[] {
 }
 
 /** `project_changed` of `project`, as the runtime pushes one. */
-function pushAProjectChanged(connection: FakeControlConnection | undefined, project = PROJECT, change: ControlNotifications["project_changed"]["change"] = "applied"): void {
-  connection?.push("project_changed", { project, change });
+function pushAProjectChanged(
+  connection: FakeControlConnection | undefined,
+  project = PROJECT,
+  change: ControlNotifications["project_changed"]["change"] = "applied",
+  files: readonly string[] | null = null,
+): void {
+  connection?.push("project_changed", files === null ? { project, change } : { project, change, files: [...files] });
 }
 
 /** A window's feed over a fake runtime serving `transactionIds`, followed on a test clock; its subscribe refuses any project but this one's. */
@@ -79,12 +84,14 @@ function feedOverAFakeRuntime(transactionIds: string[]) {
   const readingsSent: ProjectTransactionsReading[] = [];
   const windowToldTheFilesChanged = { times: 0 };
   const windowToldTheNodeTypesChanged = { times: 0 };
+  const filesChangedNoticed: (readonly string[] | null)[] = [];
   const feed = new ProjectTransactionsFeedOfAStudioWindow(PROJECT_FOLDER, {
     followOverTheRuntime: (following) => {
       const followingFiber = onATestClock.runFork(following);
       return () => followingFiber.interruptUnsafe();
     },
     sendTheWindowTheProjectTransactions: (reading) => readingsSent.push(reading),
+    noticeTheProjectFilesChanged: (changedFiles) => filesChangedNoticed.push(changedFiles),
     tellTheWindowTheProjectFilesChanged: () => {
       windowToldTheFilesChanged.times += 1;
     },
@@ -99,6 +106,7 @@ function feedOverAFakeRuntime(transactionIds: string[]) {
     readingsSent,
     windowToldTheFilesChanged,
     windowToldTheNodeTypesChanged,
+    filesChangedNoticed,
     settled: () => onATestClock.runPromise(settle),
     afterTheWait: () => onATestClock.runPromise(TestClock.adjust(PROJECT_TRANSACTIONS_FOLLOWED_AGAIN_AFTER).pipe(Effect.andThen(settle))),
   };
@@ -126,18 +134,19 @@ test("reads_the_feed_subscribes_its_project_and_reads_it_again_on_each_change_of
   expect(transactionIdsOf(feed.readProjectTransactions())).toEqual(["t2", "t1"]);
 });
 
-test("a_file_changed_in_the_folder_tells_the_window_without_reading_the_feed_and_missed_does_both", async () => {
-  const { feed, connectionsOpened, windowToldTheFilesChanged, settled } = feedOverAFakeRuntime(["t1"]);
+test("a_file_changed_in_the_folder_is_noticed_by_name_and_tells_the_window_without_reading_the_feed_and_missed_does_both", async () => {
+  const { feed, connectionsOpened, windowToldTheFilesChanged, filesChangedNoticed, settled } = feedOverAFakeRuntime(["t1"]);
   feed.follow();
   await settled();
   const toldOnceSubscribed = windowToldTheFilesChanged.times;
 
-  pushAProjectChanged(connectionsOpened[0], PROJECT, "files_changed");
-  pushAProjectChanged(connectionsOpened[0], ANOTHER_PROJECT, "files_changed");
+  pushAProjectChanged(connectionsOpened[0], PROJECT, "files_changed", ["views/meter/meter.ts"]);
+  pushAProjectChanged(connectionsOpened[0], ANOTHER_PROJECT, "files_changed", ["views/deck/deck.ts"]);
   await settled();
   pushAProjectChanged(connectionsOpened[0], PROJECT, "missed");
   await settled();
 
+  expect(filesChangedNoticed).toEqual([null, ["views/meter/meter.ts"], null]);
   expect(toldOnceSubscribed).toBe(1);
   expect(windowToldTheFilesChanged.times).toBe(3);
   expect(callsOn(connectionsOpened[0])).toEqual([
@@ -349,6 +358,7 @@ test("a_feed_followed_in_the_studio_runtimes_scope_closes_its_connection_as_the_
       return () => followingFiber.interruptUnsafe();
     },
     sendTheWindowTheProjectTransactions: () => undefined,
+    noticeTheProjectFilesChanged: () => undefined,
     tellTheWindowTheProjectFilesChanged: () => undefined,
     tellTheWindowTheProjectNodeTypesChanged: () => undefined,
   });
@@ -373,6 +383,7 @@ test.skipIf(liveLocalApiSocket === undefined || liveProjectFolder === undefined)
       return () => followingFiber.interruptUnsafe();
     },
     sendTheWindowTheProjectTransactions: (reading) => readingsSent.push(reading),
+    noticeTheProjectFilesChanged: () => undefined,
     tellTheWindowTheProjectFilesChanged: () => {
       windowToldTheFilesChanged.times += 1;
     },

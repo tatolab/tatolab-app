@@ -159,6 +159,8 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   pyrightLanguageServerModulePath: app.isPackaged
     ? path.join(`${app.getAppPath()}.unpacked`, "node_modules", "pyright", "langserver.index.js")
     : createRequire(import.meta.url).resolve("pyright/langserver.index.js"),
+  // An unpackaged app starts no runtime, so whoever starts tatolabd names the kit this checkout's SDK build wrote.
+  extensionSdkKitOfThisCheckout: app.isPackaged ? null : path.join(path.dirname(createRequire(import.meta.url).resolve("@tatolab/tato-app-view-sdk/package.json")), "dist", "kit"),
   runtimeViewerFrameImportAddonPath:
     app.isPackaged && tatolabPlatformItems !== null
       ? tatolabPlatformItems.viewerAddonThePackagedAppCarries(process.resourcesPath)

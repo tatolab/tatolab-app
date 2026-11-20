@@ -77,14 +77,18 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
   );
 }
 
-/** Keeps `viewTypeRegistry` listing the views of the project `studioWindowModel` has open, listed again each time another is read. */
+/** Keeps `viewTypeRegistry` listing the views of the project `studioWindowModel` has open, listed again each time another is read and each time its files change, so a view checked again after an edit opens or is blocked. */
 function listTheOpenProjectsStudioViews(backend: TatolabBackend, studioWindowModel: StudioWindowModel, viewTypeRegistry: StudioViewTypeRegistry): void {
-  listForEachOpenProject(studioWindowModel.openProject.watch, {
-    list: () => backend.listStudioViewsOfTheOpenProject(),
-    listed: (studioViews) => viewTypeRegistry.projectStudioViews.publish({ kind: "listed", studio_views: studioViews }),
-    notListed: (rejection) => viewTypeRegistry.projectStudioViews.publish({ kind: "not_listed", because: describeBackendRejection(rejection) }),
-    noneOpen: () => viewTypeRegistry.projectStudioViews.publish({ kind: "none_open" }),
-  });
+  listForEachOpenProject(
+    studioWindowModel.openProject.watch,
+    {
+      list: () => backend.listStudioViewsOfTheOpenProject(),
+      listed: (studioViews) => viewTypeRegistry.projectStudioViews.publish({ kind: "listed", studio_views: studioViews }),
+      notListed: (rejection) => viewTypeRegistry.projectStudioViews.publish({ kind: "not_listed", because: describeBackendRejection(rejection) }),
+      noneOpen: () => viewTypeRegistry.projectStudioViews.publish({ kind: "none_open" }),
+    },
+    (listener) => backend.onProjectFilesChanged(listener),
+  );
 }
 
 /** The studio, one view alone in a window popped out of one, or a studio window's Module manager window: the window's one screen from the first status on. */

@@ -1,4 +1,5 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { ExtensionFolderChecksKept } from "./extension_check_gate.js";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
@@ -71,6 +72,7 @@ async function windowsWithNightShowOpen(closeTheProject: (projectFolder: string)
     watchFolderEntries: () => null,
     projectReadingsOfTheRuntime: { nameTheProject: async () => failedWith("no runtime answers"), listTheDependencies: async () => failedWith("no runtime answers") },
     followOverTheRuntime: () => null,
+    extensionFolderChecksKept: new ExtensionFolderChecksKept(),
     runAfter: () => () => {},
     closeTheProjectAsItsWindowCloses: (folder) => {
       projectsClosed.push(folder);

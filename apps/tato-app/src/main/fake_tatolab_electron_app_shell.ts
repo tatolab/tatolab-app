@@ -216,6 +216,7 @@ export class FakeTatolabElectronAppShell {
     },
     startANodeLanguageServer: () => failedWith("the fake shell starts no language server"),
     pyrightLanguageServerModulePath: "/fake/node_modules/pyright/langserver.index.js",
+    extensionSdkKitOfThisCheckout: null,
     runtimeViewerFrameImportAddonPath: "/fake/out/native/tatolab_runtime_viewer_frame_import.node",
     mainProcessId: 4242,
     homeDirectory: path.join(this.appConfigDirectory, "home"),
