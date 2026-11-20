@@ -31,6 +31,7 @@ function wiringAnsweredByTheTest() {
     onCardCollapsed: vi.fn(),
     onBundleOpened: vi.fn(),
     onNoteChanged: applied,
+    onTidiedUp: applied,
   };
   const canvasPointOf = (point: { x: number; y: number }) => ({ on_the_canvas: point, in_the_element: point });
   const { result } = renderHook(() => useNodeGraphWiring(editing, canvasPointOf));

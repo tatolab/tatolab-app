@@ -1,6 +1,6 @@
 import { Background, BackgroundVariant, MiniMap, ReactFlow, ReactFlowProvider, useReactFlow, useStore, type NodeChange, type ReactFlowState } from "@xyflow/react";
 import { cn } from "cn";
-import { Combine, Frame, Plus, Scan, Search, StickyNote, ZoomIn, ZoomOut } from "lucide-react";
+import { Combine, Frame, Plus, Scan, Search, StickyNote, Workflow, ZoomIn, ZoomOut } from "lucide-react";
 import { ColourPickerDialog, isAHexColour } from "./colour_picker_dialog";
 import { RightClickMenu } from "./menus";
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
@@ -28,6 +28,7 @@ import { useNodeGraphSelection } from "./support/use_node_graph_selection";
 import { FIT_TO_VIEW_OPTIONS, useNodeGraphCardLayout } from "./support/use_node_graph_card_layout";
 import { onTheCanvasPixel } from "./support/node_graph_held_layout";
 import { useNodeGraphWireRoutes } from "./support/use_node_graph_wire_routes";
+import { useNodeGraphTidyUp } from "./support/use_node_graph_tidy_up";
 
 /** The room a card or note placed from a tool takes, so the view shows it whole. */
 const NODE_GRAPH_PLACED_ROOM = { width: 240, height: 120 };
@@ -112,7 +113,7 @@ function NodeGraphFlow({
     [nodes],
   );
   const { selectedIds, selectedNoteIds, selectedLinkIds, followTheSelectionChanges, followTheLinkChanges, selectNothing, clearTheSelectionAfterADelete, selectTheRightClickedCard, selectTheRightClickedNote, selectTheRightClickedLink } = useNodeGraphSelection(selectedNodeIds, nodeById, onNodesSelected);
-  const { cardSizeByNode, isLaidOutOnMeasuredSizes, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, releaseTheHeldNotePosition, keepTheResizedNote } = useNodeGraphCardLayout(nodes, links, notes, nodeById, editing, reactFlow, viewportWhereItWasLeft);
+  const { cardSizeByNode, isLaidOutOnMeasuredSizes, hasBeenFramed, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, followTheLayoutChanges, holdTheCardMoves, releaseTheHeldCards, holdTheNoteMoves, releaseTheHeldNotePositions, keepTheResizedNote } = useNodeGraphCardLayout(nodes, links, notes, nodeById, editing, reactFlow, viewportWhereItWasLeft);
 
   // React Flow takes up again only the cards handed as new objects, and a card draws again for new data, so a card is
   // handed its object from before, or else its data from before, wherever they are unchanged.
@@ -276,7 +277,7 @@ function NodeGraphFlow({
       for (const note of draggedNotes) {
         const noteId = note.id.slice("note:".length);
         void editing.onNoteChanged(noteId, { position: onTheCanvasPixel(note.position) }).then((answer) => {
-          if (answer === "refused") releaseTheHeldNotePosition(noteId);
+          if (answer === "refused") releaseTheHeldNotePositions([noteId]);
         });
       }
       if (draggedCards.length === 0) return;
@@ -309,8 +310,10 @@ function NodeGraphFlow({
         releaseTheHeldCards(movedIds);
       });
     },
-    [editing, nodeById, nodes, links, frames, positionOfTheCard, frameOfTheCard, sizeOfTheCard, linkMidpointsDrawn, holdTheCardMoves, releaseTheHeldCards, releaseTheHeldNotePosition],
+    [editing, nodeById, nodes, links, frames, positionOfTheCard, frameOfTheCard, sizeOfTheCard, linkMidpointsDrawn, holdTheCardMoves, releaseTheHeldCards, releaseTheHeldNotePositions],
   );
+
+  const { tidyUp, tidiesTheSelection, isGliding, tidyUpDisabledReason } = useNodeGraphTidyUp({ editing, nodes, links, notes, nodeById, selectedIds, positionOfTheCard, frameOfTheCard, sizeOfTheCard, positionOfTheNote, sizeOfTheNote, holdTheCardMoves, releaseTheHeldCards, holdTheNoteMoves, releaseTheHeldNotePositions });
 
   const { wireFits, askHowTheWireFits, canTheConnectionBeWired, wireThePins, followTheWireLetGo } = useNodeGraphWiring(editing, canvasPointOf);
 
@@ -379,13 +382,16 @@ function NodeGraphFlow({
       } else if (selectedIds.size > 0 && (event.key === "g" || event.key === "G") && (event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey) {
         event.preventDefault();
         collapseTheSelectionIntoASubgraph();
+      } else if ((event.key === "t" || event.key === "T") && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        tidyUp();
       } else if (event.key === "Backspace" || event.key === "Delete") {
         if (selectedIds.size === 0 && selectedLinkIds.size === 0 && selectedNoteIds.size === 0) return;
         event.preventDefault();
         deleteTheSelection();
       }
     },
-    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection, collapseTheSelectionIntoASubgraph, deleteTheSelection, openTheNodeFind, takeAKeyTypedWhileTheFrameIsMade],
+    [editing, middleOfTheView, selectedIds, selectedLinkIds, selectedNoteIds, frameTheSelection, collapseTheSelectionIntoASubgraph, deleteTheSelection, tidyUp, openTheNodeFind, takeAKeyTypedWhileTheFrameIsMade],
   );
 
   return (
@@ -423,6 +429,14 @@ function NodeGraphFlow({
                       disabledReason={subgraphDisabledReason}
                       onPressed={collapseTheSelectionIntoASubgraph}
                       data-node-graph-tool="add_subgraph"
+                    />
+                    <IconButton
+                      icon={Workflow}
+                      label={tidiesTheSelection ? "Tidy up the selected nodes" : "Tidy up the graph"}
+                      tooltip={tidiesTheSelection ? "Tidy up the selected nodes (⇧T)" : "Tidy up the graph (⇧T)"}
+                      disabledReason={tidyUpDisabledReason}
+                      onPressed={tidyUp}
+                      data-node-graph-tool="tidy_up"
                     />
                   </ToolbarGroup>
                   <ToolbarDivider />
@@ -491,6 +505,7 @@ function NodeGraphFlow({
                   className={cn(
                     "node-graph-canvas",
                     areTheInlineControlsHidden && "node-graph-canvas-zoomed-out",
+                    isGliding && "node-graph-canvas-tidying",
                     !isLaidOutOnMeasuredSizes && !hasBeenFramed && "opacity-0",
                   )}
                   nodes={flowNodes}
