@@ -12,6 +12,8 @@
 .node-graph-canvas .react-flow__pane.selection { cursor: default; }
 .node-graph-canvas-hand .react-flow__node { cursor: grab; }
 .node-graph-canvas-hand .react-flow__pane.dragging .react-flow__node { cursor: grabbing; }
+/* The box React Flow leaves around a dragged-out selection draws nothing, the selected cards marking themselves; it still moves them together. */
+.node-graph-canvas .react-flow__nodesselection-rect { background: transparent; border: none; }
 .node-graph-canvas .react-flow__node:focus-visible { outline: none; }
 .node-graph-canvas .react-flow__node:focus-visible .node-graph-card { outline: 2px solid var(--ring); outline-offset: 2px; }
 /* Zoomed out past reading them, a card's inline controls are hidden without taking their room, so no row changes height. The attribute is NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE in support/node_graph_flow_elements.ts. */
