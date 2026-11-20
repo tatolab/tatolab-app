@@ -3,7 +3,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OpenProjectReading, RecentProject } from "../shared/tatolab_backend_contract";
 import { PULSE_STAGE_PROJECT_DESCRIPTION } from "../../mock/mock_pulse_stage_sample";
-import { removeTheKeydownListenersOfEarlierWindows, hideTheWindowsOfEarlierTestsAndLetTheirReadsSettle, mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PULSE_STAGE_FOLDER, CAMERA_PROJECT, coreViewPage, inTheCoreView, projectsWindowNewProjectButton, AREAS_OF_THE_DEFAULT_LAYOUT, theAreasShownAre, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
+import { removeTheKeydownListenersOfEarlierWindows, hideTheWindowsOfEarlierTestsAndLetTheirReadsSettle, mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PULSE_STAGE_FOLDER, CAMERA_PROJECT, coreViewPage, inTheCoreView, projectsWindowNewProjectButton, AREAS_OF_THE_COMPOSITION_LAYOUT, AREAS_OF_THE_EDIT_LAYOUT, theAreasShownAre, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
 // Code's editor here says Monaco didn't load; the code pane's text and saves are tested beside it.
@@ -21,7 +21,7 @@ describe("the studio", () => {
 
     fireEvent.click(pulseStageCard.querySelector<HTMLElement>("[data-project-open]") ?? expect.unreachable("no open button"));
 
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_EDIT_LAYOUT);
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
     await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["main true"]));
@@ -92,7 +92,7 @@ describe("the studio", () => {
 
     fireEvent.click(document.querySelector<HTMLElement>(`[data-projects-project="${PULSE_STAGE_FOLDER}"] [data-project-open]`) ?? expect.unreachable("no Pulse Stage row"));
 
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_EDIT_LAYOUT);
     expect(document.querySelector("[data-projects]")).toBeNull();
   });
 
@@ -313,7 +313,7 @@ describe("the studio", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Import" }));
 
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_COMPOSITION_LAYOUT);
     expect(document.querySelector("[data-new-project-sheet]")).toBeNull();
     expect(document.querySelector("[data-projects]")).toBeNull();
   });
@@ -379,7 +379,7 @@ describe("the studio", () => {
     pressAsAPointerDoes(screen.getByRole("button", { name: "More ways to start a project" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Import project folder…/ }));
 
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_EDIT_LAYOUT);
     expect(document.querySelector("[data-projects]")).toBeNull();
   });
 
@@ -418,7 +418,7 @@ describe("the studio", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
-    await theAreasShownAre(AREAS_OF_THE_DEFAULT_LAYOUT);
+    await theAreasShownAre(AREAS_OF_THE_COMPOSITION_LAYOUT);
     expect(document.querySelector("[data-new-project-sheet]")).toBeNull();
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));

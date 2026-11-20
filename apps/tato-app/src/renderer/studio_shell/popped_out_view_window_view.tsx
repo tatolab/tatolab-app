@@ -7,7 +7,7 @@ import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boun
 import { useWatchedStudioValue, WatchedStudioValue } from "../view_host/watched_studio_value";
 import type { StudioAreaExpansion, ViewHeaderRow } from "../view_host/studio_view_contract";
 import type { StudioViewHostServices } from "../view_host/studio_view_contract";
-import type { StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import { THE_FIRST_NODE_SHOWN, type StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
 import { ProjectAssetPickerDialogView } from "./project_asset_picker_dialog_view";
 import type { ProjectAssetPickHeldInTheWindow } from "../view_host/project_asset_pick_held_in_the_window";
@@ -60,7 +60,7 @@ export function PoppedOutViewWindowView({
           <WaitingState title={`This build has no ${target.view_type_id} view`} explanation="Close this window and open the view in the studio." />
         ) : (
           <StudioViewFailureBoundary viewTitle={viewType.title}>
-            {viewType.renderInAnArea({ area_id: null, saved_settings: settingsKept, rememberSettings: keepSettings, header_row: headerRow, expansion: EXPANSION_OF_A_POPPED_OUT_VIEW }, viewHostServices)}
+            {viewType.renderInAnArea({ area_id: null, saved_settings: settingsKept, rememberSettings: keepSettings, header_row: headerRow, expansion: EXPANSION_OF_A_POPPED_OUT_VIEW, node_shown: THE_FIRST_NODE_SHOWN }, viewHostServices)}
           </StudioViewFailureBoundary>
         )}
       </main>

@@ -53,7 +53,7 @@ const IMPORTED_INTO_PULSE_STAGE: readonly ProjectAsset[] = [
 /** The file the browser mock's open dialog answers Import asset… with, as the runtime would describe it once imported. */
 const MOCK_FILE_CHOSEN_TO_IMPORT = { name: "night-sky", extension: ".jpg", kind: "media", content_sha256: "4f1b7e0c9a2d5e8f1b4c7a0d3e6f9b2c5a8d1e4f7b0c3a6d9e2f5b8c1a4d7e0f", content_byte_len: 2_202_009 } as const;
 
-/** The pattern project's assets as the mock's Import asset…, Rename, Move and Delete changed them while it runs: each imported, each put at a new path by its UUID, and each no longer tracked. */
+/** Pulse Stage's assets as the mock's Import asset…, Rename, Move and Delete changed them while it runs: each imported, each put at a new path by its UUID, and each no longer tracked. */
 export interface MockProjectAssetsChangedWhileTheMockRuns {
   imported: ProjectAsset[];
   relocatedPathByAsset: Map<string, string>;

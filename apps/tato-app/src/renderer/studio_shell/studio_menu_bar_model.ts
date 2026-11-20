@@ -34,6 +34,8 @@ export interface StudioMenuBarCommands {
   applyTheShippedLayout(layoutId: StudioLayoutShipped["layout_id"]): void;
   /** Window › Layout's saved presets: lay the window out as the one saved at `presetIndex`. */
   applyTheSavedLayoutPreset(presetIndex: number): void;
+  /** Window › Layout › Delete saved layout: take away the preset saved at `presetIndex`. */
+  deleteTheSavedLayoutPreset(presetIndex: number): void;
   /** Window › Layout › Save layout as preset…: ask for the preset's name. */
   askToSaveTheLayoutAsAPreset(): void;
   /** Run › Play, or Resume while it is paused: play the open project. */
@@ -152,20 +154,28 @@ interface StudioMenuParts {
   documentationEntry: StudioMenuEntry;
 }
 
-/** The layout menu's entries, the same under Window › Layout and behind the title row's layout button: the shapes, the layouts Studio ships, the presets saved, the first ones on the digits, and Save layout as preset…. */
+/**
+ * The layout menu's entries, the same under Window › Layout and behind the title row's layout button: the layouts Studio ships, the
+ * presets saved, the first ones on the digits, Save layout as preset…, the presets to delete, and the plain shapes to reshape it as.
+ */
 export function studioLayoutMenuEntries(platform: TatolabPlatform, layout: StudioLayoutInTheMenus, commands: StudioMenuBarCommands): StudioMenuEntry[] {
   const presetEntries = layout.preset_titles_saved.map((title, presetIndex): StudioMenuEntry => {
     const onChosen = () => commands.applyTheSavedLayoutPreset(presetIndex);
     return presetIndex < STUDIO_LAYOUT_PRESETS_ON_A_DIGIT ? { kind: "command", label: title, shortcutHint: shortcutHint(platform, String(presetIndex + 1)), onChosen } : { kind: "command", label: title, onChosen };
   });
+  const presetDeletionEntries = layout.preset_titles_saved.map((title, presetIndex): StudioMenuEntry => ({ kind: "command", label: title, onChosen: () => commands.deleteTheSavedLayoutPreset(presetIndex) }));
   return [
-    ...STUDIO_LAYOUT_SHAPES.map(({ shape, title }): StudioMenuEntry => ({ kind: "command", label: title, picture: studioLayoutShapePicture(shape), onChosen: () => commands.shapeTheLayout(shape) })),
-    { kind: "separator" },
     ...STUDIO_LAYOUTS_SHIPPED.map(({ layout_id: layoutId, title, layout: shippedLayout }): StudioMenuEntry => ({ kind: "command", label: title, picture: studioLayoutPicture(shippedLayout), onChosen: () => commands.applyTheShippedLayout(layoutId) })),
     { kind: "separator" },
     ...presetEntries,
     ...(presetEntries.length > 0 ? [{ kind: "separator" } as const] : []),
     { kind: "command", label: "Save layout as preset…", onChosen: commands.askToSaveTheLayoutAsAPreset },
+    ...(presetDeletionEntries.length > 0 ? [{ kind: "submenu", label: "Delete saved layout", entries: presetDeletionEntries } as const] : []),
+    {
+      kind: "submenu",
+      label: "Shape",
+      entries: STUDIO_LAYOUT_SHAPES.map(({ shape, title }): StudioMenuEntry => ({ kind: "command", label: title, picture: studioLayoutShapePicture(shape), onChosen: () => commands.shapeTheLayout(shape) })),
+    },
   ];
 }
 

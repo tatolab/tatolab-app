@@ -54,6 +54,12 @@ export function studioLayoutShapeOutline(shape: StudioLayoutShape): StudioLayout
 /** The views a shape's spare slots show, in this order, when the layout shaped held fewer areas than the shape has. */
 const VIEW_TYPES_FOR_SPARE_SLOTS = ["stream_graph", "viewer", "outliner", "properties", "library", "history"] as const;
 
+/** The view a new area of `layout` shows: the first of the views spare slots show that no area of it shows, or none when it shows them all. */
+export function viewTypeForANewAreaOf(layout: StudioAreaLayoutNode): string | null {
+  const viewTypesShown = new Set(areasWithTheirShares(layout).map(({ area }) => area.view_type_id));
+  return VIEW_TYPES_FOR_SPARE_SLOTS.find((viewTypeId) => !viewTypesShown.has(viewTypeId)) ?? null;
+}
+
 /** Each area of `layout` with its share of the whole layout, in the order its splits hold them. */
 function areasWithTheirShares(layout: StudioAreaLayoutNode, shareOfTheWhole = 1): { area: StudioArea; share: number }[] {
   if (layout.kind === "area") return [{ area: layout, share: shareOfTheWhole }];

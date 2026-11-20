@@ -14,7 +14,19 @@ export interface StudioAreaOfTheView {
   rememberSettings(nextSettings: JsonValue): void;
   header_row: WatchedStudioValue<ViewHeaderRow>;
   expansion: StudioAreaExpansion;
+  node_shown: StudioAreaNodeShown;
 }
+
+/** Which node of its type a `node` view's area shows, and the choice of another; an area that keeps no choice shows the first. */
+export interface StudioAreaNodeShown {
+  /** The id of the node the area keeps showing; `null` to show the first of its type. */
+  node_id: string | null;
+  /** Keep showing the node `nodeId`; absent where the view shows outside a layout, which keeps no choice. */
+  show?(nodeId: string): void;
+}
+
+/** What an area that keeps no choice of node shows: the first of the view's type. */
+export const THE_FIRST_NODE_SHOWN: StudioAreaNodeShown = { node_id: null };
 
 /** A view type as the registry holds it, made from its manifest: what the view-type menu lists, and how an area draws its frame. */
 export interface RegisteredStudioViewType {
@@ -27,7 +39,7 @@ export interface RegisteredStudioViewType {
   /** The view's frame across `area`, on the settings the area saved. */
   renderInAnArea(area: StudioAreaOfTheView, hostServices: StudioViewHostServices): ReactNode;
   /** Words Studio draws after the area's view-type menu, such as which node a node view shows; absent when the view draws its whole header row. */
-  renderWordsAfterTheViewTypeMenu?(hostServices: StudioViewHostServices): ReactNode;
+  renderWordsAfterTheViewTypeMenu?(area: StudioAreaOfTheView, hostServices: StudioViewHostServices): ReactNode;
 }
 
 /** The views the open project and its imports bring, as the backend lists them, or why it lists none. */

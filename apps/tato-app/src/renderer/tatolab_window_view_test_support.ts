@@ -7,7 +7,7 @@ import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
 import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
-import { studioLayoutStorageKey } from "./studio_shell/studio_layout";
+import { editStudioLayout, studioLayoutStorageKey } from "./studio_shell/studio_layout";
 import { mountTatolabWindow } from "./tatolab_window_view";
 import { drawTheCoreViewsInTheirFrames } from "./view_host/fake_core_view_frames";
 
@@ -41,9 +41,18 @@ export async function cleanUpTheWindowsOfEarlierTests(): Promise<void> {
   localStorage.clear();
 }
 
-/** The real window over the mock backend opened with `pageQuery`, mounted the way `main.ts` mounts it. */
-export async function mountedWindowOverTheMock(pageQuery: string, backendChanges: Partial<TatolabBackend> = {}, onTheFirstStatusDrawn?: () => void) {
+/**
+ * The real window over the mock backend opened with `pageQuery`, mounted the way `main.ts` mounts it. Pulse Stage opens
+ * on the Edit layout, with the Node visualizer, on either platform, unless the test kept another layout for it or asks for the layout a project
+ * first opens on with `opensOnTheFirstLayout`.
+ */
+export async function mountedWindowOverTheMock(pageQuery: string, backendChanges: Partial<TatolabBackend> = {}, onTheFirstStatusDrawn?: () => void, opensOnTheFirstLayout = false) {
   removeTheKeydownListenersOfEarlierWindows();
+  if (!opensOnTheFirstLayout) {
+    for (const pulseStageFolder of PULSE_STAGE_FOLDER_ON_EACH_PLATFORM) {
+      if (localStorage.getItem(studioLayoutStorageKey(pulseStageFolder)) === null) localStorage.setItem(studioLayoutStorageKey(pulseStageFolder), JSON.stringify({ layout: editStudioLayout() }));
+    }
+  }
   const backend: TatolabBackend = { ...createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(pageQuery))), ...backendChanges };
   const rootElement = document.createElement("div");
   document.body.append(rootElement);
@@ -122,6 +131,8 @@ export function settingsRow(rowName: string): HTMLElement {
 
 /** The folder of the mock's open project, Pulse Stage, open by default. */
 export const PULSE_STAGE_FOLDER = "/Users/jonathanf/streams/pulse-stage";
+/** Pulse Stage's folder as the mock has it on macOS and on Linux. */
+const PULSE_STAGE_FOLDER_ON_EACH_PLATFORM = [PULSE_STAGE_FOLDER, "/home/jonathanf/streams/pulse-stage"];
 /** The mock's camera project's folder. */
 export const CAMERA_PROJECT = "/Users/jonathanf/streams/camera";
 /** The id of Pulse Stage's `main` stream. */
@@ -177,7 +188,10 @@ export function outlinerRowIds(): string[] {
 }
 
 /** The areas of the studio's default layout, in their order. */
-export const AREAS_OF_THE_DEFAULT_LAYOUT = ["outliner", "stream-graph", "viewer", "properties"];
+/** The areas of the Composition layout, the one a project first opens on, in their order. */
+export const AREAS_OF_THE_COMPOSITION_LAYOUT = ["outliner", "preview", "stream-graph", "properties"];
+
+export const AREAS_OF_THE_EDIT_LAYOUT = ["outliner", "stream-graph", "viewer", "properties"];
 
 /** The ids of the studio layout's areas shown, in their order. */
 export function areaIdsShown(): (string | null)[] {
