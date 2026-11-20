@@ -4,7 +4,7 @@ import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_bu
 import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
 import { CodeFileTabStrip, type OpenableCodeFileGroup } from "@tatolab/tato-app-view-sdk/design_system/code_file_tab_strip";
 import { CodeTextEditor, forgetCodeEditorDocument, type CodeTextEditorLineAskedFor } from "@tatolab/tato-app-view-sdk/design_system/code_text_editor";
-import { codeEditorLanguageOfFile } from "@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_types";
+import { codeEditorLanguageOfFile, type CodeEditorDiagnostic } from "@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_types";
 import { LogRecordLines } from "@tatolab/tato-app-view-sdk/design_system/log_record_lines";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
@@ -186,6 +186,9 @@ function CodeDocumentNoticeRow({ documents, document }: { documents: OpenCodeDoc
   );
 }
 
+/** No diagnostics, one array kept so a document with none never marks the editor anew. */
+const NO_DIAGNOSTICS: readonly CodeEditorDiagnostic[] = [];
+
 function ShownCodeDocument({ documents, file, lineOpenedAt }: { documents: OpenCodeDocuments; file: string; lineOpenedAt: LineTheAreaIsOpenedAt }) {
   const document = documents.documentOf(file);
   useEffect(() => {
@@ -196,6 +199,9 @@ function ShownCodeDocument({ documents, file, lineOpenedAt }: { documents: OpenC
   }, [documents, file]);
   const onTextEdited = useCallback((text: string) => documents.editText(file, text), [documents, file]);
   const onSaveAsked = useCallback(() => void documents.save(file), [documents, file]);
+  const languageServerDiagnostics = document?.kind === "read" ? document.diagnostics : NO_DIAGNOSTICS;
+  const runtimeCheckMarks = document?.kind === "read" ? document.runtime_check_marks : NO_DIAGNOSTICS;
+  const diagnostics = useMemo(() => [...languageServerDiagnostics, ...runtimeCheckMarks], [languageServerDiagnostics, runtimeCheckMarks]);
   if (document === undefined || document.kind === "reading") return <div className="flex-1" data-code-document-state="reading" />;
   if (document.kind === "not_read") return <WaitingState isFailure title={`${file.split("/").at(-1) ?? file} can't be opened`} explanation={document.because} data-code-document-state="not_read" />;
   return (
@@ -206,7 +212,7 @@ function ShownCodeDocument({ documents, file, lineOpenedAt }: { documents: OpenC
         language={codeEditorLanguageOfFile(file)}
         text={document.text}
         isReadOnly={!document.is_editable}
-        diagnostics={document.diagnostics}
+        diagnostics={diagnostics}
         languageHelp={document.language_help}
         onTextEdited={onTextEdited}
         onSaveAsked={onSaveAsked}

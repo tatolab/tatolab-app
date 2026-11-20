@@ -825,6 +825,20 @@ export type ProjectFileSaving = { kind: "saved"; version: string } | { kind: "no
 /** A new node file from the runtime's node template, with the node type it declares as `<module>:<class>`, or why it was not created, in the runtime's own words. */
 export type NodeFileCreating = { kind: "created"; file: string; node_type: string } | { kind: "not_created"; because: string };
 
+/** One finding of the runtime's check of a file, as the runtime gave it: its line and column counted from 1, `null` when it names none. */
+export interface ProjectFileFinding {
+  /** The runtime's code for it, as `TS2322`, `typescript(no-explicit-any)` or `value_input_has_no_default`. */
+  finding_code: string;
+  severity: "error" | "warning";
+  /** What was found, and how to fix it when there is a fix, in the runtime's words. */
+  words: string;
+  line: number | null;
+  column: number | null;
+}
+
+/** What the runtime's check of a file found in it, nothing when it passed, or why it was not asked, in the words of what refused. */
+export type ProjectFileChecking = { kind: "checked"; findings: ProjectFileFinding[] } | { kind: "not_checked"; because: string };
+
 /** A `@node` a Marketplace entry brings, as its catalog names it: its class name, as `CameraSource`, and one line on what it does. */
 export type MarketplaceNode = { name: string; summary: string };
 

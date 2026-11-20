@@ -19,6 +19,7 @@ import type {
   ProjectActionRefusal,
   ProjectAssetsImported,
   ProjectAssetsReading,
+  ProjectFileFinding,
   ProjectFileRead,
   ProjectFiles,
   ProjectGraphTransaction,
@@ -137,6 +138,8 @@ export type ViewAsk =
   | { kind: "save_project_file"; file: string; text: string; based_on_version: string | null }
   /** A new Python node file at `file`, absolute, in the open project's own folder, from the runtime's node template. */
   | { kind: "create_node_file"; file: string }
+  /** The runtime's check of `file`, absolute, in the open project's own folder, through its `check_project_code`. */
+  | { kind: "check_project_file"; file: string }
   | { kind: "list_project_files"; project_folder: string }
   /** One JSON-RPC message for the language server the view's watch `watch_id` started. */
   | { kind: "send_to_python_language_server"; watch_id: number; message: JsonValue }
@@ -219,6 +222,7 @@ export type ViewAskAnswer =
   | { kind: "project_file_read"; file_read: ProjectFileRead }
   | { kind: "project_file_saved"; version: string }
   | { kind: "node_file_created"; file: string; node_type: string }
+  | { kind: "project_file_checked"; findings: ProjectFileFinding[] }
   | { kind: "marketplace_read"; entries: MarketplaceEntry[] }
   | { kind: "marketplace_module_added"; folder: string }
   | { kind: "project_files_listed"; project_files: ProjectFiles }

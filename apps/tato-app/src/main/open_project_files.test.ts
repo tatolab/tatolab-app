@@ -6,7 +6,7 @@ import type { OpenProjectReading, ProjectTransactionAuthor } from "../shared/tat
 import { controlOperationFailedResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { isAJsonObject } from "./json_on_the_wire.js";
 import { cleanUps, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy } from "./runtime_operations_test_support.js";
-import { createANodeFileInTheOpenProject, listTheOpenProjectsFiles, projectFileVersionOf, readTheOpenProjectsFile, saveTheOpenProjectsFile } from "./open_project_files.js";
+import { checkTheOpenProjectsFile, createANodeFileInTheOpenProject, listTheOpenProjectsFiles, projectFileVersionOf, readTheOpenProjectsFile, saveTheOpenProjectsFile } from "./open_project_files.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { IdempotencyKeys, PersonEditingInStudio } from "./studio_runtime.js";
@@ -92,6 +92,15 @@ async function aRuntimeHoldingTheOpenProjectsFiles() {
         filesByPath.set(filePath, Buffer.from("class Invert: ...\n"));
         return controlOperationResultResponse({ path: filePath, node_type: "nodes.invert:Invert", transaction: "a1b2c3d4-0000-4000-8000-000000000002", commit: "5a213e0735136596427d94de6e86a783d45fc29b" });
       }
+      case "check_project_code": {
+        const finding = (path: string, line: number) => ({ check: "extension_types", finding_code: "TS2322", severity: "error", words: "Type 'number' is not assignable to type 'string'.", path, line, column: 5 });
+        return controlOperationResultResponse({
+          verdict: "failed",
+          checks: [{ check: "extension_types", state: "failed", checked_with: ["tsc 7.0.2"] }],
+          findings: [finding("node_ui/knob.ts", 19), finding("node_ui/fader.ts", 7)],
+          files_checked: [],
+        });
+      }
       default:
         return controlOperationFailedResponse(`${method} is not a file tool`);
     }
@@ -111,6 +120,8 @@ async function aRuntimeHoldingTheOpenProjectsFiles() {
     writesAsked: () => callsOf("write_project_file"),
     pathsWritten: () => callsOf("write_project_file").map((params) => (isAJsonObject(params) ? params["path"] : null)),
     nodeFileCreationsAsked: () => callsOf("create_node_file"),
+    checksAsked: () => callsOf("check_project_code"),
+    checkProjectFile: (file: string) => run(checkTheOpenProjectsFile(OPEN_PROJECT, file)),
     readProjectFile: (file: string) => run(readTheOpenProjectsFile(OPEN_PROJECT, file)),
     saveProjectFile: (file: string, text: string, basedOnVersion: string | null) => run(saveTheOpenProjectsFile(OPEN_PROJECT, file, text, basedOnVersion)),
     createNodeFile: (file: string) => run(createANodeFileInTheOpenProject(OPEN_PROJECT, file)),
@@ -260,4 +271,17 @@ test("a new node file in an import or outside the open project is refused before
   const outside = await openProjectFiles.createNodeFile("/etc/invert.py");
   expect(outside.ok ? "created" : outside.failure).toContain("is not a file of the open project or its imports");
   expect(openProjectFiles.nodeFileCreationsAsked()).toEqual([]);
+});
+
+test("a file of the open project is checked through the runtime's check_project_code, answering the findings in that file alone", async () => {
+  const openProjectFiles = await aRuntimeHoldingTheOpenProjectsFiles();
+
+  expect(await openProjectFiles.checkProjectFile(`${PROJECT_FOLDER}/node_ui/knob.ts`)).toEqual({
+    ok: true,
+    value: { findings: [{ finding_code: "TS2322", severity: "error", words: "Type 'number' is not assignable to type 'string'.", line: 19, column: 5 }] },
+  });
+  expect(openProjectFiles.checksAsked()).toEqual([{ project_directory: PROJECT_FOLDER, paths: ["node_ui/knob.ts"] }]);
+
+  expect(await openProjectFiles.checkProjectFile(`${IMPORT_FOLDER}/node_ui/knob.ts`)).toMatchObject({ ok: false });
+  expect(openProjectFiles.checksAsked()).toHaveLength(1);
 });

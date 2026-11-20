@@ -77,6 +77,17 @@ describe("connectToTatoAppOverPort", () => {
     expect(await connection.readProjectFile("/p/gone.py")).toEqual({ kind: "not_read", because: "No such file." });
   });
 
+  it("asks Studio for the runtime's check of a project file, and turns a refusal into why it was not checked", async () => {
+    const finding = { finding_code: "TS2322", severity: "error" as const, words: "Type 'number' is not assignable to type 'string'.", line: 19, column: 5 };
+    const { connection } = await connectionToAStandInStudio((message) => {
+      if (message.kind !== "ask" || message.ask.kind !== "check_project_file") return [];
+      if (message.ask.file === "/p/node_ui/knob.ts") return [{ kind: "answered", ask_id: message.ask_id, answer: { kind: "project_file_checked", findings: [finding] } }];
+      return [{ kind: "answered", ask_id: message.ask_id, answer: { kind: "refused", because: "It is an import's file." } }];
+    });
+    expect(await connection.checkProjectFile("/p/node_ui/knob.ts")).toEqual({ kind: "checked", findings: [finding] });
+    expect(await connection.checkProjectFile("/p/imports/levels/node_ui/knob.ts")).toEqual({ kind: "not_checked", because: "It is an import's file." });
+  });
+
   it("asks Studio to open a view on a file, and carries a language server's messages both ways under its watch", async () => {
     const { connection, messagesFromTheView } = await connectionToAStandInStudio((message) => {
       if (message.kind === "ask") return [{ kind: "answered", ask_id: message.ask_id, answer: { kind: "done" } }];

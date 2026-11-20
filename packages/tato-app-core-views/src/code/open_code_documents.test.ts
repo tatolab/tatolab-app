@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { JsonValue, PythonLanguageServerConnectionEvent, ProjectFileReading, ProjectFileSaving } from "@tatolab/tato-app-view-sdk";
-import { hasEditsNotSaved, OpenCodeDocuments, type CodeEditsNotSaved, type CodeEditsNotSavedStore, type OpenCodeDocumentsHost } from "./open_code_documents";
+import type { JsonValue, PythonLanguageServerConnectionEvent, ProjectFileChecking, ProjectFileFinding, ProjectFileReading, ProjectFileSaving } from "@tatolab/tato-app-view-sdk";
+import {
+  hasEditsNotSaved,
+  OpenCodeDocuments,
+  RUNTIME_CHECK_MARK_SOURCE,
+  runtimeCheckMarkOf,
+  type CodeEditsNotSaved,
+  type CodeEditsNotSavedStore,
+  type OpenCodeDocumentsHost,
+} from "./open_code_documents";
 
 const PROJECT_FOLDER = "/home/jonathanf/streams/pattern";
 const STREAM_PY = `${PROJECT_FOLDER}/stream.py`;
@@ -16,6 +24,9 @@ function fakeHost() {
   ]);
   let versionCount = 3;
   const sessions: { project_folder: string; sent: JsonValue[]; closed: boolean; onEvent: (event: PythonLanguageServerConnectionEvent) => void }[] = [];
+  /** What the runtime's check answers for each file, `null` for a check it does not answer; a file named nowhere passes. */
+  const checkAnswers = new Map<string, ProjectFileFinding[] | null>();
+  const filesChecked: string[] = [];
   const host: OpenCodeDocumentsHost = {
     readProjectFile: async (file): Promise<ProjectFileReading> => {
       const onDisk = disk.get(file);
@@ -30,6 +41,11 @@ function fakeHost() {
       disk.set(file, { text, version: versionCount });
       return { kind: "saved", version: String(versionCount) };
     },
+    checkProjectFile: async (file): Promise<ProjectFileChecking> => {
+      filesChecked.push(file);
+      const findings = checkAnswers.get(file);
+      return findings === null ? { kind: "not_checked", because: "The runtime did not answer." } : { kind: "checked", findings: findings ?? [] };
+    },
     connectToPythonLanguageServer: (projectFolder, onEvent) => {
       const sent: JsonValue[] = [];
       const session = { project_folder: projectFolder, sent, closed: false, onEvent };
@@ -41,7 +57,7 @@ function fakeHost() {
     versionCount += 1;
     disk.set(file, { text, version: versionCount });
   };
-  return { host, disk, sessions, changeOnDisk };
+  return { host, disk, sessions, changeOnDisk, checkAnswers, filesChecked };
 }
 
 /** Edits not saved kept in memory, as a frame's session storage keeps them. */
@@ -177,5 +193,58 @@ describe("the code pane's open documents", () => {
     expect(documents.documentOf(STREAM_PY)).toBeUndefined();
     expect(session.closed).toBe(true);
     expect(forgotten).toEqual([STREAM_PY]);
+  });
+
+  it("marks what the runtime's check finds in a file after each save, and clears the marks once it passes", async () => {
+    const { host, checkAnswers, filesChecked } = fakeHost();
+    const documents = new OpenCodeDocuments(host, () => undefined, editsNotSavedInMemory());
+    documents.open(STREAM_PY);
+    await settled();
+    expect(readDocument(documents, STREAM_PY).runtime_check_marks).toEqual([]);
+    expect(filesChecked).toEqual([]);
+
+    checkAnswers.set(STREAM_PY, [{ finding_code: "value_input_has_no_default", severity: "error", words: "`level` needs a default.", line: 2, column: 5 }]);
+    documents.editText(STREAM_PY, "a = 1\ndef Tremolo(level: float): ...\n");
+    await documents.save(STREAM_PY);
+    expect(filesChecked).toEqual([STREAM_PY]);
+    expect(readDocument(documents, STREAM_PY).runtime_check_marks).toEqual([
+      { start_line: 2, start_column: 5, end_line: 2, end_column: 31, severity: "error", message: "`level` needs a default. (value_input_has_no_default)", source: RUNTIME_CHECK_MARK_SOURCE },
+    ]);
+
+    checkAnswers.delete(STREAM_PY);
+    documents.editText(STREAM_PY, "a = 1\ndef Tremolo(level: float = 1.0): ...\n");
+    await documents.save(STREAM_PY);
+    expect(readDocument(documents, STREAM_PY).runtime_check_marks).toEqual([]);
+  });
+
+  it("keeps the marks it has when the runtime does not answer, and asks no check of a file the runtime does not check", async () => {
+    const { host, checkAnswers, filesChecked } = fakeHost();
+    const documents = new OpenCodeDocuments(host, () => undefined, editsNotSavedInMemory());
+    documents.open(STREAM_PY);
+    documents.open(PYPROJECT);
+    await settled();
+    checkAnswers.set(STREAM_PY, [{ finding_code: "module_does_not_import", severity: "error", words: "It does not import.", line: null, column: null }]);
+    documents.editText(STREAM_PY, "import nowhere\n");
+    await documents.save(STREAM_PY);
+    const marked = readDocument(documents, STREAM_PY).runtime_check_marks;
+    expect(marked).toHaveLength(1);
+
+    checkAnswers.set(STREAM_PY, null);
+    documents.editText(STREAM_PY, "import nowhere_else\n");
+    await documents.save(STREAM_PY);
+    expect(readDocument(documents, STREAM_PY).runtime_check_marks).toBe(marked);
+
+    documents.editText(PYPROJECT, "[project]\nname = \"pattern\"\n");
+    await documents.save(PYPROJECT);
+    expect(filesChecked).toEqual([STREAM_PY, STREAM_PY]);
+  });
+});
+
+describe("a mark of the runtime's check", () => {
+  it("runs from the finding's place to the end of its line, held inside the text", () => {
+    const finding: ProjectFileFinding = { finding_code: "TS2322", severity: "warning", words: "Type 'number' is not assignable to type 'string'.", line: 9, column: 40 };
+    expect(runtimeCheckMarkOf(finding, "one\ntwo\n")).toMatchObject({ start_line: 3, start_column: 1, end_line: 3, end_column: 2, severity: "warning" });
+    expect(runtimeCheckMarkOf({ ...finding, line: 2, column: 40 }, "one\ntwo\n")).toMatchObject({ start_line: 2, start_column: 4, end_line: 2, end_column: 5 });
+    expect(runtimeCheckMarkOf({ ...finding, line: null, column: null }, "one\n")).toMatchObject({ start_line: 1, start_column: 1, end_line: 1, end_column: 4 });
   });
 });
