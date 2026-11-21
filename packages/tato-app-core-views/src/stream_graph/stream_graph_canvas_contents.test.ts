@@ -36,7 +36,7 @@ const GRAPH: StreamGraph = aStreamGraph(
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_types_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", node_type: "nodes.camera:Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", member: null, bundle: null, pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, wire: null, link: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null, kind: { look: "process" } },
+    { node_id: "camera", title: "camera", type_name: "Effect", node_type: "nodes.camera:Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", member: null, bundle: null, pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null, kind: { look: "process" } },
     {
       node_id: "invert",
       title: "invert",
@@ -44,8 +44,8 @@ test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_type
       node_type: "nodes.invert:Effect",
       description: null,
       condition: { look: "healthy" },
-      inputs: [{ name: "video_in", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, wire: null, link: null }],
-      outputs: [{ name: "video_out", member: null, bundle: null, pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null }],
+      inputs: [{ name: "video_in", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null }],
+      outputs: [{ name: "video_out", member: null, bundle: null, pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null }],
       saved_position: null,
       frame_id: null,
       is_collapsed: false,
@@ -266,6 +266,51 @@ test("a_cards_settings_come_first_among_its_inputs_a_typed_ones_port_and_then_ea
     ["video_in", null],
     ["gain", null],
   ]);
+});
+
+test("each_input_takes_a_wire_as_the_graph_marks_it_else_as_its_node_type_does_and_a_setting_a_link_feeds_holds_no_value_and_reads_its_wire", () => {
+  const described: NodeTypeDescription = {
+    node_type: "nodes.gateway:Gateway",
+    described_from: "interpreter",
+    documentation: "",
+    source: "project",
+    inputs: [
+      { name: "relay", documentation: "", pin_type: { kind: "is", pin_type: { type: "string" } }, flow: "value", mode: "setting_only", read: "at_setup", takes_a_wire: true },
+      { name: "token", documentation: "", pin_type: { kind: "is", pin_type: { type: "string" } }, flow: "value", mode: "setting_only", read: "at_setup", takes_a_wire: true },
+      { name: "gain", documentation: "", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", mode: "setting_only", read: "each_run", takes_a_wire: false },
+      { name: "level", documentation: "", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", mode: "wire_or_value", takes_a_wire: false },
+      { name: "width", documentation: "", mode: "setting_only", read: "at_setup", takes_a_wire: false },
+    ],
+    outputs: [],
+  };
+  const stringValue = { pin_type: { type: "string" }, flow: "value" } as const;
+  const graph = aStreamGraph(
+    [
+      graphNode("variable", [], [], { outputs: [aGraphPort("value", null, stringValue)] }),
+      graphNode("gateway", [], [], {
+        type: described.node_type,
+        inputs: [
+          aGraphPort("relay", null, { ...stringValue, value_comes_from: "wire", takes_a_wire: true }),
+          aGraphPort("token", null, { ...stringValue, value: "", value_comes_from: "default", takes_a_wire: false }),
+          aGraphPort("gain", null, { pin_type: { type: "float" }, flow: "value", value: 1, value_comes_from: "default", takes_a_wire: false }),
+          aGraphPort("level", null, { pin_type: { type: "float" }, flow: "value", value: 0, value_comes_from: "default" }),
+          aGraphPort("video_in", "image", { pin_type: { type: "texture" }, flow: "stream" }),
+        ],
+      }),
+    ],
+    [aGraphLink("Lrelay", ["variable", "value"], ["gateway", "relay"])],
+  );
+  const level = { project_folder: "/projects/demo", stream_asset: "stream-asset", level: [] };
+  const contents = streamGraphCanvasContents(graph, new Map([[described.node_type, described]]), null, level, null, { stream: "main", graph: level });
+  expect(contents.nodes.find((node) => node.node_id === "gateway")?.inputs.map((input) => [input.name, input.setting?.read ?? null, input.takes_a_wire, input.value_address?.input ?? null, input.wire?.wiring.kind ?? null])).toEqual([
+    ["relay", "at_setup", true, null, "wired"],
+    ["token", "at_setup", false, "token", null],
+    ["gain", "each_run", false, "gain", null],
+    ["width", "at_setup", false, "width", null],
+    ["level", null, false, "level", null],
+    ["video_in", null, true, null, "unwired"],
+  ]);
+  expect(contents.nodes.find((node) => node.node_id === "variable")?.outputs.map((output) => [output.name, output.takes_a_wire])).toEqual([["value", true]]);
 });
 
 test("a_node_or_link_the_running_stream_does_not_hold_yet_is_drawn_not_live_and_each_diagnostic_shows_on_what_it_names", () => {

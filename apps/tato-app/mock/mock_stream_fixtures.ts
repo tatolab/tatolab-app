@@ -126,6 +126,8 @@ export interface MockGraphPort {
   member_reads?: MockMemberRead[];
   /** What its pin states besides its type, as `graph` serves it; absent where it states none. */
   annotations?: NonNullable<StreamGraphPort["annotations"]>;
+  /** On an input, whether a link may end at it, as `graph` marks it; absent where the recording it comes from, made before the runtime marked inputs, marks none. */
+  takes_a_wire?: boolean;
 }
 
 /** What one member of a bundle input reads while unlinked and where that comes from, and the default it reads while none is set. */
@@ -357,7 +359,7 @@ const EXTRA_GRAPH_INPUTS: MockGraphNode[] = [
  * type, since it carries any value of its family, reading `savedValue`, the value the graph document saves for it, while nothing sets it.
  */
 function graphInputValueInput(family: PortFamily, savedValue: JsonValue): MockGraphPort {
-  return { name: "value", family, stream_facts: null, values_checked: family === "records" ? false : null, pin: null, value_read: { value: savedValue, comes_from: "saved" } };
+  return { name: "value", family, stream_facts: null, values_checked: family === "records" ? false : null, pin: null, value_read: { value: savedValue, comes_from: "saved" }, takes_a_wire: false };
 }
 
 /** A top-level `GraphInput` named `name`, declaring the input port `port` of `family` with `config`, as the runtime renders one back: running, a `value` input reading `savedValue`, which its config does not repeat, and one `value` output. */
@@ -402,7 +404,7 @@ const PICTURE_AND_FADER_VIEW_NODE: MockGraphNode = {
   state: "Running",
   config: {},
   settings: ["picture_fit"],
-  input_ports: [...portsStatingNoStreamFacts("image", "picture"), { name: "fader", family: "array", stream_facts: null, values_checked: null, pin: null, value_read: { value: null, comes_from: null } }],
+  input_ports: [...portsStatingNoStreamFacts("image", "picture"), { name: "fader", family: "array", stream_facts: null, values_checked: null, pin: null, value_read: { value: null, comes_from: null }, takes_a_wire: false }],
   output_ports: portsStatingNoStreamFacts("array", "fader"),
   is_a_value_source: true,
 };

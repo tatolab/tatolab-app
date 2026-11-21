@@ -168,6 +168,8 @@ g[data-pin-type="untyped"] { --node-graph-pin-colour: var(--studio-graph-link); 
 /* A preview floats over the canvas beside a popover, so it lifts as the popover does. */
 .node-graph-card[data-node-graph-card-preview] { box-shadow: var(--shadow-pop); }
 .node-graph-pin-mark { display: inline-block; flex: none; }
+/* The slot an input's mark sits in outside the canvas, as wide as the mark, kept empty where the input takes no wire. */
+.node-graph-pin-mark-slot { display: inline-flex; flex: none; justify-content: center; width: 10px; }
 
 .node-graph-link { stroke: var(--node-graph-pin-colour, var(--studio-graph-link)); stroke-width: 2.2; }
 .node-graph-link-waiting { stroke-dasharray: 6 5; }

@@ -177,6 +177,7 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
           inputs: node.input_ports.map((port) => ({
             ...portAsTheRuntimeRendersIt(port),
             delivery_profile: "newest",
+            ...(port.takes_a_wire === undefined ? {} : { takes_a_wire: port.takes_a_wire }),
             ...(port.member_reads === undefined
               ? inputValueAsTheRuntimeRendersIt(linksInto(port).length > 0 ? { ...port, value_read: { value: null, comes_from: "wire" } } : port)
               : memberValuesAsTheRuntimeRendersThem(port, linksInto(port))),

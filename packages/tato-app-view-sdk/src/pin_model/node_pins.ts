@@ -2,7 +2,7 @@
 // then its other inputs, each carrying the pin's exact type and flow where the runtime serves them.
 
 import type { PinAnnotations } from "../pin_type_readings.js";
-import { jsonObjectMembersOf, type JsonValue, type NodeTypeInputDescribed, type NodeTypePortDescribed, type SettingReadTime, type StreamGraphPortPin } from "../studio_readings.js";
+import { jsonObjectMembersOf, type JsonValue, type NodeTypeInputDescribed, type NodeTypePortDescribed, type SettingReadTime, type StreamGraphPort, type StreamGraphPortPin } from "../studio_readings.js";
 import type { PortFamily } from "../port_families.js";
 import type { InputWiring } from "./input_wiring.js";
 import type { NodeInputLink } from "./node_input_link.js";
@@ -23,8 +23,10 @@ export interface NodePin {
   readonly stream_facts_words: readonly string[];
   /** Where a person sets an unwired input, the key its row reads the value by: where the value it holds is kept, or where an unlinked Trigger is fired; `null` on an output, on an input that takes no stored value and is no Trigger, on one a link feeds, and outside a stream's graph. */
   readonly value_address: InputAddress | null;
-  /** On a setting, an input that takes a value and no wire, when its node reads it; `null` on every other pin. */
+  /** On a setting, when its node reads it: as it is set up or on each run; `null` on every other pin. */
   readonly setting: NodeSetting | null;
+  /** Whether a link may end at it, as the runtime marks the input, so its card draws it a socket; `true` on an output, which a link starts at. */
+  readonly takes_a_wire: boolean;
   /** On an input that takes a wire, what it reads through it; `null` on every other pin, and where Studio reads no wire: outside a stream's graph and inside a subgraph. */
   readonly wire: NodePinWire | null;
   /** On an input a link feeds in a stream's graph, what the runtime marks on that link; `null` on every other pin, and on a link it marks neither way. */
@@ -55,9 +57,23 @@ export interface NodeSetting {
   readonly read: SettingReadTime;
 }
 
-/** The setting `input` is as its node type describes it, `null` for an input that takes a wire; a setting that states no read point is read at setup, as the runtime reads a config field. */
+/** The setting `input` is as its node type describes it, `null` for an input that is none; a setting that states no read point is read at setup, as the runtime reads a config field. */
 export function settingOfTheDescribedInput(input: Pick<NodeTypeInputDescribed, "mode" | "read">): NodeSetting | null {
   return input.mode === "setting_only" ? { read: input.read ?? "at_setup" } : null;
+}
+
+/** Whether a link may end at `input`, as its node type's description marks it, which the runtime does on every input it describes. */
+export function doesTheDescribedInputTakeAWire(input: Pick<NodeTypeInputDescribed, "takes_a_wire">): boolean {
+  return input.takes_a_wire ?? true;
+}
+
+/**
+ * Whether a link may end at the input `port`, as the runtime marks it: on the port in `graph`, else on `describedInput`, its input
+ * in its node type's description; a port neither marks takes one, which only a port of a subgraph's own node, which no node type
+ * describes, can be.
+ */
+export function doesTheInputPortTakeAWire(port: Pick<StreamGraphPort, "takes_a_wire">, describedInput: Pick<NodeTypeInputDescribed, "takes_a_wire"> | undefined): boolean {
+  return port.takes_a_wire ?? (describedInput === undefined || doesTheDescribedInputTakeAWire(describedInput));
 }
 
 /** Whether a change of `pin` rebuilds its node: a setting its node reads as it is set up. */

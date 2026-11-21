@@ -5,18 +5,23 @@
 // streamlib at e2c7162 with the sample playing. The sample that declares each kind of pin
 // (`examples/every-pin-kind`), which `?main_graph=` shows in its place: its node types, its stream
 // `main`'s graph and the refusals of `transact` a scenario replays, recorded from the `tatolabd` 0.68.82
-// built from streamlib, the graph and the refusals at 6c0be0f.
+// built from streamlib, the graph and the refusals at 6c0be0f; and once each setting became an input, its
+// node types described, its stream `main`'s graph and the refusal of a link into a Graph Input's setting,
+// recorded from the runtime built from streamlib at 9f9ba3244, which marks each input `takes_a_wire`.
 // The mock holds no node type, graph or refusal of its own for this work, but for one warning on a link,
-// one node with bundle pins, two nodes linked by a named type and a Graph Input whose setting chooses its
-// type, which no recording carries, each named
-// as a stand-in where it is held; a recording that no longer reads fails the mock's load, as the app
-// would fail to read the runtime's answer.
+// one node with bundle pins, two nodes linked by a named type and a setting a link feeds, which no
+// recording carries, each named as a stand-in where it is held; a recording that no longer reads fails
+// the mock's load, as the app would fail to read the runtime's answer. The recordings made before
+// 9f9ba3244 mark no input, and the mock serves them unmarked, as they were recorded.
 
 import pulseStageListNodeTypesResult from "./recordings/pulse-stage-list-node-types-result.json?raw";
 import pulseStageDescribeNodeTypesResult from "./recordings/pulse-stage-describe-node-types-result.json?raw";
 import everyPinKindListNodeTypesResult from "./recordings/every-pin-kind-list-node-types-result.json?raw";
 import everyPinKindDescribeNodeTypesResult from "./recordings/every-pin-kind-describe-node-types-result.json?raw";
 import graphResultOfMain from "./recordings/every-pin-kind-graph-result-of-main.json?raw";
+import everyPinKindDescribeNodeTypesResultWithSettingsAsInputs from "./recordings/every-pin-kind-describe-node-types-result-with-settings-as-inputs.json?raw";
+import graphResultOfMainWithSettingsAsInputs from "./recordings/every-pin-kind-graph-result-of-main-with-settings-as-inputs.json?raw";
+import connectRefusalForAWireIntoTheWarmthBasePortSetting from "./recordings/every-pin-kind-connect-refusal-for-a-wire-into-the-warmth-base-port-setting.json?raw";
 import transactRefusalForALinkOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-a-records-output-into-a-float-input.json?raw";
 import transactRefusalForAValueOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-words-as-a-float-value.json?raw";
 import transactRefusalForASweepIntoAFloat from "./recordings/every-pin-kind-transact-refusal-for-a-sweep-output-into-a-float-input.json?raw";
@@ -25,6 +30,7 @@ import { projectActionRefusalOfTheContract } from "../src/main/project_transacti
 import { controlContractRefusalOf, describeTheContractIssues, readControlContractValue } from "../src/main/tatolab_runtime_control_operation_call";
 import { isAJsonValue } from "../src/main/json_on_the_wire";
 import type { Result } from "../src/main/result";
+import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import {
   canvasNotesOfTheGraph,
   familyOfThePort,
@@ -65,8 +71,18 @@ function recordedResultOfTheContractType<TypeName extends ControlContractCompone
   return recorded.value;
 }
 
+/**
+ * The every-pin-kind sample's node types as the runtime at 9f9ba3244 described them, each setting an input it marks, and after
+ * them each node type the earlier recording described that it did not, such as the `Flash` the sample no longer holds, as the
+ * mock lists them all from the one listing recorded.
+ */
+function describedAfterwardsElseBefore(afterwards: DescribeNodeTypesToolResult, before: DescribeNodeTypesToolResult): DescribeNodeTypesToolResult {
+  const describedAfterwards = new Set(afterwards.node_types.map((nodeType) => nodeType.node_type));
+  return { ...afterwards, node_types: [...afterwards.node_types, ...before.node_types.filter((nodeType) => !describedAfterwards.has(nodeType.node_type))] };
+}
+
 /** A sample whose node types the mock holds as the runtime listed and described them. */
-type MockRecordedSample = "pulse_stage" | "every_pin_kind";
+type MockRecordedSample = "pulse_stage" | "every_pin_kind" | "every_pin_kind_with_settings_as_inputs";
 
 /** The node types the runtime's `list_node_types` listed for a sample, and each one as its `describe_node_types` described it while the sample's stream `main` played. */
 export interface MockRecordedNodeTypes {
@@ -88,10 +104,27 @@ export const MOCK_RECORDED_NODE_TYPES: Readonly<Record<MockRecordedSample, MockR
     listed: recordedResultOfTheContractType("every-pin-kind-list-node-types-result", everyPinKindListNodeTypesResult, "ListNodeTypesToolResult"),
     described: recordedResultOfTheContractType("every-pin-kind-describe-node-types-result", everyPinKindDescribeNodeTypesResult, "DescribeNodeTypesToolResult"),
   },
+  every_pin_kind_with_settings_as_inputs: {
+    listed: recordedResultOfTheContractType("every-pin-kind-list-node-types-result", everyPinKindListNodeTypesResult, "ListNodeTypesToolResult"),
+    described: describedAfterwardsElseBefore(
+      recordedResultOfTheContractType("every-pin-kind-describe-node-types-result-with-settings-as-inputs", everyPinKindDescribeNodeTypesResultWithSettingsAsInputs, "DescribeNodeTypesToolResult"),
+      recordedResultOfTheContractType("every-pin-kind-describe-node-types-result", everyPinKindDescribeNodeTypesResult, "DescribeNodeTypesToolResult"),
+    ),
+  },
 };
 
 /** The every-pin-kind sample's stream `main` as the runtime's `graph` answered it while it played. */
 const RECORDED_GRAPH_OF_MAIN: StreamGraph = recordedResultOfTheContractType("every-pin-kind-graph-result-of-main", graphResultOfMain, "StreamGraphOnTheWire");
+
+/**
+ * The every-pin-kind sample's stream `main` as the runtime at 9f9ba3244 answered `graph`, each setting an input it marks: the
+ * Graph Inputs `brightness`, `warmth_base`, whose `pin_type` setting chooses Float, and `caption_lines`, each linked into a node.
+ */
+const RECORDED_GRAPH_OF_MAIN_WITH_SETTINGS_AS_INPUTS: StreamGraph = recordedResultOfTheContractType(
+  "every-pin-kind-graph-result-of-main-with-settings-as-inputs",
+  graphResultOfMainWithSettingsAsInputs,
+  "StreamGraphOnTheWire",
+);
 
 /** Pulse Stage's stream `main` as the runtime's `graph` answered it while it played. */
 const RECORDED_PULSE_STAGE_GRAPH_OF_MAIN: StreamGraph = recordedResultOfTheContractType("pulse-stage-graph-result-of-main", pulseStageGraphResultOfMain, "StreamGraphOnTheWire");
@@ -106,6 +139,7 @@ function mockGraphPortOfTheRecordedPort(port: StreamGraphPort, direction: "input
     pin: pinOfThePort(port),
     value_read: direction === "input" ? inputValueReadOfThePort(port) : null,
     ...(port.annotations === undefined ? {} : { annotations: port.annotations }),
+    ...(port.takes_a_wire === undefined || port.takes_a_wire === null ? {} : { takes_a_wire: port.takes_a_wire }),
   };
 }
 
@@ -180,6 +214,11 @@ export function mockRecordedGraphOfTheEveryPinKindSample(): MockStreamGraph {
   return mockGraphOfTheRecordedGraph(RECORDED_GRAPH_OF_MAIN);
 }
 
+/** A fresh copy of the every-pin-kind sample's stream `main` as the runtime at 9f9ba3244 answered it, as the mock holds a graph. */
+export function mockRecordedGraphOfTheEveryPinKindSampleWithSettingsAsInputs(): MockStreamGraph {
+  return mockGraphOfTheRecordedGraph(RECORDED_GRAPH_OF_MAIN_WITH_SETTINGS_AS_INPUTS);
+}
+
 /** A fresh copy of Pulse Stage's stream `main` as the mock holds a graph. */
 export function mockRecordedGraphOfThePulseStageSample(): MockStreamGraph {
   return mockGraphOfTheRecordedGraph(RECORDED_PULSE_STAGE_GRAPH_OF_MAIN);
@@ -193,6 +232,12 @@ function recordedRefusal(recording: string, responseText: string): ProjectAction
 export const MOCK_RECORDED_REFUSAL_OF_A_LINK_OF_ANOTHER_TYPE: ProjectActionRefusal = recordedRefusal(
   "every-pin-kind-transact-refusal-for-a-records-output-into-a-float-input",
   transactRefusalForALinkOfAnotherType,
+);
+
+/** The runtime's refusal, as `input_takes_no_wire`, of a `connect` from `caption.result` into `warmth_base.port`, a Graph Input's setting. */
+export const MOCK_RECORDED_REFUSAL_OF_A_WIRE_INTO_A_SETTING_THAT_TAKES_NONE: ProjectActionRefusal = recordedRefusal(
+  "every-pin-kind-connect-refusal-for-a-wire-into-the-warmth-base-port-setting",
+  connectRefusalForAWireIntoTheWarmthBasePortSetting,
 );
 
 /** The runtime's refusal of a `set_node_input_value` giving words to a typed Float input of the sample. */
@@ -334,7 +379,7 @@ export const MOCK_STAND_IN_SWEEP_POSITION_DESCRIBED: NodeTypeDescription = {
   category: "Every pin kind",
   kind: "function",
   declared_at: { path: "nodes/sweep.py", line: 74 },
-  inputs: [{ name: "sweep", documentation: "", pin_type: { kind: "is", pin_type: STAND_IN_SWEEP_PIN.pin_type }, flow: "value", mode: "wire_only", lifetime: "kept" }],
+  inputs: [{ name: "sweep", documentation: "", pin_type: { kind: "is", pin_type: STAND_IN_SWEEP_PIN.pin_type }, flow: "value", mode: "wire_only", takes_a_wire: true, lifetime: "kept" }],
   outputs: [{ name: "result", documentation: "", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value" }],
 };
 
@@ -368,47 +413,58 @@ export function mockRecordedRefusalOfASweepIntoAFloat(streamId: string): Project
   return withTheSuggestedTransactOnTheStream(MOCK_RECORDED_REFUSAL_OF_A_SWEEP_INTO_A_FLOAT, streamId);
 }
 
-/** A stand-in's port of `pinType`, of a value read as `saved`, as the runtime serves an input whose value the graph document keeps. */
-function standInSavedInput(name: string, pinType: StreamGraphPortPin["pin_type"], family: MockGraphPort["family"], value: JsonValue): MockGraphPort {
-  return { name, family, stream_facts: null, values_checked: null, pin: { pin_type: pinType, flow: "value" }, value_read: { value, comes_from: "saved" } };
+/** The node type of the built-in `TensorToAudio`, whose settings the runtime at 9f9ba3244 describes as read at setup and taking a wire. */
+const TENSOR_TO_AUDIO_NODE_TYPE = "tatolab.stream:TensorToAudio";
+
+/** `TensorToAudio` as the runtime at 9f9ba3244 described it. */
+function recordedTensorToAudioDescribed(): NodeTypeDescription {
+  const described = MOCK_RECORDED_NODE_TYPES.every_pin_kind_with_settings_as_inputs.described.node_types.find((nodeType) => nodeType.node_type === TENSOR_TO_AUDIO_NODE_TYPE);
+  if (described === undefined || "not_described_because" in described) throw new MockRecordingUnreadable(`the recording every-pin-kind-describe-node-types-result-with-settings-as-inputs describes no ${TENSOR_TO_AUDIO_NODE_TYPE}`);
+  return described;
 }
 
 /**
- * A stand-in, since the recordings were made before the every-pin-kind sample held it: the sample's `warmth_base`, a Graph Input
- * whose `pin_type` setting chooses Float, linked into `warmth.base`, holding the input values the sample's `main.graph.json` saves,
- * served as streamlib's `test_every_pin_kind_sample` pins it: its `pin_type` input a Pin type choice reading `{"type": "float"}` as
- * saved, its `value` a Float annotated with the `range` its setting states, and no `default` in its config.
+ * A stand-in, since no recording holds a setting a link feeds: a `TensorToAudio` placed as `tensortoaudio`, its ports and each
+ * one's mark as the runtime at 9f9ba3244 described its node type, each value input reading its default.
  */
-function standInGraphInputChoosingAType(): MockGraphNode {
-  const port = "warmth_base";
-  const pinType = { type: "float" } as const;
-  const range = [0, 1];
-  const value = 0.1;
+function standInNodeWithAWiredSetting(): MockGraphNode {
+  const described = recordedTensorToAudioDescribed();
+  const portOf = (port: NodeTypeDescription["outputs"][number]): MockGraphPort => {
+    const family = familyOfThePort(port);
+    return { name: port.name, family, stream_facts: null, values_checked: family === "records" ? false : null, pin: exactPinOfTheDeclaredPort(port), value_read: null };
+  };
+  const inputDefaults = Object.fromEntries(described.inputs.flatMap((input) => (input.default_value === undefined || input.default_value === null || !isAJsonValue(input.default_value) ? [] : [[input.name, input.default_value] as const])));
   return {
-    name: "warmth_base",
-    type: "tatolab.stream:GraphInput",
+    name: "tensortoaudio",
+    type: TENSOR_TO_AUDIO_NODE_TYPE,
+    kind: "process",
     state: "Running",
-    config: { port, pin_type: pinType, range },
-    pins: { port, pin_type: pinType, range, value },
-    input_defaults: {},
+    config: {},
+    pins: {},
+    input_defaults: inputDefaults,
     exposed_config_fields: [],
-    input_ports: [
-      standInSavedInput("port", { type: "string" }, null, port),
-      standInSavedInput("pin_type", { type: "pin_type_choice" }, null, pinType),
-      standInSavedInput("range", { type: "list_of", element_type: { type: "float" } }, null, range),
-      { ...standInSavedInput("value", pinType, "channels", value), annotations: { range: { minimum: 0, maximum: 1 } } },
-    ],
-    output_ports: [{ name: "value", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: pinType, flow: "value" }, value_read: null }],
+    input_ports: described.inputs.map((input) => ({
+      ...portOf(input),
+      value_read: input.name in inputDefaults ? { value: inputDefaults[input.name] ?? null, comes_from: "default" } : null,
+      ...(input.takes_a_wire === undefined ? {} : { takes_a_wire: input.takes_a_wire }),
+    })),
+    output_ports: described.outputs.map(portOf),
     studio: { ...NODE_STUDIO_FIELDS_NONE_SET },
   };
 }
 
-/** The every-pin-kind sample's graph with the stand-in `warmth_base` beside it, its `value` linked into `warmth.base`. */
-export function mockEveryPinKindGraphWithAStandInTypeChoosingInput(): MockStreamGraph {
-  const graph = mockRecordedGraphOfTheEveryPinKindSample();
+/**
+ * The every-pin-kind sample's graph as recorded once each setting became an input, with `flash`, a process node the earlier
+ * recording held whose Integer `flashes` is a value, beside it, and the stand-in `tensortoaudio`, `flash.flashes` linked into its
+ * `sample_rate`.
+ */
+export function mockEveryPinKindGraphWithAStandInWiredSetting(): MockStreamGraph {
+  const graph = mockRecordedGraphOfTheEveryPinKindSampleWithSettingsAsInputs();
+  const flash = mockRecordedGraphOfTheEveryPinKindSample().nodes.find((node) => node.name === "flash");
+  if (flash === undefined) throw new MockRecordingUnreadable("the recording every-pin-kind-graph-result-of-main holds no flash");
   return {
     ...graph,
-    nodes: [...graph.nodes, standInGraphInputChoosingAType()],
-    links: [...graph.links, { id: "Lmockstandintypechoosing01", source_node: "warmth_base", source_port: "value", target_node: "warmth", target_port: "base", state: "wired" }],
+    nodes: [...graph.nodes, flash, standInNodeWithAWiredSetting()],
+    links: [...graph.links, { id: "Lmockstandinwiredsetting01", source_node: "flash", source_port: "flashes", target_node: "tensortoaudio", target_port: "sample_rate", state: "wired" }],
   };
 }

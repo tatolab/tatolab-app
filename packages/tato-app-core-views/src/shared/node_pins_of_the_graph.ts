@@ -1,12 +1,13 @@
 // A node's pins as every surface reads them from a stream's graph: the card on the canvas and its
 // row in Properties draw the same pins, each described by its node type and addressed where its
 // value is kept. A node's settings come first among its inputs, each a setting of a typed node the
-// graph lists among its ports or one of a node type not yet typed that it lists among none.
+// graph lists among its ports or one of a node type not yet typed that it lists among none. Whether
+// a link may end at an input is the runtime's mark on it, which Studio reads and never works out.
 
 import { wiringOfTheInput } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
 import { membersOfTheBundle, nodeInputLinkOfTheGraph, pinOfTheEnd } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
 import { valueAddressOfTheInput, valueAddressOfTheMember, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import { exactPinOfTheDeclaredPort, openBundlesOfTheMetadata, settingOfTheDescribedInput, type NodePin, type NodePinBundle, type NodePinWire } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import { doesTheInputPortTakeAWire, exactPinOfTheDeclaredPort, openBundlesOfTheMetadata, settingOfTheDescribedInput, type NodePin, type NodePinBundle, type NodePinWire } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { settingsOfTheNodeNotAmongItsPorts } from "@tatolab/tato-app-view-sdk/pin_model/node_settings";
 import {
   familyOfThePort,
@@ -47,7 +48,7 @@ function settingOfTheInput(node: Pick<StreamGraphNode, "exposed_config_fields">,
   return input === undefined ? null : settingOfTheDescribedInput(input);
 }
 
-/** A setting of a node type not yet typed, which the graph lists among no port of `node`: typed exactly where its node type says so, and addressed at `valuesAt`, which `null` addresses none at. */
+/** A setting of a node type not yet typed, which the graph lists among no port of `node`: typed exactly where its node type says so, addressed at `valuesAt`, which `null` addresses none at, and taking no wire, since no link ends where no port is. */
 function nodePinOfTheSettingNotAmongThePorts(node: Pick<StreamGraphNode, "id">, setting: NodeTypeInputDescribed, valuesAt: GraphAddress | null): NodePin {
   return {
     name: setting.name,
@@ -59,6 +60,7 @@ function nodePinOfTheSettingNotAmongThePorts(node: Pick<StreamGraphNode, "id">, 
     stream_facts_words: [],
     value_address: valuesAt === null ? null : { graph: valuesAt, node_id: node.id, input: setting.name, member: null },
     setting: settingOfTheDescribedInput(setting),
+    takes_a_wire: false,
     wire: null,
     link: null,
     bundle: null,
@@ -82,9 +84,9 @@ export function wiresReadAtTheLevel(stream: string, valuesAt: GraphAddress | nul
   return valuesAt === null || valuesAt.level.length > 0 ? null : { stream, graph: valuesAt };
 }
 
-/** What the input `port` of `node` reads through its wire in `graph`, at `wiresAt`; `null` for a setting, which takes none, and where no wire is read. */
-function wireIntoTheInput(graph: Pick<StreamGraph, "nodes" | "links">, node: StreamGraphNode, port: StreamGraphPort, setting: NodePin["setting"], wiresAt: WiresReadAt | null): NodePinWire | null {
-  if (wiresAt === null || setting !== null) return null;
+/** What the input `port` of `node` reads through its wire in `graph`, at `wiresAt`; `null` for one that takes no wire, and where no wire is read. */
+function wireIntoTheInput(graph: Pick<StreamGraph, "nodes" | "links">, node: StreamGraphNode, port: StreamGraphPort, takesAWire: boolean, wiresAt: WiresReadAt | null): NodePinWire | null {
+  if (wiresAt === null || !takesAWire) return null;
   return { into: { graph: wiresAt.graph, node_id: node.id, input: port.name, member: null }, wiring: wiringOfTheInput(wiresAt.stream, graph, node.name, port.name, familyOfThePort(port)) };
 }
 
@@ -105,6 +107,7 @@ export function nodeInputs(
   const openInputs = openBundlesOfTheMetadata(studioFieldsOfTheNode(node).metadata).inputs;
   const ofThePorts = node.ports.inputs.map((port): NodePin => {
     const setting = settingOfTheInput(node, described, port.name);
+    const takesAWire = doesTheInputPortTakeAWire(port, described?.inputs.find((input) => input.name === port.name));
     const pin = pinOfThePort(port);
     const memberValueReads = memberValueReadsOfThePort(port);
     const memberRow = (member: string): NodePin => ({
@@ -117,6 +120,7 @@ export function nodeInputs(
       stream_facts_words: [],
       value_address: valueAddressOfTheMember(valuesAt, node.id, port.name, member, memberValueReads.find((row) => row.member === member)?.value_read ?? null),
       setting,
+      takes_a_wire: takesAWire,
       wire: null,
       link: nodeInputLinkOfTheGraph(graph, node.name, port.name, member),
       bundle: null,
@@ -130,7 +134,8 @@ export function nodeInputs(
       stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)),
       value_address: valueAddressOfTheInput(valuesAt, node.id, port),
       setting,
-      wire: wireIntoTheInput(graph, node, port, setting, wiresAt),
+      takes_a_wire: takesAWire,
+      wire: wireIntoTheInput(graph, node, port, takesAWire, wiresAt),
       link: nodeInputLinkOfTheGraph(graph, node.name, port.name, null),
       bundle: bundleOfThePin({ name: port.name, pin }, openInputs, memberRow),
     };
@@ -154,6 +159,7 @@ export function nodeOutputs(node: StreamGraphNode, described: NodeTypeDescriptio
       stream_facts_words: [],
       value_address: null,
       setting: null,
+      takes_a_wire: true,
       wire: null,
       link: null,
       bundle: null,
@@ -167,6 +173,7 @@ export function nodeOutputs(node: StreamGraphNode, described: NodeTypeDescriptio
       stream_facts_words: portStreamFactsWords(port),
       value_address: null,
       setting: null,
+      takes_a_wire: true,
       wire: null,
       link: null,
       bundle: bundleOfThePin({ name: port.name, pin }, openOutputs, memberRow),

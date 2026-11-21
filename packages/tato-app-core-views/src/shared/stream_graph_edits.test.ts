@@ -64,14 +64,14 @@ const describedNodeType = (type: string, inputs: [string, "image" | "array" | nu
 });
 const BLUR = describedNodeType("nodes.blur:GaussianBlur", [["strength", "array"], ["video_in", "image"]], [["video_out", "image"]]);
 
-/** A node type as its description lists it once each setting is an input: its port `video_in`, then its settings, each with no family and taking no wire. */
+/** A node type as its description lists it once each setting is an input: its port `video_in`, then its settings, each with no family, `gain` taking a wire and `layers`, a field of a node type not yet typed, none. */
 const A_SETTING = { mode: "setting_only", read: "at_setup" } as const;
 const BLUR_LISTING_ITS_SETTINGS: NodeTypeDescription = {
   ...describedNodeType("nodes.blur:GaussianBlur", [["video_in", "image"]], [["video_out", "image"]]),
   inputs: [
     { name: "video_in", documentation: "the picture", family: { family: "image" }, mode: "wire_only" },
-    { name: "gain", documentation: "How loud.", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", ...A_SETTING },
-    { name: "layers", documentation: "", ...A_SETTING },
+    { name: "gain", documentation: "How loud.", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", ...A_SETTING, takes_a_wire: true },
+    { name: "layers", documentation: "", ...A_SETTING, takes_a_wire: false },
   ],
 };
 
@@ -186,8 +186,8 @@ describe("placing_a_node", () => {
     ]);
   });
 
-  test("a_setting_is_no_input_a_wire_reaches", () => {
-    expect(inputsAWireReaches(BLUR_LISTING_ITS_SETTINGS).map((input) => input.name)).toEqual(["video_in"]);
+  test("an_input_a_wire_reaches_is_one_the_runtime_says_takes_a_wire_a_setting_among_them_and_one_it_says_nothing_of", () => {
+    expect(inputsAWireReaches(BLUR_LISTING_ITS_SETTINGS).map((input) => input.name)).toEqual(["video_in", "gain"]);
   });
 });
 
@@ -202,13 +202,30 @@ test("deleting_disconnects_the_selected_links_removes_the_nodes_and_notes_and_le
 });
 
 test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_ports_of_the_links_family_and_one_without_them_asks_nothing", () => {
-  expect(cardLetGoOverALinkEdits(edited(), "halftone", "L1")).toEqual([
+  expect(cardLetGoOverALinkEdits(edited(), new Map(), "halftone", "L1")).toEqual([
     { operation: "disconnect", stream: STREAM_ASSET, source: { node: "uuid-pattern", port: "video" }, target: { node: "uuid-display", port: "video" } },
     { operation: "connect", stream: STREAM_ASSET, source: { node: "uuid-pattern", port: "video" }, target: { node: "uuid-halftone", port: "frames" } },
     { operation: "connect", stream: STREAM_ASSET, source: { node: "uuid-halftone", port: "image" }, target: { node: "uuid-display", port: "video" } },
   ]);
   const meterOnly = edited({ ...GRAPH, nodes: [...GRAPH.nodes, graphNode("meter", "uuid-meter", { inputs: [["level", "array"]] })] });
-  expect(cardLetGoOverALinkEdits(meterOnly, "meter", "L1")).toEqual([]);
+  expect(cardLetGoOverALinkEdits(meterOnly, new Map(), "meter", "L1")).toEqual([]);
+});
+
+test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_input_of_the_links_family_that_takes_a_wire", () => {
+  const setting = aGraphPort("source_frames", "image", { takes_a_wire: false });
+  const withASettingFirst = aGraphNode("lens", { id: "uuid-lens", kind: "process", config: {}, inputs: [setting, aGraphPort("frames", "image", { takes_a_wire: true })], outputs: [aGraphPort("image", "image")], components: { state: "Running" } });
+  expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, withASettingFirst] }), new Map(), "lens", "L1")[1]).toEqual({
+    operation: "connect",
+    stream: STREAM_ASSET,
+    source: { node: "uuid-pattern", port: "video" },
+    target: { node: "uuid-lens", port: "frames" },
+  });
+  const takingNoWire = aGraphNode("still", { id: "uuid-still", kind: "process", config: {}, inputs: [setting], outputs: [aGraphPort("image", "image")], components: { state: "Running" } });
+  expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, takingNoWire] }), new Map(), "still", "L1")).toEqual([]);
+
+  const unmarked = aGraphNode("lens", { id: "uuid-lens", kind: "process", config: {}, inputs: [aGraphPort("source_frames", "image"), aGraphPort("frames", "image")], outputs: [aGraphPort("image", "image")], components: { state: "Running" } });
+  const lensDescribed: NodeTypeDescription = { ...describedNodeType("nodes.lens:Node", [], []), inputs: [{ name: "source_frames", documentation: "", family: { family: "image" }, ...A_SETTING, takes_a_wire: false }] };
+  expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, unmarked] }), new Map([["nodes.lens:Node", lensDescribed]]), "lens", "L1")[1]).toMatchObject({ target: { node: "uuid-lens", port: "frames" } });
 });
 
 test("framing_the_selection_makes_one_labelled_group_of_its_nodes", () => {

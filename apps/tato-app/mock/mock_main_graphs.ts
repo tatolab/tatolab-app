@@ -1,16 +1,17 @@
 // The graphs `?main_graph=` names `main` to hold in place of Pulse Stage's own graph: the one recorded
 // from streamlib's every-pin-kind sample, that graph with a stand-in warned link, a stand-in node with bundle
-// pins, two stand-in nodes linked by the sample's named type or a stand-in Graph Input whose setting chooses
-// its type, and the large graph of the canvas measurements.
+// pins, two stand-in nodes linked by the sample's named type, the graph recorded once each setting became an
+// input, its Graph Input `warmth_base` choosing its type, or that graph with a stand-in setting a link feeds,
+// and the large graph of the canvas measurements.
 
 import { largeMockStreamGraph } from "./mock_large_stream_graph";
-import { MOCK_RECORDED_NODE_TYPES, MOCK_STAND_IN_SWEEP_POSITION_DESCRIBED, mockEveryPinKindGraphWithAStandInBundleNode, mockEveryPinKindGraphWithAStandInNamedTypeLink, mockEveryPinKindGraphWithAStandInTypeChoosingInput, mockEveryPinKindGraphWithAStandInWarnedLink, mockRecordedGraphOfTheEveryPinKindSample } from "./mock_recordings";
+import { MOCK_RECORDED_NODE_TYPES, MOCK_STAND_IN_SWEEP_POSITION_DESCRIBED, mockEveryPinKindGraphWithAStandInBundleNode, mockEveryPinKindGraphWithAStandInNamedTypeLink, mockEveryPinKindGraphWithAStandInWarnedLink, mockEveryPinKindGraphWithAStandInWiredSetting, mockRecordedGraphOfTheEveryPinKindSample, mockRecordedGraphOfTheEveryPinKindSampleWithSettingsAsInputs } from "./mock_recordings";
 import type { MockRecordedNodeTypes } from "./mock_recordings";
 import type { MockStreamGraph } from "./mock_stream_fixtures";
 import type { NodeTypeDescription } from "../src/shared/tatolab_backend_contract";
 
 /** What `?main_graph=` names `main` to hold in place of Pulse Stage's own graph. */
-export type MockMainGraph = "every_pin_kind" | "every_pin_kind_with_a_warned_link" | "every_pin_kind_with_a_bundle" | "every_pin_kind_with_a_named_type" | "every_pin_kind_with_a_type_choosing_input" | "large";
+export type MockMainGraph = "every_pin_kind" | "every_pin_kind_with_a_warned_link" | "every_pin_kind_with_a_bundle" | "every_pin_kind_with_a_named_type" | "every_pin_kind_with_a_type_choosing_input" | "every_pin_kind_with_a_wired_setting" | "large";
 
 /** A fresh copy of each graph `?main_graph=` names. */
 const MOCK_MAIN_GRAPH_MADE: Record<MockMainGraph, () => MockStreamGraph> = {
@@ -18,7 +19,8 @@ const MOCK_MAIN_GRAPH_MADE: Record<MockMainGraph, () => MockStreamGraph> = {
   every_pin_kind_with_a_warned_link: mockEveryPinKindGraphWithAStandInWarnedLink,
   every_pin_kind_with_a_bundle: mockEveryPinKindGraphWithAStandInBundleNode,
   every_pin_kind_with_a_named_type: mockEveryPinKindGraphWithAStandInNamedTypeLink,
-  every_pin_kind_with_a_type_choosing_input: mockEveryPinKindGraphWithAStandInTypeChoosingInput,
+  every_pin_kind_with_a_type_choosing_input: mockRecordedGraphOfTheEveryPinKindSampleWithSettingsAsInputs,
+  every_pin_kind_with_a_wired_setting: mockEveryPinKindGraphWithAStandInWiredSetting,
   large: largeMockStreamGraph,
 };
 
@@ -35,12 +37,18 @@ export function mapEachMockMainGraph<Made>(made: (graph: MockStreamGraph) => Mad
     every_pin_kind_with_a_bundle: made(MOCK_MAIN_GRAPH_MADE.every_pin_kind_with_a_bundle()),
     every_pin_kind_with_a_named_type: made(MOCK_MAIN_GRAPH_MADE.every_pin_kind_with_a_named_type()),
     every_pin_kind_with_a_type_choosing_input: made(MOCK_MAIN_GRAPH_MADE.every_pin_kind_with_a_type_choosing_input()),
+    every_pin_kind_with_a_wired_setting: made(MOCK_MAIN_GRAPH_MADE.every_pin_kind_with_a_wired_setting()),
     large: made(MOCK_MAIN_GRAPH_MADE.large()),
   };
 }
 
-/** The node types the open project lists while `main` holds `mainGraph`, as the runtime recorded them: the every-pin-kind sample's under each of its graphs, else Pulse Stage's. */
+/**
+ * The node types the open project lists while `main` holds `mainGraph`, as the runtime recorded them: under the graphs recorded
+ * once each setting became an input, the every-pin-kind sample's as the runtime then described them; under its other graphs, as
+ * it described them before; else Pulse Stage's.
+ */
 export function recordedNodeTypesOfTheMainGraph(mainGraph: MockMainGraph | null): MockRecordedNodeTypes {
+  if (mainGraph === "every_pin_kind_with_a_type_choosing_input" || mainGraph === "every_pin_kind_with_a_wired_setting") return MOCK_RECORDED_NODE_TYPES.every_pin_kind_with_settings_as_inputs;
   return MOCK_RECORDED_NODE_TYPES[mainGraph !== null && mainGraph.startsWith("every_pin_kind") ? "every_pin_kind" : "pulse_stage"];
 }
 

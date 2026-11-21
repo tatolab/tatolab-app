@@ -178,8 +178,8 @@ function annotationsOfTheGraphInputSettings(config: Readonly<Record<string, Json
 /**
  * The one port `value` a Graph Input declares as its output and a Graph Output as its input, of the family its config names, as the
  * runtime builds an interface node no registry lists. A Graph Input whose `config` chooses a `pin_type` carries a value of that
- * type on its `value` ports, its input reading the value its config saves, as `value` or formerly `default`, and serving the
- * annotations its settings state.
+ * type on its `value` ports, its input, a setting that takes no wire, reading the value its config saves, as `value` or formerly
+ * `default`, and serving the annotations its settings state.
  */
 function portsOfTheInterfaceNode(type: typeof GRAPH_INPUT_NODE_TYPE | typeof GRAPH_OUTPUT_NODE_TYPE, family: PortFamily | null, config: Readonly<Record<string, JsonValue>> = {}): Pick<MockGraphNode, "input_ports" | "output_ports"> {
   const valuePort: MockGraphPort = { name: "value", family, stream_facts: null, values_checked: null, pin: null, value_read: null };
@@ -190,7 +190,7 @@ function portsOfTheInterfaceNode(type: typeof GRAPH_INPUT_NODE_TYPE | typeof GRA
   const saved = config["value"] ?? config["default"] ?? null;
   const annotations = annotationsOfTheGraphInputSettings(config);
   return {
-    input_ports: [{ ...typedPort, value_read: saved === null ? { value: null, comes_from: null } : { value: saved, comes_from: "saved" }, ...(Object.keys(annotations).length === 0 ? {} : { annotations }) }],
+    input_ports: [{ ...typedPort, value_read: saved === null ? { value: null, comes_from: null } : { value: saved, comes_from: "saved" }, takes_a_wire: false, ...(Object.keys(annotations).length === 0 ? {} : { annotations }) }],
     output_ports: [typedPort],
   };
 }

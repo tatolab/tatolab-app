@@ -37,14 +37,14 @@ const offeredFrom = (source: NodeTypeSourceListed, described: NodeTypeDescriptio
 const BLUR = describedNodeType("nodes.blur:GaussianBlur", "Softens an image", [["video_in", "image"]], [["video_out", "image"]]);
 const METER = describedNodeType("tatolab.stream.Meter", "Reads a level", [["level", "array"]], []);
 
-/** A node type as its description lists it once each setting is an input: its port `video_in`, then its settings, each with no family and taking no wire. */
+/** A node type as its description lists it once each setting is an input: its port `video_in`, then its settings, each with no family, `gain` taking a wire and `layers`, a field of a node type not yet typed, none. */
 const A_SETTING = { mode: "setting_only", read: "at_setup" } as const;
 const BLUR_LISTING_ITS_SETTINGS: NodeTypeDescription = {
   ...BLUR,
   inputs: [
     { name: "video_in", documentation: "", family: { family: "image" }, mode: "wire_only" },
-    { name: "gain", documentation: "How loud.", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", ...A_SETTING },
-    { name: "layers", documentation: "", ...A_SETTING },
+    { name: "gain", documentation: "How loud.", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", ...A_SETTING, takes_a_wire: true },
+    { name: "layers", documentation: "", ...A_SETTING, takes_a_wire: false },
   ],
 };
 const TONE_OF_SETTINGS_ONLY: NodeTypeDescription = { ...describedNodeType("nodes.tone:Tone", "Makes a tone", [], [["tone", "array"]]), inputs: BLUR_LISTING_ITS_SETTINGS.inputs.slice(1) };
@@ -69,9 +69,13 @@ test("a_loose_wire_the_runtime_answered_for_offers_only_the_node_types_it_named"
   expect(nodeTypeSearchItems(offered(BLUR, METER), new Map())).toEqual([]);
 });
 
-test("a_previewed_card_draws_no_setting_as_an_input_pin", () => {
-  expect(nodeTypeSearchPreviewCard(offered(BLUR_LISTING_ITS_SETTINGS), BLUR_LISTING_ITS_SETTINGS.node_type)?.inputs.map((pin) => pin.name)).toEqual(["video_in"]);
-  expect(nodeTypeSearchPreviewCard(offered(TONE_OF_SETTINGS_ONLY), TONE_OF_SETTINGS_ONLY.node_type)?.inputs).toEqual([]);
+test("a_previewed_card_draws_a_pin_with_a_socket_for_each_input_a_wire_reaches_a_setting_marked_as_one_and_none_for_one_that_takes_no_wire", () => {
+  const pinsOf = (described: NodeTypeDescription) => nodeTypeSearchPreviewCard(offered(described), described.node_type)?.inputs.map((pin) => [pin.name, pin.setting, pin.takes_a_wire]);
+  expect(pinsOf(BLUR_LISTING_ITS_SETTINGS)).toEqual([
+    ["video_in", null, true],
+    ["gain", { read: "at_setup" }, true],
+  ]);
+  expect(pinsOf(TONE_OF_SETTINGS_ONLY)).toEqual([["gain", { read: "at_setup" }, true]]);
 });
 
 test("a_node_type_is_named_for_the_open_project_its_import_or_its_distribution_and_for_nothing_the_runtime_does_not_name", () => {
@@ -178,8 +182,8 @@ test("a_node_type_is_previewed_as_its_card_titled_in_words_with_its_pins_and_a_g
   expect(nodeTypeSearchPreviewCard(offered(BLUR, METER), "nodes.blur:GaussianBlur")).toEqual({
     title: "Gaussian Blur",
     kind: { look: "unknown" },
-    inputs: [{ name: "video_in", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null }],
-    outputs: [{ name: "video_out", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, wire: null, link: null }],
+    inputs: [{ name: "video_in", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null }],
+    outputs: [{ name: "video_out", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null }],
   });
   expect(nodeTypeSearchPreviewCard(offered(BLUR, METER), "graph_generator:generators.mics:mic_levels")).toBeNull();
 });
