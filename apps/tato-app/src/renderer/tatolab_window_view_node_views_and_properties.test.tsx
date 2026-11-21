@@ -788,6 +788,28 @@ describe("the studio", () => {
     panel.close();
   });
 
+  it("draws the setting a node view declares first on its node's card and in Properties, with no socket and no promotion, reading what the panel keeps", async () => {
+    await mountedWindowOverTheMock("state=running&studio_views=fixture");
+    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
+    const viewCard = () => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="pictureandfader"]') ?? expect.unreachable("no view node card");
+    const inputRows = () =>
+      [...viewCard().querySelectorAll<HTMLElement>('[data-node-graph-pin-row="input"]')].map((row) => [row.querySelector("[data-node-graph-input-pin]")?.textContent, row.querySelector(".node-graph-pin") !== null]);
+    await waitFor(() => expect(inputRows()).toEqual([["picture_fit", false], ["picture", true], ["fader", false]]));
+
+    fireEvent.click(viewCard());
+    const pictureFitRow = () => coreViewPage("properties").querySelector<HTMLElement>('[data-properties-port="picture_fit"]');
+    await waitFor(() => expect(pictureFitRow()).not.toBeNull());
+    const properties = within(coreViewPage("properties").body);
+    expect(properties.queryByRole("button", { name: "Promote picture_fit to a Graph Input" })).toBeNull();
+    expect(pictureFitRow()?.querySelector(".node-graph-pin-mark")).toBeNull();
+    expect(pictureFitRow()?.textContent).toContain("contain");
+
+    const panel = await thePictureAndFaderPanelInTheViewer();
+    expect(await panel.rememberSettings({ picture_fit: "cover" })).toEqual({ kind: "done" });
+    await waitFor(() => expect(pictureFitRow()?.textContent).toContain("cover"));
+    panel.close();
+  });
+
   it("says in the view-type menu why a project's views are not listed", async () => {
     await mountedWindowOverTheMock("state=running", { listStudioViewsOfTheOpenProject: async () => Promise.reject("the runtime lists no views yet") });
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
