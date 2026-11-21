@@ -316,6 +316,7 @@ function StreamGraphOfTheTab({
         );
       },
       onNodeAskedFor: (at) => setNodeTypeSearchAsked({ at, looseWire: null, portsTheWireFits: null }),
+      onNodeTypeDropped: (nodeType, at) => void sendTheGestureAtTheLevelShown(nodePlacedEdits(editedGraph, nodeType, at.on_the_canvas, null)),
       onNoteAskedFor: (at) => void sendTheGestureAtTheLevelShown(notePlacedEdits(editedGraph, at.on_the_canvas)),
       onDeleted: (deleted) => void sendTheGestureAtTheLevelShown(deletedEdits(editedGraph, deleted)),
       onFrameAskedFor: (nodeIds) => sendTheGestureAtTheLevelShown(selectionFramedEdits(editedGraph, nodeIds)),

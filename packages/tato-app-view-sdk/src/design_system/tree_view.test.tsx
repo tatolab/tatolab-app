@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RightClickMenuItem } from "./menus";
 import { TreeView, type TreeViewRow } from "./tree_view";
@@ -108,5 +108,28 @@ describe("a tree whose rows offer right-click choices", () => {
     fireEvent.contextMenu(screen.getByRole("treeitem", { name: "halftone" }));
     fireEvent.click(await vi.waitFor(() => document.querySelector<HTMLElement>('[data-tree-test-choice="edit_code"]') ?? expect.unreachable("no Edit code")));
     expect(onChosen).toHaveBeenCalledOnce();
+  });
+});
+
+describe("a tree whose rows drag", () => {
+  it("makes a row draggable that carries something, puts it on the drag as it starts, and leaves the other rows still", () => {
+    const carried: string[] = [];
+    render(
+      <TreeView
+        label="Nodes"
+        rows={ROWS}
+        selectedRowId={null}
+        onRowSelected={vi.fn()}
+        onRowActivated={vi.fn()}
+        onExpansionToggled={vi.fn()}
+        dragOfTheRow={(rowId) => (rowId === "halftone" ? (dataTransfer) => dataTransfer.setData("text/plain", rowId) : null)}
+      />,
+    );
+    const row = (rowId: string) => screen.getByRole("treeitem", { name: rowId });
+    expect(ROWS.map(({ row_id }) => row(row_id).getAttribute("draggable"))).toEqual([null, "true", null]);
+    const dragStart = createEvent.dragStart(row("halftone"));
+    Object.defineProperty(dragStart, "dataTransfer", { value: { setData: (_type: string, data: string) => void carried.push(data) } });
+    fireEvent(row("halftone"), dragStart);
+    expect(carried).toEqual(["halftone"]);
   });
 });

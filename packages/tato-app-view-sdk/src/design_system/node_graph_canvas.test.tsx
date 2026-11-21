@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, createEvent, fireEvent, render } from "@testing-library/react";
 import { Position } from "@xyflow/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { NodeGraphCanvas } from "./node_graph_canvas";
@@ -7,6 +7,7 @@ import { NodeGraphCardPreview, NodeGraphPinMark, NodeGraphPinMarkSlot } from "./
 import { NodeGraphLinkView } from "./node_graph_link_view";
 import type { NodePin } from "../pin_model/node_pins";
 import type { NodeGraphCanvasEditing, NodeGraphCanvasNode, NodeGraphCardKind } from "./support/node_graph_canvas_contract";
+import { putTheNodeTypeOnTheDrag } from "./support/node_type_drag";
 
 afterEach(cleanup);
 
@@ -55,6 +56,7 @@ function editingRecorded() {
     onPinsWired: vi.fn(),
     onWireLetGoOverTheCanvas: vi.fn(),
     onNodeAskedFor: vi.fn(),
+    onNodeTypeDropped: vi.fn(),
     onNoteAskedFor: vi.fn(),
     onDeleted: vi.fn(),
     onFrameAskedFor: applied,
@@ -718,5 +720,46 @@ describe("a bundle pin", () => {
     const readOnly = drawnMix(true, null);
     await vi.waitFor(() => readOnly.container.querySelector('[data-node-graph-card="mix"]') ?? expect.unreachable("no card"));
     expect(readOnly.container.querySelector("[data-node-graph-bundle-open]")).toBeNull();
+  });
+});
+
+/** A drag's data as the browser holds it, nothing on it yet. */
+function dragHolding(): DataTransfer {
+  return new DataTransfer();
+}
+
+/** Fire `kind` on `element` carrying `dragged` itself, at `clientPoint`; whether the canvas left it to the browser. */
+function dragFired(element: HTMLElement, kind: "dragOver" | "drop", dragged: DataTransfer, clientPoint = { clientX: 0, clientY: 0 }): boolean {
+  const event = createEvent[kind](element, clientPoint);
+  Object.defineProperty(event, "dataTransfer", { value: dragged });
+  return fireEvent(element, event);
+}
+
+describe("a node type dragged onto the canvas", () => {
+  it("is taken while held over and placed where it is let go, a drag carrying no node type left to the browser", async () => {
+    const recorded = editingRecorded();
+    const { container } = drawnCanvas(recorded.editing);
+    const canvas = await vi.waitFor(() => container.querySelector<HTMLElement>("[data-node-graph-editable]") ?? expect.unreachable("no editable canvas"));
+    const carryingANodeType = dragHolding();
+    putTheNodeTypeOnTheDrag(carryingANodeType, "tatolab.stream:SetVariable");
+    expect(dragFired(canvas, "dragOver", carryingANodeType)).toBe(false);
+    expect(carryingANodeType.dropEffect).toBe("copy");
+    dragFired(canvas, "drop", carryingANodeType, { clientX: 120, clientY: 80 });
+    expect(recorded.editing.onNodeTypeDropped).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(recorded.editing.onNodeTypeDropped).mock.calls[0]?.[0]).toBe("tatolab.stream:SetVariable");
+
+    const carryingWords = dragHolding();
+    carryingWords.setData("text/plain", "tatolab.stream:SetVariable");
+    expect(dragFired(canvas, "dragOver", carryingWords)).toBe(true);
+    dragFired(canvas, "drop", carryingWords);
+    expect(recorded.editing.onNodeTypeDropped).toHaveBeenCalledTimes(1);
+  });
+
+  it("is not taken by a canvas that edits nothing", async () => {
+    const { container } = drawnCanvas(null);
+    const canvas = await vi.waitFor(() => container.querySelector<HTMLElement>('[data-node-graph-card="pattern"]')?.closest<HTMLElement>(".relative") ?? expect.unreachable("no canvas"));
+    const carryingANodeType = dragHolding();
+    putTheNodeTypeOnTheDrag(carryingANodeType, "tatolab.stream:SetVariable");
+    expect(dragFired(canvas, "dragOver", carryingANodeType)).toBe(true);
   });
 });
