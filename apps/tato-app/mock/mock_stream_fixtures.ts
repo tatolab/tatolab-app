@@ -180,7 +180,7 @@ export interface MockGraphNode {
   input_defaults?: Record<string, JsonValue>;
   /** The config fields it takes as inputs, each also one of `input_ports`. */
   exposed_config_fields?: string[];
-  /** Its settings, inputs that take no wire and are no port: its config's fields, which `set_node_input_value` sets in `config`. */
+  /** Its settings, held as its config's fields, which `set_node_input_value` sets in `config`: each one no port, or one of `input_ports` that reads the value its config holds, else the default its port reads. */
   settings?: string[];
   input_ports: MockGraphPort[];
   output_ports: MockGraphPort[];
@@ -394,9 +394,23 @@ const IMAGE_FILE_NOT_READY_NODE: MockGraphNode = {
 };
 
 /**
- * The fixture view's node, its picture wired from the folded lights, as a project's view stands in its stream's graph: its `fader`
- * output, which its panel writes, has an input of its name, a setting that takes no wire and holds no value until the panel sets one;
- * its manifest's `picture_fit` setting is a setting of the node, held in its config.
+ * The fixture view's manifest setting `picture_fit` as `graph` renders it first among its node's inputs: a Menu of the options its
+ * schema lists, read as the node is set up and taking no wire, reading the default its schema states while its config holds none.
+ */
+const PICTURE_FIT_SETTING_INPUT: MockGraphPort = {
+  name: "picture_fit",
+  family: "records",
+  stream_facts: null,
+  values_checked: null,
+  pin: { pin_type: { type: "menu", option_names: ["contain", "cover"] }, flow: "value" },
+  value_read: { value: "contain", comes_from: "default" },
+  takes_a_wire: false,
+};
+
+/**
+ * The fixture view's node, its picture wired from the folded lights, as a project's view stands in its stream's graph: its manifest's
+ * `picture_fit` setting comes first among its inputs, held in its config; its `fader` output, which its panel writes, has an input of
+ * its name, a setting that takes no wire and holds no value until the panel sets one.
  */
 const PICTURE_AND_FADER_VIEW_NODE: MockGraphNode = {
   name: "pictureandfader",
@@ -404,7 +418,7 @@ const PICTURE_AND_FADER_VIEW_NODE: MockGraphNode = {
   state: "Running",
   config: {},
   settings: ["picture_fit"],
-  input_ports: [...portsStatingNoStreamFacts("image", "picture"), { name: "fader", family: "array", stream_facts: null, values_checked: null, pin: null, value_read: { value: null, comes_from: null }, takes_a_wire: false }],
+  input_ports: [PICTURE_FIT_SETTING_INPUT, ...portsStatingNoStreamFacts("image", "picture"), { name: "fader", family: "array", stream_facts: null, values_checked: null, pin: null, value_read: { value: null, comes_from: null }, takes_a_wire: false }],
   output_ports: portsStatingNoStreamFacts("array", "fader"),
   is_a_value_source: true,
 };

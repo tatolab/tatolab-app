@@ -313,6 +313,27 @@ test("each_input_takes_a_wire_as_the_graph_marks_it_else_as_its_node_type_does_a
   expect(contents.nodes.find((node) => node.node_id === "variable")?.outputs.map((output) => [output.name, output.takes_a_wire])).toEqual([["value", true]]);
 });
 
+test("a_view_nodes_settings_which_the_graph_serves_first_among_its_inputs_take_no_wire_and_hold_a_value_though_no_description_describes_its_type", () => {
+  const graph = aStreamGraph(
+    [
+      graphNode("pictureandfader", [], [], {
+        type: "Pulse Stage:picture_and_fader",
+        inputs: [
+          aGraphPort("picture_fit", "records", { pin_type: { type: "menu", option_names: ["contain", "cover"] }, flow: "value", value: "contain", value_comes_from: "default", takes_a_wire: false }),
+          aGraphPort("picture", "image"),
+        ],
+      }),
+    ],
+    [],
+  );
+  const level = { project_folder: "/projects/demo", stream_asset: "stream-asset", level: [] };
+  const contents = streamGraphCanvasContents(graph, NONE_DESCRIBED, null, level, null, { stream: "main", graph: level });
+  expect(contents.nodes[0]?.inputs.map((input) => [input.name, input.takes_a_wire, input.value_address?.input ?? null, input.wire?.wiring.kind ?? null])).toEqual([
+    ["picture_fit", false, "picture_fit", null],
+    ["picture", true, null, "unwired"],
+  ]);
+});
+
 test("a_node_or_link_the_running_stream_does_not_hold_yet_is_drawn_not_live_and_each_diagnostic_shows_on_what_it_names", () => {
   const graphWithAnEditNotLive: StreamGraph = {
     ...GRAPH,

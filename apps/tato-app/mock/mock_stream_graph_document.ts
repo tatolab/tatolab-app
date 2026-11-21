@@ -67,6 +67,13 @@ function memberValuesAsTheRuntimeRendersThem(port: MockGraphPort, linksIntoThePo
   };
 }
 
+/** What the input `port` of `node` reads while unlinked: for one of its settings, the value its config holds, else the default the port reads, as the runtime renders a view's settings reading its node's config; for every other input, what the port reads. */
+function valueReadOfTheInput(node: Pick<MockGraphNode, "config" | "settings">, port: MockGraphPort): MockGraphPort {
+  const held = node.config[port.name];
+  if (node.settings?.includes(port.name) !== true || held === undefined || held === null) return port;
+  return { ...port, value_read: { value: held, comes_from: "saved" } };
+}
+
 /** A port's pin type and flow as the runtime renders them: both beside its family on a typed port, neither on an untyped one. */
 function pinAsTheRuntimeRendersIt(port: MockGraphPort): Pick<StreamGraphPort, "pin_type" | "flow"> {
   return port.pin === null ? {} : { pin_type: port.pin.pin_type, flow: port.pin.flow };
@@ -179,7 +186,7 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
             delivery_profile: "newest",
             ...(port.takes_a_wire === undefined ? {} : { takes_a_wire: port.takes_a_wire }),
             ...(port.member_reads === undefined
-              ? inputValueAsTheRuntimeRendersIt(linksInto(port).length > 0 ? { ...port, value_read: { value: null, comes_from: "wire" } } : port)
+              ? inputValueAsTheRuntimeRendersIt(linksInto(port).length > 0 ? { ...port, value_read: { value: null, comes_from: "wire" } } : valueReadOfTheInput(node, port))
               : memberValuesAsTheRuntimeRendersThem(port, linksInto(port))),
           })),
           outputs: node.output_ports.map((port) => ({ ...portAsTheRuntimeRendersIt(port), delivery_profile: null })),
