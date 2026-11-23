@@ -231,7 +231,6 @@ function recordedRefusal(recording: string, responseText: string): ProjectAction
   return projectActionRefusalOfTheContract(readOrFail(recording, controlContractRefusalOf(partOfTheRecordedResponse(recording, responseText, "refusal"))));
 }
 
-/** The runtime's refusal of a `connect` from the node not yet typed's Records output into a typed Float input of the sample. */
 /** The machine's audio inputs and output monitors as the control-plane stub lists them: a microphone, the default output's monitor and that output's own. */
 export const MOCK_RECORDED_AUDIO_CAPTURE_DEVICES: ListAudioCaptureDevicesToolResult = recordedResultOfTheContractType(
   "control-plane-stub-list-audio-capture-devices-result",
@@ -239,6 +238,7 @@ export const MOCK_RECORDED_AUDIO_CAPTURE_DEVICES: ListAudioCaptureDevicesToolRes
   "ListAudioCaptureDevicesToolResult",
 );
 
+/** The runtime's refusal of a `connect` from the node not yet typed's Records output into a typed Float input of the sample. */
 export const MOCK_RECORDED_REFUSAL_OF_A_LINK_OF_ANOTHER_TYPE: ProjectActionRefusal = recordedRefusal(
   "every-pin-kind-transact-refusal-for-a-records-output-into-a-float-input",
   transactRefusalForALinkOfAnotherType,

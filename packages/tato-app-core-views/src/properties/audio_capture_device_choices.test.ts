@@ -10,17 +10,17 @@ const STUB_DEVICES: AudioCaptureDeviceOnTheWire[] = [
 
 test("the menu offers Default input first, which unsets the device, then each device the runtime lists by its name, in its order", () => {
   expect(audioCaptureDeviceChoicesOf({ kind: "listed", devices: STUB_DEVICES }, null)).toEqual([
-    { words: DEFAULT_INPUT_WORDS, device_id: null, is_missing: false },
-    { words: "Stub Microphone", device_id: "stub-microphone", is_missing: false },
-    { words: "What the default output plays (now Monitor of Stub Speakers)", device_id: "@DEFAULT_MONITOR@", is_missing: false },
-    { words: "Monitor of Stub Speakers", device_id: "stub-speakers.monitor", is_missing: false },
+    { words: DEFAULT_INPUT_WORDS, device_id: null },
+    { words: "Stub Microphone", device_id: "stub-microphone" },
+    { words: "What the default output plays (now Monitor of Stub Speakers)", device_id: "@DEFAULT_MONITOR@" },
+    { words: "Monitor of Stub Speakers", device_id: "stub-speakers.monitor" },
   ]);
   expect(DEFAULT_INPUT_WORDS).toBe("Default input");
 });
 
 test("a saved device the machine does not list stays in the menu, last and marked as missing, and is the one chosen", () => {
   const choices = audioCaptureDeviceChoicesOf({ kind: "listed", devices: STUB_DEVICES }, "alsa_input.usb-gone.mono");
-  expect(choices.at(-1)).toEqual({ words: "alsa_input.usb-gone.mono (missing)", device_id: "alsa_input.usb-gone.mono", is_missing: true });
+  expect(choices.at(-1)).toEqual({ words: "alsa_input.usb-gone.mono (missing)", device_id: "alsa_input.usb-gone.mono" });
   expect(choices).toHaveLength(5);
   expect(chosenAudioCaptureDeviceChoice(choices, "alsa_input.usb-gone.mono")).toEqual(choices.at(-1));
 });
@@ -36,8 +36,8 @@ test("a saved device the machine lists is chosen by its name, and no device save
 test("while the devices are not listed, or their listing was refused, a saved device shows by its id, not marked as missing", () => {
   for (const devices of [{ kind: "not_listed_yet" }, { kind: "refused", because: "No runtime answers." }] as const) {
     expect(audioCaptureDeviceChoicesOf(devices, "stub-microphone")).toEqual([
-      { words: DEFAULT_INPUT_WORDS, device_id: null, is_missing: false },
-      { words: "stub-microphone", device_id: "stub-microphone", is_missing: false },
+      { words: DEFAULT_INPUT_WORDS, device_id: null },
+      { words: "stub-microphone", device_id: "stub-microphone" },
     ]);
   }
 });

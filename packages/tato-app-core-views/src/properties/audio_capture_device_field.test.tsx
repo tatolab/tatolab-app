@@ -1,5 +1,5 @@
 import type { TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import type { AudioCaptureDevicesReading, JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { AudioCaptureDevicesReading, JsonValue, ListedStreamsReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test } from "vitest";
@@ -28,17 +28,29 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-/** The field drawn holding `value`, over a connection answering `reading`, with each device chosen and each Default input recorded. */
-async function drawTheField(value: JsonValue | null, reading: AudioCaptureDevicesReading) {
+/**
+ * The field drawn holding `value`, over a connection answering each listing with the next of `readings`, the last again once
+ * they run out, with each device chosen and each Default input recorded, and the listed streams told as `tellTheListedStreams` says.
+ */
+async function drawTheField(value: JsonValue | null, ...readings: [AudioCaptureDevicesReading, ...AudioCaptureDevicesReading[]]) {
   const devicesChosen: string[] = [];
   let defaultsChosen = 0;
   let listingsAsked = 0;
-  const connection: Pick<TatoAppViewConnection, "listAudioCaptureDevices"> = {
+  const listedStreamsListeners: ((reading: ListedStreamsReading) => void)[] = [];
+  const connection: Pick<TatoAppViewConnection, "listAudioCaptureDevices" | "watchListedStreams"> = {
     listAudioCaptureDevices: async () => {
       listingsAsked += 1;
-      return reading;
+      return readings[Math.min(listingsAsked, readings.length) - 1] ?? readings[0];
+    },
+    watchListedStreams: (listener) => {
+      listedStreamsListeners.push(listener);
+      return () => undefined;
     },
   };
+  const tellTheListedStreams = (streamsReading: ListedStreamsReading) =>
+    act(async () => {
+      for (const listener of listedStreamsListeners) listener(streamsReading);
+    });
   const holder = document.createElement("div");
   document.body.append(holder);
   drawnRoot = createRoot(holder);
@@ -55,7 +67,7 @@ async function drawTheField(value: JsonValue | null, reading: AudioCaptureDevice
       />,
     );
   });
-  return { devicesChosen, defaultsChosen: () => defaultsChosen, listingsAsked: () => listingsAsked };
+  return { devicesChosen, defaultsChosen: () => defaultsChosen, listingsAsked: () => listingsAsked, tellTheListedStreams };
 }
 
 function theMenusTrigger(): HTMLElement {
@@ -114,4 +126,16 @@ test("a listing the runtime refuses shows its words under the menu, the saved de
   await drawTheField("stub-microphone", { kind: "not_listed", because: "list_audio_capture_devices failed: no runtime answers" });
   expect(theMenusTrigger().textContent).toBe("stub-microphone");
   expect(document.querySelector("[data-property-audio-capture-device-listing-refusal]")?.textContent).toContain("list_audio_capture_devices failed: no runtime answers");
+});
+
+test("a listing refused while the runtime was starting is asked again once it lists streams, and not on each listing after", async () => {
+  const drawn = await drawTheField(null, { kind: "not_listed", because: "No runtime answers." }, STUB_LISTING);
+  expect(document.querySelector("[data-property-audio-capture-device-listing-refusal]")?.textContent).toContain("No runtime answers.");
+  await drawn.tellTheListedStreams({ kind: "not_listed", because: "The runtime is starting." });
+  await drawn.tellTheListedStreams({ kind: "listed", streams: [] });
+  expect(drawn.listingsAsked()).toBe(2);
+  expect(document.querySelector("[data-property-audio-capture-device-listing-refusal]")).toBeNull();
+  expect((await openTheMenu()).map((entry) => entry.textContent)).toContain("Stub Microphone");
+  await drawn.tellTheListedStreams({ kind: "listed", streams: [] });
+  expect(drawn.listingsAsked()).toBe(2);
 });

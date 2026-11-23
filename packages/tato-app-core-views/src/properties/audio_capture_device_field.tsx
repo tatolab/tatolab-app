@@ -12,8 +12,9 @@ function devicesForTheDeviceMenuOf(reading: AudioCaptureDevicesReading | null): 
 }
 
 /**
- * The menu of a setting naming an audio capture device, the machine's devices listed once as it is drawn; read only without
- * `onDeviceChosen`. Choosing Default input unsets the setting, and choosing the entry held does nothing.
+ * The menu of a setting naming an audio capture device, the machine's devices listed as it is drawn and again each time the
+ * runtime lists streams after it did not, as once it has started; read only without `onDeviceChosen`. Choosing Default input
+ * unsets the setting, and choosing the entry held does nothing.
  */
 export function AudioCaptureDeviceFieldOfTheSetting({
   fieldId,
@@ -29,11 +30,21 @@ export function AudioCaptureDeviceFieldOfTheSetting({
   value: JsonValue | null;
   isTheTypesDefault: boolean;
   /** The view's connection to Studio, `null` where no project is open, which lists no device. */
-  connection: Pick<TatoAppViewConnection, "listAudioCaptureDevices"> | null;
+  connection: Pick<TatoAppViewConnection, "listAudioCaptureDevices" | "watchListedStreams"> | null;
   onDeviceChosen?: (deviceId: string) => void;
   onDefaultChosen?: () => void;
 }) {
   const [reading, setReading] = useState<AudioCaptureDevicesReading | null>(null);
+  const [listingsAsked, setListingsAsked] = useState(0);
+  useEffect(() => {
+    if (connection === null) return undefined;
+    let wasTheRuntimeListingStreams: boolean | null = null;
+    return connection.watchListedStreams((streamsReading) => {
+      const isTheRuntimeListingStreams = streamsReading.kind === "listed";
+      if (wasTheRuntimeListingStreams === false && isTheRuntimeListingStreams) setListingsAsked((asked) => asked + 1);
+      wasTheRuntimeListingStreams = isTheRuntimeListingStreams;
+    });
+  }, [connection]);
   useEffect(() => {
     if (connection === null) return undefined;
     let isStillDrawn = true;
@@ -43,7 +54,7 @@ export function AudioCaptureDeviceFieldOfTheSetting({
     return () => {
       isStillDrawn = false;
     };
-  }, [connection]);
+  }, [connection, listingsAsked]);
   const devices = devicesForTheDeviceMenuOf(reading);
   const choices = audioCaptureDeviceChoicesOf(devices, value);
   const chosen = chosenAudioCaptureDeviceChoice(choices, value);
