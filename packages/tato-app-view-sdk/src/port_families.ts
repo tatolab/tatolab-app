@@ -41,16 +41,17 @@ export const FAMILY_CARRYING_A_PIN_OF: Readonly<Record<BuiltInPinTypeName, PortF
   pin_type_choice: null,
 };
 
-/** The small types, each a value that rides a message that exists, as the runtime's `PinType::is_a_small_type` lists them. */
-const SMALL_PIN_TYPES: ReadonlySet<BuiltInPinTypeName> = new Set(["boolean", "integer", "float", "string", "menu", "color", "vector", "rectangle", "transform", "asset"]);
+/** The heavy types, which a bundle holds by reference in a Bundle frame, as the runtime's `PinType::is_a_heavy_type` lists them. */
+const HEAVY_PIN_TYPES: ReadonlySet<BuiltInPinTypeName> = new Set(["texture", "audio", "encoded_video", "encoded_audio"]);
 
-/** Whether a bundle member of `memberType` packs into a Records map: a small type, or a List of one. */
-function isASmallTypeOrAListOfOne(memberType: PinType): boolean {
-  return SMALL_PIN_TYPES.has(memberType.type) || (memberType.type === "list_of" && SMALL_PIN_TYPES.has(memberType.element_type.type));
+/** The family of the one message a whole value of `bundle` travels as, as the runtime's `PinType::the_message_a_bundle_travels_as` and `BundleMessage::its_family` find it: none for a Bundle frame, Array for an Array frame of Tensors, Records for a Records map. */
+function familyCarryingAWholeBundle(bundle: Extract<PinType, { type: "bundle" }>): PortFamily | null {
+  if (bundle.members.some(({ member_type }) => HEAVY_PIN_TYPES.has(member_type.type))) return null;
+  if (bundle.members.length > 0 && bundle.members.every(({ member_type }) => member_type.type === "tensor")) return "array";
+  return "records";
 }
 
-/** The family one message of which carries a whole value of `pinType`, as the runtime's `PortFamily::carrying_a_whole_value_of` finds it: Records for a bundle of small types and Lists of them, else the one `FAMILY_CARRYING_A_PIN_OF` names. */
+/** The family one message of which carries a whole value of `pinType`, as the runtime's `PortFamily::carrying_a_whole_value_of` finds it: for a bundle the family of the one message it travels as, else the one `FAMILY_CARRYING_A_PIN_OF` names. */
 export function familyCarryingAWholeValueOf(pinType: PinType): PortFamily | null {
-  if (pinType.type === "bundle") return pinType.members.every(({ member_type }) => isASmallTypeOrAListOfOne(member_type)) ? "records" : null;
-  return FAMILY_CARRYING_A_PIN_OF[pinType.type];
+  return pinType.type === "bundle" ? familyCarryingAWholeBundle(pinType) : FAMILY_CARRYING_A_PIN_OF[pinType.type];
 }

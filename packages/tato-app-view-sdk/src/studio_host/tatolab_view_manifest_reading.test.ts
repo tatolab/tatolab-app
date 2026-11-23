@@ -131,12 +131,18 @@ describe("readTatolabViewManifest", () => {
     });
   });
 
-  it("refuses a port of a bundle holding a Texture or Audio member, or of Tensors alone, which no Records message carries", () => {
+  it("reads a port of a bundle of only Tensors as Array, which carries it whole as one frame of an attribute for each member", () => {
+    const detections = { type: "bundle", members: [{ name: "boxes", member_type: { type: "tensor" } }, { name: "scores", member_type: { type: "tensor" } }] };
+    const detector = { ...STAGE_RIG_MANIFEST, contract: "1.1", inputs: [{ name: "detections", pin_type: detections }] };
+    expect(readTatolabViewManifest(detector)).toEqual({ kind: "read", manifest: { ...detector, inputs: [{ name: "detections", family: "array", pin_type: detections }] } });
+  });
+
+  it("refuses a port of a bundle holding a Texture, Audio or encoded member, which travels as a Bundle frame no family carries", () => {
     const withOutput = (members: unknown) => ({ ...STAGE_RIG_MANIFEST, contract: "1.1", outputs: [{ name: "framed", pin_type: { type: "bundle", members } }] });
     const refusal = "`outputs[0]`: `pin_type`: a bundle rides no message a view's port reads or writes; a view declares a port of a type a link carries.";
     expect(becauseOf(withOutput([{ name: "label", member_type: { type: "string" } }, { name: "picture", member_type: { type: "texture" } }]))).toBe(refusal);
     expect(becauseOf(withOutput([{ name: "level", member_type: { type: "float" } }, { name: "sound", member_type: { type: "audio" } }]))).toBe(refusal);
-    expect(becauseOf(withOutput([{ name: "weights", member_type: { type: "tensor" } }, { name: "biases", member_type: { type: "tensor" } }]))).toBe(refusal);
+    expect(becauseOf(withOutput([{ name: "weights", member_type: { type: "tensor" } }, { name: "clip", member_type: { type: "encoded_video" } }]))).toBe(refusal);
   });
 
   it("refuses a pin type the contract does not take at its field, and an output a panel writes of a type that holds no value", () => {
