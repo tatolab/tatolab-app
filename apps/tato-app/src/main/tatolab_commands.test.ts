@@ -26,7 +26,6 @@ test("the_status_and_a_log_page_serialize_exactly_as_the_window_reads_them", asy
           },
         ],
       }),
-      runtimeDescribedResponse("0.69.84+test.1"),
       controlWebSocketUpgradeRefusedWithWords(),
       runtimeDescribedResponse("0.69.84+test.1"),
     ],

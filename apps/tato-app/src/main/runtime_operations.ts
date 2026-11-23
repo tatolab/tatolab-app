@@ -59,7 +59,6 @@ import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTh
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
 import { projectViewsFromTheListProjectViewsToolResult, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { ContractMismatch, type RuntimeControlFailure } from "./runtime_control_failures.js";
-import { runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./runtime_description_on_the_wire.js";
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
   projectStreamActionQueuedFromTheToolResult,
@@ -364,17 +363,19 @@ export function createProject(projectDirectory: string | null): Effect.Effect<Pr
 
 /** How the running runtime describes itself through `describe_runtime`: its version, build, uptime and own log folder. */
 export function describeRuntime(): Effect.Effect<RuntimeDescription, RuntimeControlFailure, RuntimeControl> {
-  return controlOperationReadWith("describe_runtime", {}, runtimeDescriptionFromTheDescribeRuntimeToolResult);
+  return RuntimeControl.use((runtimeControl) => runtimeControl.call("describe_runtime", {})).pipe(
+    Effect.map((described) => ({
+      version: described.version,
+      build_id: described.build_id,
+      up_for_ms: Number(described.up_for_ms),
+      runtime_log_directory: described.runtime_log_directory ?? null,
+    })),
+  );
 }
 
 /** Whether the runtime is up: it answers `GET /health` with `200 ok`; another status is refused in the runtime's own words, and another body is not the contract's answer. */
 export function checkTheRuntimesHealth(): Effect.Effect<void, RuntimeControlFailure, RuntimeControl> {
   return restReadWith("/health", "the health answer", (body) => (body.trim() === "ok" ? succeeded(undefined) : failedWith(`the runtime answered /health with: ${body.trim()}`)));
-}
-
-/** This machine's name, as the runtime's `describe_runtime` names it. */
-export function readTheMachineName(): Effect.Effect<string, RuntimeControlFailure, RuntimeControl> {
-  return RuntimeControl.use((runtimeControl) => runtimeControl.call("describe_runtime", {})).pipe(Effect.map((runtimeDescription) => runtimeDescription.machine));
 }
 
 /** The close of the open project in `projectDirectory` queued through the runtime's `close_project`, which ends its playback and unloads every stream of it: the id of the action it queued. */

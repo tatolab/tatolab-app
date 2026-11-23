@@ -68,7 +68,6 @@ test("the published status walks starting, running, starting and not running as 
     runtimeNotAnsweringHealth(),
     runtimeHealthy(),
     oneStreamListed(),
-    runtimeDescribedResponse("0.69.84+test.1"),
     controlWebSocketUpgradeRefusedWithWords(),
     runtimeDescribedResponse("0.69.84+test.1"),
     runtimeHealthy(),
