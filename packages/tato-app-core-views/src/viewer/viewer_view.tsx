@@ -50,7 +50,7 @@ const ENDED_EXPLANATIONS: Record<PortViewerRecovery, string> = {
 };
 
 /** The picture, or the messages, the Node visualizer reads from a running node's output port. */
-function PortViewerPicture({
+export function PortViewerPicture({
   connection,
   target,
   nodeName,
@@ -85,20 +85,17 @@ function PortViewerPicture({
       if (shownKind !== "picture") show({ kind: "picture", format_wire_name: formatWireName });
     };
     const canvas = canvasRef.current;
-    const pictureDrawn =
-      canvas === null
-        ? null
-        : new LatestPortViewerPictureDrawnEachAnimationFrame(canvas, (picture, isDrawn) => {
-            if (isDrawn) showThePicture(picture.format_wire_name);
-            else if (shownKind !== "undrawable") show({ kind: "undrawable", format_wire_name: picture.format_wire_name });
-          });
+    if (canvas === null) return;
+    const pictureDrawn = new LatestPortViewerPictureDrawnEachAnimationFrame(canvas, (picture, isDrawn) => {
+      if (isDrawn) showThePicture(picture.format_wire_name);
+      else if (shownKind !== "undrawable") show({ kind: "undrawable", format_wire_name: picture.format_wire_name });
+    });
     const handleTheEvent = (event: PortViewerEvent) => {
       if (event.kind === "image_frame" || event.kind === "image_pixels") {
-        if (pictureDrawn !== null) pictureDrawn.drawOnTheNextAnimationFrame(event);
-        else if (event.kind === "image_frame") event.video_frame.close();
+        pictureDrawn.drawOnTheNextAnimationFrame(event);
         return;
       }
-      pictureDrawn?.dropTheWaitingPicture();
+      pictureDrawn.dropTheWaitingPicture();
       if (event.kind === "message") {
         messagesRead += 1 + event.skipped_since_last_read;
         if (event.reading.family === "packets") packetsUnitsSeen = packetsUnitsSeenWith(packetsUnitsSeen, event.reading);
@@ -113,12 +110,12 @@ function PortViewerPicture({
     };
     // Studio refuses only a watch it holds under the same id already, which opening again, under a new watch id, does not repeat.
     const stopWatching = connection.watchPortViewer({ stream, node_id, port }, handleTheEvent, (because) => {
-      pictureDrawn?.dropTheWaitingPicture();
+      pictureDrawn.dropTheWaitingPicture();
       show({ kind: "ended", because, recovery: "open_the_port_again" });
     });
     return () => {
       stopWatching();
-      pictureDrawn?.dropTheWaitingPicture();
+      pictureDrawn.dropTheWaitingPicture();
     };
   }, [connection, stream, node_id, port, timesOpenedAgain]);
   const isAPicture = shown.kind === "picture";

@@ -24,10 +24,12 @@ export function drawThePortViewerFrame(canvas: HTMLCanvasElement, videoFrame: Vi
   drawing.drawImage(videoFrame, 0, 0);
 }
 
-/** Draw `pixels`, rows of `bytesPerRow` in a four-byte BGRA or RGBA format, onto `canvas`; `false` for any other format. */
+/** Draw `pixels`, rows of `bytesPerRow` in a four-byte BGRA or RGBA format, onto `canvas`; `false` for any other format, or for pixels too few to reach the end of the last row. */
 export function drawThePortViewerPixels(canvas: HTMLCanvasElement, width: number, height: number, formatWireName: string, bytesPerRow: number, pixels: Uint8Array): boolean {
   const isBgra = BGRA_BYTE_ORDER_FORMAT_WIRE_NAMES.has(formatWireName);
   if (!isBgra && !RGBA_BYTE_ORDER_FORMAT_WIRE_NAMES.has(formatWireName)) return false;
+  const rowByteLength = width * 4;
+  if (pixels.length < (height - 1) * bytesPerRow + rowByteLength) return false;
   const drawing = canvas.getContext("2d");
   if (drawing === null) return false;
   let imageData = imageDataReusedByEachCanvas.get(canvas);
@@ -35,10 +37,9 @@ export function drawThePortViewerPixels(canvas: HTMLCanvasElement, width: number
     imageData = new ImageData(width, height);
     imageDataReusedByEachCanvas.set(canvas, imageData);
   }
-  const rowByteLength = width * 4;
   for (let row = 0; row < height; row += 1) {
     const rowStart = row * bytesPerRow;
-    imageData.data.set(pixels.subarray(rowStart, Math.min(rowStart + rowByteLength, pixels.length)), row * rowByteLength);
+    imageData.data.set(pixels.subarray(rowStart, rowStart + rowByteLength), row * rowByteLength);
   }
   if (isBgra) {
     // Each pixel read as one little-endian word holds blue in its low byte and red in its third, so swapping those two makes it RGBA; every machine Studio runs on is little-endian.

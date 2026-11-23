@@ -88,6 +88,14 @@ test("a_format_of_another_byte_order_is_not_drawn", () => {
   expect(picturesPut).toEqual([]);
 });
 
+test("pixels_shorter_than_their_last_row_reaches_are_not_drawn_so_no_row_of_the_picture_before_shows", () => {
+  const { canvas, picturesPut } = aCanvasCountingItsResizes();
+  const twoRowsOfOnePixelAtAStrideOfEight = 8 + 4;
+  expect(drawThePortViewerPixels(canvas, 1, 2, "bgra32", 8, new Uint8Array(twoRowsOfOnePixelAtAStrideOfEight - 1))).toBe(false);
+  expect(drawThePortViewerPixels(canvas, 1, 2, "rgba32", 8, new Uint8Array(twoRowsOfOnePixelAtAStrideOfEight))).toBe(true);
+  expect(picturesPut).toHaveLength(1);
+});
+
 function picturePixels(formatWireName: string, skippedSinceLastRead: number): PortViewerPicture {
   return { kind: "image_pixels", width: 1, height: 1, format_wire_name: formatWireName, bytes_per_row: 4, pixels: new Uint8Array(4), skipped_since_last_read: skippedSinceLastRead };
 }
