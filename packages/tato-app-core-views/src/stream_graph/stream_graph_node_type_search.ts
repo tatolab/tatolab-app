@@ -134,6 +134,7 @@ function nodePinOfTheDescribedPort(port: NodeTypePortDescribed): NodePin {
     takes_a_wire: true,
     wire: null,
     link: null,
+    slot: null,
   };
 }
 

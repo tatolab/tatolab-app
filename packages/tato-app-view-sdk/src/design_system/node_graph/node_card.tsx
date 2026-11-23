@@ -1,11 +1,11 @@
 import { Handle, Position, useStore, useStoreApi, type NodeProps } from "@xyflow/react";
 import { cn } from "cn";
-import { ChevronDown, ChevronRight, Hammer, SquareX, TriangleAlert, type LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronRight, Hammer, Minus, Plus, SquareX, TriangleAlert, type LucideIcon } from "lucide-react";
 import { Fragment, memo, useContext, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from "react";
 import { inputAddressKey, type InputAddress } from "../../pin_model/node_inputs";
 import { nodeOfABody, takesAControl } from "../../pin_model/controlled_inputs";
 import { freeConversionWords } from "../../pin_model/node_input_link";
-import { doesAChangeRebuildTheNode, nodePinLabel, nodePinRowKey, nodePinRows, nodePinsShown, type NodePin } from "../../pin_model/node_pins";
+import { doesAChangeRebuildTheNode, nodePinLabel, nodePinRowKey, nodePinRows, nodePinsShown, nodePinWordsBesideItsSlot, pinGroupSlotWords, type NodePin, type NodePinRow } from "../../pin_model/node_pins";
 import { valueWords, wordsOfAValueOfNoType } from "../../pin_model/value_words";
 import type { PinFlow, PinType } from "../../pin_type_readings";
 import { pinTypeKey, pinTypeWords, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
@@ -20,9 +20,9 @@ import { type NodeGraphCardFlowNode, type NodeGraphFlowNode, type NodeGraphLinkF
 import { NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT, NODE_GRAPH_CARD_HEADER_HEIGHT, NODE_GRAPH_CARD_PIN_ROWS_PADDING, NODE_GRAPH_PIN_ROW_HEIGHT } from "../support/node_graph_layout";
 import { isAPinSocketOfTheCardUnmeasured } from "../support/node_graph_pin_socket_measurement";
 
-/** What a pin shows while the pointer rests on it: its name, its type and flow in words and the facts of its stream, then its description, then what the runtime marks on the link that feeds it: a conversion it makes for free, naming both types, and each warning in the runtime's words. */
+/** What a pin shows while the pointer rests on it: its name, beside its slot on a pin of a pin group, its type and flow in words and the facts of its stream, then its description, then what the runtime marks on the link that feeds it: a conversion it makes for free, naming both types, and each warning in the runtime's words. */
 function nodeGraphPinTooltip(pin: NodePin): string {
-  const facts = [pin.name, pinWords(pin.pin), ...pin.stream_facts_words].join(" · ");
+  const facts = [nodePinWordsBesideItsSlot(pin), pinWords(pin.pin), ...pin.stream_facts_words].join(" · ");
   const freeConversion = freeConversionWords(pin.link, pin.pin);
   return [facts, pin.description, freeConversion, ...(pin.link?.warnings ?? []).map((warning) => warning.words)].filter((line) => line !== null).join("\n");
 }
@@ -80,6 +80,7 @@ function NodeGraphPinSocket({
       data-linked={isLinked || undefined}
       data-bundle={pin.bundle === null ? undefined : pin.bundle.is_open ? "open" : "closed"}
       data-converts-for-free-from={wireTypeKeyOfAFreeConversion ?? undefined}
+      data-empty-slot={pin.slot?.is_the_empty_slot === true || undefined}
     >
       {wireTypeKeyOfAFreeConversion !== null && <span aria-hidden className="node-graph-pin-wire-ring" data-pin-type={wireTypeKeyOfAFreeConversion} />}
     </Handle>
@@ -175,6 +176,69 @@ function takesASocket(pin: Pick<NodePin, "takes_a_wire">): boolean {
   return pin.takes_a_wire;
 }
 
+/** Whether `row` is the first of its pin group's slot among `rows`, which carries the slot's tag; false on a row of no group. */
+function isTheFirstRowOfItsSlot(rows: readonly NodePinRow[], index: number): boolean {
+  const slot = rows[index]?.node_pin.slot;
+  if (slot === null || slot === undefined) return false;
+  const before = rows[index - 1]?.node_pin.slot;
+  return before === null || before === undefined || before.group !== slot.group || before.slot !== slot.slot || rows[index - 1]?.side !== rows[index]?.side;
+}
+
+/** Whether no row above this one on the card belongs to its slot, so a slot whose pins sit on both sides carries its buttons once. */
+function isTheFirstRowOfItsSlotOnTheCard(rows: readonly NodePinRow[], index: number): boolean {
+  const slot = rows[index]?.node_pin.slot;
+  if (slot === null || slot === undefined) return false;
+  return !rows.slice(0, index).some((row) => row.node_pin.slot?.group === slot.group && row.node_pin.slot.slot === slot.slot);
+}
+
+/** The tag leading the first row of a pin group's slot: its number, counted from 1, naming the slot while the pointer rests on it, dimmed on the empty slot a wire fills. */
+function NodeGraphPinGroupSlotTag({ pin }: { pin: NodePin }) {
+  if (pin.slot === null) return null;
+  const words = pinGroupSlotWords(pin.slot);
+  return (
+    <span
+      className={cn("node-graph-pin-group-slot-tag shrink-0 rounded-sm bg-well px-1 text-[10px] leading-4 tabular-nums", pin.slot.is_the_empty_slot ? "text-fg-3" : "text-fg-2")}
+      title={words}
+      aria-label={words}
+      data-node-graph-slot-tag={words}
+    >
+      {pin.slot.slot + 1}
+    </span>
+  );
+}
+
+/** The most slots a group whose count is set holds, as the runtime bounds its count input. */
+const MOST_SLOTS_OF_A_GROUP_WHOSE_COUNT_IS_SET = 64;
+
+/**
+ * The buttons after the tag of the last slot of a pin group whose count is set: one adding a slot after it and one removing it,
+ * each one commit of the group's count input, so each is one Undo step; none on any other slot, on a group that follows its wires,
+ * and where the count is wired or the canvas takes no edits. The runtime decides the slots from the count, and the card draws what
+ * it then serves.
+ */
+function NodeGraphPinGroupSlotButtons({ graphNode, pin }: { graphNode: Pick<NodeGraphCanvasNode, "inputs" | "outputs">; pin: NodePin }) {
+  const isEditable = useContext(NodeGraphEditableContext);
+  const inputValues = useContext(NodeGraphInputValuesContext);
+  const slot = pin.slot;
+  if (slot === null || slot.slots !== "set_by_the_input_of_the_groups_name" || !isEditable || inputValues === null) return null;
+  const slotCount = 1 + Math.max(...[...graphNode.inputs, ...graphNode.outputs].map((other) => (other.slot?.group === slot.group ? other.slot.slot : -1)));
+  if (slot.slot !== slotCount - 1) return null;
+  const countAddress = graphNode.inputs.find((input) => input.name === slot.group && input.slot === null)?.value_address ?? null;
+  if (countAddress === null) return null;
+  const setTheCount = (count: number) => inputValues.beginGesture(countAddress, "commit").release(count);
+  const buttonClassNames = cn("nodrag flex size-4 shrink-0 items-center justify-center rounded-sm text-fg-3 outline-none hover:bg-hover hover:text-fg disabled:opacity-40", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES);
+  return (
+    <>
+      <button type="button" className={buttonClassNames} aria-label={`Add ${pinGroupSlotWords({ group: slot.group, slot: slotCount })}`} title={`Add ${pinGroupSlotWords({ group: slot.group, slot: slotCount })}`} disabled={slotCount >= MOST_SLOTS_OF_A_GROUP_WHOSE_COUNT_IS_SET} onClick={() => setTheCount(slotCount + 1)} data-node-graph-add-slot={slot.group}>
+        <Plus className="size-3" strokeWidth={2} aria-hidden />
+      </button>
+      <button type="button" className={buttonClassNames} aria-label={`Remove ${pinGroupSlotWords(slot)}`} title={`Remove ${pinGroupSlotWords(slot)}`} disabled={slotCount <= 1} onClick={() => setTheCount(slotCount - 1)} data-node-graph-remove-slot={slot.group}>
+        <Minus className="size-3" strokeWidth={2} aria-hidden />
+      </button>
+    </>
+  );
+}
+
 /** What a card's header and pin rows draw of a node. */
 type NodeGraphCardFaceNode = Pick<NodeGraphCanvasNode, "title" | "type_name" | "description" | "condition" | "inputs" | "outputs" | "is_collapsed" | "kind">;
 
@@ -185,6 +249,7 @@ function NodeGraphCardHeaderAndPinRows({
   aboveTheRows = null,
   socketOfThePin,
   beforeABundlesName = () => null,
+  afterASlotsTag = () => null,
 }: {
   graphNode: NodeGraphCardFaceNode;
   /** What leads the header, as the canvas's button that collapses the card. */
@@ -195,6 +260,8 @@ function NodeGraphCardHeaderAndPinRows({
   socketOfThePin: (side: "input" | "output", pin: NodePin, takesNewWires: boolean) => ReactNode;
   /** What leads a bundle pin's row, as the canvas's button that shows or folds its members. */
   beforeABundlesName?: (side: "input" | "output", pin: NodePin) => ReactNode;
+  /** What follows the tag of a pin group's slot on its first row, as the canvas's buttons that add a slot to a group whose count is set and remove its last. */
+  afterASlotsTag?: (pin: NodePin) => ReactNode;
 }) {
   const rows = nodePinRows(nodePinsShown(graphNode.inputs), nodePinsShown(graphNode.outputs));
   return (
@@ -222,15 +289,26 @@ function NodeGraphCardHeaderAndPinRows({
       {!graphNode.is_collapsed && aboveTheRows}
       {!graphNode.is_collapsed && rows.length > 0 && (
         <div style={{ paddingBlock: NODE_GRAPH_CARD_PIN_ROWS_PADDING }}>
-          {rows.map((row) => (
+          {rows.map((row, index) => (
             <div
               key={`${row.side}:${nodePinRowKey(row.node_pin)}`}
-              className={cn("relative flex items-center px-3 py-0.5 text-2xs text-fg-2", row.side === "output" && "justify-end", row.node_pin.member !== null && (row.side === "input" ? "pl-6" : "pr-6"))}
+              className={cn(
+                "relative flex items-center px-3 py-0.5 text-2xs text-fg-2",
+                row.side === "output" && "justify-end",
+                row.node_pin.member !== null && (row.side === "input" ? "pl-6" : "pr-6"),
+                row.node_pin.slot !== null && "gap-1",
+                row.node_pin.slot?.is_the_empty_slot === true && "text-fg-3",
+              )}
               style={{ minHeight: NODE_GRAPH_PIN_ROW_HEIGHT }}
               data-node-graph-pin-row={row.side}
               data-node-graph-setting={row.node_pin.setting === null ? undefined : row.node_pin.setting.read}
               data-node-graph-member={row.node_pin.member ?? undefined}
+              data-node-graph-pin-group={row.node_pin.slot?.group}
+              data-node-graph-slot={row.node_pin.slot?.slot}
+              data-node-graph-empty-slot={row.node_pin.slot?.is_the_empty_slot === true || undefined}
             >
+              {row.side === "input" && isTheFirstRowOfItsSlot(rows, index) && <NodeGraphPinGroupSlotTag pin={row.node_pin} />}
+              {row.side === "input" && isTheFirstRowOfItsSlotOnTheCard(rows, index) && afterASlotsTag(row.node_pin)}
               {row.side === "input" && row.node_pin.bundle !== null && beforeABundlesName(row.side, row.node_pin)}
               <span
                 className={cn("truncate", row.side === "output" && "text-right")}
@@ -240,6 +318,8 @@ function NodeGraphCardHeaderAndPinRows({
                 {nodePinLabel(row.node_pin)}
               </span>
               {row.side === "output" && row.node_pin.bundle !== null && beforeABundlesName(row.side, row.node_pin)}
+              {row.side === "output" && isTheFirstRowOfItsSlotOnTheCard(rows, index) && afterASlotsTag(row.node_pin)}
+              {row.side === "output" && isTheFirstRowOfItsSlot(rows, index) && <NodeGraphPinGroupSlotTag pin={row.node_pin} />}
               <NodeGraphFreeConversionWordsForAScreenReader pin={row.node_pin} />
               <NodeGraphRebuildsTheNodeMark pin={row.node_pin} />
               <NodeGraphLinkWarningMark pin={row.node_pin} />
@@ -327,6 +407,7 @@ export function NodeGraphCardView({ id, data, selected: isSelected }: NodeProps<
         aboveTheRows={bodysNode !== null && <NodeBodyMount node={bodysNode} readOnly={!isEditable} />}
         socketOfThePin={(side, pin, takesNewWires) => <NodeGraphPinSocket nodeId={graphNode.node_id} side={side} pin={pin} takesNewWires={takesNewWires} />}
         beforeABundlesName={(side, pin) => cardAndFrameEditing !== null && <NodeGraphBundleOpenButton nodeId={graphNode.node_id} side={side} pin={pin} onBundleOpened={cardAndFrameEditing.onBundleOpened} />}
+        afterASlotsTag={(pin) => <NodeGraphPinGroupSlotButtons graphNode={graphNode} pin={pin} />}
       />
       {failureWords !== null && !graphNode.is_collapsed && (
         <p

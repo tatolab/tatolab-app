@@ -114,6 +114,8 @@ g[data-pin-type="untyped"] { --node-graph-pin-colour: var(--studio-graph-link); 
 }
 .node-graph-canvas .react-flow__handle.node-graph-pin[data-linked],
 .node-graph-pin-mark { background: var(--node-graph-pin-colour, var(--studio-graph-pin)); }
+/* The empty slot of a pin group that follows its wires: a dashed socket, which a wire dropped on it fills. */
+.node-graph-canvas .react-flow__handle.node-graph-pin[data-empty-slot]:not([data-linked]) { border-style: dashed; opacity: 0.5; }
 .node-graph-canvas .react-flow__handle.node-graph-pin[data-pin-flow="stream"],
 .node-graph-pin-of-a-preview[data-pin-flow="stream"],
 .node-graph-pin-mark[data-pin-flow="stream"] { border-radius: 2px; }

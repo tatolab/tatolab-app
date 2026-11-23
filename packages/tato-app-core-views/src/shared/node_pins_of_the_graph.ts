@@ -7,7 +7,7 @@
 import { wiringOfTheInput } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
 import { membersOfTheBundle, nodeInputLinkOfTheGraph, pinOfTheEnd } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
 import { valueAddressOfTheInput, valueAddressOfTheMember, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import { doesTheInputPortTakeAWire, exactPinOfTheDeclaredPort, openBundlesOfTheMetadata, settingOfTheDescribedInput, type NodePin, type NodePinBundle, type NodePinWire } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import { doesTheInputPortTakeAWire, exactPinOfTheDeclaredPort, openBundlesOfTheMetadata, settingOfTheDescribedInput, type NodePin, type NodePinBundle, type NodePinSlot, type NodePinWire } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { settingsOfTheNodeNotAmongItsPorts } from "@tatolab/tato-app-view-sdk/pin_model/node_settings";
 import {
   familyOfThePort,
@@ -64,6 +64,7 @@ function nodePinOfTheSettingNotAmongThePorts(node: Pick<StreamGraphNode, "id">, 
     wire: null,
     link: null,
     bundle: null,
+    slot: null,
   };
 }
 
@@ -71,6 +72,19 @@ function nodePinOfTheSettingNotAmongThePorts(node: Pick<StreamGraphNode, "id">, 
 function bundleOfThePin(whole: Pick<NodePin, "name" | "pin">, openNames: readonly string[], memberRow: (member: string) => NodePin): NodePinBundle | null {
   const members = membersOfTheBundle(whole.pin);
   return whole.pin?.pin_type.type === "bundle" ? { members: members.map(memberRow), is_open: openNames.includes(whole.name) } : null;
+}
+
+/**
+ * The slot of a pin group `port` of `node` is in, as the runtime serves it, its group holding its slots as `described`, its node
+ * type's description, says; `null` on a port of no group. The empty slot of a group that follows its wires is the last the runtime
+ * serves of it, which it keeps empty.
+ */
+function slotOfThePort(node: Pick<StreamGraphNode, "ports">, described: Pick<NodeTypeDescription, "pin_groups"> | undefined, port: Pick<StreamGraphPort, "pin_group_slot">): NodePinSlot | null {
+  const served = port.pin_group_slot;
+  if (served === undefined || served === null) return null;
+  const slots = described?.pin_groups?.find((group) => group.name === served.group)?.slots ?? "follow_their_wires";
+  const lastSlot = Math.max(...[...node.ports.inputs, ...node.ports.outputs].map((other) => (other.pin_group_slot?.group === served.group ? other.pin_group_slot.slot : -1)));
+  return { group: served.group, slot: served.slot, pin: served.pin, slots, is_the_empty_slot: slots === "follow_their_wires" && served.slot === lastSlot };
 }
 
 /** Where Studio reads the wires into a node's inputs: the stream whose port viewers it reads, and the level of its graph, its own; `null` where it reads none. */
@@ -124,6 +138,7 @@ export function nodeInputs(
       wire: null,
       link: nodeInputLinkOfTheGraph(graph, node.name, port.name, member),
       bundle: null,
+      slot: null,
     });
     return {
       name: port.name,
@@ -138,6 +153,7 @@ export function nodeInputs(
       wire: wireIntoTheInput(graph, node, port, takesAWire, wiresAt),
       link: nodeInputLinkOfTheGraph(graph, node.name, port.name, null),
       bundle: bundleOfThePin({ name: port.name, pin }, openInputs, memberRow),
+      slot: slotOfThePort(node, described, port),
     };
   });
   const settingsNotAmongThePorts = settingsOfTheNodeNotAmongItsPorts(described, node).map((setting) => nodePinOfTheSettingNotAmongThePorts(node, setting, valuesAt));
@@ -163,6 +179,7 @@ export function nodeOutputs(node: StreamGraphNode, described: NodeTypeDescriptio
       wire: null,
       link: null,
       bundle: null,
+      slot: null,
     });
     return {
       name: port.name,
@@ -177,6 +194,7 @@ export function nodeOutputs(node: StreamGraphNode, described: NodeTypeDescriptio
       wire: null,
       link: null,
       bundle: bundleOfThePin({ name: port.name, pin }, openOutputs, memberRow),
+      slot: slotOfThePort(node, described, port),
     };
   });
 }

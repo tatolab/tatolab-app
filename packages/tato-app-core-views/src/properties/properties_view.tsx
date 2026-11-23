@@ -19,7 +19,7 @@ import {
   useWhereTheInputsValueComesFrom,
   type OwnFieldOfTheInput,
 } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
-import type { NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
+import { nodePinWordsBesideItsSlot, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
@@ -430,7 +430,7 @@ function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin
   return (
     <PropertyPortRow
       direction="input"
-      portName={pin.name}
+      portName={nodePinWordsBesideItsSlot(pin)}
       searchWords={searchWords}
       typeWords={typeWordsOfThePin(pin)}
       pinMark={<NodeGraphPinMarkSlot pin={pin.pin} takesAWire={pin.takes_a_wire} />}
@@ -537,7 +537,7 @@ function OutputRowOfTheNode({ pin, port, bandShade, graph, node, searchWords }: 
   return (
     <PropertyPortRow
       direction="output"
-      portName={pin.name}
+      portName={nodePinWordsBesideItsSlot(pin)}
       searchWords={searchWords}
       typeWords={typeWordsOfThePin(pin)}
       pinMark={<NodeGraphPinMark pin={pin.pin} />}
