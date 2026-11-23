@@ -12,6 +12,7 @@ import type {
   ProjectLogReading,
   ProjectAssetsImporting,
   AssetPreviewReading,
+  AudioCaptureDevicesReading,
   ProjectAssetsReading,
   ProjectTransactionApplying,
   ProjectStreamsRecovery,
@@ -166,6 +167,8 @@ export interface StudioViewHostServices {
   relocateAssetInTheProject(projectFolder: string, asset: string, toPath: string): Promise<ProjectChanging>;
   /** The preview picture of the asset `asset` of the window's project, when `projectFolder` names it; refused for any other folder, or in the runtime's own words. */
   readAssetPreviewInTheProject(projectFolder: string, asset: string): Promise<AssetPreviewReading>;
+  /** The machine's audio inputs and the monitors of its outputs, listed afresh by the runtime, or why they were not listed, in its own words. */
+  listAudioCaptureDevices(): Promise<AudioCaptureDevicesReading>;
   /** Stop tracking the asset `asset` of the window's project, when `projectFolder` names it, by the person editing, the project's assets listed again at once; refused for any other folder, or in the runtime's own words. */
   deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ProjectChanging>;
   /** File the node type `nodeType` of the window's project, when `projectFolder` names it, under `group`, a `/`-separated path, or with `null` put it back where an import or its author files it, by the person editing, the project's node types listed again at once; refused for any other folder, or in the runtime's own words. */

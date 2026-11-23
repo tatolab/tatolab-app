@@ -8,6 +8,7 @@ import type {
   ListedStream,
   DescribeNodeTypesToolResult,
   ListNodeTypesToolResult,
+  ListAudioCaptureDevicesToolResult,
   ProjectCreationQueued,
   ProjectDependency,
   ProjectTheRuntimeNames,
@@ -111,6 +112,11 @@ export function describeStreamGraph(stream: string): Effect.Effect<StreamGraph, 
 /** The node types the project in `projectDirectory` offers, by source, the runtime's `list_node_types` answer passed on as the contract types it. */
 export function listNodeTypes(projectDirectory: string): Effect.Effect<ListNodeTypesToolResult, RuntimeControlFailure, RuntimeControl> {
   return RuntimeControl.use((runtimeControl) => runtimeControl.call("list_node_types", { project_directory: projectDirectory }));
+}
+
+/** The machine's audio inputs and the monitors of its outputs, the backend's default first, the runtime's `list_audio_capture_devices` answer passed on as the contract types it. */
+export function listAudioCaptureDevices(): Effect.Effect<ListAudioCaptureDevicesToolResult, RuntimeControlFailure, RuntimeControl> {
+  return RuntimeControl.use((runtimeControl) => runtimeControl.call("list_audio_capture_devices", {}));
 }
 
 /** Each of `nodeTypes`, as the project in `projectDirectory` lists them, described or with why not, the runtime's `describe_node_types` answer passed on as the contract types it. */

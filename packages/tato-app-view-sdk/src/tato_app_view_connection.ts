@@ -22,6 +22,7 @@ import type {
   ProjectLogReading,
   ProjectAssetsImporting,
   AssetPreviewReading,
+  AudioCaptureDevicesReading,
   ProjectAssetsReading,
   ProjectTransactionApplying,
   ProjectStreamsRecovery,
@@ -178,6 +179,8 @@ export interface TatoAppViewConnection {
   readAssetPreviewInTheProject(projectFolder: string, asset: string): Promise<AssetPreviewReading>;
   /** Stop tracking the asset `asset` of the project, its file leaving it, by the person editing; refused in the runtime's own words, as while a stream's graph document references it. */
   deleteAssetFromTheProject(projectFolder: string, asset: string): Promise<ViewAskDone>;
+  /** The machine's audio inputs and the monitors of its outputs, each by the id a Microphone Source's `device_id` takes, the backend's default first, or why they were not listed. */
+  listAudioCaptureDevices(): Promise<AudioCaptureDevicesReading>;
   /** File the node type `nodeType`, as the project lists it, under `group`, a `/`-separated path such as `Effects/Stylize`, a group no node type is filed under made by filing it there, by the person editing, one edit Undo takes back; `null` puts it back where an import or its author files it. Refused in the runtime's own words, as for a group with a blank name in it. */
   setNodeTypeGroupInTheProject(projectFolder: string, nodeType: string, group: string | null): Promise<ViewAskDone>;
   /** Recover the project's streams with `recovery`: their playback stopped and started again, or every stream of the project read again from disk; answered once asked, refused in Studio's or the runtime's own words. */
@@ -373,6 +376,11 @@ export function connectToTatoAppOverPort(port: MessagePort): Promise<TatoAppView
           return { kind: "not_read", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
         }),
       deleteAssetFromTheProject: (projectFolder, asset) => ask({ kind: "delete_asset_from_the_project", project_folder: projectFolder, asset }).then(doneOf),
+      listAudioCaptureDevices: () =>
+        ask({ kind: "list_audio_capture_devices" }).then((answer): AudioCaptureDevicesReading => {
+          if (answer.kind === "audio_capture_devices_listed") return { kind: "listed", listing: answer.listing };
+          return { kind: "not_listed", because: answer.kind === "refused" ? answer.because : `Tato Studio answered with ${answer.kind}.` };
+        }),
       setNodeTypeGroupInTheProject: (projectFolder, nodeType, group) =>
         ask({ kind: "set_node_type_group_in_the_project", project_folder: projectFolder, node_type: nodeType, group }).then(doneOf),
       recoverTheProjectsStreams: (projectFolder, recovery) => ask({ kind: "recover_the_projects_streams", project_folder: projectFolder, recovery }).then(doneOf),

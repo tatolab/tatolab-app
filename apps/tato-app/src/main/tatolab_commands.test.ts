@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "vitest";
-import { controlOperationFailedResponse, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords, runtimeDescribedResponse } from "./fake_local_api_server.js";
+import { readFile } from "node:fs/promises";
+import { controlOperationFailedResponse, controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationResultResponse, controlWebSocketUpgradeRefusedWithWords, runtimeDescribedResponse } from "./fake_local_api_server.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import { cleanUpTheFakesTheLastTestMade, commandHandlersOver, FROM_THE_PROJECTS_WINDOW, sharedStateOverFakes } from "./tatolab_commands_test_support.js";
 
@@ -133,4 +134,25 @@ test("each command answers the window in the contract's shape, a refusal in its 
       'read_project_log_records: Missing key\n  at ["project_directory"]',
   });
   expect(await commandHandlers.describe_stream_graph(null, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "describe_stream_graph: Expected object" });
+});
+
+test("the machine's audio capture devices reach the window key for key as the runtime listed them, and its refusal in its own words", async () => {
+  const recording = await readFile(new URL("../../mock/recordings/control-plane-stub-list-audio-capture-devices-result.json", import.meta.url), "utf8");
+  const listingRefusal = "list_audio_capture_devices failed: the audio backend could not be probed";
+  const sharedState = await sharedStateOverFakes([controlOperationResponseOfTheRecordedToolResponse(recording), controlOperationFailedResponse(listingRefusal)], "linux");
+  const commandHandlers = commandHandlersOver(sharedState);
+
+  const listed = await commandHandlers.list_audio_capture_devices(undefined, FROM_THE_PROJECTS_WINDOW);
+  expect(JSON.stringify(listed)).toBe(
+    '{"ok":true,"value":{"audio_backend":"stub-audio","devices":[' +
+      '{"id":"stub-microphone","name":"Stub Microphone","kind":"input"},' +
+      '{"id":"@DEFAULT_MONITOR@","name":"What the default output plays (now Monitor of Stub Speakers)","kind":"output_monitor"},' +
+      '{"id":"stub-speakers.monitor","name":"Monitor of Stub Speakers","kind":"output_monitor"}]}}',
+  );
+  expect(await commandHandlers.list_audio_capture_devices(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: listingRefusal });
+  expect(await commandHandlers.list_audio_capture_devices({ device: "x" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: expect.stringMatching(/^list_audio_capture_devices: /) });
+  expect(sharedState.localApiControlOperationCallsReceived()).toEqual([
+    ["list_audio_capture_devices", {}],
+    ["list_audio_capture_devices", {}],
+  ]);
 });

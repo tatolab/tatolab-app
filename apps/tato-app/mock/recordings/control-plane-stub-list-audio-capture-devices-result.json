@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"audio_backend":"stub-audio","devices":[{"id":"stub-microphone","name":"Stub Microphone","kind":"input"},{"id":"@DEFAULT_MONITOR@","name":"What the default output plays (now Monitor of Stub Speakers)","kind":"output_monitor"},{"id":"stub-speakers.monitor","name":"Monitor of Stub Speakers","kind":"output_monitor"}]}}

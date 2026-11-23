@@ -12,7 +12,9 @@
 // one node with bundle pins, two nodes linked by a named type and a setting a link feeds, which no
 // recording carries, each named as a stand-in where it is held; a recording that no longer reads fails
 // the mock's load, as the app would fail to read the runtime's answer. The recordings made before
-// 9f9ba3244 mark no input, and the mock serves them unmarked, as they were recorded.
+// 9f9ba3244 mark no input, and the mock serves them unmarked, as they were recorded. The machine's
+// audio capture devices are the fixed listing streamlib's control-plane stub answers
+// `list_audio_capture_devices` with at ece82e6aa, which names no real machine's devices.
 
 import pulseStageListNodeTypesResult from "./recordings/pulse-stage-list-node-types-result.json?raw";
 import pulseStageDescribeNodeTypesResult from "./recordings/pulse-stage-describe-node-types-result.json?raw";
@@ -26,6 +28,7 @@ import transactRefusalForALinkOfAnotherType from "./recordings/every-pin-kind-tr
 import transactRefusalForAValueOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-words-as-a-float-value.json?raw";
 import transactRefusalForASweepIntoAFloat from "./recordings/every-pin-kind-transact-refusal-for-a-sweep-output-into-a-float-input.json?raw";
 import pulseStageGraphResultOfMain from "./recordings/pulse-stage-graph-result-of-main.json?raw";
+import controlPlaneStubListAudioCaptureDevicesResult from "./recordings/control-plane-stub-list-audio-capture-devices-result.json?raw";
 import { projectActionRefusalOfTheContract } from "../src/main/project_transactions_on_the_wire";
 import { controlContractRefusalOf, describeTheContractIssues, readControlContractValue } from "../src/main/tatolab_runtime_control_operation_call";
 import { isAJsonValue } from "../src/main/json_on_the_wire";
@@ -42,7 +45,7 @@ import {
   studioFieldsOfTheNode,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { ControlContractComponentName, ControlContractComponents } from "@tatolab/runtime-client/contract";
-import type { DescribeNodeTypesToolResult, JsonValue, ListNodeTypesToolResult, NodeTypeDescription, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphLinkWarning, StreamGraphNode, StreamGraphPort, StreamGraphPortPin } from "../src/shared/tatolab_backend_contract";
+import type { DescribeNodeTypesToolResult, JsonValue, ListAudioCaptureDevicesToolResult, ListNodeTypesToolResult, NodeTypeDescription, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphLinkWarning, StreamGraphNode, StreamGraphPort, StreamGraphPortPin } from "../src/shared/tatolab_backend_contract";
 import type { MockGraphLink, MockGraphNode, MockGraphPort, MockStreamGraph } from "./mock_stream_fixtures";
 
 /** A recording the readers cannot read: the recording, or the reader, has drifted from the runtime. */
@@ -229,6 +232,13 @@ function recordedRefusal(recording: string, responseText: string): ProjectAction
 }
 
 /** The runtime's refusal of a `connect` from the node not yet typed's Records output into a typed Float input of the sample. */
+/** The machine's audio inputs and output monitors as the control-plane stub lists them: a microphone, the default output's monitor and that output's own. */
+export const MOCK_RECORDED_AUDIO_CAPTURE_DEVICES: ListAudioCaptureDevicesToolResult = recordedResultOfTheContractType(
+  "control-plane-stub-list-audio-capture-devices-result",
+  controlPlaneStubListAudioCaptureDevicesResult,
+  "ListAudioCaptureDevicesToolResult",
+);
+
 export const MOCK_RECORDED_REFUSAL_OF_A_LINK_OF_ANOTHER_TYPE: ProjectActionRefusal = recordedRefusal(
   "every-pin-kind-transact-refusal-for-a-records-output-into-a-float-input",
   transactRefusalForALinkOfAnotherType,

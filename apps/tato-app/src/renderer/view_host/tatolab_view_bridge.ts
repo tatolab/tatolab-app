@@ -422,6 +422,10 @@ export class TatolabViewBridge {
         const recovering = await this.hostServices.recoverTheProjectsStreams(ask.project_folder, ask.recovery);
         return recovering.kind === "asked" ? { kind: "done" } : { kind: "refused", because: recovering.because };
       }
+      case "list_audio_capture_devices": {
+        const devicesReading = await this.hostServices.listAudioCaptureDevices();
+        return devicesReading.kind === "listed" ? { kind: "audio_capture_devices_listed", listing: devicesReading.listing } : { kind: "refused", because: devicesReading.because };
+      }
       case "delete_asset_from_the_project": {
         const changing = await this.hostServices.deleteAssetFromTheProject(ask.project_folder, ask.asset);
         return changing.kind === "changed" ? { kind: "done" } : { kind: "refused", because: changing.because };

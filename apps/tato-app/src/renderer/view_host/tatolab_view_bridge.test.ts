@@ -1,5 +1,5 @@
 import type { ListedNodeUiElement, NodeUiElementsReading } from "@tatolab/tato-app-view-sdk/node_ui_host";
-import type { ProjectActionRefusal, StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { AudioCaptureDevicesReading, ProjectActionRefusal, StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk/studio_host";
 import {
   connectToTatoAppOverPort,
@@ -151,6 +151,10 @@ function recordingHostServices() {
   const graphTransactionsAsked: { projectFolder: string; operations: readonly unknown[]; mode: string; idempotencyKey: string | null }[] = [];
   const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const projectAssetPickHeld = new ProjectAssetPickHeldInTheWindow();
+  const audioCaptureDeviceReadingsToAnswer: AudioCaptureDevicesReading[] = [
+    { kind: "listed", listing: { audio_backend: "stub-audio", devices: [{ id: "stub-microphone", name: "Stub Microphone", kind: "input" }] } },
+    { kind: "not_listed", because: "No runtime answers." },
+  ];
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
       listener({ kind: "none_open" });
@@ -212,6 +216,7 @@ function recordingHostServices() {
         ? { kind: "read", picture: { picture_url: "data:image/png;base64,iVBORw0KGgo=", pixel_width: 512, pixel_height: 288 } }
         : { kind: "not_read", because: "read_asset_preview failed: asset c-uuid has no preview picture; the runtime makes one for an image" };
     },
+    listAudioCaptureDevices: async () => audioCaptureDeviceReadingsToAnswer.shift() ?? { kind: "not_listed", because: "This test answers no more listings." },
     deleteAssetFromTheProject: async (projectFolder, asset) => {
       assetChangesAsked.push(["delete", projectFolder, asset]);
       return { kind: "changed" };
@@ -477,6 +482,15 @@ describe("a view's connection to Studio, through the one bridge every view is se
       ["/set", "nodes.mix:Mixer", null],
       ["/set", "nodes.mix:Mixer", "Show//Levels"],
     ]);
+  });
+
+  it("lists the machine's audio capture devices as the runtime answered, a refusal in its words", async () => {
+    const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
+    expect(await connection.listAudioCaptureDevices()).toEqual({
+      kind: "listed",
+      listing: { audio_backend: "stub-audio", devices: [{ id: "stub-microphone", name: "Stub Microphone", kind: "input" }] },
+    });
+    expect(await connection.listAudioCaptureDevices()).toEqual({ kind: "not_listed", because: "No runtime answers." });
   });
 
   it("reads an asset's preview picture, a refusal in the runtime's words", async () => {

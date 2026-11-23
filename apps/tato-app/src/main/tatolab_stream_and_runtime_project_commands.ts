@@ -9,6 +9,7 @@ import {
   describeNodeTypes,
   describeStreamAction,
   describeStreamGraph,
+  listAudioCaptureDevices,
   listProjectAssets,
   listProjectFiles,
   listNodeTypes,
@@ -120,6 +121,7 @@ type StreamAndRuntimeProjectCommandName =
   | "read_project_log_records"
   | "describe_stream_graph"
   | "list_node_types"
+  | "list_audio_capture_devices"
   | "describe_node_types"
   | "list_project_assets"
   | "remove_project"
@@ -154,6 +156,7 @@ export function streamAndRuntimeProjectCommandHandlersOf(
     list_node_types: windowCommand(studioRuntime, "list_node_types", ProjectDirectoryArguments, ({ project_directory }, commandFromWindow) =>
       projectFolderTheWindowMayAskTheRuntimeAbout(project_directory, commandFromWindow).pipe(Effect.flatMap(listNodeTypes)),
     ),
+    list_audio_capture_devices: windowCommand(studioRuntime, "list_audio_capture_devices", Schema.Undefined, () => listAudioCaptureDevices()),
     describe_node_types: windowCommand(studioRuntime, "describe_node_types", DescribeNodeTypesArguments, ({ project_directory, node_types }, commandFromWindow) =>
       projectFolderTheWindowMayAskTheRuntimeAbout(project_directory, commandFromWindow).pipe(Effect.flatMap((projectFolder) => describeNodeTypes(projectFolder, node_types))),
     ),

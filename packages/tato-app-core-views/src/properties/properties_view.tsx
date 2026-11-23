@@ -4,7 +4,7 @@ import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_fie
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { NodeGraphPinMark, NodeGraphPinMarkSlot, NodeGraphRebuildsTheNodeMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { pinWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
-import { takesAControl } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
+import { isAnAudioCaptureDeviceInput, takesAControl } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
 import type { GraphAddress, InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import { settingValuesOfTheGraph, valueReadOfTheSetting } from "@tatolab/tato-app-view-sdk/pin_model/node_settings";
 import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
@@ -58,6 +58,7 @@ import {
   type StreamGraphReading,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
+import { AudioCaptureDeviceFieldOfTheSetting } from "./audio_capture_device_field";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
@@ -474,16 +475,35 @@ function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin
   );
 }
 
+/** The menu of the machine's audio capture devices for a setting naming one, each choice set as one commit and Default input taking the value off. */
+function AudioCaptureDeviceFieldOfTheInput({ fieldId, row }: { fieldId: string; row: OwnFieldOfTheRow }) {
+  const ownField = useOwnFieldOfTheInput(row.address, "commit");
+  const openProject = useContext(OpenProjectOfTheAssetFieldsContext);
+  return (
+    <AudioCaptureDeviceFieldOfTheSetting
+      fieldId={fieldId}
+      name={row.address.input}
+      value={valueShown(ownField)}
+      isTheTypesDefault={ownValueShown(ownField) === null}
+      connection={openProject?.connection ?? null}
+      onDeviceChosen={ownField === null ? undefined : (deviceId) => ownField.releaseTheValue(deviceId)}
+      onDefaultChosen={ownField === null ? undefined : () => ownField.clearTheValue()}
+    />
+  );
+}
+
 /**
- * The panel's own field for an input no control draws: the asset field for one holding a project asset's UUID, the entry
- * rows of a setting holding a list of records, and else its value as JSON.
+ * The panel's own field for an input no control draws: the asset field for one holding a project asset's UUID, the menu of
+ * the machine's audio capture devices for one naming a device, the entry rows of a setting holding a list of records, and
+ * else its value as JSON.
  */
-function OwnFieldOfTheRowsInput({ fieldId, nodePin, describedInput, row }: { fieldId: string; nodePin: Pick<NodePin, "annotations">; describedInput: NodeTypeInputDescribed | undefined; row: OwnFieldOfTheRow }) {
+function OwnFieldOfTheRowsInput({ fieldId, nodePin, describedInput, row }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations">; describedInput: NodeTypeInputDescribed | undefined; row: OwnFieldOfTheRow }) {
   const projectAsset = nodePin.annotations.project_asset;
   if (projectAsset !== undefined && projectAsset !== null) {
     const mediaItTakes = projectAsset.media === undefined || projectAsset.media === null || projectAsset.media.length === 0 ? null : [...projectAsset.media];
     return <AssetFieldOfTheInput fieldId={fieldId} row={row} mediaItTakes={mediaItTakes} takesNull={doesTheSettingTakeNull(describedInput?.value_json_schema)} />;
   }
+  if (nodePin.pin !== null && isAnAudioCaptureDeviceInput(nodePin.pin.pin_type, nodePin.annotations)) return <AudioCaptureDeviceFieldOfTheInput fieldId={fieldId} row={row} />;
   const list = listOfRecordsOfTheSetting(describedInput?.value_json_schema);
   if (list !== null) return <ListOfRecordsOfTheInput fieldId={fieldId} row={row} list={list} />;
   return <JsonFieldOfTheInput fieldId={fieldId} address={row.address} />;
