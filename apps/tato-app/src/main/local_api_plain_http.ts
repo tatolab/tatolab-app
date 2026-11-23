@@ -1,7 +1,7 @@
-// The local API's plain HTTP requests, the ones that are not a control operation: `GET /health`,
-// `GET /api/graph` and `GET /api/registry`. Each is one short HTTP/1.1 request over the local API's
-// Unix socket, read to the end of the stream the runtime closes, and fails as a call to the
-// runtime's control API fails.
+// The local API's one plain HTTP request, the one that is not a control operation: `GET /health`,
+// which asks whether a runtime is there before the app speaks the contract. It is one short
+// HTTP/1.1 request over the local API's Unix socket, read to the end of the stream the runtime
+// closes, and fails as a call to the runtime's control API fails.
 
 import { isUtf8 } from "node:buffer";
 import net from "node:net";

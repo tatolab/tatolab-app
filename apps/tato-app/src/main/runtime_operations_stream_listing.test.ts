@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "vitest";
 import type { StreamLocation } from "../shared/tatolab_backend_contract.js";
-import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
+import { controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse } from "./fake_local_api_server.js";
 import { listedStreamsFromTheListStreamsToolResult } from "./listed_streams_on_the_wire.js";
 import { answerOf, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, listedStream, recordedResponseBody } from "./runtime_operations_test_support.js";
 import { listStreams, readTheMachineName } from "./runtime_operations.js";
@@ -179,12 +179,20 @@ test("a_list_streams_result_naming_no_stream_id_or_display_name_is_refused", () 
   );
 });
 
-test("the_machine_name_comes_from_the_machine_wide_graph", async () => {
-  const graph = { machine: "jonathanf-macbook", streams: [{ stream: "main", nodes: [], links: [], exposed: [], machine: "jonathanf-macbook" }] };
-  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", JSON.stringify(graph))]);
+test("the_machine_name_comes_from_describe_runtime", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-runtime-tool-result-of-a-test-root-runtime.json")),
+  ]);
 
-  expect(answerOf(await server.run(readTheMachineName()))).toBe("jonathanf-macbook");
-  expect(server.receivedRequests()[0]?.startsWith("GET /api/graph HTTP/1.1\r\n")).toBe(true);
+  expect(answerOf(await server.run(readTheMachineName()))).toBe("vm");
+  expect(server.receivedRequests().map((request) => request.split("\r\n")[0])).toEqual(["POST /control HTTP/1.1"]);
+  expect(server.receivedRequests()[0]).toContain('"method":"describe_runtime"');
+});
+
+test("a_describe_runtime_answer_naming_no_machine_is_not_the_contracts_answer", async () => {
+  const server = await fakeLocalApiServerAnswering([controlOperationResultResponse({ version: "0.55.1", build_id: "0.55.1+0123abc.9f8e7d", up_for_ms: 5, runtime_log_directory: null })]);
+
+  expect(failureOf(await server.run(readTheMachineName()))).toMatchObject({ _tag: "ContractMismatch", words: expect.stringContaining("machine") });
 });
 
 test("the_listing_reads_a_closed_projects_streams_closed_and_unloaded_beside_a_playing_and_a_stopped_one", async () => {

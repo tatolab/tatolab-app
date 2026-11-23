@@ -25,7 +25,7 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import { assetPreviewPictureFromTheReadAssetPreviewToolResult, type AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import { listedStreamsFromTheListStreamsToolResult } from "./listed_streams_on_the_wire.js";
-import { isAJsonObject, jsonTextKeepingTheWrittenNumbers, parseJsonOnTheWire, requiredText } from "./json_on_the_wire.js";
+import { jsonTextKeepingTheWrittenNumbers } from "./json_on_the_wire.js";
 import { bodyOfAnOkAnswer } from "./local_api_plain_http.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
@@ -372,18 +372,9 @@ export function checkTheRuntimesHealth(): Effect.Effect<void, RuntimeControlFail
   return restReadWith("/health", "the health answer", (body) => (body.trim() === "ok" ? succeeded(undefined) : failedWith(`the runtime answered /health with: ${body.trim()}`)));
 }
 
-/** The machine's name an `/api/graph` export states beside every loaded stream's graph, or why it states none. */
-function machineNameFromTheGraphExport(graphExport: string): Result<string, string> {
-  const graph = parseJsonOnTheWire(graphExport);
-  if (!graph.ok) return failedWith(`the runtime's /api/graph names no machine: ${graph.failure}`);
-  if (!isAJsonObject(graph.value)) return failedWith("the runtime's /api/graph names no machine: the graph is not an object");
-  const machine = requiredText(graph.value, "machine");
-  return machine.ok ? machine : failedWith(`the runtime's /api/graph names no machine: ${machine.failure}`);
-}
-
-/** This machine's name, as `GET /api/graph` states it; refused in the runtime's own words. */
+/** This machine's name, as the runtime's `describe_runtime` names it. */
 export function readTheMachineName(): Effect.Effect<string, RuntimeControlFailure, RuntimeControl> {
-  return restReadWith("/api/graph", "the graph export", machineNameFromTheGraphExport);
+  return RuntimeControl.use((runtimeControl) => runtimeControl.call("describe_runtime", {})).pipe(Effect.map((runtimeDescription) => runtimeDescription.machine));
 }
 
 /** The close of the open project in `projectDirectory` queued through the runtime's `close_project`, which ends its playback and unloads every stream of it: the id of the action it queued. */

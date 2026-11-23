@@ -86,12 +86,12 @@ function controllerReadingTheLocalApiAt(localApiSocketPath: string, options: Con
 
 const healthyAnswer = () => httpResponse("200 OK", "text/plain", "ok");
 const noStreams = () => controlOperationResultResponse({ streams: [] });
-const theMachine = () => httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] }));
+const describedRuntime = () => runtimeDescribedResponse("0.68.90+old.1");
 test("a healthy runtime's status names its streams and machine, read as the window reads them, and starts no runtime of the app's", async () => {
   const { controller, localApiServer, carriedRuntimeStarts } = await controllerOverFakes([
     healthyAnswer(),
     controlOperationResultResponse({ streams: [{ stream: "p-main-0a1b2c", display_name: "main", location: { project_directory: "/p", project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" }, state: "running", node_count: 4, failed_because: null, capture_devices_whose_access_was_never_asked_for: [] }] }),
-    theMachine(),
+    describedRuntime(),
   ]);
 
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
@@ -115,7 +115,7 @@ test("each status round carries the syncs the followed stream actions took", asy
     project_directory: "/private/tmp/tatolab-proof-projects/numpy-pillow",
     venv_sync: { phase: "installed", packages_resolved: 8, packages_prepared: 4, packages_installed: 8, downloads_started: 0, downloads_done: 0, packages: [] },
   };
-  const { controller } = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine()], {
+  const { controller } = await controllerOverFakes([healthyAnswer(), noStreams(), describedRuntime()], {
     projectVenvSyncsOfTheFollowedStreamActions: {
       takeTheProjectVenvSyncs: () => ({ underWay: [], justEnded: [syncJustEnded] }),
     },
@@ -134,7 +134,7 @@ test("each status round carries each project whose latest stream action failed, 
     kind: "open",
     failed_because: "the stream id is held by a record an earlier runtime wrote",
   };
-  const { controller } = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine()], {
+  const { controller } = await controllerOverFakes([healthyAnswer(), noStreams(), describedRuntime()], {
     projectStreamActionFailuresOfTheFollowedStreamActions: { projectStreamActionFailuresNow: () => [openThatFailed] },
   });
 
@@ -148,7 +148,7 @@ test("a healthy runtime whose streams cannot be read lists none, and says why in
   const { controller } = await controllerOverFakes([
     healthyAnswer(),
     controlOperationResultResponse({ streams: [{ stream: "p-main-0a1b2c", display_name: "main", location: { project_directory: "/p", stream_function: "stream:main" }, state: "running", node_count: 4, failed_because: null, capture_devices_whose_access_was_never_asked_for: [] }] }),
-    theMachine(),
+    describedRuntime(),
   ]);
 
   const status = await controller.composeStatus(0);
@@ -167,7 +167,7 @@ test("a round that finds no runtime answering starts the carried one, which read
   expect(carriedRuntimeStarts.runtimesStarted).toHaveLength(1);
   expect((await controller.composeStatus(RUNTIME_STARTING_GRACE_PERIOD_MS)).runtime_not_running_because).toBe("The runtime is running but not answering.");
 
-  localApiServer.answerNext([healthyAnswer(), noStreams(), theMachine()]);
+  localApiServer.answerNext([healthyAnswer(), noStreams(), describedRuntime()]);
   expect((await controller.composeStatus(RUNTIME_STARTING_GRACE_PERIOD_MS + 2_000)).runtime_state).toBe("running");
 });
 
@@ -230,7 +230,6 @@ async function aRuntimeTheTestSwaps() {
     {
       answerHttpRequest: (request) => {
         if (request.startsWith("GET /health ")) return runtime.answersHealth ? healthyAnswer() : httpResponse("503 Service Unavailable", "text/plain", "down");
-        if (request.startsWith("GET /api/graph")) return theMachine();
         if (request.includes('"method":"list_streams"')) return noStreams();
         if (request.includes('"method":"describe_runtime"')) return runtimeDescribedResponse(runtime.buildId);
         return null;
@@ -271,7 +270,7 @@ test("a runtime replaced between two healthy rounds is read again, so the older 
 test("a contract that could not be read is read once for the runtime answering and logged once, not every round", async () => {
   const loggedLines: string[] = [];
   const { controller, localApiServer } = await controllerOverFakes(
-    [healthyAnswer(), noStreams(), theMachine(), controlWebSocketUpgradeRefusedWithWords(), runtimeDescribedResponse("0.68.90+old.1"), healthyAnswer(), noStreams(), runtimeDescribedResponse("0.68.90+old.1")],
+    [healthyAnswer(), noStreams(), describedRuntime(), controlWebSocketUpgradeRefusedWithWords(), runtimeDescribedResponse("0.68.90+old.1"), healthyAnswer(), noStreams(), runtimeDescribedResponse("0.68.90+old.1")],
     { tatolabAppLog: createTatolabAppLog("info", (line) => loggedLines.push(line)) },
   );
 
@@ -288,7 +287,7 @@ test("restart stops the app's runtime and refuses a runtime the app did not star
   expect(await started.controller.restartTheRuntimeOnRequest()).toEqual(succeeded(undefined));
   expect(started.carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(true);
 
-  const attached = await controllerOverFakes([healthyAnswer(), noStreams(), theMachine(), controlWebSocketUpgradeRefusedWithWords(), runtimeDescribedResponse("0.68.90+old.1"), healthyAnswer()]);
+  const attached = await controllerOverFakes([healthyAnswer(), noStreams(), describedRuntime(), controlWebSocketUpgradeRefusedWithWords(), runtimeDescribedResponse("0.68.90+old.1"), healthyAnswer()]);
   await attached.controller.composeStatus(0);
   expect(await attached.controller.restartTheRuntimeOnRequest()).toEqual(failedWith(RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL));
 });

@@ -14,7 +14,7 @@ test("removing a project queues on the runtime, then observes again whether it q
     [
       httpResponse("200 OK", "text/plain", "ok"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
-      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      runtimeDescribedResponse("0.69.84+test.1"),
       controlWebSocketUpgradeRefusedWithWords(),
       runtimeDescribedResponse("0.69.84+test.1"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
@@ -42,7 +42,7 @@ test("each queued action answers the window null, and a missing argument or a pr
     [
       httpResponse("200 OK", "text/plain", "ok"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
-      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      runtimeDescribedResponse("0.69.84+test.1"),
       controlWebSocketUpgradeRefusedWithWords(),
       runtimeDescribedResponse("0.69.84+test.1"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
@@ -82,7 +82,7 @@ test("reloading a project the runtime lists open queues reload_project, one it l
     [
       httpResponse("200 OK", "text/plain", "ok"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-a-playing-a-stopped-and-a-closed-project.json")),
-      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      runtimeDescribedResponse("0.69.84+test.1"),
       controlWebSocketUpgradeRefusedWithWords(),
       runtimeDescribedResponse("0.69.84+test.1"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-reload-project-answer-for-the-stopped-project-pattern.json")),
@@ -119,7 +119,7 @@ test("renaming a stream sets the display name of the stream asset the runtime li
     [
       httpResponse("200 OK", "text/plain", "ok"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-hallways-running.json")),
-      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      runtimeDescribedResponse("0.69.84+test.1"),
       controlWebSocketUpgradeRefusedWithWords(),
       runtimeDescribedResponse("0.69.84+test.1"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-set-stream-display-name-answer-for-the-main-stream-of-hallways-renamed-heat-map.json")),
@@ -170,7 +170,7 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
           },
         ],
       }),
-      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      runtimeDescribedResponse("0.69.84+test.1"),
       controlWebSocketUpgradeRefusedWithWords(),
       runtimeDescribedResponse("0.69.84+test.1"),
     ],
@@ -307,7 +307,7 @@ test("deleting_a_stream_deletes_the_stream_asset_the_runtime_last_listed_for_it_
     [
       httpResponse("200 OK", "text/plain", "ok"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-streams-tool-result-of-lobby-with-its-new-stream-preview.json")),
-      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "sams-laptop", streams: [] })),
+      runtimeDescribedResponse("0.69.84+test.1", "0.69.84", "sams-laptop"),
       controlWebSocketUpgradeRefusedWithWords(),
       runtimeDescribedResponse("0.69.84+test.1"),
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-delete-stream-answer-for-preview-of-lobby.json")),

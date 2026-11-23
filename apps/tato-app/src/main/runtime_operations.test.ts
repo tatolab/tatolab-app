@@ -52,12 +52,6 @@ test("a_runtime_answering_health_with_another_status_is_refused_and_with_another
   expect(failureOf(await server.run(checkTheRuntimesHealth()))).toMatchObject({ _tag: "ContractMismatch", words: "the runtime answered /health with: starting" });
 });
 
-test("a_graph_export_naming_no_machine_is_not_the_contracts_answer", async () => {
-  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", '{"streams":[]}')]);
-
-  expect(failureOf(await server.run(readTheMachineName()))).toMatchObject({ _tag: "ContractMismatch", words: expect.stringMatching(/^the runtime's \/api\/graph names no machine: /) });
-});
-
 test("nothing_listening_names_the_socket", async () => {
   const socketPath = await shortTemporarySocketPath();
 
@@ -150,12 +144,10 @@ test("an_operation_the_runtime_does_not_serve_is_refused_in_its_own_words", asyn
   });
 });
 
-test("a_refused_rest_request_carries_the_runtimes_own_words", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    httpResponse("500 Internal Server Error", "application/json", '{"error":"graph export failed: the engine is shutting down"}'),
-  ]);
+test("a_refused_health_check_carries_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([httpResponse("500 Internal Server Error", "application/json", '{"error":"the engine is shutting down"}')]);
 
-  expect(failureOf(await server.run(readTheMachineName())).words).toBe("graph export failed: the engine is shutting down");
+  expect(failureOf(await server.run(checkTheRuntimesHealth()))).toMatchObject({ _tag: "RuntimeRefused", words: "the engine is shutting down" });
 });
 
 test("a_runtime_serving_another_contract_version_is_refused_in_its_own_words", async () => {
