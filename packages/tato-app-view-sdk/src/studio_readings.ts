@@ -131,16 +131,23 @@ export type ImageStreamContentLightLevel = { max_content_light_level: number; ma
 /** The mastering display an HDR stream was graded on (SMPTE ST 2086): luminance in steps of 0.0001 cd/m². */
 export type ImageStreamMasteringDisplayColourVolume = { max_display_mastering_luminance: number; min_display_mastering_luminance: number };
 
-/** An output port's stream facts as the runtime renders them under `stream_facts`, tagged by `family`; a field the port does not state is `null`. */
+/**
+ * An output port's stream facts as the runtime renders them under `stream_facts`, read by the pin type they name under `type`:
+ * a Texture's facts of its pictures, or an encoded type's facts of its codec, which both encoded types state alike. `type` is
+ * `null` for the facts of a port with no pin type, which the runtime names by their family alone. A field the port does not
+ * state is `null`.
+ */
 export type PortStreamFacts =
   | {
-      family: "image";
+      facts_of: "pictures";
+      type: "texture" | null;
       frame_rate: ImageStreamFrameRate | null;
       content_light_level: ImageStreamContentLightLevel | null;
       mastering_display_colour_volume: ImageStreamMasteringDisplayColourVolume | null;
     }
   | {
-      family: "packets";
+      facts_of: "encoded_units";
+      type: "encoded_video" | "encoded_audio" | null;
       /** The codec with its profile and level, as an RFC 6381 `codecs` parameter spells it (`avc1.64001f`, `opus`). */
       rfc6381_codec: string | null;
       coded_width: number | null;
@@ -225,11 +232,30 @@ export function familyOfThePort(port: { readonly family?: unknown }): PortFamily
   return PORT_FAMILIES.find((family) => family === familyName) ?? null;
 }
 
-/** What an output states under `stream_facts` about the stream it carries now; `null` for none, or facts of a family or shape this app does not read, which only describe a stream. */
+/** What a port's stream facts are of, and the pin type they name. */
+type PortStreamFactsNamed = PortStreamFacts extends infer Facts ? (Facts extends PortStreamFacts ? Pick<Facts, "facts_of" | "type"> : never) : never;
+
+/**
+ * What a port's facts are of, by the pin type they name under `type`, else, on a port with no pin type, by their family; `null`
+ * for a type or family whose stream no facts describe.
+ */
+function whatTheStreamFactsAreOf(streamFacts: { readonly [key: string]: unknown }): PortStreamFactsNamed | null {
+  const pinTypeName = streamFacts["type"];
+  if (pinTypeName === "texture") return { facts_of: "pictures", type: pinTypeName };
+  if (pinTypeName === "encoded_video" || pinTypeName === "encoded_audio") return { facts_of: "encoded_units", type: pinTypeName };
+  if (pinTypeName !== undefined) return null;
+  if (streamFacts["family"] === "image") return { facts_of: "pictures", type: null };
+  if (streamFacts["family"] === "packets") return { facts_of: "encoded_units", type: null };
+  return null;
+}
+
+/** What an output states under `stream_facts` about the stream it carries now; `null` for none, or facts of a type or shape this app does not read, which only describe a stream. */
 export function streamFactsOfThePort(port: { readonly stream_facts?: unknown }): PortStreamFacts | null {
   const streamFacts = jsonObjectOrNull(port.stream_facts);
   if (streamFacts === null) return null;
-  if (streamFacts["family"] === "image") {
+  const factsOf = whatTheStreamFactsAreOf(streamFacts);
+  if (factsOf === null) return null;
+  if (factsOf.facts_of === "pictures") {
     const frameRate = jsonObjectOrNull(streamFacts["frame_rate"]);
     const lightLevel = jsonObjectOrNull(streamFacts["content_light_level"]);
     const colourVolume = jsonObjectOrNull(streamFacts["mastering_display_colour_volume"]);
@@ -240,26 +266,23 @@ export function streamFactsOfThePort(port: { readonly stream_facts?: unknown }):
     const maxLuminance = wholeNumberOrNull(colourVolume?.["max_display_mastering_luminance"]);
     const minLuminance = wholeNumberOrNull(colourVolume?.["min_display_mastering_luminance"]);
     return {
-      family: "image",
+      ...factsOf,
       frame_rate: numerator === null || denominator === null || numerator === 0 || denominator === 0 ? null : { numerator, denominator },
       content_light_level:
         maxContentLightLevel === null || maxFrameAverageLightLevel === null ? null : { max_content_light_level: maxContentLightLevel, max_frame_average_light_level: maxFrameAverageLightLevel },
       mastering_display_colour_volume: maxLuminance === null || minLuminance === null ? null : { max_display_mastering_luminance: maxLuminance, min_display_mastering_luminance: minLuminance },
     };
   }
-  if (streamFacts["family"] === "packets") {
-    const codecConfigurationHex = streamFacts["codec_configuration_hex"];
-    return {
-      family: "packets",
-      rfc6381_codec: typeof streamFacts["rfc6381_codec"] === "string" ? streamFacts["rfc6381_codec"] : null,
-      coded_width: wholeNumberOrNull(streamFacts["coded_width"]),
-      coded_height: wholeNumberOrNull(streamFacts["coded_height"]),
-      sample_rate: wholeNumberOrNull(streamFacts["sample_rate"]),
-      channel_count: wholeNumberOrNull(streamFacts["channel_count"]),
-      codec_configuration_byte_length: typeof codecConfigurationHex === "string" ? Math.floor(codecConfigurationHex.length / 2) : null,
-    };
-  }
-  return null;
+  const codecConfigurationHex = streamFacts["codec_configuration_hex"];
+  return {
+    ...factsOf,
+    rfc6381_codec: typeof streamFacts["rfc6381_codec"] === "string" ? streamFacts["rfc6381_codec"] : null,
+    coded_width: wholeNumberOrNull(streamFacts["coded_width"]),
+    coded_height: wholeNumberOrNull(streamFacts["coded_height"]),
+    sample_rate: wholeNumberOrNull(streamFacts["sample_rate"]),
+    channel_count: wholeNumberOrNull(streamFacts["channel_count"]),
+    codec_configuration_byte_length: typeof codecConfigurationHex === "string" ? Math.floor(codecConfigurationHex.length / 2) : null,
+  };
 }
 
 function isAnObject(value: unknown): value is { readonly [key: string]: unknown } {

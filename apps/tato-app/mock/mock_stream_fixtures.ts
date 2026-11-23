@@ -210,7 +210,7 @@ const TEXTURE_STREAM: StreamGraphPortPin = { pin_type: { type: "texture" }, flow
 const imageOutputAtFramesPerSecond = (name: string, framesPerSecond: number): MockGraphPort => ({
   name,
   family: "image",
-  stream_facts: { family: "image", frame_rate: { numerator: framesPerSecond, denominator: 1 }, content_light_level: null, mastering_display_colour_volume: null },
+  stream_facts: { facts_of: "pictures", type: "texture", frame_rate: { numerator: framesPerSecond, denominator: 1 }, content_light_level: null, mastering_display_colour_volume: null },
   values_checked: null,
   pin: TEXTURE_STREAM,
   value_read: null,
@@ -661,7 +661,8 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
               name: "encoded",
               family: "packets",
               stream_facts: {
-                family: "packets",
+                facts_of: "encoded_units",
+                type: null,
                 rfc6381_codec: "avc1.64001f",
                 coded_width: 1920,
                 coded_height: 1080,

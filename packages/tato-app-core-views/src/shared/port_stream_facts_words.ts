@@ -1,5 +1,5 @@
-// What a port states about its stream, as the studio writes it on a pin, in Properties and over the Node visualizer: an
-// Image output's frame rate and HDR light levels, a Packets output's codec, picture size, sample rate, channels and
+// What a port states about its stream, as the studio writes it on a pin, in Properties and over the Node visualizer: a
+// Texture output's frame rate and HDR light levels, an encoded output's codec, picture size, sample rate, channels and
 // configuration record, and a Records port's unchecked values.
 
 import { streamFactsOfThePort, type PortStreamFacts, type StreamGraph, type StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
@@ -14,7 +14,7 @@ export function frameRateWords(numerator: number, denominator: number): string {
 }
 
 function streamFactsWords(facts: PortStreamFacts): string[] {
-  if (facts.family === "image") {
+  if (facts.facts_of === "pictures") {
     const words: string[] = [];
     if (facts.frame_rate !== null) words.push(frameRateWords(facts.frame_rate.numerator, facts.frame_rate.denominator));
     if (facts.content_light_level !== null) {

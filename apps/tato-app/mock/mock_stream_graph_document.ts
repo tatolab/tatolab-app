@@ -27,14 +27,17 @@ export interface MockStreamGraphMoment {
   secondsSinceSettled: number;
 }
 
-/** `facts` as the runtime renders a port's `stream_facts`: tagged by `family`, each fact the port does not state left out. */
+/** The keys of `PortStreamFacts` the runtime does not render as they are: what the facts are of and their type, rendered as `type` and `family`, and the configuration record's length, rendered as its hex. */
+const KEYS_NAMING_THE_STREAM_FACTS: ReadonlySet<string> = new Set(["facts_of", "type", "codec_configuration_byte_length"]);
+
+/** `facts` as the runtime renders a port's `stream_facts`: the pin type they describe under `type`, left out on a port with none, beside their family, each fact the port does not state left out. */
 function streamFactsAsTheRuntimeRendersThem(facts: PortStreamFacts): Record<string, unknown> {
-  if (facts.family === "image") {
-    return Object.fromEntries(Object.entries(facts).filter((entry) => entry[1] !== null));
-  }
-  const { codec_configuration_byte_length: codecConfigurationByteLength, ...statedFacts } = facts;
+  const statedFacts = Object.fromEntries(Object.entries(facts).filter(([key, value]) => value !== null && !KEYS_NAMING_THE_STREAM_FACTS.has(key)));
+  const codecConfigurationByteLength = facts.facts_of === "encoded_units" ? facts.codec_configuration_byte_length : null;
   return {
-    ...Object.fromEntries(Object.entries(statedFacts).filter((entry) => entry[1] !== null)),
+    ...(facts.type === null ? {} : { type: facts.type }),
+    family: facts.facts_of === "pictures" ? "image" : "packets",
+    ...statedFacts,
     ...(codecConfigurationByteLength === null ? {} : { codec_configuration_hex: "00".repeat(codecConfigurationByteLength) }),
   };
 }
