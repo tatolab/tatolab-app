@@ -310,13 +310,17 @@ export class TatolabViewBridge {
     }
   }
 
-  /** Reads `target`'s output port, each event going to `sendEvent`, an Image frame's `VideoFrame` transferred. */
+  /** Reads `target`'s output port, each event going to `sendEvent`, an Image frame's `VideoFrame` or its pixels' buffer transferred. */
   private readThePortViewer(
     target: PortViewerTarget,
     sendEvent: (event: Extract<ViewWatchedReading, { subject: "port_viewer" }>["reading"], transfer: Transferable[]) => void,
   ): PortViewerConnection {
     let isWatched = true;
     const watchedConnection = this.hostServices.watchPortViewer(target, (portViewerEvent) => {
+      if (portViewerEvent.kind === "image_pixels") {
+        sendEvent(portViewerEvent, [portViewerEvent.pixels.buffer]);
+        return;
+      }
       if (portViewerEvent.kind !== "image_frame") {
         sendEvent(portViewerEvent, []);
         return;
