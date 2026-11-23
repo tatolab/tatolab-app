@@ -85,7 +85,7 @@ export class TatolabAppController {
   private readonly streamListingFailureOnset = new ConditionOnsetLatch();
   /** The machine's name as the runtime answering last gave it, kept through a round it could not be read; `null` until it gives one. */
   private machineNameOfTheAnsweringRuntime: string | null = null;
-  private readonly machineNameUnreadOnset = new ConditionOnsetLatch();
+  private machineNameUnreadOnset = new ConditionOnsetLatch();
   /** The runtime's contract age, read once of each runtime, unread included. */
   private readonly contractAgeOfTheRunningRuntime = new AskedOncePerRuntimeUpEpisode<RuntimeContractAgeReading>();
   /** Which runtime answered the last round that read it, so a runtime replaced between two healthy rounds is asked everything again. */
@@ -193,10 +193,11 @@ export class TatolabAppController {
       streams = listing.ok ? listing.value : null;
       streamsNotListedBecause = listing.ok ? null : listing.failure;
       contractAgeReading = await this.contractAgeOfTheRunningRuntime.answer(() => this.askTheRuntimeItsContractAge());
-      if (await this.readTheAnsweringRuntime()) {
+      const theAnsweringRuntime = await this.runEffect(readTheAnsweringRuntime());
+      if (this.anotherRuntimeAnswersThanTheOneAsked(theAnsweringRuntime.identity)) {
         contractAgeReading = await this.contractAgeOfTheRunningRuntime.answer(() => this.askTheRuntimeItsContractAge());
       }
-      machineName = this.machineNameOfTheAnsweringRuntime;
+      machineName = this.keepTheMachineName(theAnsweringRuntime.machineName);
     } else {
       this.forgetWhatWasAskedOfTheRuntime();
       this.identityOfTheAnsweringRuntime = null;
@@ -246,27 +247,30 @@ export class TatolabAppController {
   }
 
   /**
-   * Read which runtime answers and its machine's name, answering whether it is another than the one last read, whose readings
-   * are forgotten; a runtime that names itself not at all is taken as the same. A name that could not be read leaves the one
-   * this runtime last gave, and is logged on the round it starts failing.
+   * Whether the runtime named `identity` is another than the one last read, whose readings are then forgotten; a runtime that
+   * names itself not at all is taken as the same.
    */
-  private async readTheAnsweringRuntime(): Promise<boolean> {
-    const { identity, machineName } = await this.runEffect(readTheAnsweringRuntime());
-    const isAnotherRuntime = identity !== null && this.identityOfTheAnsweringRuntime !== null && identity !== this.identityOfTheAnsweringRuntime;
-    if (identity !== null) this.identityOfTheAnsweringRuntime = identity;
-    if (isAnotherRuntime) {
-      this.tatolabAppLog.info("another runtime answers than the one last read, so it is asked again", { runtime: identity });
-      this.forgetWhatWasAskedOfTheRuntime();
-    }
+  private anotherRuntimeAnswersThanTheOneAsked(identity: string | null): boolean {
+    if (identity === null) return false;
+    const isAnotherRuntime = this.identityOfTheAnsweringRuntime !== null && identity !== this.identityOfTheAnsweringRuntime;
+    this.identityOfTheAnsweringRuntime = identity;
+    if (!isAnotherRuntime) return false;
+    this.tatolabAppLog.info("another runtime answers than the one last read, so it is asked again", { runtime: identity });
+    this.forgetWhatWasAskedOfTheRuntime();
+    return true;
+  }
+
+  /** The machine's name this round read, or the one this runtime last gave when it could not be read, which is logged on the round it starts failing. */
+  private keepTheMachineName(machineName: Result<string, RuntimeControlFailure>): string | null {
+    const unreadJustNow = this.machineNameUnreadOnset.conditionJustStartedHolding(!machineName.ok);
     if (machineName.ok) this.machineNameOfTheAnsweringRuntime = machineName.value;
-    if (this.machineNameUnreadOnset.conditionJustStartedHolding(!machineName.ok) && !machineName.ok) {
-      this.tatolabAppLog.warn("the runtime's machine name could not be read; it is read again each round", { failure: machineName.failure.words });
-    }
-    return isAnotherRuntime;
+    else if (unreadJustNow) this.tatolabAppLog.warn("the runtime's machine name could not be read; it is read again each round", { failure: machineName.failure.words });
+    return this.machineNameOfTheAnsweringRuntime;
   }
 
   private forgetWhatWasAskedOfTheRuntime(): void {
     this.machineNameOfTheAnsweringRuntime = null;
+    this.machineNameUnreadOnset = new ConditionOnsetLatch();
     this.contractAgeOfTheRunningRuntime.runtimeIsGone();
   }
 
