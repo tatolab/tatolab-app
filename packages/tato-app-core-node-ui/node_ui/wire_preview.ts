@@ -1,8 +1,9 @@
-// The control a Texture input's annotation names `preview`: the picture on the wire into it, drawn on
-// the node as each frame arrives. A Texture holds no value, so the control fires nothing; with
-// nothing wired in, or while the output wired in sends no picture, it says why.
+// The control a Texture input's annotation names `preview`: the picture on the wire into it, the
+// latest frame to arrive drawn on the node each time the display draws. A Texture holds no value, so
+// the control fires nothing; with nothing wired in, or while the output wired in sends no picture, it
+// says why.
 
-import { drawThePortViewerFrame, drawThePortViewerPixels, type ViewInputEvent } from "@tatolab/tato-app-view-sdk";
+import { LatestPortViewerPictureDrawnEachAnimationFrame, type ViewInputEvent } from "@tatolab/tato-app-view-sdk";
 import type { ControlledPin, InputControlElement, InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
 import controlStyles from "@tatolab/tato-app-view-sdk/node_ui/input_control.css" with { type: "css" };
 import { WireReading } from "./wire_reading.ts";
@@ -12,6 +13,10 @@ export default class WirePreview extends HTMLElement implements InputControlElem
   readonly #picture = document.createElement("canvas");
   readonly #words = document.createElement("span");
   readonly #reading = new WireReading((event) => this.#show(event));
+  readonly #pictureDrawn = new LatestPortViewerPictureDrawnEachAnimationFrame(this.#picture, (picture, isDrawn) => {
+    if (isDrawn) this.#showThePicture();
+    else this.#showWords(`A picture in ${picture.format_wire_name} is not drawn here.`);
+  });
 
   constructor() {
     super();
@@ -44,18 +49,14 @@ export default class WirePreview extends HTMLElement implements InputControlElem
 
   disconnectedCallback(): void {
     this.#reading.stop();
+    this.#pictureDrawn.dropTheWaitingPicture();
   }
 
   #show(event: ViewInputEvent): void {
     switch (event.kind) {
       case "image_frame":
-        drawThePortViewerFrame(this.#picture, event.video_frame);
-        event.video_frame.close();
-        this.#showThePicture();
-        return;
       case "image_pixels":
-        if (drawThePortViewerPixels(this.#picture, event.width, event.height, event.format_wire_name, event.bytes_per_row, event.pixels)) this.#showThePicture();
-        else this.#showWords(`A picture in ${event.format_wire_name} is not drawn here.`);
+        this.#pictureDrawn.drawOnTheNextAnimationFrame(event);
         return;
       case "message":
         this.#showWords(`What is wired in carries ${event.reading.family}, not pictures.`);
@@ -74,6 +75,7 @@ export default class WirePreview extends HTMLElement implements InputControlElem
   }
 
   #showWords(words: string): void {
+    this.#pictureDrawn.dropTheWaitingPicture();
     this.#picture.hidden = true;
     this.#words.hidden = false;
     this.#words.textContent = words;

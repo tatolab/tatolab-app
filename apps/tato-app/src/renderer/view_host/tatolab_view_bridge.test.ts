@@ -735,6 +735,42 @@ describe("a view's connection to Studio, through the one bridge every view is se
     expect(framesClosed).toEqual([]);
   });
 
+  it("hands a view an Image frame's pixels with their buffer transferred, not copied", () => {
+    const host = recordingHostServices();
+    const postedToTheView: { message: unknown; transfer: Transferable[] }[] = [];
+    const listenersOfThePort: ((event: MessageEvent<unknown>) => void)[] = [];
+    const portDouble = {
+      postMessage: (message: unknown, transfer: Transferable[]) => {
+        postedToTheView.push({ message, transfer });
+      },
+      addEventListener: (_type: string, listener: (event: MessageEvent<unknown>) => void) => {
+        listenersOfThePort.push(listener);
+      },
+      removeEventListener: () => undefined,
+      start: () => undefined,
+      close: () => undefined,
+    };
+    const bridge = new TatolabViewBridge(
+      portDouble,
+      "acme-dj:deck",
+      { ...DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
+      host.hostServices,
+      recordingAreaServices(undefined).areaServices,
+      { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
+      null,
+    );
+    bridgesOpen.push(bridge);
+    bridge.start();
+    for (const listener of listenersOfThePort) listener(new MessageEvent("message", { data: { kind: "watch", watch_id: 1, subject: { kind: "input", input: "deck_a" } } }));
+    const pixels = new Uint8Array(16);
+    host.portViewersOpened[0]?.onEvent({ kind: "image_pixels", width: 2, height: 2, format_wire_name: "bgra32", bytes_per_row: 8, pixels, skipped_since_last_read: 0 });
+
+    const picturesPosted = postedToTheView.filter((posted) => posted.transfer.length > 0);
+    expect(picturesPosted).toHaveLength(1);
+    expect(picturesPosted[0]?.transfer[0]).toBe(pixels.buffer);
+    expect(picturesPosted[0]?.message).toMatchObject({ kind: "watched", watch_id: 1, watched: { subject: "input", reading: { kind: "image_pixels", format_wire_name: "bgra32" } } });
+  });
+
   it("hands the view its area's settings checked against what it declares, keeps ones that fit, and refuses ones that do not, naming the setting", async () => {
     const { connection, saved } = await connectedView(DECK_SETTINGS_MANIFEST, {}, { zoom: 3, show_waveform: "yes" });
     const settingsSeen: ViewSettings[] = [];
