@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
 import { answerOf, cleanUpWhatTheTestStarted, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./runtime_operations_test_support.js";
 import { describeStreamGraph, readProjectLogRecords } from "./runtime_operations.js";
-import { bagsDroppedOnTheLink, bagsRefusedOnTheOutputPort, familyOfThePort, pinOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { bagsDroppedOnTheLink, bagsRefusedOnTheOutputPort, familyOfThePort, pinOfThePort, streamFactsOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -118,6 +118,30 @@ test("a_real_graph_reads_the_pin_type_and_flow_each_typed_port_carries_and_an_un
     ["imagetoarray", [aTexture], [null]],
   ]);
   expect(graph.links.map((link) => [link.source.node, link.source.port, link.target.node, link.target.port])).toEqual([["arraytoimage", "image", "imagetoarray", "image"]]);
+});
+
+/** `streamFacts` with its `family` key deleted, as a runtime that names stream facts by their pin type alone serves them. */
+function withoutItsFamily(streamFacts: unknown): unknown {
+  if (typeof streamFacts !== "object" || streamFacts === null || Array.isArray(streamFacts)) return streamFacts;
+  return Object.fromEntries(Object.entries(streamFacts).filter(([key]) => key !== "family"));
+}
+
+test("a_real_graphs_stream_facts_read_by_their_pin_type_with_their_family_deleted_and_a_float_output_states_none", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-result-of-facts-main-with-texture-encoded-video-and-float-outputs.json")),
+  ]);
+
+  const graph = answerOf(await server.run(describeStreamGraph("facts-main-c8b289")));
+
+  expect(graph.nodes.map((node) => [node.name, node.ports.outputs.map((port) => streamFactsOfThePort({ stream_facts: withoutItsFamily(port.stream_facts) }))])).toEqual([
+    ["testpatternsource", [null]],
+    [
+      "h264encoder",
+      [{ facts_of: "encoded_units", type: "encoded_video", rfc6381_codec: "avc1.640020", coded_width: 1280, coded_height: 720, sample_rate: null, channel_count: null, codec_configuration_byte_length: null }],
+    ],
+    ["declared_rate", [{ facts_of: "pictures", type: "texture", frame_rate: { numerator: 30, denominator: 1 }, content_light_level: null, mastering_display_colour_volume: null }]],
+    ["counter", [null]],
+  ]);
 });
 
 test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", async () => {

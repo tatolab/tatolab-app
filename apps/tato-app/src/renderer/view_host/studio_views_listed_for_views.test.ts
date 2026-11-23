@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import nightShowsViewsDeclaringPinTypes from "../../main/test-fixtures/local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall-its-deck-declaring-pin-types.json?raw";
+import { projectViewsFromTheListProjectViewsToolResult, studioViewOpeningOf } from "../../main/project_views_on_the_wire";
+import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import { coreViewTypesOf } from "./core_view_types";
 import { StudioViewTypeRegistry } from "./studio_view_type_registry";
 import { tatolabFrameViewType } from "./tatolab_frame_view_type";
@@ -28,7 +31,45 @@ function viewTypeIdsListed(reading: StudioViewsReading): string[] {
   return (reading.kind === "listed" ? reading.studio_views : reading.built_in_views).map((studioView) => studioView.view_type_id);
 }
 
+/** The result text a recorded MCP `tools/call` response carries, parsed: what `list_project_views` answers as its result. */
+function operationResultOfTheRecording(recordedResponse: string): unknown {
+  const recorded: unknown = JSON.parse(recordedResponse);
+  const toolResult = typeof recorded === "object" && recorded !== null && "result" in recorded ? recorded.result : null;
+  const content: unknown[] = typeof toolResult === "object" && toolResult !== null && "content" in toolResult && Array.isArray(toolResult.content) ? toolResult.content : [];
+  const firstContent = content[0];
+  return JSON.parse(typeof firstContent === "object" && firstContent !== null && "text" in firstContent && typeof firstContent.text === "string" ? firstContent.text : "null");
+}
+
+/** The views of night-show importing lobby-wall as the window lists them from `list_project_views`, its deck's manifest declaring each port by its pin type alone. */
+function nightShowsViewsListedFromTheRecording(): ListedStudioView[] {
+  const listed = projectViewsFromTheListProjectViewsToolResult(operationResultOfTheRecording(nightShowsViewsDeclaringPinTypes));
+  if (!listed.ok) throw new Error(listed.failure);
+  return listed.value.map((listedView) => ({
+    view_type_id: listedView.view_type,
+    project_name: listedView.project_name,
+    import_folder: listedView.import_folder,
+    manifest_json: listedView.manifest,
+    folder_url: `tatolab-app://app/project_views/${listedView.view_folder_in_the_project}/`,
+    newer_version_blocked_because: null,
+    ...studioViewOpeningOf(listedView),
+  }));
+}
+
 describe("the views a view reads", () => {
+  it("lists a view's declared ports by the pin type its manifest names, with no family written beside it", () => {
+    const listedViews = nightShowsViewsListedFromTheRecording();
+    const deck = listedViews.find((listedView) => listedView.view_type_id === "night-show:deck");
+    expect(JSON.stringify(deck?.manifest_json)).not.toContain('"family"');
+    const registry = registryAsTheWindowBuildsIt();
+    registry.projectStudioViews.publish({ kind: "listed", studio_views: listedViews });
+
+    const reading = studioViewsReadingOf(registry);
+    const deckListed = reading.kind === "listed" ? reading.studio_views.find((studioView) => studioView.view_type_id === "night-show:deck") : undefined;
+
+    expect(deckListed?.inputs).toEqual([{ name: "level", family: "array", pin_type: { type: "tensor" }, description: "" }]);
+    expect(deckListed?.outputs).toEqual([{ name: "cue", family: "records", pin_type: { type: "string" }, description: "" }]);
+  });
+
   it("lists what the registry offers and refuses, Studio's own first, a project view named like Studio's refused with the registry's words", () => {
     const registry = registryAsTheWindowBuildsIt();
     registry.projectStudioViews.publish({
@@ -56,7 +97,7 @@ describe("the views a view reads", () => {
       ["acme-dj:rig", "Rig", "Acme DJ", null, "`contract`: this runtime reads view contract 1.0."],
       ["outliner", "My outliner", "Acme DJ", null, "The studio already has a view named outliner."],
     ]);
-    expect(reading.kind === "listed" && reading.studio_views[2]?.outputs).toEqual([{ name: "crossfader", family: "array", description: "" }]);
+    expect(reading.kind === "listed" && reading.studio_views[2]?.outputs).toEqual([{ name: "crossfader", family: "array", pin_type: { type: "tensor" }, description: "" }]);
   });
 
   it("lists Studio's own alone with no project open, and beside the runtime's words when the project's are not listed", () => {

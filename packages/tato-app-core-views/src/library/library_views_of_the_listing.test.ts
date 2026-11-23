@@ -7,7 +7,7 @@ function aView(viewTypeId: string, title: string, broughtBy: string, change: Par
 }
 
 const OUTLINER = aView("outliner", "Outliner", "Tato Studio");
-const SET_LIST = aView("night-set:set_list", "Set list", "Night Set", { placement: "node", inputs: [{ name: "cue", family: "records", description: "" }], outputs: [{ name: "next", family: "array", description: "" }] });
+const SET_LIST = aView("night-set:set_list", "Set list", "Night Set", { placement: "node", inputs: [{ name: "cue", family: "records", pin_type: { type: "string" }, description: "" }], outputs: [{ name: "next", family: "array", pin_type: { type: "tensor" }, description: "" }] });
 const DECK = aView("acme-dj:deck", "DJ Deck", "Acme DJ", { description: "Two decks and a crossfader." });
 const BROKEN = aView("acme-dj:broken", "Broken", "Acme DJ", { placement: null, not_opened_because: "`entry`: Required." });
 

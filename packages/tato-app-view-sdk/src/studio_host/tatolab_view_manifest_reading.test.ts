@@ -175,7 +175,14 @@ describe("readTatolabViewManifest", () => {
     const refusal = "`outputs[0]`: `pin_type`: a bundle rides no message a view's port reads or writes; a view declares a port of a type a link carries.";
     expect(becauseOf(withOutput([{ name: "label", member_type: { type: "string" } }, { name: "picture", member_type: { type: "texture" } }]))).toBe(refusal);
     expect(becauseOf(withOutput([{ name: "level", member_type: { type: "float" } }, { name: "sound", member_type: { type: "audio" } }]))).toBe(refusal);
-    expect(becauseOf(withOutput([{ name: "weights", member_type: { type: "tensor" } }, { name: "clip", member_type: { type: "encoded_video" } }]))).toBe(refusal);
+    expect(becauseOf(withOutput([{ name: "frame", member_type: { type: "integer" } }, { name: "clip", member_type: { type: "encoded_video" } }]))).toBe(refusal);
+  });
+
+  it("refuses a bundle the runtime refuses in the contract's words, as one mixing a Tensor with a member of another type", () => {
+    const withOutput = (members: unknown) => ({ ...STAGE_RIG_MANIFEST, outputs: [{ name: "framed", pin_type: { type: "bundle", members } }] });
+    expect(becauseOf(withOutput([{ name: "weights", member_type: { type: "tensor" } }, { name: "clip", member_type: { type: "encoded_video" } }]))).toBe(
+      "`outputs[0].pin_type.members`: matches none of the 2 alternatives the contract allows here.",
+    );
   });
 
   it("refuses a pin type the contract does not take at its field, and an output a panel writes of a type that holds no value", () => {

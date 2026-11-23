@@ -16,6 +16,7 @@ import {
   type StreamTabAddress,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
+import type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { RefusalOfTheLatestAskBar, useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { ToggleIconButton } from "@tatolab/tato-app-view-sdk/design_system/toggle_icon_button";
@@ -36,7 +37,7 @@ import {
 type PortViewerShown =
   | { kind: "waiting" }
   | { kind: "picture"; format_wire_name: string }
-  | { kind: "messages"; reading: PortViewerMessageReading; packets_units_seen: readonly PacketsUnitSeen[]; messages_read: number }
+  | { kind: "messages"; reading: PortViewerMessageReading; pin_type: PinType | null; packets_units_seen: readonly PacketsUnitSeen[]; messages_read: number }
   | { kind: "undrawable"; format_wire_name: string }
   | { kind: "reopening"; because: string }
   | { kind: "ended"; because: string; recovery: PortViewerRecovery };
@@ -102,7 +103,7 @@ export function PortViewerPicture({
         const nowMs = performance.now();
         if (shownKind !== "messages" || nowMs - messageReadingShownAtMs >= MESSAGE_READING_REDRAWN_EVERY_MS) {
           messageReadingShownAtMs = nowMs;
-          show({ kind: "messages", reading: event.reading, packets_units_seen: packetsUnitsSeen, messages_read: messagesRead });
+          show({ kind: "messages", reading: event.reading, pin_type: event.pin_type, packets_units_seen: packetsUnitsSeen, messages_read: messagesRead });
         }
       } else {
         show(event);
@@ -151,7 +152,7 @@ export function PortViewerPicture({
               </span>
             )}
           </div>
-          <PortViewerMessageReadingShown reading={shown.reading} unitsSeen={shown.packets_units_seen} messagesRead={shown.messages_read} valuesChecked={streamFactsOfThePort.values_checked ?? null} />
+          <PortViewerMessageReadingShown reading={shown.reading} pinType={shown.pin_type} unitsSeen={shown.packets_units_seen} messagesRead={shown.messages_read} valuesChecked={streamFactsOfThePort.values_checked ?? null} />
         </div>
       )}
       {shown.kind === "undrawable" && (

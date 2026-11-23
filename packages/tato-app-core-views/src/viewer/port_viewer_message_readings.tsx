@@ -1,4 +1,6 @@
 import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
+import { valueWords } from "@tatolab/tato-app-view-sdk/pin_model/value_words";
+import type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
 import type { JsonValue, PortViewerArrayAttributeReading, PortViewerChannelWaveform, PortViewerMessageReading } from "@tatolab/tato-app-view-sdk";
 import { VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
 
@@ -94,6 +96,30 @@ function ChannelsReading({ reading }: { reading: Extract<PortViewerMessageReadin
   );
 }
 
+/** The value the latest sample of a Channels block carries for a port of `pinType`: a Boolean's as On or Off, a number's as itself. */
+function valueOfTheLatestSample(pinType: PinType, latestSample: number): JsonValue {
+  return pinType.type === "boolean" ? latestSample !== 0 : latestSample;
+}
+
+/**
+ * A Channels message of a typed port that carries no sound, as the value it holds: a Float, an Integer or a Boolean in the words
+ * its row writes it in, and a value of several numbers, such as a Vector or a Color, as the latest sample of each channel.
+ */
+function ValueReading({ reading, pinType, messagesRead }: { reading: Extract<PortViewerMessageReading, { family: "channels" }>; pinType: PinType; messagesRead: number }) {
+  const latestSamples = reading.channel_samples.map((samples) => samples.at(-1) ?? null);
+  const [onlySample] = latestSamples;
+  const wordsOfTheOneValue = latestSamples.length === 1 && onlySample !== undefined && onlySample !== null ? valueWords(pinType, valueOfTheLatestSample(pinType, onlySample)) : null;
+  const shownWords = wordsOfTheOneValue ?? latestSamples.map((sample) => (sample === null ? "—" : numberWords(sample))).join(", ");
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2 p-3" data-viewer-reading="value">
+      <div className="text-2xs text-fg-3">The latest value of {messagesRead} read.</div>
+      <div className="font-mono text-lg text-fg" data-viewer-value={shownWords}>
+        {shownWords}
+      </div>
+    </div>
+  );
+}
+
 function arrayAttributeRow(attribute: PortViewerArrayAttributeReading): KeyValueRow {
   const shapeWords = `${attribute.dtype}[${attribute.shape.join(" × ")}]`;
   if (attribute.residency === "gpu") return [attribute.name, `${shapeWords} · on the GPU`];
@@ -139,20 +165,26 @@ function PacketsReading({ reading, unitsSeen }: { reading: Extract<PortViewerMes
   );
 }
 
-/** What the Node visualizer shows of a port of a family other than Image: the latest message, read by its family. */
+/**
+ * What the Node visualizer shows of a port that is no Image port: the latest message, read by the port's pin type where it has
+ * one, so a Channels block of a typed port that carries no sound shows its value, and else by the message's kind.
+ */
 export function PortViewerMessageReadingShown({
   reading,
+  pinType,
   unitsSeen,
   messagesRead,
   valuesChecked,
 }: {
   reading: PortViewerMessageReading;
+  /** The pin type the port carries, as `open_viewer` answered it; `null` for a port with none. */
+  pinType: PinType | null;
   unitsSeen: readonly PacketsUnitSeen[];
   messagesRead: number;
   /** The port's `values_checked` mark: `false` on a Records port, whose values no type checks. */
   valuesChecked: boolean | null;
 }) {
-  if (reading.family === "channels") return <ChannelsReading reading={reading} />;
+  if (reading.family === "channels") return pinType === null || pinType.type === "audio" ? <ChannelsReading reading={reading} /> : <ValueReading reading={reading} pinType={pinType} messagesRead={messagesRead} />;
   if (reading.family === "packets") return <PacketsReading reading={reading} unitsSeen={unitsSeen} />;
   if (reading.family === "records") {
     return (

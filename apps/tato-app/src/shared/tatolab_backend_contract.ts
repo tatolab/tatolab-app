@@ -76,7 +76,9 @@ export type {
   PortViewerRecovery,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 export { PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
+export type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
 export { TATO_STUDIO_MCP_CLIENT_NAME, familyOfThePort, fragmentOfTheNode, inputValueReadOfThePort, memberValueReadsOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
 import type { JsonValue, ListedStream, PortViewerMessageReading, PortViewerRecovery, ProjectFileFinding, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The platform the app runs on, which decides the window's chrome. */
@@ -591,8 +593,9 @@ export interface PortViewerImageFrameFacts {
 
 /**
  * What `tatolab-port-viewer-event` carries about one port viewer: Image frames a shared texture cannot carry, as their pixels (a GPU
- * whose memory crosses only as CPU-readable bytes); any other family's latest message, read by its family; the viewer reopening after
- * its connection to the runtime closed; or its end, with why in the runtime's words.
+ * whose memory crosses only as CPU-readable bytes); any other message, read by its kind, with the port's pin type as `open_viewer`
+ * answers it, `null` for a port with none; the viewer reopening after its connection to the runtime closed; or its end, with why in
+ * the runtime's words.
  */
 export type PortViewerEvent =
   | {
@@ -605,7 +608,7 @@ export type PortViewerEvent =
       pixels: Uint8Array;
       skipped_since_last_read: number;
     }
-  | { port_viewer: string; kind: "message"; reading: PortViewerMessageReading; skipped_since_last_read: number }
+  | { port_viewer: string; kind: "message"; reading: PortViewerMessageReading; pin_type: PinType | null; skipped_since_last_read: number }
   | { port_viewer: string; kind: "reopening"; because: string }
   | { port_viewer: string; kind: "ended"; because: string; recovery: PortViewerRecovery };
 

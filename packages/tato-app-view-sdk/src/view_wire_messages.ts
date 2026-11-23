@@ -40,9 +40,10 @@ import type {
   ViewOpenedOn,
 } from "./studio_readings.js";
 import type { NodeUiElementsReading } from "./node_ui/node_ui_elements_listing.js";
+import type { PinType } from "./pin_types.js";
 import type { TatolabViewManifest } from "./tatolab_view_manifest.js";
 
-/** What a port viewer delivers: an Image frame as a `VideoFrame` the view closes once drawn, or as its pixels; another family's message, read by its family; or the viewer reopening, with why, or ending, with why and how it recovers. */
+/** What a port viewer delivers: an Image frame as a `VideoFrame` the view closes once drawn, or as its pixels; another message, read by its kind, with the pin type the port carries, `null` for a port with none; or the viewer reopening, with why, or ending, with why and how it recovers. */
 export type PortViewerEvent =
   | { kind: "image_frame"; video_frame: VideoFrame; format_wire_name: string; skipped_since_last_read: number }
   | {
@@ -56,7 +57,7 @@ export type PortViewerEvent =
       /** Messages the viewer skipped before this one, because a viewer reads only the latest. */
       skipped_since_last_read: number;
     }
-  | { kind: "message"; reading: PortViewerMessageReading; skipped_since_last_read: number }
+  | { kind: "message"; reading: PortViewerMessageReading; pin_type: PinType | null; skipped_since_last_read: number }
   | { kind: "reopening"; because: string }
   | { kind: "ended"; because: string; recovery: PortViewerRecovery };
 

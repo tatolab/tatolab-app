@@ -58,7 +58,7 @@ export class PortViewerConnections {
       const { port_viewer: _portViewer, ...imagePixels } = event;
       listener(imagePixels);
     } else if (event.kind === "message") {
-      listener({ kind: "message", reading: event.reading, skipped_since_last_read: event.skipped_since_last_read });
+      listener({ kind: "message", reading: event.reading, pin_type: event.pin_type, skipped_since_last_read: event.skipped_since_last_read });
     } else if (event.kind === "reopening") {
       listener({ kind: "reopening", because: event.because });
     } else {

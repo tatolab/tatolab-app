@@ -40,6 +40,7 @@ function aBlock(channelSamples: number[][]): ViewInputEvent {
       channel_waveforms: [],
       channel_samples: channelSamples.map((samples) => Float32Array.from(samples)),
     },
+    pin_type: { type: "audio" },
     skipped_since_last_read: 0,
   };
 }

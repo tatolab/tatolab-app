@@ -4,7 +4,7 @@ import { fakeRuntimeOfConnections, refusedByTheOperation } from "./control_conne
 import { fakeControlWebSocketRuntime as fakeControlWebSocketRuntimeOnASocket, resultLine, type FakeControlWebSocketAnswer } from "./fake_control_websocket_runtime.js";
 import { RuntimeOfAnotherContract, RuntimeRefused, RuntimeTimedOut } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { answerOf, failureOf } from "./runtime_operations_test_support.js";
+import { answerOf, failureOf, recordedResponseBody } from "./runtime_operations_test_support.js";
 import { resultOf } from "./result_as_effect.js";
 import type { Result } from "./result.js";
 import { closedViewerFromTheCloseViewerToolResult, openedRuntimeViewerFromTheOpenViewerToolResult, runtimeViewerConnectionOpenedIn, type RuntimeViewerConnection } from "./runtime_viewer_control_connection.js";
@@ -76,6 +76,35 @@ test("the_connection_upgrades_control_ws_by_the_apps_name_and_opens_a_viewer_wit
   expect(runtime.callsRead).toEqual([
     { jsonrpc: "2.0", id: expect.anything(), method: "open_viewer", params: { stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 4242 } },
   ]);
+});
+
+test("a_viewer_of_a_port_whose_open_viewer_answers_no_pin_type_opens_with_none", async () => {
+  const { pin_type: _pinType, ...answeredWithNoPinType } = OPEN_VIEWER_RESULT_ON_LINUX;
+  const runtime = await fakeControlWebSocketRuntime((call) => [resultLine(call["id"], answeredWithNoPinType)]);
+  const { connection } = await connectionOver(runtimeControlLayer(runtime.localApiSocketPath, 2_000));
+
+  expect(answerOf(await settled(connection.openViewer(A_TARGET)))).toEqual({ ...LINUX_VIEWER, pin_type: null });
+});
+
+test("a_viewer_whose_open_viewer_answers_a_pin_type_that_is_none_is_not_opened_and_is_not_the_runtimes_refusal", async () => {
+  const answeredWithAnUnknownPinType = JSON.parse(JSON.stringify({ ...OPEN_VIEWER_RESULT_ON_LINUX, pin_type: { type: "colour_wheel" } }));
+  const { connection } = await connectionOver(fakeRuntimeOfConnections({ open_viewer: () => Effect.succeed(answeredWithAnUnknownPinType) }).layer);
+
+  const notOpened = failureOf(await settled(connection.openViewer(A_TARGET)));
+
+  expect(notOpened.theRuntimeRefusedIt).toBe(false);
+  expect(notOpened.words).toMatch(/the runtime's open_viewer result could not be read: its pin_type is not a pin type: /);
+});
+
+test("a_viewer_of_a_float_output_opens_with_the_pin_type_a_real_open_viewer_answered", async () => {
+  const recorded: unknown = JSON.parse(await recordedResponseBody("control-ws-open-viewer-result-of-the-float-output-count-of-counter.json"));
+  const recordedResult = typeof recorded === "object" && recorded !== null && "result" in recorded ? recorded.result : null;
+  const runtime = await fakeControlWebSocketRuntime((call) => [resultLine(call["id"], recordedResult)]);
+  const { connection } = await connectionOver(runtimeControlLayer(runtime.localApiSocketPath, 2_000));
+
+  const openedViewer = answerOf(await settled(connection.openViewer({ stream: "facts-main-c8b289", node_id: "a8b2e1f2-21c8-48e1-89f8-de081cbdabc9", port: "count", viewer_process_id: 4242 })));
+
+  expect(openedViewer).toMatchObject({ node_name: "counter", port: "count", pin_type: { type: "float" }, viewer_reads: "latest_message" });
 });
 
 test("a_viewer_and_a_close_are_called_on_the_one_connection_opened", async () => {
