@@ -684,8 +684,8 @@ export type StreamInputValuesReading = { kind: "values"; stream_asset: string | 
 /** The node types a project offers and each one's inputs and outputs, or why the runtime lists none, in its own words. */
 export type ProjectNodeTypesDescribedReading = { kind: "listed"; node_types: ProjectNodeTypesDescribed } | { kind: "not_listed"; because: string };
 
-/** One input or output a `node` view declares: its name and family. */
-export type StudioViewDeclaredPort = { name: string; family: PortFamily; description: string };
+/** One input or output a `node` view declares: its name and the pin type it carries. */
+export type StudioViewDeclaredPort = { name: string; pin_type: PinType; description: string };
 
 /** A view an area can show: its view type id, what its manifest says of it, who brought it, and why it does not open (`null` when it does). */
 export type StudioViewListed = {

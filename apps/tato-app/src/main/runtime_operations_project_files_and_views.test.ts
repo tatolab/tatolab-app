@@ -1,3 +1,4 @@
+import { readTatolabViewManifest } from "@tatolab/tato-app-view-sdk/studio_host/tatolab_view_manifest_reading";
 import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse } from "./fake_local_api_server.js";
 import { answerOf, cleanUpWhatTheTestStarted, controlOperationCallsReceivedBy, failureOf, fakeLocalApiServerAnswering, recordedResponseBody } from "./runtime_operations_test_support.js";
@@ -113,4 +114,16 @@ test("a project's views are listed from its views/ folders and its imports', eac
   ]);
   expect(listed[1]?.manifest).toMatchObject({ title: "DJ Deck", placement: "node", entry: "index.html" });
   expect(refusal).toMatchObject({ _tag: "RuntimeRefused", words: "list_project_views failed: /private/tmp/tl-rec053/not-a-project holds no project: it has no tatolab-project.json" });
+});
+
+// The recording of night-show importing lobby-wall, its deck's manifest moved to view contract 1.1 by hand: each port names its
+// pin type and no family, and the runtime's answer serves that pin type beside the family the contract still requires of it.
+test("a view's declared ports are read by the pin type its listed manifest names, with no family", async () => {
+  const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall-its-deck-declaring-pin-types.json"))]);
+
+  const listed = answerOf(await server.run(listProjectViews(RECORDED_NIGHT_SHOW)));
+  const deckManifest = readTatolabViewManifest(listed[1]?.manifest);
+
+  expect(deckManifest.kind === "read" && deckManifest.manifest.inputs.map(({ name, pin_type }) => ({ name, pin_type }))).toEqual([{ name: "level", pin_type: { type: "tensor" } }]);
+  expect(deckManifest.kind === "read" && deckManifest.manifest.outputs.map(({ name, pin_type }) => ({ name, pin_type }))).toEqual([{ name: "cue", pin_type: { type: "string" } }]);
 });

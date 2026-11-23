@@ -56,7 +56,7 @@ describe("the views a view reads", () => {
       ["acme-dj:rig", "Rig", "Acme DJ", null, "`contract`: this runtime reads view contract 1.0."],
       ["outliner", "My outliner", "Acme DJ", null, "The studio already has a view named outliner."],
     ]);
-    expect(reading.kind === "listed" && reading.studio_views[2]?.outputs).toEqual([{ name: "crossfader", family: "array", description: "" }]);
+    expect(reading.kind === "listed" && reading.studio_views[2]?.outputs).toEqual([{ name: "crossfader", pin_type: { type: "tensor" }, description: "" }]);
   });
 
   it("lists Studio's own alone with no project open, and beside the runtime's words when the project's are not listed", () => {

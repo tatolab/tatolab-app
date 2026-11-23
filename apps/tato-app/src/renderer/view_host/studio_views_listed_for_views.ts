@@ -12,7 +12,7 @@ function broughtByWords(broughtBy: StudioViewTypeSource): string {
 }
 
 function studioViewListedFromTheViewType(viewType: RegisteredStudioViewType): StudioViewListed {
-  const declaredPortOf = (port: TatolabViewManifest["inputs"][number]) => ({ name: port.name, family: port.family, description: port.description ?? "" });
+  const declaredPortOf = (port: TatolabViewManifest["inputs"][number]) => ({ name: port.name, pin_type: port.pin_type, description: port.description ?? "" });
   return {
     view_type_id: viewType.view_type_id,
     title: viewType.title,
