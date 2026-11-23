@@ -5,7 +5,7 @@
 # and the runtime helper's Contents/MacOS and Contents/Frameworks, every symlink resolving inside the
 # bundle, the runtime helper Contents/Helpers/Tatolab Runtime.app and its Info.plist, no install.sh,
 # the Info.plist usage strings, the helper's runtime version at or below the app's and the streamlib
-# commit it was built from, the lend's CPython 3.10-3.14 bytecode, the first-party module wheels beside it, every
+# commit it was built from, the lend's bytecode for each CPython its Requires-Python admits, the first-party module wheels beside it, every
 # Mach-O inside the carried wheels and Python signed like the bundle's own, the
 # runtime's uv beside the helper's tatolabd and no Python of the app's own, the CEF browser host in the
 # helper's Frameworks, the helper's TypeScript compiler and linter running from inside it, the
@@ -129,7 +129,6 @@ tatolab_developer_id_team_identifier=QV2N7EDV53
 entitlement_keys_of() {
   codesign -d --entitlements - --xml "$1" 2>/dev/null | grep -o '<key>[^<]*</key>' | sed 's/<[^>]*>//g' | sort | tr '\n' ' ' | sed 's/ $//' || true
 }
-required_lend_bytecode_cache_tags=(cpython-310 cpython-311 cpython-312 cpython-313 cpython-314)
 
 # The notary opens a .whl and a .tar.gz and refuses any Mach-O in them not signed by a Developer
 # ID with a secure timestamp, and an executable without the hardened runtime, so each carried
@@ -339,6 +338,12 @@ verify_app_bundle() {
     || fail "the helper's Resources/lend links no Mach-O into its Frameworks/tatolab-runtime"
 
   local lend_python_source lend_bytecode_cache_tag lend_bytecode_file missing_lend_bytecode_count=0 first_missing_lend_bytecode=""
+  local lend_python_version lend_python_versions required_lend_bytecode_cache_tags=()
+  if lend_python_versions="$("$tato_app_root/scripts/lend-python-versions.sh" "$helper_contents/Resources/lend")"; then
+    for lend_python_version in $lend_python_versions; do required_lend_bytecode_cache_tags+=("cpython-${lend_python_version/./}"); done
+  else
+    fail "the helper's Resources/lend states no CPython it admits, so its bytecode cannot be checked"
+  fi
   while IFS= read -r -d '' lend_python_source; do
     for lend_bytecode_cache_tag in "${required_lend_bytecode_cache_tags[@]}"; do
       lend_bytecode_file="$(dirname "$lend_python_source")/__pycache__/$(basename "$lend_python_source" .py).$lend_bytecode_cache_tag.pyc"

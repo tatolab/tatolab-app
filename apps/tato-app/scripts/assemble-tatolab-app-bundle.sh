@@ -23,7 +23,7 @@
 #                                                         pages in, where tatolabd finds it from the lend
 #   <helper>/Contents/Resources/lend/                     the lend, each Mach-O a relative symlink
 #                                                         into Frameworks/tatolab-runtime, precompiled
-#                                                         for CPython 3.10-3.14
+#                                                         for each CPython its Requires-Python admits
 #   <helper>/Contents/Resources/imports/                  the unit's first-party module wheels, beside
 #                                                         the lend, where tatolabd finds them; each is
 #                                                         pure Python, so Resources/ holds no code
@@ -89,7 +89,6 @@ core_projects_source="$runtime_unit_directory/lib/tatolab/core-projects"
 carried_python_downloads_source="$runtime_unit_directory/lib/tatolab/python-downloads"
 browser_host_app_bundle_relative_to_the_unit="lib/tatolab/browser-host/tatolab-browser-host.app"
 lent_runtime_package_relative_to_the_lend="tatolab/runtime"
-processor_interpreter_python_versions=(3.10 3.11 3.12 3.13 3.14)
 
 contents="$app_bundle/Contents"
 [ -x "$contents/MacOS/Tato Studio" ] || { echo "$app_bundle has no Contents/MacOS/Tato Studio: not a packaged Tato Studio.app" >&2; exit 1; }
@@ -113,6 +112,8 @@ for browser_host_entry in "$runtime_unit_directory"/lib/tatolab/browser-host/* "
   [ "${browser_host_entry#"$runtime_unit_directory/"}" = "$browser_host_app_bundle_relative_to_the_unit" ] \
     || { echo "runtime unit $runtime_unit_directory ships ${browser_host_entry#"$runtime_unit_directory/"}, which this script does not place in the bundle" >&2; exit 1; }
 done
+lend_python_versions="$("$tato_app_root/scripts/lend-python-versions.sh" "$lend_source")"
+read -r -a processor_interpreter_python_versions <<<"$(tr '\n' ' ' <<<"$lend_python_versions")"
 is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
 
 # Resources/ is sealed as data, so a wheel carrying a native extension would ship unsigned code.

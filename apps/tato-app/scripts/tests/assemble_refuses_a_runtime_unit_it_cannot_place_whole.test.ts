@@ -21,6 +21,7 @@ const ASSEMBLE_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "assemble-tatolab-ap
 const PLACED_RUNTIME_UNIT_BINARIES = ["tatolab", "tatolabd", "uv", "tatolab-video-poster-frame", "tatolab-video-codec-host"];
 const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend", "imports", "samples", "core-projects", "carried-wheels", "python-downloads", "browser-host"];
 const BROWSER_HOST_EXECUTABLE_IN_THE_UNIT = ["lib", "tatolab", "browser-host", "tatolab-browser-host.app", "Contents", "MacOS", "tatolab-browser-host"];
+const LEND_DIST_INFO = "streamlib-0.69.178.dist-info";
 const PURE_PYTHON_TESTPATTERN_WHEEL = "tatolab_testpattern-0.68.54-py3-none-any.whl";
 const RESOLVED_STREAMLIB_COMMIT = "ef5c8b22995a90b1f7ae671e214c96480615c911";
 const AN_OLDER_STREAMLIB_COMMIT = "f2ec4338a0d1c2b3e4f5a6b7c8d9e0f1a2b3c4d5";
@@ -72,6 +73,8 @@ async function runtimeUnitPlantedWith(
   }
   if (libraryDirectoryNames.includes("lend")) {
     await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", "lend", "tatolab", "runtime"), { recursive: true });
+    await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", "lend", LEND_DIST_INFO), { recursive: true });
+    await writeFile(path.join(runtimeUnitDirectory, "lib", "tatolab", "lend", LEND_DIST_INFO, "METADATA"), "Metadata-Version: 2.4\nName: streamlib\nRequires-Python: >=3.12\n");
   }
   if (libraryDirectoryNames.includes("python-downloads")) {
     await writeFile(path.join(runtimeUnitDirectory, "lib", "tatolab", "python-downloads", "uv-python-downloads.json"), "{}");
