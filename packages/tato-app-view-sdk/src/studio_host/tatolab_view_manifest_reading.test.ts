@@ -121,6 +121,24 @@ describe("readTatolabViewManifest", () => {
     });
   });
 
+  it("reads a port of a bundle of small members, or of Lists of them, as Records, which carries it whole as one map of its members by name", () => {
+    const camera = { type: "bundle", members: [{ name: "yaw", member_type: { type: "float" } }, { name: "bursts", member_type: { type: "integer" } }] };
+    const levels = { type: "bundle", members: [{ name: "label", member_type: { type: "string" } }, { name: "peaks", member_type: { type: "list_of", element_type: { type: "float" } } }] };
+    const stage = { ...STAGE_RIG_MANIFEST, contract: "1.1", inputs: [{ name: "levels", pin_type: levels }], outputs: [{ name: "camera", pin_type: camera }] };
+    expect(readTatolabViewManifest(stage)).toEqual({
+      kind: "read",
+      manifest: { ...stage, inputs: [{ name: "levels", family: "records", pin_type: levels }], outputs: [{ name: "camera", family: "records", pin_type: camera }] },
+    });
+  });
+
+  it("refuses a port of a bundle holding a Texture or Audio member, or of Tensors alone, which no Records message carries", () => {
+    const withOutput = (members: unknown) => ({ ...STAGE_RIG_MANIFEST, contract: "1.1", outputs: [{ name: "framed", pin_type: { type: "bundle", members } }] });
+    const refusal = "`outputs[0]`: `pin_type`: a bundle rides no message a view's port reads or writes; a view declares a port of a type a link carries.";
+    expect(becauseOf(withOutput([{ name: "label", member_type: { type: "string" } }, { name: "picture", member_type: { type: "texture" } }]))).toBe(refusal);
+    expect(becauseOf(withOutput([{ name: "level", member_type: { type: "float" } }, { name: "sound", member_type: { type: "audio" } }]))).toBe(refusal);
+    expect(becauseOf(withOutput([{ name: "weights", member_type: { type: "tensor" } }, { name: "biases", member_type: { type: "tensor" } }]))).toBe(refusal);
+  });
+
   it("refuses a pin type the contract does not take at its field, and an output a panel writes of a type that holds no value", () => {
     const withOutput = (output: unknown) => ({ ...STAGE_RIG_MANIFEST, contract: "1.1", outputs: [output] });
     expect(becauseOf(withOutput({ name: "level", pin_type: { type: "float", exact_size: "float16" } }))).toContain("`outputs[0].pin_type");

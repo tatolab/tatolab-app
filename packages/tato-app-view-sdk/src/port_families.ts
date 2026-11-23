@@ -1,4 +1,4 @@
-import type { BuiltInPinTypeName } from "./pin_types.js";
+import type { BuiltInPinTypeName, PinType } from "./pin_types.js";
 
 /** The five families a runtime port carries, each one engine-owned memory layout, as streamlib's plan names them. */
 export const PORT_FAMILIES = ["image", "array", "channels", "packets", "records"] as const;
@@ -40,3 +40,17 @@ export const FAMILY_CARRYING_A_PIN_OF: Readonly<Record<BuiltInPinTypeName, PortF
   node_reference: null,
   pin_type_choice: null,
 };
+
+/** The small types, each a value that rides a message that exists, as the runtime's `PinType::is_a_small_type` lists them. */
+const SMALL_PIN_TYPES: ReadonlySet<BuiltInPinTypeName> = new Set(["boolean", "integer", "float", "string", "menu", "color", "vector", "rectangle", "transform", "asset"]);
+
+/** Whether a bundle member of `memberType` packs into a Records map: a small type, or a List of one. */
+function isASmallTypeOrAListOfOne(memberType: PinType): boolean {
+  return SMALL_PIN_TYPES.has(memberType.type) || (memberType.type === "list_of" && SMALL_PIN_TYPES.has(memberType.element_type.type));
+}
+
+/** The family one message of which carries a whole value of `pinType`, as the runtime's `PortFamily::carrying_a_whole_value_of` finds it: Records for a bundle of small types and Lists of them, else the one `FAMILY_CARRYING_A_PIN_OF` names. */
+export function familyCarryingAWholeValueOf(pinType: PinType): PortFamily | null {
+  if (pinType.type === "bundle") return pinType.members.every(({ member_type }) => isASmallTypeOrAListOfOne(member_type)) ? "records" : null;
+  return FAMILY_CARRYING_A_PIN_OF[pinType.type];
+}
