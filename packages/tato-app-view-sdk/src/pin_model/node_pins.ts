@@ -33,6 +33,22 @@ export interface NodePin {
   readonly link: NodeInputLink | null;
   /** On a pin carrying a bundle, a row for each of its members, in the order the bundle declares them, and whether its card shows them; `null` on every other pin and on a member. */
   readonly bundle: NodePinBundle | null;
+  /** The slot of its node type's pin group the pin is in, as the runtime serves it; `null` on a pin of no group and on a member. */
+  readonly slot: NodePinSlot | null;
+}
+
+/**
+ * The slot of a pin group a pin is in: the group's name, the slot's index from 0, the pin's name in the slot, and how the group
+ * holds its slots. A group that follows its wires holds one empty slot after the last a link reaches, which the runtime keeps
+ * last; a group whose count is set holds as many as its input named after the group says.
+ */
+export interface NodePinSlot {
+  readonly group: string;
+  readonly slot: number;
+  readonly pin: string;
+  readonly slots: "follow_their_wires" | "set_by_the_input_of_the_groups_name";
+  /** Whether the slot is the empty one a group that follows its wires holds last, which a wire dropped on it fills. */
+  readonly is_the_empty_slot: boolean;
 }
 
 /** A bundle pin's members, each a row of its own, and whether its card shows them, as its node keeps that under `studio.metadata.open_bundles`. */
@@ -41,9 +57,19 @@ export interface NodePinBundle {
   readonly is_open: boolean;
 }
 
-/** The words a row is labelled with: its member's name on a member, its port's on any other pin. */
-export function nodePinLabel(pin: Pick<NodePin, "name" | "member">): string {
-  return pin.member ?? pin.name;
+/** The words a row is labelled with: its member's name on a member, its name in its slot on a pin of a pin group, its port's on any other pin. */
+export function nodePinLabel(pin: Pick<NodePin, "name" | "member"> & { readonly slot?: NodePinSlot | null }): string {
+  return pin.member ?? pin.slot?.pin ?? pin.name;
+}
+
+/** The words a pin goes by where no card groups its slot's rows, as Properties lists it: `layers 2 › picture` for the pin `picture` of slot 2 of `layers`, its port's name on a pin of no group. */
+export function nodePinWordsBesideItsSlot(pin: Pick<NodePin, "name" | "slot">): string {
+  return pin.slot === null ? pin.name : `${pinGroupSlotWords(pin.slot)} › ${pin.slot.pin}`;
+}
+
+/** The words a pin group's slot goes by, counted from 1 as a person counts: `layers 2` for the slot at index 1 of `layers`. */
+export function pinGroupSlotWords(slot: Pick<NodePinSlot, "group" | "slot">): string {
+  return `${slot.group} ${slot.slot + 1}`;
 }
 
 /** What an input reads through its wire: the input, where it is in its stream's graph, and the output wired into it, or why it reads none. */

@@ -36,7 +36,7 @@ const GRAPH: StreamGraph = aStreamGraph(
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_types_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", node_type: "nodes.camera:Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", member: null, bundle: null, pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null, kind: { look: "process" } },
+    { node_id: "camera", title: "camera", type_name: "Effect", node_type: "nodes.camera:Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", member: null, bundle: null, pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, slot: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null, kind: { look: "process" } },
     {
       node_id: "invert",
       title: "invert",
@@ -44,8 +44,8 @@ test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_type
       node_type: "nodes.invert:Effect",
       description: null,
       condition: { look: "healthy" },
-      inputs: [{ name: "video_in", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null }],
-      outputs: [{ name: "video_out", member: null, bundle: null, pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null }],
+      inputs: [{ name: "video_in", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, slot: null }],
+      outputs: [{ name: "video_out", member: null, bundle: null, pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, slot: null }],
       saved_position: null,
       frame_id: null,
       is_collapsed: false,
@@ -448,4 +448,38 @@ test("a_bundle_pin_carries_a_row_for_each_member_each_input_member_set_at_its_ow
   ]);
   expect(mix?.outputs[0]?.bundle).toEqual({ is_open: false, members: [expect.objectContaining({ name: "meters", member: "left" }), expect.objectContaining({ name: "meters", member: "right" })] });
   expect(contents.links.map((link) => [link.target_pin, link.target_member, link.source_member, link.description])).toEqual([["levels", "right", null, "beat.count → mix.levels.right, wired"]]);
+});
+
+test("a_pin_group_slots_pins_carry_their_slot_named_in_it_and_the_last_slot_of_a_group_that_follows_its_wires_is_its_empty_one", () => {
+  const slotPort = (group: string, slot: number, pin: string) => aGraphPort(`${group}.${slot}.${pin}`, null, { pin_group_slot: { group, slot, pin } });
+  const compositor = graphNode("compositor", [], [], {
+    inputs: [aGraphPort("bands", null), slotPort("layers", 0, "picture"), slotPort("layers", 0, "opacity"), slotPort("layers", 1, "picture"), slotPort("layers", 1, "opacity")],
+    outputs: [aGraphPort("composited", null), slotPort("bands", 0, "banded"), slotPort("bands", 1, "banded")],
+  });
+  const described: NodeTypeDescription = {
+    node_type: "nodes.compositor:Effect",
+    described_from: "interpreter",
+    documentation: "",
+    source: "project",
+    inputs: [],
+    outputs: [],
+    pin_groups: [
+      { name: "layers", documentation: "", slots: "follow_their_wires", inputs: [], outputs: [] },
+      { name: "bands", documentation: "", slots: "set_by_the_input_of_the_groups_name", inputs: [], outputs: [] },
+    ],
+  };
+  const card = streamGraphCanvasContents(aStreamGraph([compositor], []), new Map([[described.node_type, described]])).nodes[0];
+
+  expect(card?.inputs.map((pin) => [pin.name, pin.slot?.slot ?? null, pin.slot?.pin ?? null, pin.slot?.is_the_empty_slot ?? null])).toEqual([
+    ["bands", null, null, null],
+    ["layers.0.picture", 0, "picture", false],
+    ["layers.0.opacity", 0, "opacity", false],
+    ["layers.1.picture", 1, "picture", true],
+    ["layers.1.opacity", 1, "opacity", true],
+  ]);
+  expect(card?.outputs.map((pin) => [pin.name, pin.slot?.slots ?? null, pin.slot?.is_the_empty_slot ?? null])).toEqual([
+    ["composited", null, null],
+    ["bands.0.banded", "set_by_the_input_of_the_groups_name", false],
+    ["bands.1.banded", "set_by_the_input_of_the_groups_name", false],
+  ]);
 });
