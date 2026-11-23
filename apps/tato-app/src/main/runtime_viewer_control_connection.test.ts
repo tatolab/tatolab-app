@@ -78,6 +78,24 @@ test("the_connection_upgrades_control_ws_by_the_apps_name_and_opens_a_viewer_wit
   ]);
 });
 
+test("a_viewer_of_a_port_whose_open_viewer_answers_no_pin_type_opens_with_none", async () => {
+  const { pin_type: _pinType, ...answeredWithNoPinType } = OPEN_VIEWER_RESULT_ON_LINUX;
+  const runtime = await fakeControlWebSocketRuntime((call) => [resultLine(call["id"], answeredWithNoPinType)]);
+  const { connection } = await connectionOver(runtimeControlLayer(runtime.localApiSocketPath, 2_000));
+
+  expect(answerOf(await settled(connection.openViewer(A_TARGET)))).toEqual({ ...LINUX_VIEWER, pin_type: null });
+});
+
+test("a_viewer_whose_open_viewer_answers_a_pin_type_that_is_none_is_not_opened_and_is_not_the_runtimes_refusal", async () => {
+  const answeredWithAnUnknownPinType = JSON.parse(JSON.stringify({ ...OPEN_VIEWER_RESULT_ON_LINUX, pin_type: { type: "colour_wheel" } }));
+  const { connection } = await connectionOver(fakeRuntimeOfConnections({ open_viewer: () => Effect.succeed(answeredWithAnUnknownPinType) }).layer);
+
+  const notOpened = failureOf(await settled(connection.openViewer(A_TARGET)));
+
+  expect(notOpened.theRuntimeRefusedIt).toBe(false);
+  expect(notOpened.words).toMatch(/the runtime's open_viewer result could not be read: its pin_type is not a pin type: /);
+});
+
 test("a_viewer_and_a_close_are_called_on_the_one_connection_opened", async () => {
   const runtime = fakeRuntimeOfConnections({ open_viewer: () => Effect.succeed(openViewerAnsweredOnLinux()), close_viewer: ({ viewer }) => Effect.succeed({ viewer }) });
   const { connection } = await connectionOver(runtime.layer);

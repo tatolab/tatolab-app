@@ -593,9 +593,9 @@ export interface PortViewerImageFrameFacts {
 
 /**
  * What `tatolab-port-viewer-event` carries about one port viewer: Image frames a shared texture cannot carry, as their pixels (a GPU
- * whose memory crosses only as CPU-readable bytes); any other message, read by its kind, with the port's pin type `open_viewer` answers, `null`
- * for a port with none; the viewer reopening after
- * its connection to the runtime closed; or its end, with why in the runtime's words.
+ * whose memory crosses only as CPU-readable bytes); any other message, read by its kind, with the port's pin type as `open_viewer`
+ * answers it, `null` for a port with none; the viewer reopening after its connection to the runtime closed; or its end, with why in
+ * the runtime's words.
  */
 export type PortViewerEvent =
   | {

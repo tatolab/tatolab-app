@@ -1,10 +1,10 @@
 // What a runtime viewer held open reads of its port, on every write the port's node notifies of: its
-// latest message, or every message for an Audio port, handed to each window showing the port. An Image
-// frame goes as a shared texture and is released once every window has let go of it; a frame a shared
-// texture cannot carry goes as its pixels; every other message goes read by its kind, with the port's pin
-// type `open_viewer` answered. This is
-// the frame lane: it runs once per frame, so it holds plain code only, and opening, closing and
-// reopening the viewer are the port viewers' own.
+// latest message, or every message where `open_viewer` says the viewer reads every one, handed to each
+// window showing the port. An Image frame goes as a shared texture and is released once every window has
+// let go of it; a frame a shared texture cannot carry goes as its pixels; every other message goes read
+// by its kind, with the pin type `open_viewer` answered for the port. This is the frame lane: it runs
+// once per frame, so it holds plain code only, and opening, closing and reopening the viewer are the
+// port viewers' own.
 
 import type { PortViewerEvent, PortViewerImageFrameFacts } from "../shared/tatolab_backend_contract.js";
 import type { OpenedRuntimeViewer } from "./runtime_viewer_control_connection.js";
@@ -107,8 +107,9 @@ export class RuntimePortViewerReads {
     const { imageFrame } = messageRead;
     if (imageFrame === null) {
       const reading = portViewerMessageReadingOf(messageRead);
+      const pinType = this.sources.openedViewer.pin_type;
       for (const [portViewer, window] of windowsShowingThePort) {
-        window.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "message", reading, pin_type: this.sources.openedViewer.pin_type, skipped_since_last_read: messageRead.skippedSinceLastRead });
+        window.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "message", reading, pin_type: pinType, skipped_since_last_read: messageRead.skippedSinceLastRead });
       }
       return;
     }

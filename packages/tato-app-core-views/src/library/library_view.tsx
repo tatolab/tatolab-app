@@ -199,7 +199,7 @@ function PortsOfTheView({ direction, ports }: { direction: "In" | "Out"; ports: 
       key={`${direction}:${port.name}`}
       direction={direction}
       portName={port.name}
-      familyWords={pinTypeWords(port.pin_type)}
+      familyWords={portFamilyWords(port.family)}
       portTitle={port.description === "" ? undefined : port.description}
       dataAttribute="data-library-view-port"
     />

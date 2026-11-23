@@ -52,3 +52,8 @@ test("a_typed_outputs_facts_are_read_by_their_type_over_the_family_beside_it", (
   expect(portStreamFactsWords({ stream_facts: { type: "encoded_audio", family: "image", rfc6381_codec: "opus" } })).toEqual(["opus"]);
   expect(portStreamFactsWords({ stream_facts: { type: "float", family: "packets", rfc6381_codec: "opus" } })).toEqual([]);
 });
+
+test("facts_naming_a_null_type_read_as_an_untyped_ports_by_their_family", () => {
+  expect(portStreamFactsWords({ stream_facts: { type: null, family: "image", frame_rate: { numerator: 25, denominator: 1 } } })).toEqual(["25 fps"]);
+  expect(portStreamFactsWords({ stream_facts: { type: null, family: "packets", rfc6381_codec: "opus" } })).toEqual(["opus"]);
+});
