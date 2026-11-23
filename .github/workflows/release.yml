@@ -76,16 +76,16 @@ jobs:
       - id: client-pin
         env:
           STREAMLIB_TAG: ${{ steps.plan.outputs.streamlib_tag }}
+          PINNED_STREAMLIB_COMMIT: ${{ steps.plan.outputs.pinned_streamlib_commit }}
         run: |
           set -euo pipefail
-          pinned_streamlib_commit="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).streamlib_commit)' apps/tato-app/tatolab-runtime-client-pin.json)"
           ancestry_directory="$RUNNER_TEMP/streamlib-ancestry"
           git init -q "$ancestry_directory"
           git -C "$ancestry_directory" fetch -q --filter=tree:0 https://github.com/tatolab/streamlib.git "refs/tags/$STREAMLIB_TAG"
-          if git -C "$ancestry_directory" merge-base --is-ancestor "$pinned_streamlib_commit" FETCH_HEAD; then
+          if git -C "$ancestry_directory" merge-base --is-ancestor "$PINNED_STREAMLIB_COMMIT" FETCH_HEAD; then
             echo "streamlib_release_contains_the_client_pin=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::streamlib $STREAMLIB_TAG does not contain streamlib $pinned_streamlib_commit, which the app's runtime client is pinned to: nothing is built or published until a streamlib release carries it"
+            echo "::warning::streamlib $STREAMLIB_TAG does not contain streamlib $PINNED_STREAMLIB_COMMIT, which the app's runtime client is pinned to: nothing is built or published until a streamlib release carries it"
             echo "streamlib_release_contains_the_client_pin=false" >> "$GITHUB_OUTPUT"
           fi
 

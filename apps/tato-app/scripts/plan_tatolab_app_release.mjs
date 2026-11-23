@@ -62,18 +62,51 @@ export function contractVersionOfTheContract(contract, source) {
   return contractVersion;
 }
 
+function stepOutputLinesOf(outputs) {
+  return Object.entries(outputs).map(([name, value]) => `${name}=${value}`);
+}
+
+function pinnedStreamlibCommitOf(pinFileText) {
+  const pinnedStreamlibCommit = JSON.parse(pinFileText).streamlib_commit ?? "";
+  if (!/^[0-9a-f]{40}$/.test(pinnedStreamlibCommit)) throw new Error(`the runtime client pin names no full streamlib commit: ${pinnedStreamlibCommit}`);
+  return pinnedStreamlibCommit;
+}
+
+// A streamlib release from before the client package carried its contract answers 404.
+async function contractVersionOfStreamlibAt(fetchContract, ref) {
+  const contractUrl = `${STREAMLIB_RAW_FILES_URL}/${ref}/${STREAMLIB_CLIENT_CONTRACT_PATH}`;
+  const contractResponse = await fetchContract(contractUrl, { cache: "no-store" });
+  if (contractResponse.status === 404) return null;
+  if (!contractResponse.ok) throw new Error(`${contractUrl} answered ${contractResponse.status}`);
+  return contractVersionOfTheContract(await contractResponse.json(), contractUrl);
+}
+
 /**
- * Whether `streamlibTag` serves the contract version of the pinned commit, and, when it does not,
- * the warning that names both versions.
+ * The step output lines naming the pinned streamlib commit and whether streamlib `streamlibTag` serves its control
+ * contract version, with the warning that skips the run when it does not.
  */
-export function planTheContractVersion({ pinnedStreamlibCommit, pinnedContractVersion, streamlibTag, releaseContractVersion }) {
-  if (pinnedContractVersion === releaseContractVersion) return { releaseServesThePinnedContractVersion: true, warning: null };
+export async function planTheContractVersion({ fetchContract, pinFileText, streamlibTag }) {
+  const pinnedStreamlibCommit = pinnedStreamlibCommitOf(pinFileText);
+  const pinnedContractVersion = await contractVersionOfStreamlibAt(fetchContract, pinnedStreamlibCommit);
+  if (pinnedContractVersion === null) {
+    throw new Error(`streamlib ${pinnedStreamlibCommit}, which the app's runtime client is pinned to, carries no ${STREAMLIB_CLIENT_CONTRACT_PATH}`);
+  }
+  const releaseContractVersion = await contractVersionOfStreamlibAt(fetchContract, `refs/tags/${streamlibTag}`);
+  const releaseServes =
+    releaseContractVersion === null
+      ? `streamlib ${streamlibTag} carries no ${STREAMLIB_CLIENT_CONTRACT_PATH}, so states no control contract version`
+      : `streamlib ${streamlibTag} serves control contract version ${releaseContractVersion}`;
+  const warning =
+    releaseContractVersion === pinnedContractVersion
+      ? null
+      : `${releaseServes}; the app's runtime client is pinned to streamlib ${pinnedStreamlibCommit}, which serves version ` +
+        `${pinnedContractVersion}: nothing is built or published until the pin and the streamlib release serve the same contract version`;
   return {
-    releaseServesThePinnedContractVersion: false,
-    warning:
-      `streamlib ${streamlibTag} serves control contract version ${releaseContractVersion}; the app's runtime client is pinned to ` +
-      `streamlib ${pinnedStreamlibCommit}, which serves version ${pinnedContractVersion}: nothing is built or published until the pin ` +
-      `and the streamlib release serve the same contract version`,
+    outputLines: stepOutputLinesOf({
+      pinned_streamlib_commit: pinnedStreamlibCommit,
+      streamlib_release_serves_the_pinned_contract_version: warning === null,
+    }),
+    warning,
   };
 }
 
@@ -111,41 +144,25 @@ async function lastPublishedAppVersion() {
   return manifestResponse === null ? null : versionOfTheUpdateManifest(await manifestResponse.text());
 }
 
-async function pinnedStreamlibCommit() {
-  const pin = JSON.parse(await readFile(RUNTIME_CLIENT_PIN_FILE_URL, "utf8"));
-  if (!/^[0-9a-f]{40}$/.test(pin.streamlib_commit ?? "")) throw new Error(`the runtime client pin names no full streamlib commit: ${pin.streamlib_commit}`);
-  return pin.streamlib_commit;
-}
-
-async function contractVersionOfStreamlibAt(ref) {
-  const contractUrl = `${STREAMLIB_RAW_FILES_URL}/${ref}/${STREAMLIB_CLIENT_CONTRACT_PATH}`;
-  const contractResponse = await fetch(contractUrl, { cache: "no-store" });
-  if (!contractResponse.ok) throw new Error(`${contractUrl} answered ${contractResponse.status}`);
-  return contractVersionOfTheContract(await contractResponse.json(), contractUrl);
-}
-
 async function main() {
   const requestedStreamlibVersion = (process.argv[2] ?? "").trim();
   const streamlibRelease = await streamlibReleaseWithItsLinuxRuntime(
     requestedStreamlibVersion === "" ? await streamlibVersionServedAsLatest() : requestedStreamlibVersion,
   );
   const plan = planTatolabAppRelease({ streamlibVersion: streamlibRelease.version, publishedAppVersion: await lastPublishedAppVersion() });
-  const pinnedCommit = await pinnedStreamlibCommit();
-  const contractVersionPlan = planTheContractVersion({
-    pinnedStreamlibCommit: pinnedCommit,
-    pinnedContractVersion: await contractVersionOfStreamlibAt(pinnedCommit),
+  const contractVersionPlan = await planTheContractVersion({
+    fetchContract: fetch,
+    pinFileText: await readFile(RUNTIME_CLIENT_PIN_FILE_URL, "utf8"),
     streamlibTag: streamlibRelease.tag,
-    releaseContractVersion: await contractVersionOfStreamlibAt(streamlibRelease.tag),
   });
   if (contractVersionPlan.warning !== null) process.stdout.write(`::warning::${contractVersionPlan.warning}\n`);
-  const outputs = {
+  const releaseOutputLines = stepOutputLinesOf({
     app_version: plan.appVersion,
     streamlib_tag: streamlibRelease.tag,
     streamlib_version: streamlibRelease.version,
     linux_runtime_tarball_url: streamlibRelease.linuxRuntimeTarballUrl,
-    streamlib_release_serves_the_pinned_contract_version: contractVersionPlan.releaseServesThePinnedContractVersion,
-  };
-  const outputLines = `${Object.entries(outputs).map(([name, value]) => `${name}=${value}`).join("\n")}\n`;
+  });
+  const outputLines = `${[...releaseOutputLines, ...contractVersionPlan.outputLines].join("\n")}\n`;
   process.stdout.write(outputLines);
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, outputLines);
 }
