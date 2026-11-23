@@ -98,12 +98,7 @@ const viewDeclaredPortAsWrittenSchema = Schema.Struct({
 });
 
 /** A declared port as an author's editor checks it: by its `pin_type`, which every port names. */
-const viewDeclaredPortAsAnEditorChecksItSchema = Schema.Struct({
-  name: portNameSchema,
-  pin_type: pinTypeSchema,
-  description: Schema.optionalKey(Schema.String),
-  range: Schema.optionalKey(rangeSchema),
-});
+const viewDeclaredPortAsAnEditorChecksItSchema = viewDeclaredPortAsWrittenSchema.mapFields(({ name, family: _family, pin_type: _optionalPinType, ...describing }) => ({ name, pin_type: pinTypeSchema, ...describing }));
 
 /** A declared port as read: its pin type, and the family that pin type's messages belong to. */
 const viewDeclaredPortReadSchema = Schema.Struct({

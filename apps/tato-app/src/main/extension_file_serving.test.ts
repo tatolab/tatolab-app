@@ -10,7 +10,7 @@ test("each file an extension's folder holds is served with its content type and 
   ]);
 });
 
-test("an extension's own .js, .mjs or .map outside vendor/ is served as no script and no source map, since only .ts is its code", () => {
+test("an extension's own .js, .mjs or .map outside vendor/ is served as application/octet-stream, not as a script or source map, since only .ts is its code", () => {
   expect(["assets/app.js", "view.mjs", "view.js.map", "lib/vendor/charts.js"].map(howAnExtensionFileIsServed)).toEqual(
     Array.from({ length: 4 }, () => ({ content_type: "application/octet-stream", served_as: "as_read" })),
   );

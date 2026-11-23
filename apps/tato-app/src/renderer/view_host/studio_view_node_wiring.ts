@@ -34,7 +34,7 @@ export function studioViewNodeAddressOf(projectFolder: string | null, graph: Str
  * What each of `declaredInputs` of the view node `viewNode` reads in `graph`, the graph of the stream `stream`, by input name:
  * whatever output is linked into it, as the runtime judged that link by the two pins' types.
  */
-export function studioViewInputWiring(stream: string, graph: StreamGraph, viewNode: StreamGraphNode, declaredInputs: readonly ViewDeclaredPort[]): Record<string, InputWiring> {
+export function studioViewInputWiring(stream: string, graph: StreamGraph, viewNode: StreamGraphNode, declaredInputs: readonly Pick<ViewDeclaredPort, "name">[]): Record<string, InputWiring> {
   return Object.fromEntries(
     declaredInputs.map((declaredInput) => [declaredInput.name, wiringOfTheInput(stream, graph, viewNode.name, declaredInput.name, null)]),
   );

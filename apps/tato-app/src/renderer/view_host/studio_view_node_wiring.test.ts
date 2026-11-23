@@ -26,20 +26,12 @@ describe("a view node's wiring", () => {
 
   it("reads each input from whatever output is linked into it, which the runtime judged by the two pins' types, and says why an input reads nothing", () => {
     expect(
-      studioViewInputWiring("set", GRAPH, DECK, [
-        { name: "deck_a", family: "channels", pin_type: { type: "audio" } },
-        { name: "deck_b", family: "image", pin_type: { type: "texture" } },
-        { name: "booth", family: "channels", pin_type: { type: "audio" } },
-        { name: "cue", family: "channels", pin_type: { type: "float" } },
-      ]),
+      studioViewInputWiring("set", GRAPH, DECK, [{ name: "deck_a" }, { name: "deck_b" }, { name: "booth" }, { name: "cue" }]),
     ).toEqual({
       deck_a: { kind: "wired", target: { stream: "set", node_id: "id-player", port: "audio" }, wired_from_words: "player › audio" },
       deck_b: { kind: "wired", target: { stream: "set", node_id: "id-camera", port: "video" }, wired_from_words: "camera › video" },
       booth: { kind: "unwired", because: "booth is wired from lobby-a1b2c3/player, in another stream, which Studio does not read." },
       cue: { kind: "unwired", because: "Nothing is wired into cue." },
-    });
-    expect(studioViewInputWiring("set", GRAPH, DECK, [{ name: "deck_a", family: "channels", pin_type: { type: "float" } }])).toEqual({
-      deck_a: { kind: "wired", target: { stream: "set", node_id: "id-player", port: "audio" }, wired_from_words: "player › audio" },
     });
   });
 

@@ -6,7 +6,7 @@ import { isAMissingFileFailure } from "../file_system_entries_on_this_machine.js
 import { describeCaughtFailure } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
 import { TATOLAB_WINDOW_PAGE_SCHEME } from "../../shared/tatolab_electron_bridge_contract.js";
-import { isAProjectViewFileUrl, type AnswerAProjectViewFileRequest, type ExtensionFileAnswer } from "../extension_files_served_with_types_removed.js";
+import { isAProjectViewFileUrl, responseCarryingTheExtensionFileAnswer, type AnswerAProjectViewFileRequest } from "../extension_files_served_with_types_removed.js";
 import { answerAStudioNodeUiFileRequest, isAStudioNodeUiFileUrl, STUDIO_NODE_UI_FILES_PATH, type ReadAStudioNodeUiFile } from "../studio_node_ui_module.js";
 import { builtWindowFileForRequest, isASuppliedModuleUrl, windowPageContentSecurityPolicy } from "../tatolab_window_page_source.js";
 import { originReadingTheStudioNodeUiFiles, readableWhereAllowed, windowPageSchemePrivileges, withHeader } from "../window_page_cross_origin_reads.js";
@@ -26,16 +26,7 @@ export function registerTheWindowPageSchemeBeforeReady(windowDevServerUrl: strin
 /** The response to a request for a project view's file; its pages carry no content security policy, since a project's view runs with full access. */
 async function projectViewFileResponse(requestUrl: string, tatolabAppLog: TatolabAppLog): Promise<Response> {
   if (answerAProjectViewFileRequestOnceServed === null) return new Response(null, { status: 503 });
-  return responseOfTheExtensionFileAnswer(requestUrl, await answerAProjectViewFileRequestOnceServed(requestUrl), tatolabAppLog);
-}
-
-/** The response that carries `answer` to a request for an extension's file at `requestUrl`: its bytes, or its status and why, which is logged. */
-function responseOfTheExtensionFileAnswer(requestUrl: string, answer: ExtensionFileAnswer, tatolabAppLog: TatolabAppLog): Response {
-  if (answer.kind === "not_served") {
-    tatolabAppLog.debug("an extension's file was not served", { request_url: requestUrl, because: answer.because });
-    return new Response(answer.because, { status: answer.status, headers: { "Content-Type": "text/plain; charset=utf-8" } });
-  }
-  return new Response(new Uint8Array(answer.file_bytes), { status: 200, headers: { "Content-Type": answer.content_type, "Cache-Control": "no-store" } });
+  return responseCarryingTheExtensionFileAnswer(requestUrl, await answerAProjectViewFileRequestOnceServed(requestUrl), tatolabAppLog);
 }
 
 /** Where the window's own files come from: the built window, or electron-vite's dev server, which also serves the supplied modules at `/studio_sdk/` while it serves the window. */
@@ -92,7 +83,7 @@ export async function serveTheWindowPageScheme(windowPageFilesSource: WindowPage
   protocol.handle(TATOLAB_WINDOW_PAGE_SCHEME, async (windowPageRequest) => {
     if (isAProjectViewFileUrl(windowPageRequest.url)) return projectViewFileResponse(windowPageRequest.url, tatolabAppLog);
     if (isAStudioNodeUiFileUrl(windowPageRequest.url)) {
-      const studioNodeUiFileResponse = responseOfTheExtensionFileAnswer(windowPageRequest.url, await answerAStudioNodeUiFileRequest(windowPageRequest.url, readAStudioNodeUiFile, tatolabAppLog), tatolabAppLog);
+      const studioNodeUiFileResponse = responseCarryingTheExtensionFileAnswer(windowPageRequest.url, await answerAStudioNodeUiFileRequest(windowPageRequest.url, readAStudioNodeUiFile, tatolabAppLog), tatolabAppLog);
       return readableWhereAllowed(windowPageRequest.url, studioNodeUiFileResponse, allowedOrigin);
     }
     if (windowPageFilesSource.kind === "dev_server") {

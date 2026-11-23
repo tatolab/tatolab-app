@@ -3,7 +3,8 @@
 // JavaScript with its types removed, and a page with the supplied modules' import map written into
 // it. A library the extension carries itself sits in the folder's `vendor/`, an ES module with its
 // declaration beside it, and every file there is served as it is written. Any other file is served
-// as it was read, a `.js`, `.mjs` or `.map` outside `vendor/` as bytes of no type a page runs.
+// as it was read, a `.js`, `.mjs` or `.map` outside `vendor/` as `application/octet-stream`; the app's
+// page protocol sends every extension file with `nosniff`, so a page runs such a file as no script.
 // This module imports nothing but Node's own, so the mock window's server serves the fixture view's
 // folder by the same rule as the app's page protocol.
 
@@ -22,6 +23,9 @@ export interface ExtensionFileServing {
 export const EXTENSION_VENDOR_FOLDER = "vendor/";
 
 const JAVASCRIPT_CONTENT_TYPE = "text/javascript; charset=utf-8";
+
+/** The content type of a file of no type the table names, served as bytes. */
+const BYTES_CONTENT_TYPE = "application/octet-stream";
 
 /** A file served with `contentType` as the runtime read it. */
 function servedAsRead(contentType: string): ExtensionFileServing {
@@ -63,12 +67,13 @@ const CONTENT_TYPE_OF_A_VENDORED_LIBRARYS_FILE: ReadonlyMap<string, string> = ne
 /** How a file under `vendor/` is served: as written, a declaration as the text it is, since it types the library it sits beside and is never run. */
 function howAVendorFileIsServed(fileExtension: string): ExtensionFileServing {
   if (fileExtension === ".ts") return servedAsRead("text/plain; charset=utf-8");
-  return servedAsRead(CONTENT_TYPE_OF_A_VENDORED_LIBRARYS_FILE.get(fileExtension) ?? HOW_EACH_FILE_IS_SERVED_BY_EXTENSION.get(fileExtension)?.content_type ?? "application/octet-stream");
+  const contentTypeOfTheVendoredFile = CONTENT_TYPE_OF_A_VENDORED_LIBRARYS_FILE.get(fileExtension) ?? HOW_EACH_FILE_IS_SERVED_BY_EXTENSION.get(fileExtension)?.content_type ?? BYTES_CONTENT_TYPE;
+  return servedAsRead(contentTypeOfTheVendoredFile);
 }
 
 /** How the file at `pathInTheExtensionFolder`, `/`-separated inside its extension's folder, is served. */
 export function howAnExtensionFileIsServed(pathInTheExtensionFolder: string): ExtensionFileServing {
   const fileExtension = path.posix.extname(pathInTheExtensionFolder).toLowerCase();
   if (pathInTheExtensionFolder.startsWith(EXTENSION_VENDOR_FOLDER)) return howAVendorFileIsServed(fileExtension);
-  return HOW_EACH_FILE_IS_SERVED_BY_EXTENSION.get(fileExtension) ?? servedAsRead("application/octet-stream");
+  return HOW_EACH_FILE_IS_SERVED_BY_EXTENSION.get(fileExtension) ?? servedAsRead(BYTES_CONTENT_TYPE);
 }
