@@ -493,7 +493,467 @@
               "type": "array",
               "items": {
                 "$ref": "#/$defs/BundleMember"
-              }
+              },
+              "x-unique-by": "name",
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/BundleMember",
+                    "properties": {
+                      "member_type": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "const": "boolean"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "exact_size": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/$defs/IntegerSize"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "integer"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "exact_size": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/$defs/FloatSize"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "float"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "const": "string"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "option_names": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "menu"
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "option_names"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "const": "color"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "component_count": {
+                                "$ref": "#/$defs/VectorComponentCount"
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "vector"
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "component_count"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "const": "rectangle"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "const": "transform"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "media": {
+                                "type": "array",
+                                "items": {
+                                  "$ref": "#/$defs/ProjectAssetMedia"
+                                }
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "asset"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "pixel_formats": {
+                                "type": "array",
+                                "items": {
+                                  "$ref": "#/$defs/TexturePixelFormat"
+                                }
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "texture"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "const": "audio"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "codecs": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "encoded_video"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "codecs": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "encoded_audio"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "element_type": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "const": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "exact_size": {
+                                        "anyOf": [
+                                          {
+                                            "$ref": "#/$defs/IntegerSize"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "type": {
+                                        "type": "string",
+                                        "const": "integer"
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "exact_size": {
+                                        "anyOf": [
+                                          {
+                                            "$ref": "#/$defs/FloatSize"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "type": {
+                                        "type": "string",
+                                        "const": "float"
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "const": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "option_names": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "type": {
+                                        "type": "string",
+                                        "const": "menu"
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "option_names"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "const": "color"
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "component_count": {
+                                        "$ref": "#/$defs/VectorComponentCount"
+                                      },
+                                      "type": {
+                                        "type": "string",
+                                        "const": "vector"
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "component_count"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "const": "rectangle"
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "const": "transform"
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "media": {
+                                        "type": "array",
+                                        "items": {
+                                          "$ref": "#/$defs/ProjectAssetMedia"
+                                        }
+                                      },
+                                      "type": {
+                                        "type": "string",
+                                        "const": "asset"
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "list_of"
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "element_type"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "items": {
+                    "$ref": "#/$defs/BundleMember",
+                    "properties": {
+                      "member_type": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "const": "tensor"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
             },
             "type": {
               "type": "string",
@@ -619,38 +1079,6 @@
         }
       ]
     },
-    "TexturePixelFormat": {
-      "oneOf": [
-        {
-          "type": "string",
-          "const": "rgba8_unorm"
-        },
-        {
-          "type": "string",
-          "const": "rgba8_unorm_srgb"
-        },
-        {
-          "type": "string",
-          "const": "bgra8_unorm"
-        },
-        {
-          "type": "string",
-          "const": "bgra8_unorm_srgb"
-        },
-        {
-          "type": "string",
-          "const": "rgba16_float"
-        },
-        {
-          "type": "string",
-          "const": "rgba32_float"
-        },
-        {
-          "type": "string",
-          "const": "nv12"
-        }
-      ]
-    },
     "VectorComponentCount": {
       "oneOf": [
         {
@@ -712,6 +1140,38 @@
         {
           "type": "string",
           "const": "uint64"
+        }
+      ]
+    },
+    "TexturePixelFormat": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "rgba8_unorm"
+        },
+        {
+          "type": "string",
+          "const": "rgba8_unorm_srgb"
+        },
+        {
+          "type": "string",
+          "const": "bgra8_unorm"
+        },
+        {
+          "type": "string",
+          "const": "bgra8_unorm_srgb"
+        },
+        {
+          "type": "string",
+          "const": "rgba16_float"
+        },
+        {
+          "type": "string",
+          "const": "rgba32_float"
+        },
+        {
+          "type": "string",
+          "const": "nv12"
         }
       ]
     }
