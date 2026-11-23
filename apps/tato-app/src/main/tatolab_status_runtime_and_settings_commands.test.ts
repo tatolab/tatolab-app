@@ -38,7 +38,7 @@ test("linking the tatolab command asks the link, then observes again, and a refu
 test("describing_the_runtime_answers_the_window_in_the_contracts_shape_and_a_runtime_that_is_down_in_why", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: null, from_later: true }),
+      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: null, machine: "jonathanf-macbook", from_later: true }),
       httpResponse("503 Service Unavailable", "text/plain", ""),
     ],
     "macos"
@@ -79,9 +79,9 @@ test("opening_the_runtimes_log_folder_opens_the_folder_the_runtime_names_and_ref
   const runtimeLogFolder = "/Users/jonathanf/Library/Application Support/Tatolab/logs";
   const sharedState = await sharedStateOverFakes(
     [
-      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: runtimeLogFolder }),
-      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 5_000, runtime_log_directory: null }),
-      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 6_000, runtime_log_directory: "/gone/logs" }),
+      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: runtimeLogFolder, machine: "jonathanf-macbook" }),
+      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 5_000, runtime_log_directory: null, machine: "jonathanf-macbook" }),
+      controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 6_000, runtime_log_directory: "/gone/logs", machine: "jonathanf-macbook" }),
     ],
     "macos",
     [runtimeLogFolder],

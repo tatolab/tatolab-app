@@ -17,7 +17,7 @@ afterEach(async () => {
 async function openingTheLogFolderOf(runtimeLogDirectory: string | null, existingFolders: readonly string[]) {
   const foldersShownInTheFileManager: string[] = [];
   const localApi = await FakeLocalApiServer.answering([
-    controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf5.1a2b3c", up_for_ms: 60_000, runtime_log_directory: runtimeLogDirectory }),
+    controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf5.1a2b3c", up_for_ms: 60_000, runtime_log_directory: runtimeLogDirectory, machine: "jonathanf-macbook" }),
   ]);
   localApisStarted.push(localApi);
   const services = Layer.mergeAll(
