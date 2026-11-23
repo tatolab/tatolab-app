@@ -14,8 +14,9 @@ export function portFamilyWords(family: PortFamily): string {
 }
 
 /**
- * The family whose messages carry a pin of each built-in type, as the runtime finds it for a typed port; `null` for a type
- * no family's message carries alone: a List, a bundle, a named type, a node reference and a pin type choice.
+ * The family whose messages carry a pin of each built-in type, which a typed port serves as its family, as the runtime's
+ * `PortFamily::carrying` finds it; `null` for a type that takes no wire, a named type, whose bytes belong to no family,
+ * and a List or a bundle, whose family follows what it holds: `familyCarryingAWholeValueOf` finds a whole bundle's family.
  */
 export const FAMILY_CARRYING_A_PIN_OF: Readonly<Record<BuiltInPinTypeName, PortFamily | null>> = {
   boolean: "channels",
