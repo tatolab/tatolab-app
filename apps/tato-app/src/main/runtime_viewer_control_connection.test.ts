@@ -4,7 +4,7 @@ import { fakeRuntimeOfConnections, refusedByTheOperation } from "./control_conne
 import { fakeControlWebSocketRuntime as fakeControlWebSocketRuntimeOnASocket, resultLine, type FakeControlWebSocketAnswer } from "./fake_control_websocket_runtime.js";
 import { RuntimeOfAnotherContract, RuntimeRefused, RuntimeTimedOut } from "./runtime_control_failures.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
-import { answerOf, failureOf } from "./runtime_operations_test_support.js";
+import { answerOf, failureOf, recordedResponseBody } from "./runtime_operations_test_support.js";
 import { resultOf } from "./result_as_effect.js";
 import type { Result } from "./result.js";
 import { closedViewerFromTheCloseViewerToolResult, openedRuntimeViewerFromTheOpenViewerToolResult, runtimeViewerConnectionOpenedIn, type RuntimeViewerConnection } from "./runtime_viewer_control_connection.js";
@@ -94,6 +94,17 @@ test("a_viewer_whose_open_viewer_answers_a_pin_type_that_is_none_is_not_opened_a
 
   expect(notOpened.theRuntimeRefusedIt).toBe(false);
   expect(notOpened.words).toMatch(/the runtime's open_viewer result could not be read: its pin_type is not a pin type: /);
+});
+
+test("a_viewer_of_a_float_output_opens_with_the_pin_type_a_real_open_viewer_answered", async () => {
+  const recorded: unknown = JSON.parse(await recordedResponseBody("control-ws-open-viewer-result-of-the-float-output-count-of-counter.json"));
+  const recordedResult = typeof recorded === "object" && recorded !== null && "result" in recorded ? recorded.result : null;
+  const runtime = await fakeControlWebSocketRuntime((call) => [resultLine(call["id"], recordedResult)]);
+  const { connection } = await connectionOver(runtimeControlLayer(runtime.localApiSocketPath, 2_000));
+
+  const openedViewer = answerOf(await settled(connection.openViewer({ stream: "facts-main-c8b289", node_id: "a8b2e1f2-21c8-48e1-89f8-de081cbdabc9", port: "count", viewer_process_id: 4242 })));
+
+  expect(openedViewer).toMatchObject({ node_name: "counter", port: "count", pin_type: { type: "float" }, viewer_reads: "latest_message" });
 });
 
 test("a_viewer_and_a_close_are_called_on_the_one_connection_opened", async () => {
