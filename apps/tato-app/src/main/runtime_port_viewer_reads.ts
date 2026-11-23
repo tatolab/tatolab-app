@@ -1,7 +1,8 @@
 // What a runtime viewer held open reads of its port, on every write the port's node notifies of: its
-// latest message, or every message for a Channels port, handed to each window showing the port. An Image
+// latest message, or every message for an Audio port, handed to each window showing the port. An Image
 // frame goes as a shared texture and is released once every window has let go of it; a frame a shared
-// texture cannot carry goes as its pixels; every other family's message goes read by its family. This is
+// texture cannot carry goes as its pixels; every other message goes read by its kind, with the port's pin
+// type `open_viewer` answered. This is
 // the frame lane: it runs once per frame, so it holds plain code only, and opening, closing and
 // reopening the viewer are the port viewers' own.
 
@@ -107,7 +108,7 @@ export class RuntimePortViewerReads {
     if (imageFrame === null) {
       const reading = portViewerMessageReadingOf(messageRead);
       for (const [portViewer, window] of windowsShowingThePort) {
-        window.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "message", reading, skipped_since_last_read: messageRead.skippedSinceLastRead });
+        window.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "message", reading, pin_type: this.sources.openedViewer.pin_type, skipped_since_last_read: messageRead.skippedSinceLastRead });
       }
       return;
     }

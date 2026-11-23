@@ -57,8 +57,8 @@ test("a port viewer's events and frames reach the connection that opened it, and
   await settled();
 
   fake.sendAnImageFrame(aVideoFrameThatCountsItsCloses().videoFrame, { port_viewer: "port-viewer-1", format_wire_name: "bgra32", skipped_since_last_read: 0 });
-  fake.sendAnEvent({ port_viewer: "port-viewer-1", kind: "message", reading: { family: "records", record: { label: "face" } }, skipped_since_last_read: 0 });
-  fake.sendAnEvent({ port_viewer: "port-viewer-9", kind: "message", reading: { family: "records", record: { label: "face" } }, skipped_since_last_read: 0 });
+  fake.sendAnEvent({ port_viewer: "port-viewer-1", kind: "message", reading: { family: "records", record: { label: "face" } }, pin_type: null, skipped_since_last_read: 0 });
+  fake.sendAnEvent({ port_viewer: "port-viewer-9", kind: "message", reading: { family: "records", record: { label: "face" } }, pin_type: null, skipped_since_last_read: 0 });
   fake.sendAnEvent({ port_viewer: "port-viewer-1", kind: "reopening", because: "the runtime stopped" });
 
   expect(eventsHeard).toEqual(["image_frame", "message", "reopening"]);
@@ -89,4 +89,20 @@ test("a refused open ends the connection in the runtime's words", async () => {
   await settled();
 
   expect(eventsHeard).toEqual([{ kind: "ended", because: "no node named `mic` in stream `studio`", recovery: "open_the_port_again" }]);
+});
+
+test("a message reaches the view read by its kind with the pin type its port carries, and with none for a port with none", async () => {
+  const fake = fakePortViewerBackend();
+  const connections = new PortViewerConnections(fake.backend);
+  const eventsHeard: PortViewerConnectionEvent[] = [];
+  connections.watchPortViewer(CAMERA_VIDEO, (event) => eventsHeard.push(event));
+  await settled();
+
+  fake.sendAnEvent({ port_viewer: "port-viewer-1", kind: "message", reading: { family: "records", record: 0.5 }, pin_type: { type: "float" }, skipped_since_last_read: 2 });
+  fake.sendAnEvent({ port_viewer: "port-viewer-1", kind: "message", reading: { family: "bytes", byte_length: 8 }, pin_type: null, skipped_since_last_read: 0 });
+
+  expect(eventsHeard).toEqual([
+    { kind: "message", reading: { family: "records", record: 0.5 }, pin_type: { type: "float" }, skipped_since_last_read: 2 },
+    { kind: "message", reading: { family: "bytes", byte_length: 8 }, pin_type: null, skipped_since_last_read: 0 },
+  ]);
 });

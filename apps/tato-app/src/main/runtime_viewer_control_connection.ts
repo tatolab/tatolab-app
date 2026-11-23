@@ -2,12 +2,15 @@
 // own, because the runtime ties a viewer to the connection that opened it and closes every viewer a connection opened
 // when it closes; and what `open_viewer` and `close_viewer` answer, read field for field.
 
+import type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
 import { Data, Deferred, Effect, Exit, Scope } from "effect";
 import { jsonObject, optionalText, requiredText, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import {
   controlOperationOnTheConnectionReadWith,
+  describeTheContractIssues,
+  readControlContractValue,
   RuntimeControl,
   type ControlOperationParams,
   type ControlOperationResult,
@@ -29,7 +32,9 @@ export interface OpenedRuntimeViewer {
   channel: string;
   /** The iceoryx2 event service the port's node notifies on each write to `channel`. */
   wake_service: string;
-  /** Which of the port's messages the viewer reads: `every_message` for a Channels port, in order as far back as the channel holds them, `latest_message` for every other family. */
+  /** The pin type the port carries, resolved, as `graph` serves it on the port; `null` for a port with none. */
+  pin_type: PinType | null;
+  /** Which of the port's messages the viewer reads: `every_message` for an Audio port, or one with no pin type whose messages are sample blocks, in order as far back as the channel holds them, `latest_message` for every other port. */
   viewer_reads: RuntimeViewerReads;
   /** The surface-sharing socket's path on Linux, its Mach service's name on macOS; `null` on macOS when the open named no `viewer_process_id`. */
   surface_share_address: string | null;
@@ -81,6 +86,8 @@ function openedRuntimeViewerOnTheWire(toolResult: JsonObjectOnTheWire): Result<O
   if (!isARuntimeViewerReads(viewerReads.value)) return failedWith(`its viewer_reads is ${JSON.stringify(viewerReads.value)}, not latest_message or every_message`);
   const surfaceShareAddress = optionalText(toolResult, "surface_share_address");
   if (!surfaceShareAddress.ok) return surfaceShareAddress;
+  const pinType = pinTypeOfTheViewedPort(toolResult["pin_type"]);
+  if (!pinType.ok) return pinType;
   return succeeded({
     viewer: viewer.value,
     stream: stream.value,
@@ -90,9 +97,17 @@ function openedRuntimeViewerOnTheWire(toolResult: JsonObjectOnTheWire): Result<O
     iceoryx2_domain_root: iceoryx2DomainRoot.value,
     channel: channel.value,
     wake_service: wakeService.value,
+    pin_type: pinType.value,
     viewer_reads: viewerReads.value,
     surface_share_address: surfaceShareAddress.value,
   });
+}
+
+/** The `pin_type` an `open_viewer` result answers, read by the contract's client as its `PinType`; `null` when it answers none. */
+function pinTypeOfTheViewedPort(pinTypeOnTheWire: unknown): Result<PinType | null, string> {
+  if (pinTypeOnTheWire === undefined || pinTypeOnTheWire === null) return succeeded(null);
+  const pinType = readControlContractValue("PinType", pinTypeOnTheWire);
+  return pinType.read ? succeeded(pinType.value) : failedWith(`its pin_type is not a pin type: ${describeTheContractIssues(pinType.issues, "pin_type")}`);
 }
 
 /** A `close_viewer` result's `viewer`, the id of the viewer it closed. */

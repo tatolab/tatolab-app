@@ -162,8 +162,9 @@ export function mockStatusAndRuntimeBackendOf(simulation: MockTatolabSimulation)
       if (node === undefined) throw `no node with the id \`${target.node_id}\` in stream \`${target.stream}\``;
       const outputPort = node.output_ports.find((port) => port.name === target.port);
       if (outputPort === undefined) throw `\`${node.name}\` has no output port named \`${target.port}\``;
-      if (isAnOutputOfAValueSource(node, target.port)) return mockPortViewers.openOnAValueSource(target, mockMessageOnTheOutputOfAValueSource(node, target.port));
-      return mockPortViewers.open(target, node.name, outputPort.family, node.not_ready_because !== undefined);
+      const pinType = outputPort.pin?.pin_type ?? null;
+      if (isAnOutputOfAValueSource(node, target.port)) return mockPortViewers.openOnAValueSource(target, pinType, mockMessageOnTheOutputOfAValueSource(node, target.port));
+      return mockPortViewers.open(target, node.name, outputPort.family, pinType, node.not_ready_because !== undefined);
     },
     closePortViewer: async (portViewer) => {
       mockPortViewers.close(portViewer);

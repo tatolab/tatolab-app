@@ -1,7 +1,7 @@
 import type { ListedStream } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { Effect } from "effect";
 import { expect, test } from "vitest";
-import type { PortViewerEvent, PortViewerImageFrameFacts } from "../shared/tatolab_backend_contract.js";
+import type { PinType, PortViewerEvent, PortViewerImageFrameFacts } from "../shared/tatolab_backend_contract.js";
 import { RuntimeViewerCallFailed, type OpenedRuntimeViewer, type RuntimeViewerConnection, type RuntimeViewerTarget } from "./runtime_viewer_control_connection.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { PORT_VIEWER_REOPEN_AFTER_MS, RuntimePortViewers, type WindowShowingPortViewers } from "./runtime_port_viewers.js";
@@ -11,6 +11,9 @@ import type { TatolabAppLog } from "./tatolab_app_log.js";
 const SILENT_TATOLAB_APP_LOG: TatolabAppLog = { error: () => undefined, warn: () => undefined, info: () => undefined, debug: () => undefined };
 
 const CAMERA_VIDEO = { stream: "studio", node_id: "camera-id", port: "video" };
+
+/** The pin type the stand-in runtime's `open_viewer` answers for each port it types; it answers none for any other. */
+const PIN_TYPE_ANSWERED_BY_PORT: Readonly<Record<string, PinType>> = { video: { type: "texture" }, audio: { type: "audio" }, level: { type: "float" } };
 
 const DMA_BUF_FRAME: RuntimeViewerImageFrame = {
   heldFrameId: 3,
@@ -126,6 +129,7 @@ class FakeViewerConnection implements RuntimeViewerConnection {
         iceoryx2_domain_root: "/tmp/tatolab/iceoryx2",
         channel: `${target.stream}/${target.node_id}/${target.port}`,
         wake_service: `${target.node_id}/notify`,
+        pin_type: PIN_TYPE_ANSWERED_BY_PORT[target.port] ?? null,
         viewer_reads: target.port === "audio" ? "every_message" : "latest_message",
         surface_share_address: "/tmp/tatolab/surface-share.sock",
       });
@@ -372,7 +376,7 @@ test("a_frame_electron_cannot_import_and_that_has_no_pixels_ends_the_port_viewer
   expect(channelReaders[0]?.closed).toBe(true);
 });
 
-test("a_message_of_another_family_reaches_the_window_read_by_its_family", async () => {
+test("a_message_of_another_kind_reaches_the_window_read_by_its_kind_with_the_pin_type_open_viewer_answered", async () => {
   const { runtimePortViewers, channelReaders, writeAndSettle } = harness();
   const windowShowingPortViewers = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
@@ -381,7 +385,24 @@ test("a_message_of_another_family_reaches_the_window_read_by_its_family", async 
   await writeAndSettle();
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([
-    { port_viewer: "port-viewer-1", kind: "message", reading: { family: "records", record: { label: "face" } }, skipped_since_last_read: 0 },
+    { port_viewer: "port-viewer-1", kind: "message", reading: { family: "records", record: { label: "face" } }, pin_type: { type: "texture" }, skipped_since_last_read: 0 },
+  ]);
+});
+
+test("a_typed_number_ports_latest_message_reaches_the_window_with_its_pin_type_and_an_untyped_ports_with_none", async () => {
+  const { runtimePortViewers, channelReaders, writeAndSettle } = harness();
+  const windowShowingTheLevel = new FakeWindowShowingPortViewers();
+  const windowShowingTheDetections = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, port: "level" }, windowShowingTheLevel);
+  await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, port: "detections" }, windowShowingTheDetections);
+  channelReaders[0]?.messagesToRead.push({ portFamily: "records", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(8), ...NO_FAMILY_READING, recordsJson: "0.5" });
+  channelReaders[1]?.messagesToRead.push({ portFamily: "records", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(8), ...NO_FAMILY_READING, recordsJson: '{"label":"face"}' });
+
+  await writeAndSettle();
+
+  expect(windowShowingTheLevel.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "message", reading: { family: "records", record: 0.5 }, pin_type: { type: "float" }, skipped_since_last_read: 0 }]);
+  expect(windowShowingTheDetections.portViewerEvents).toEqual([
+    { port_viewer: "port-viewer-2", kind: "message", reading: { family: "records", record: { label: "face" } }, pin_type: null, skipped_since_last_read: 0 },
   ]);
 });
 

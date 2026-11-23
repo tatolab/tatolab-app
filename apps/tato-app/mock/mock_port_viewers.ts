@@ -4,6 +4,7 @@
 // a point cloud's attributes as Array, and an encoder's units, a keyframe each second, as Packets.
 
 import type {
+  PinType,
   PortFamily,
   PortViewerChannelWaveform,
   PortViewerEvent,
@@ -84,26 +85,26 @@ export function mockPortViewerMessageReading(portFamily: PortFamily | null, mess
 /** Every port viewer the mock's window opened, each playing until closed. */
 export class MockPortViewers {
   private readonly stopPlayingByPortViewer = new Map<string, () => void>();
-  private readonly targetByPortViewerOfAValueSource = new Map<string, PortViewerTarget>();
+  private readonly targetByPortViewerOfAValueSource = new Map<string, { target: PortViewerTarget; pinType: PinType | null }>();
   private readonly eventListeners = new Set<(event: PortViewerEvent) => void>();
   private readonly imageFrameListeners = new Set<(videoFrame: VideoFrame, frameFacts: PortViewerImageFrameFacts) => void>();
   private portViewersOpened = 0;
 
-  /** Open a port viewer of `target`, on the node named `nodeName`, whose port carries `portFamily`, answering the id its events arrive under; an Image port of a node not ready plays transparent frames, as the runtime sends. */
-  open(target: PortViewerTarget, nodeName: string, portFamily: PortFamily | null, isTheNodeNotReady: boolean): string {
+  /** Open a port viewer of `target`, on the node named `nodeName`, whose port carries `portFamily` and the pin type `pinType`, `null` for none, answering the id its events arrive under; an Image port of a node not ready plays transparent frames, as the runtime sends. */
+  open(target: PortViewerTarget, nodeName: string, portFamily: PortFamily | null, pinType: PinType | null, isTheNodeNotReady: boolean): string {
     this.portViewersOpened += 1;
     const portViewer = `port-viewer-${this.portViewersOpened}`;
-    const playing = portFamily === "image" ? this.playATestPattern(portViewer, `${nodeName} › ${target.port}`, isTheNodeNotReady) : this.reportMessages(portViewer, portFamily);
+    const playing = portFamily === "image" ? this.playATestPattern(portViewer, `${nodeName} › ${target.port}`, isTheNodeNotReady) : this.reportMessages(portViewer, portFamily, pinType);
     this.stopPlayingByPortViewer.set(portViewer, playing);
     return portViewer;
   }
 
-  /** Open a port viewer of `target`, an output of a value source, which carries only what is published on it, first `carriedNow`, what the output keeps, unless `null`; answering the id its events arrive under. */
-  openOnAValueSource(target: PortViewerTarget, carriedNow: PortViewerMessageReading | null): string {
+  /** Open a port viewer of `target`, an output of a value source of the pin type `pinType`, which carries only what is published on it, first `carriedNow`, what the output keeps, unless `null`; answering the id its events arrive under. */
+  openOnAValueSource(target: PortViewerTarget, pinType: PinType | null, carriedNow: PortViewerMessageReading | null): string {
     this.portViewersOpened += 1;
     const portViewer = `port-viewer-${this.portViewersOpened}`;
-    this.targetByPortViewerOfAValueSource.set(portViewer, target);
-    const timer = carriedNow === null ? null : window.setTimeout(() => this.send(portViewer, carriedNow), 0);
+    this.targetByPortViewerOfAValueSource.set(portViewer, { target, pinType });
+    const timer = carriedNow === null ? null : window.setTimeout(() => this.send(portViewer, carriedNow, pinType), 0);
     this.stopPlayingByPortViewer.set(portViewer, () => {
       if (timer !== null) window.clearTimeout(timer);
     });
@@ -112,8 +113,8 @@ export class MockPortViewers {
 
   /** `reading`, a value just set on a value source, published on its output `target` to every port viewer open on it. */
   publish(target: PortViewerTarget, reading: PortViewerMessageReading): void {
-    for (const [portViewer, viewed] of this.targetByPortViewerOfAValueSource) {
-      if (viewed.stream === target.stream && viewed.node_id === target.node_id && viewed.port === target.port) this.send(portViewer, reading);
+    for (const [portViewer, { target: viewed, pinType }] of this.targetByPortViewerOfAValueSource) {
+      if (viewed.stream === target.stream && viewed.node_id === target.node_id && viewed.port === target.port) this.send(portViewer, reading, pinType);
     }
   }
 
@@ -123,8 +124,8 @@ export class MockPortViewers {
     this.targetByPortViewerOfAValueSource.delete(portViewer);
   }
 
-  private send(portViewer: string, reading: PortViewerMessageReading): void {
-    const event: PortViewerEvent = { port_viewer: portViewer, kind: "message", reading, skipped_since_last_read: 0 };
+  private send(portViewer: string, reading: PortViewerMessageReading, pinType: PinType | null): void {
+    const event: PortViewerEvent = { port_viewer: portViewer, kind: "message", reading, pin_type: pinType, skipped_since_last_read: 0 };
     for (const listener of this.eventListeners) listener(event);
   }
 
@@ -161,10 +162,10 @@ export class MockPortViewers {
     return () => window.clearInterval(timer);
   }
 
-  private reportMessages(portViewer: string, portFamily: PortFamily | null): () => void {
+  private reportMessages(portViewer: string, portFamily: PortFamily | null, pinType: PinType | null): () => void {
     let messagesRead = 0;
     const timer = window.setInterval(() => {
-      const event: PortViewerEvent = { port_viewer: portViewer, kind: "message", reading: mockPortViewerMessageReading(portFamily, messagesRead), skipped_since_last_read: 0 };
+      const event: PortViewerEvent = { port_viewer: portViewer, kind: "message", reading: mockPortViewerMessageReading(portFamily, messagesRead), pin_type: pinType, skipped_since_last_read: 0 };
       messagesRead += 1;
       for (const listener of this.eventListeners) listener(event);
     }, MOCK_MESSAGE_EVERY_MILLISECONDS);
