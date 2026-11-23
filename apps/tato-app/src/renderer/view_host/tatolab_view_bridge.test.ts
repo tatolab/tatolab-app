@@ -753,7 +753,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     const bridge = new TatolabViewBridge(
       portDouble,
       "acme-dj:deck",
-      { ...DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
+      { ...DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image", pin_type: { type: "texture" } }] },
       host.hostServices,
       recordingAreaServices(undefined).areaServices,
       { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
