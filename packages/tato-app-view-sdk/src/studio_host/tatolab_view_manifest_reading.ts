@@ -6,7 +6,7 @@ import { Effect, Result, Schema, SchemaIssue, SchemaRepresentation, SchemaTransf
 import { BUILT_IN_PIN_TYPES } from "../built_in_pin_types.js";
 import { isAPinType } from "../pin_model/pin_type_check.js";
 import type { BuiltInPinTypeName } from "../pin_types.js";
-import { FAMILY_CARRYING_A_PIN_OF, PORT_FAMILIES, portFamilyWords } from "../port_families.js";
+import { familyCarryingAWholeValueOf, PORT_FAMILIES, portFamilyWords } from "../port_families.js";
 import {
   FAMILIES_A_PANEL_WRITES,
   isAPathInsideTheViewsFolder,
@@ -120,7 +120,7 @@ function viewDeclaredPortRead(written: ViewDeclaredPortAsWritten): Effect.Effect
   if (pin_type === undefined) {
     return family === undefined ? Effect.fail(new SchemaIssue.InvalidValue({ message: "a port names the `pin_type` it carries, or the older `family`" }, written)) : Effect.succeed({ ...rest, family });
   }
-  const carried = FAMILY_CARRYING_A_PIN_OF[pin_type.type];
+  const carried = familyCarryingAWholeValueOf(pin_type);
   if (carried === null) {
     return Effect.fail(new SchemaIssue.InvalidValue({ message: `\`pin_type\`: a ${pin_type.type} rides no message a view's port reads or writes; a view declares a port of a type a link carries` }, written));
   }
