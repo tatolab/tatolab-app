@@ -26,7 +26,6 @@ test("the_status_and_a_log_page_serialize_exactly_as_the_window_reads_them", asy
           },
         ],
       }),
-      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
       controlWebSocketUpgradeRefusedWithWords(),
       runtimeDescribedResponse("0.69.84+test.1"),
     ],

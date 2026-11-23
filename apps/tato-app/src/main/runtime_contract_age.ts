@@ -1,10 +1,13 @@
 // Whether the runtime answering serves the control contract this Studio was built against, read once
 // for each runtime by `discover` on `/control/ws`, and, when it refuses, the record it states: which
 // side is older, its release and both contracts, with the one thing to do about it. Which runtime is
-// answering is read every round, so a reading never outlives the runtime it was read of.
+// answering, and its machine's name, are read every round, so a reading never outlives the runtime
+// it was read of.
 
 import { Effect } from "effect";
 import type { RuntimeOfAnotherAge, RuntimeOfAnotherAgeRemedy } from "../shared/tatolab_backend_contract.js";
+import { failedWith, succeeded, type Result } from "./result.js";
+import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { RuntimeControl, type ControlContractVersionMismatch } from "./tatolab_runtime_control_operation_call.js";
 
 /** How the runtime answering came to run: the app started the one it carries, the app carries one but did not start this one, or the app carries none. */
@@ -63,20 +66,29 @@ export function readTheRuntimesContractAge(howTheRuntimeRuns: HowTheRunningRunti
 }
 
 /**
- * Which runtime answers: its build id, as `describe_runtime` names it; for one that refuses this Studio's contract, its release
- * and contract, as its record names them; `null` when it said neither, which names no other runtime.
+ * What `describe_runtime` says of the runtime answering: which runtime it is, by its build id, or, for one that refuses this
+ * Studio's contract, by the release and contract its record names, `null` when it said neither, which names no other runtime;
+ * and its machine's name, or why it named none.
  */
-export function readTheAnsweringRuntimesIdentity(): Effect.Effect<string | null, never, RuntimeControl> {
+export interface TheAnsweringRuntime {
+  readonly identity: string | null;
+  readonly machineName: Result<string, RuntimeControlFailure>;
+}
+
+/** Read which runtime answers, and its machine's name, from one `describe_runtime`; every failure is a reading. */
+export function readTheAnsweringRuntime(): Effect.Effect<TheAnsweringRuntime, never, RuntimeControl> {
   return Effect.gen(function* () {
     const runtimeControl = yield* RuntimeControl;
     return yield* runtimeControl.call("describe_runtime", {}).pipe(
-      Effect.map((runtimeDescription): string | null => `build ${runtimeDescription.build_id}`),
+      Effect.map((runtimeDescription): TheAnsweringRuntime => ({ identity: `build ${runtimeDescription.build_id}`, machineName: succeeded(runtimeDescription.machine) })),
       Effect.catch((failure) =>
-        Effect.succeed(
-          failure._tag === "RuntimeOfAnotherContract"
-            ? `release ${failure.mismatch.runtime_version} at contract ${failure.mismatch.runtime_contract_version}.${failure.mismatch.runtime_contract_revision}`
-            : null,
-        ),
+        Effect.succeed<TheAnsweringRuntime>({
+          identity:
+            failure._tag === "RuntimeOfAnotherContract"
+              ? `release ${failure.mismatch.runtime_version} at contract ${failure.mismatch.runtime_contract_version}.${failure.mismatch.runtime_contract_revision}`
+              : null,
+          machineName: failedWith(failure),
+        }),
       ),
     );
   });

@@ -5,15 +5,12 @@ import { Effect } from "effect";
 import { afterEach, describe, expect, test } from "vitest";
 import type { RuntimeOfAnotherAge } from "../shared/tatolab_backend_contract.js";
 import { fakeControlWebSocketRuntime, resultLine, type FakeControlWebSocketAnswer } from "./fake_control_websocket_runtime.js";
-import { FakeLocalApiServer, httpResponse } from "./fake_local_api_server.js";
-import { readTheRuntimesContractAge, remedyForTheOlderSide, type HowTheRunningRuntimeRuns, type RuntimeContractAgeReading } from "./runtime_contract_age.js";
+import { controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, httpResponse } from "./fake_local_api_server.js";
+import { readTheAnsweringRuntime, readTheRuntimesContractAge, remedyForTheOlderSide, type HowTheRunningRuntimeRuns, type RuntimeContractAgeReading } from "./runtime_contract_age.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
+import { cleanUps, cleanUpWhatTheTestStarted, fakeLocalApiServerAnswering, recordedResponseBody } from "./runtime_operations_test_support.js";
 
-const cleanUps: (() => Promise<void>)[] = [];
-
-afterEach(async () => {
-  await Promise.all(cleanUps.splice(0).map((cleanUp) => cleanUp()));
-});
+afterEach(cleanUpWhatTheTestStarted);
 
 /** The record a runtime of release 0.68.90 at revision `runtimeRevision` of `runtimeVersion` refuses this Studio with, naming `olderSide`. */
 function mismatchRecord(olderSide: "runtime" | "client", runtimeVersion: number, runtimeRevision: number): ControlContractVersionMismatch {
@@ -60,8 +57,7 @@ test("a runtime that never answers the close still answers the reading at once, 
 });
 
 test("an older runtime refusing the upgrade with its record in the 409 body is the runtime of another age that record names", async () => {
-  const server = await FakeLocalApiServer.answering([httpResponse("409 Conflict", "application/json", JSON.stringify(mismatchRecord("runtime", CONTROL_CONTRACT_VERSION - 1, 4)))]);
-  cleanUps.push(() => server.close());
+  const server = await fakeLocalApiServerAnswering([httpResponse("409 Conflict", "application/json", JSON.stringify(mismatchRecord("runtime", CONTROL_CONTRACT_VERSION - 1, 4)))]);
 
   const reading = await contractAgeReadAt(server.localApiSocketPath);
 
@@ -116,8 +112,7 @@ test("a runtime from before the contract had a revision is named older, at revis
 });
 
 test("an upgrade refused with words alone is not read as an age, so it is read again", async () => {
-  const server = await FakeLocalApiServer.answering([httpResponse("409 Conflict", "text/plain", "contract version 2 is not served")]);
-  cleanUps.push(() => server.close());
+  const server = await fakeLocalApiServerAnswering([httpResponse("409 Conflict", "text/plain", "contract version 2 is not served")]);
 
   const reading = await contractAgeReadAt(server.localApiSocketPath);
 
@@ -133,6 +128,58 @@ test("no runtime at the socket leaves the age unread", async () => {
 
   expect(reading.kind).toBe("unread");
   expect(reading.kind === "unread" && reading.why).toMatch(/^no runtime answers at /);
+});
+
+test("the answering runtime is named by its build and its machine by describe_runtime, in one POST /control", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-describe-runtime-tool-result-of-a-test-root-runtime.json")),
+  ]);
+
+  expect(await server.run(readTheAnsweringRuntime())).toEqual({
+    ok: true,
+    value: { identity: "build 0.55.2+ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a.eecdc9dbaa1025c25565ca507699ed60", machineName: { ok: true, value: "vm" } },
+  });
+  expect(server.receivedRequests().map((request) => request.split("\r\n")[0])).toEqual(["POST /control HTTP/1.1"]);
+  expect(server.receivedRequests()[0]).toContain('"method":"describe_runtime"');
+});
+
+test("a describe_runtime answer naming no machine is not the contract's answer, in the client's words, and names no runtime", async () => {
+  const server = await fakeLocalApiServerAnswering([controlOperationResultResponse({ version: "0.55.1", build_id: "0.55.1+0123abc.9f8e7d", up_for_ms: 5, runtime_log_directory: null })]);
+
+  const read = await server.run(readTheAnsweringRuntime());
+
+  expect(read).toMatchObject({
+    ok: true,
+    value: {
+      identity: null,
+      machineName: {
+        ok: false,
+        failure: {
+          _tag: "ContractMismatch",
+          operation: "describe_runtime",
+          words: expect.stringMatching(/^the runtime's answer to `describe_runtime` is not the contract's `DescribeRuntimeToolResult`: .*machine/),
+        },
+      },
+    },
+  });
+  expect(server.receivedRequests().map((request) => request.split("\r\n")[0])).toEqual(["POST /control HTTP/1.1"]);
+});
+
+test("a runtime refusing this Studio's contract is named by its release and contract, and names no machine", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse(
+      "200 OK",
+      "application/json",
+      JSON.stringify({ jsonrpc: "2.0", id: 1, error: { code: CONTROL_CONTRACT_VERSION_MISMATCH_ERROR_CODE, message: "refused", data: mismatchRecord("runtime", CONTROL_CONTRACT_VERSION, 0) } }),
+    ),
+  ]);
+
+  const read = await server.run(readTheAnsweringRuntime());
+
+  expect(read).toMatchObject({
+    ok: true,
+    value: { identity: `release 0.68.90 at contract ${CONTROL_CONTRACT_VERSION}.0`, machineName: { ok: false, failure: { _tag: "RuntimeOfAnotherContract" } } },
+  });
 });
 
 describe("remedyForTheOlderSide", () => {

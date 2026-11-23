@@ -1,6 +1,6 @@
 import { Effect, Layer } from "effect";
 import { afterEach, expect, test } from "vitest";
-import { controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
+import { FakeLocalApiServer, runtimeDescribedResponse } from "./fake_local_api_server.js";
 import { failedWith, succeeded } from "./result.js";
 import { runtimeControlLayer } from "./runtime_control_layer.js";
 import { openTheRuntimesLogFolder, RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL } from "./runtime_log_folder_opening.js";
@@ -17,7 +17,7 @@ afterEach(async () => {
 async function openingTheLogFolderOf(runtimeLogDirectory: string | null, existingFolders: readonly string[]) {
   const foldersShownInTheFileManager: string[] = [];
   const localApi = await FakeLocalApiServer.answering([
-    controlOperationResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf5.1a2b3c", up_for_ms: 60_000, runtime_log_directory: runtimeLogDirectory }),
+    runtimeDescribedResponse("0.55.2+ec6adf5.1a2b3c", { version: "0.55.2", upForMs: 60_000, runtimeLogDirectory }),
   ]);
   localApisStarted.push(localApi);
   const services = Layer.mergeAll(

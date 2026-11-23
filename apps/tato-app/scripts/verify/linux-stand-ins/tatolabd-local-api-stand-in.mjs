@@ -1,7 +1,7 @@
 // A stand-in for tatolabd's local API, for proof in a Linux container where no runtime runs: it
 // answers on `<socket>` what the app reads, from the responses recorded from a real runtime under
-// src/main/test-fixtures/: `GET /health`, `GET /api/graph`'s machine name, and the control
-// operations over the control WebSocket `/control/ws` (and `POST /control`) — `describe_runtime`,
+// src/main/test-fixtures/: `GET /health`, and the control operations over the control WebSocket
+// `/control/ws` (and `POST /control`) — `describe_runtime`, which names the machine,
 // `list_streams`, `graph`, `logs`, what opening a project reads, and the graph and change
 // subscriptions — and the queued project actions `stop_playback` and `remove_project`, changing its
 // listing as the runtime does once an action finishes. It sends no notification. The WebSocket is
@@ -28,8 +28,8 @@ const recordedGraphResultText = (() => {
   const resultStart = '{"jsonrpc":"2.0","id":1,"result":';
   return answerText.slice(resultStart.length, -1).replace('"machine":"vm"', `"machine":"${STAND_IN_MACHINE_NAME}"`);
 })();
-/** The runtime the recording describes, which `discover` names too, serving this Studio's contract. */
-const recordedRuntime = JSON.parse(recordedToolText("local-api-describe-runtime-tool-result-of-a-test-root-runtime.json"));
+/** The runtime the recording describes, on the stand-in's machine, which `discover` names too, serving this Studio's contract. */
+const recordedRuntime = { ...JSON.parse(recordedToolText("local-api-describe-runtime-tool-result-of-a-test-root-runtime.json")), machine: STAND_IN_MACHINE_NAME };
 const RECORDED_GRAPH_STREAM = "test-pattern-halftone-lens-main-66e784";
 const listedStreams = JSON.parse(recordedToolText("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json"));
 const listingOf = (streamId) => listedStreams.streams.find((listedStream) => listedStream.stream === streamId);
@@ -208,9 +208,6 @@ function answerTheHttpRequest(request) {
   const [method, requestTarget] = head.split("\r\n")[0].split(" ");
   const url = new URL(requestTarget, "http://local-api");
   if (method === "GET" && url.pathname === "/health") return httpResponse(200, "text/plain", "ok");
-  if (method === "GET" && url.pathname === "/api/graph") {
-    return httpResponse(200, "application/json", JSON.stringify({ machine: STAND_IN_MACHINE_NAME, streams: [] }));
-  }
   if (method === "POST" && url.pathname === "/control") return httpResponse(200, "application/json", answerTheCall(JSON.parse(requestBody)));
   return httpResponse(404, "text/plain", "not found");
 }

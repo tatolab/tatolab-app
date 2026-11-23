@@ -145,9 +145,17 @@ export function controlWebSocketUpgradeRefusedWithWords(): Buffer {
   return httpResponse("409 Conflict", "text/plain", "the contract age is not read in this test");
 }
 
-/** The runtime's answer to `describe_runtime` from the build `buildId` of release `version`, which names the runtime answering. */
-export function runtimeDescribedResponse(buildId: string, version = "0.69.84"): Buffer {
-  return controlOperationResultResponse({ version, build_id: buildId, up_for_ms: 1 });
+/** How `runtimeDescribedResponse` describes the runtime beside its build: its release, machine, own log folder and uptime. */
+export interface RuntimeDescribedAs {
+  readonly version?: string;
+  readonly machine?: string;
+  readonly runtimeLogDirectory?: string | null;
+  readonly upForMs?: number;
+}
+
+/** The runtime's answer to `describe_runtime` from the build `buildId`, which names the runtime answering, described as `describedAs` says. */
+export function runtimeDescribedResponse(buildId: string, { version = "0.69.84", machine = "jonathanf-macbook", runtimeLogDirectory = null, upForMs = 1 }: RuntimeDescribedAs = {}): Buffer {
+  return controlOperationResultResponse({ version, build_id: buildId, up_for_ms: upForMs, runtime_log_directory: runtimeLogDirectory, machine });
 }
 
 /** The JSON-RPC body `POST /control` answers with for `jsonRpcAnswerText`, as the runtime writes it. */

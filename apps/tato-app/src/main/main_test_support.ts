@@ -124,7 +124,7 @@ async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
       case "list_streams":
         return controlOperationResultResponse({ streams: [] });
       case "describe_runtime":
-        return runtimeDescribedResponse(`${FAKE_RUNTIME_RELEASE}+fake.1`, FAKE_RUNTIME_RELEASE);
+        return runtimeDescribedResponse(`${FAKE_RUNTIME_RELEASE}+fake.1`, { version: FAKE_RUNTIME_RELEASE });
       case "list_project_views":
         if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
         return controlOperationResultResponse({

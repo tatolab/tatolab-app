@@ -28,7 +28,7 @@ projects the runtime's `list_dependencies` says it imports, adds one from a fold
 `add_dependency`, copies a newer version in with `update_dependency`, asking before it overwrites a file
 edited since the copy, and takes one out with `remove_dependency`. Every window shares the one runtime. It reads
 everything from the runtime's local API: each project's name from `list_assets`, `list_streams`, `logs` and `graph` over `POST /control`, with changes pushed over `/control/ws`, and
-`GET /api/graph` for the machine's name. A project is open or closed, and an open one plays or
+the machine's name from `describe_runtime`. A project is open or closed, and an open one plays or
 stops as a whole. Opening a project's window opens it with `open_project` when the runtime holds it
 closed, its playback stopped. Run › Live queues `start_playback` (after `open_project` on a closed
 project, and after `reload_project` while a stream of it has failed), Run › Stop queues

@@ -25,7 +25,7 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import { assetPreviewPictureFromTheReadAssetPreviewToolResult, type AssetPreviewPictureTheRuntimeRead } from "./asset_preview_picture_on_the_wire.js";
 import { listedStreamsFromTheListStreamsToolResult } from "./listed_streams_on_the_wire.js";
-import { isAJsonObject, jsonTextKeepingTheWrittenNumbers, parseJsonOnTheWire, requiredText } from "./json_on_the_wire.js";
+import { jsonTextKeepingTheWrittenNumbers } from "./json_on_the_wire.js";
 import { bodyOfAnOkAnswer } from "./local_api_plain_http.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { fromResult } from "./result_as_effect.js";
@@ -59,7 +59,6 @@ import { projectSummaryFromTheListAssetsToolResult, projectTheRuntimeNamesFromTh
 import { projectTransactionFromTheUndoOrRedoToolResult } from "./project_transactions_on_the_wire.js";
 import { projectViewsFromTheListProjectViewsToolResult, type ProjectViewTheRuntimeListed } from "./project_views_on_the_wire.js";
 import { ContractMismatch, type RuntimeControlFailure } from "./runtime_control_failures.js";
-import { runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./runtime_description_on_the_wire.js";
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
   projectStreamActionQueuedFromTheToolResult,
@@ -364,26 +363,19 @@ export function createProject(projectDirectory: string | null): Effect.Effect<Pr
 
 /** How the running runtime describes itself through `describe_runtime`: its version, build, uptime and own log folder. */
 export function describeRuntime(): Effect.Effect<RuntimeDescription, RuntimeControlFailure, RuntimeControl> {
-  return controlOperationReadWith("describe_runtime", {}, runtimeDescriptionFromTheDescribeRuntimeToolResult);
+  return RuntimeControl.use((runtimeControl) => runtimeControl.call("describe_runtime", {})).pipe(
+    Effect.map((described) => ({
+      version: described.version,
+      build_id: described.build_id,
+      up_for_ms: Number(described.up_for_ms),
+      runtime_log_directory: described.runtime_log_directory ?? null,
+    })),
+  );
 }
 
 /** Whether the runtime is up: it answers `GET /health` with `200 ok`; another status is refused in the runtime's own words, and another body is not the contract's answer. */
 export function checkTheRuntimesHealth(): Effect.Effect<void, RuntimeControlFailure, RuntimeControl> {
   return restReadWith("/health", "the health answer", (body) => (body.trim() === "ok" ? succeeded(undefined) : failedWith(`the runtime answered /health with: ${body.trim()}`)));
-}
-
-/** The machine's name an `/api/graph` export states beside every loaded stream's graph, or why it states none. */
-function machineNameFromTheGraphExport(graphExport: string): Result<string, string> {
-  const graph = parseJsonOnTheWire(graphExport);
-  if (!graph.ok) return failedWith(`the runtime's /api/graph names no machine: ${graph.failure}`);
-  if (!isAJsonObject(graph.value)) return failedWith("the runtime's /api/graph names no machine: the graph is not an object");
-  const machine = requiredText(graph.value, "machine");
-  return machine.ok ? machine : failedWith(`the runtime's /api/graph names no machine: ${machine.failure}`);
-}
-
-/** This machine's name, as `GET /api/graph` states it; refused in the runtime's own words. */
-export function readTheMachineName(): Effect.Effect<string, RuntimeControlFailure, RuntimeControl> {
-  return restReadWith("/api/graph", "the graph export", machineNameFromTheGraphExport);
 }
 
 /** The close of the open project in `projectDirectory` queued through the runtime's `close_project`, which ends its playback and unloads every stream of it: the id of the action it queued. */

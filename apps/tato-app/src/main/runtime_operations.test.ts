@@ -5,9 +5,9 @@ import { CONTROL_CONTRACT_REVISION, CONTROL_CONTRACT_VERSION, CONTROL_CONTRACT_V
 import { Effect } from "effect";
 import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse, controlOperationFailedResponse, controlOperationResultResponse, runOverTheLocalApiAt } from "./fake_local_api_server.js";
-import { runtimeDescriptionFromTheDescribeRuntimeToolResult } from "./runtime_description_on_the_wire.js";
 import { httpRequestBytes, parseHttpResponse } from "./local_api_plain_http.js";
-import { checkTheRuntimesHealth, describeNodeTypes, describeRuntime, describeStreamGraph, listDependencies, listProjectAssets, listNodeTypes, listStreams, readAssetPreview, readProjectLogRecords, readTheMachineName } from "./runtime_operations.js";
+import { checkTheRuntimesHealth, describeNodeTypes, describeRuntime, describeStreamGraph, listDependencies, listProjectAssets, listNodeTypes, listStreams, readAssetPreview, readProjectLogRecords } from "./runtime_operations.js";
+import { readTheAnsweringRuntime } from "./runtime_contract_age.js";
 import type { RuntimeControlFailure } from "./runtime_control_failures.js";
 import { controlOperationOnTheConnectionReadWith, RuntimeControl } from "./tatolab_runtime_control_operation_call.js";
 import { streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
@@ -23,10 +23,10 @@ async function shortTemporarySocketPath(): Promise<string> {
 
 /** `describe_runtime`'s result as streamlib's wire-text test writes it, with and without the runtime's own log. */
 const DESCRIBE_RUNTIME_WIRE_TEXT_WITH_A_LOG_FOLDER =
-  '{"version":"0.55.1","build_id":"0.55.1+0123abc.9f8e7d","up_for_ms":266400000,"runtime_log_directory":"/home/u/.local/state/tatolab/logs"}';
+  '{"version":"0.55.1","build_id":"0.55.1+0123abc.9f8e7d","up_for_ms":266400000,"runtime_log_directory":"/home/u/.local/state/tatolab/logs","machine":"rig"}';
 
 const DESCRIBE_RUNTIME_WIRE_TEXT_WITHOUT_A_LOG_FOLDER =
-  '{"version":"0.55.1","build_id":"0.55.1+0123abc.9f8e7d","up_for_ms":266400000,"runtime_log_directory":null}';
+  '{"version":"0.55.1","build_id":"0.55.1+0123abc.9f8e7d","up_for_ms":266400000,"runtime_log_directory":null,"machine":"rig"}';
 
 /** Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/runtime_operations.test.ts`. */
 const noLiveRuntimeSocketIsNamed = !process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"];
@@ -50,12 +50,6 @@ test("a_runtime_answering_health_with_another_status_is_refused_and_with_another
 
   expect(failureOf(await server.run(checkTheRuntimesHealth()))).toMatchObject({ _tag: "RuntimeRefused", words: "the runtime answered /health with 503: starting" });
   expect(failureOf(await server.run(checkTheRuntimesHealth()))).toMatchObject({ _tag: "ContractMismatch", words: "the runtime answered /health with: starting" });
-});
-
-test("a_graph_export_naming_no_machine_is_not_the_contracts_answer", async () => {
-  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", '{"streams":[]}')]);
-
-  expect(failureOf(await server.run(readTheMachineName()))).toMatchObject({ _tag: "ContractMismatch", words: expect.stringMatching(/^the runtime's \/api\/graph names no machine: /) });
 });
 
 test("nothing_listening_names_the_socket", async () => {
@@ -129,14 +123,20 @@ test("a_real_describe_runtime_result_reads_its_version_build_uptime_and_log_fold
   });
 });
 
-test("a_runtime_keeping_no_own_log_describes_its_log_folder_as_null", () => {
-  expect(answerOf(runtimeDescriptionFromTheDescribeRuntimeToolResult(JSON.parse(DESCRIBE_RUNTIME_WIRE_TEXT_WITHOUT_A_LOG_FOLDER))).runtime_log_directory).toBeNull();
+test("a_runtime_keeping_no_own_log_describes_its_log_folder_as_null", async () => {
+  const server = await fakeLocalApiServerAnswering([controlOperationResultResponse(JSON.parse(DESCRIBE_RUNTIME_WIRE_TEXT_WITHOUT_A_LOG_FOLDER))]);
+
+  expect(answerOf(await server.run(describeRuntime())).runtime_log_directory).toBeNull();
 });
 
-test("a_describe_runtime_result_missing_a_field_is_refused_naming_it", () => {
-  expect(failureOf(runtimeDescriptionFromTheDescribeRuntimeToolResult(JSON.parse('{"version":"0.55.1","up_for_ms":5,"runtime_log_directory":null}')))).toBe(
-    "the runtime's describe_runtime result could not be read: missing field `build_id`",
-  );
+test("a_describe_runtime_result_missing_a_field_is_not_the_contracts_answer_naming_it", async () => {
+  const server = await fakeLocalApiServerAnswering([controlOperationResultResponse({ version: "0.55.1", up_for_ms: 5, runtime_log_directory: null, machine: "rig" })]);
+
+  expect(failureOf(await server.run(describeRuntime()))).toMatchObject({
+    _tag: "ContractMismatch",
+    operation: "describe_runtime",
+    words: expect.stringMatching(/^the runtime's answer to `describe_runtime` is not the contract's `DescribeRuntimeToolResult`: .*build_id/),
+  });
 });
 
 test("an_operation_the_runtime_does_not_serve_is_refused_in_its_own_words", async () => {
@@ -150,12 +150,10 @@ test("an_operation_the_runtime_does_not_serve_is_refused_in_its_own_words", asyn
   });
 });
 
-test("a_refused_rest_request_carries_the_runtimes_own_words", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    httpResponse("500 Internal Server Error", "application/json", '{"error":"graph export failed: the engine is shutting down"}'),
-  ]);
+test("a_refused_health_check_carries_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([httpResponse("500 Internal Server Error", "application/json", '{"error":"the engine is shutting down"}')]);
 
-  expect(failureOf(await server.run(readTheMachineName())).words).toBe("graph export failed: the engine is shutting down");
+  expect(failureOf(await server.run(checkTheRuntimesHealth()))).toMatchObject({ _tag: "RuntimeRefused", words: "the engine is shutting down" });
 });
 
 test("a_runtime_serving_another_contract_version_is_refused_in_its_own_words", async () => {
@@ -212,7 +210,9 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
   expect(runtimeDescription.build_id.startsWith(`${runtimeDescription.version}+`)).toBe(true);
   expect(runtimeDescription.up_for_ms).toBeGreaterThan(0);
   const streams = await live(listStreams());
-  const machineName = await live(readTheMachineName());
+  const theAnsweringRuntime = await live(readTheAnsweringRuntime());
+  expect(theAnsweringRuntime.identity).toBe(`build ${runtimeDescription.build_id}`);
+  const machineName = answerOf(theAnsweringRuntime.machineName);
   expect(machineName).not.toBe("");
   for (const loadedStream of streams.filter((listedStream) => listedStream.node_count !== null)) {
     const graph = await live(describeStreamGraph(loadedStream.stream));

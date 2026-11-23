@@ -1,9 +1,9 @@
 import { afterEach, expect, test } from "vitest";
 import type { StreamLocation } from "../shared/tatolab_backend_contract.js";
-import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
+import { controlOperationResponseOfTheRecordedToolResponse } from "./fake_local_api_server.js";
 import { listedStreamsFromTheListStreamsToolResult } from "./listed_streams_on_the_wire.js";
 import { answerOf, cleanUpWhatTheTestStarted, failureOf, fakeLocalApiServerAnswering, listedStream, recordedResponseBody } from "./runtime_operations_test_support.js";
-import { listStreams, readTheMachineName } from "./runtime_operations.js";
+import { listStreams } from "./runtime_operations.js";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -177,14 +177,6 @@ test("a_list_streams_result_naming_no_stream_id_or_display_name_is_refused", () 
   expect(failureOf(listedStreamsFromTheListStreamsToolResult({ streams: [{ stream: "a-main-1a2b3c", display_name: "main", location: "/a", state: "running" }] }))).toBe(
     "the runtime's list_streams result could not be read: `location` is not an object",
   );
-});
-
-test("the_machine_name_comes_from_the_machine_wide_graph", async () => {
-  const graph = { machine: "jonathanf-macbook", streams: [{ stream: "main", nodes: [], links: [], exposed: [], machine: "jonathanf-macbook" }] };
-  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", JSON.stringify(graph))]);
-
-  expect(answerOf(await server.run(readTheMachineName()))).toBe("jonathanf-macbook");
-  expect(server.receivedRequests()[0]?.startsWith("GET /api/graph HTTP/1.1\r\n")).toBe(true);
 });
 
 test("the_listing_reads_a_closed_projects_streams_closed_and_unloaded_beside_a_playing_and_a_stopped_one", async () => {
