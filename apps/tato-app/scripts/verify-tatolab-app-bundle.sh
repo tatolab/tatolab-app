@@ -9,7 +9,7 @@
 # Mach-O inside the carried wheels and Python signed like the bundle's own, the
 # runtime's uv beside the helper's tatolabd and no Python of the app's own, the CEF browser host in the
 # helper's Frameworks, the helper's TypeScript compiler and linter running from inside it, the
-# entitlements of the helper's tatolabd, uv, tatolab-cli, tatolab-video-poster-frame, oxlint and
+# entitlements of the helper's tatolabd, uv, tatolab-cli, tatolab-video-poster-frame, tatolab-video-codec-host, oxlint and
 # typescript/tsc, the app, Electron's helpers, the browser host and CEF's helpers, Electron's
 # fuses, and the build features the app was built with and the tatolab-app commit they name.
 # Reading the fuses and the build features needs this checkout's node_modules (npm ci).
@@ -222,7 +222,7 @@ verify_app_bundle() {
   [ "$(plutil -extract CFBundleExecutable raw -o - "$helper_info_plist" 2>/dev/null)" = tatolabd ] \
     && pass "Tatolab Runtime.app's executable is tatolabd" || fail "Tatolab Runtime.app's CFBundleExecutable is not tatolabd"
   local bundled_executable
-  for bundled_executable in tatolabd tatolab-cli uv tatolab-video-poster-frame; do
+  for bundled_executable in tatolabd tatolab-cli uv tatolab-video-poster-frame tatolab-video-codec-host; do
     [ -x "$helper_contents/MacOS/$bundled_executable" ] && pass "Tatolab Runtime.app's Contents/MacOS/$bundled_executable is present" \
       || fail "Tatolab Runtime.app's Contents/MacOS/$bundled_executable is missing"
   done
@@ -408,7 +408,7 @@ verify_app_bundle() {
     || fail "Tatolab Runtime.app embeds no provisioning profile for $runtime_keychain_access_group (found '${embedded_runtime_profile_application_identifier:-none}')"
   local unentitled_executable
   local unentitled_executables=("$helper_contents/MacOS/uv" "$helper_contents/MacOS/tatolab-cli" \
-    "$helper_contents/MacOS/tatolab-video-poster-frame")
+    "$helper_contents/MacOS/tatolab-video-poster-frame" "$helper_contents/MacOS/tatolab-video-codec-host")
   [ -e "$helper_contents/MacOS/typescript/tsc" ] \
     && unentitled_executables+=("$helper_contents/MacOS/oxlint" "$helper_contents/MacOS/typescript/tsc")
   for unentitled_executable in "${unentitled_executables[@]}"; do
