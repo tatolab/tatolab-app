@@ -18,7 +18,7 @@ import { anExtensionSdkKitPlantedIn } from "./extension_sdk_kit_planted.ts";
 
 const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const ASSEMBLE_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "assemble-tatolab-app-bundle.sh");
-const PLACED_RUNTIME_UNIT_BINARIES = ["tatolab", "tatolabd", "uv", "tatolab-video-poster-frame"];
+const PLACED_RUNTIME_UNIT_BINARIES = ["tatolab", "tatolabd", "uv", "tatolab-video-poster-frame", "tatolab-video-codec-host"];
 const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend", "imports", "samples", "core-projects", "carried-wheels", "python-downloads", "browser-host"];
 const BROWSER_HOST_EXECUTABLE_IN_THE_UNIT = ["lib", "tatolab", "browser-host", "tatolab-browser-host.app", "Contents", "MacOS", "tatolab-browser-host"];
 const PURE_PYTHON_TESTPATTERN_WHEEL = "tatolab_testpattern-0.68.54-py3-none-any.whl";
@@ -150,8 +150,8 @@ async function plantAWheelInTheUnitsImports(
 
 const PURE_PYTHON_WHEEL_MEMBER = { memberPath: "tatolab/testpattern/__init__.py", memberBytes: Buffer.from("") };
 
-test("a unit without uv or the video poster frame helper is refused and the bundle is untouched", async () => {
-  for (const missingBinaryName of ["uv", "tatolab-video-poster-frame"]) {
+test("a unit without uv, the video poster frame helper or the video codec host is refused and the bundle is untouched", async () => {
+  for (const missingBinaryName of ["uv", "tatolab-video-poster-frame", "tatolab-video-codec-host"]) {
     await rm(path.join(scratchDirectory, "tatolab-runtime"), { recursive: true, force: true });
     const runtimeUnitDirectory = await runtimeUnitPlantedWith(
       PLACED_RUNTIME_UNIT_BINARIES.filter((binaryName) => binaryName !== missingBinaryName),

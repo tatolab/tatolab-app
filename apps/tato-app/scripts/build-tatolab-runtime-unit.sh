@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds streamlib's runtime unit (bin/tatolabd, bin/tatolab, bin/uv, bin/tatolab-video-poster-frame,
+# Builds streamlib's runtime unit (bin/tatolabd, bin/tatolab, bin/uv, bin/tatolab-video-poster-frame, bin/tatolab-video-codec-host,
 # lib/tatolab/lend, its imports, sample projects, carried wheels, carried Python and the browser host) in a
 # streamlib checkout, against the CEF distribution its scripts/fetch_cef_binary_distribution.py fetches, writes
 # the checkout's commit into the unit's streamlib-commit, and prints the unit's directory. The checkout's own target directory is used.
@@ -58,7 +58,7 @@ case "$(uname -s)" in
   Darwin) browser_host_executable_in_the_unit=lib/tatolab/browser-host/tatolab-browser-host.app/Contents/MacOS/tatolab-browser-host ;;
   *) browser_host_executable_in_the_unit=lib/tatolab/browser-host/tatolab-browser-host ;;
 esac
-for required in bin/tatolabd bin/tatolab bin/uv bin/tatolab-video-poster-frame lib/tatolab/lend/tatolab/runtime lib/tatolab/imports \
+for required in bin/tatolabd bin/tatolab bin/uv bin/tatolab-video-poster-frame bin/tatolab-video-codec-host lib/tatolab/lend/tatolab/runtime lib/tatolab/imports \
   lib/tatolab/samples lib/tatolab/core-projects/tatolab-core-nodes/tatolab-project.json lib/tatolab/carried-wheels \
   lib/tatolab/python-downloads/uv-python-downloads.json "$browser_host_executable_in_the_unit"; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit is missing $required" >&2; exit 1; }
