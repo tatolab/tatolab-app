@@ -184,6 +184,13 @@ function isTheFirstRowOfItsSlot(rows: readonly NodePinRow[], index: number): boo
   return before === null || before === undefined || before.group !== slot.group || before.slot !== slot.slot || rows[index - 1]?.side !== rows[index]?.side;
 }
 
+/** Whether no row above this one on the card belongs to its slot, so a slot whose pins sit on both sides carries its buttons once. */
+function isTheFirstRowOfItsSlotOnTheCard(rows: readonly NodePinRow[], index: number): boolean {
+  const slot = rows[index]?.node_pin.slot;
+  if (slot === null || slot === undefined) return false;
+  return !rows.slice(0, index).some((row) => row.node_pin.slot?.group === slot.group && row.node_pin.slot.slot === slot.slot);
+}
+
 /** The tag leading the first row of a pin group's slot: its number, counted from 1, naming the slot while the pointer rests on it, dimmed on the empty slot a wire fills. */
 function NodeGraphPinGroupSlotTag({ pin }: { pin: NodePin }) {
   if (pin.slot === null) return null;
@@ -301,7 +308,7 @@ function NodeGraphCardHeaderAndPinRows({
               data-node-graph-empty-slot={row.node_pin.slot?.is_the_empty_slot === true || undefined}
             >
               {row.side === "input" && isTheFirstRowOfItsSlot(rows, index) && <NodeGraphPinGroupSlotTag pin={row.node_pin} />}
-              {row.side === "input" && isTheFirstRowOfItsSlot(rows, index) && afterASlotsTag(row.node_pin)}
+              {row.side === "input" && isTheFirstRowOfItsSlotOnTheCard(rows, index) && afterASlotsTag(row.node_pin)}
               {row.side === "input" && row.node_pin.bundle !== null && beforeABundlesName(row.side, row.node_pin)}
               <span
                 className={cn("truncate", row.side === "output" && "text-right")}
@@ -311,7 +318,7 @@ function NodeGraphCardHeaderAndPinRows({
                 {nodePinLabel(row.node_pin)}
               </span>
               {row.side === "output" && row.node_pin.bundle !== null && beforeABundlesName(row.side, row.node_pin)}
-              {row.side === "output" && isTheFirstRowOfItsSlot(rows, index) && afterASlotsTag(row.node_pin)}
+              {row.side === "output" && isTheFirstRowOfItsSlotOnTheCard(rows, index) && afterASlotsTag(row.node_pin)}
               {row.side === "output" && isTheFirstRowOfItsSlot(rows, index) && <NodeGraphPinGroupSlotTag pin={row.node_pin} />}
               <NodeGraphFreeConversionWordsForAScreenReader pin={row.node_pin} />
               <NodeGraphRebuildsTheNodeMark pin={row.node_pin} />

@@ -86,8 +86,15 @@ function inputValuesRecordingWhatTheySend(): { inputValues: InputValues; sent: u
   return { inputValues, sent };
 }
 
-async function drawnCompositor(inputValues: InputValues | null): Promise<RenderResult> {
-  const drawn = render(<NodeGraphCanvas label="Stream graph" nodes={[COMPOSITOR]} links={[]} selectedNodeIds={[]} onNodesSelected={vi.fn()} editing={editing()} inputValues={inputValues} />);
+/** The compositor with one band, whose slot holds a pin on each side. */
+const COMPOSITOR_WITH_ONE_BAND: NodeGraphCanvasNode = {
+  ...COMPOSITOR,
+  inputs: [...COMPOSITOR.inputs, aSlotPin("bands", 0, "weight", "set_by_the_input_of_the_groups_name", false)],
+  outputs: [aSlotPin("bands", 0, "banded", "set_by_the_input_of_the_groups_name", false)],
+};
+
+async function drawnCompositor(inputValues: InputValues | null, compositor: NodeGraphCanvasNode = COMPOSITOR): Promise<RenderResult> {
+  const drawn = render(<NodeGraphCanvas label="Stream graph" nodes={[compositor]} links={[]} selectedNodeIds={[]} onNodesSelected={vi.fn()} editing={editing()} inputValues={inputValues} />);
   await vi.waitFor(() => expect(drawn.container.querySelectorAll("[data-node-graph-card]")).toHaveLength(1));
   return drawn;
 }
@@ -115,5 +122,18 @@ describe("a card's pin groups", () => {
     await act(async () => container.querySelector<HTMLButtonElement>(`[data-node-graph-${button}="bands"]`)?.click());
 
     expect(sent).toEqual([[GRAPH.project_folder, [{ operation: "set_node_input_value", stream: GRAPH.stream_asset, node: "compositor", input: "bands", value: count }], { mode: "commit", idempotencyKey: "gesture-0" }]]);
+  });
+
+  it("draws a slot's buttons once when its pins sit on both sides, and refuses to remove a group's only slot", async () => {
+    const { inputValues, sent } = inputValuesRecordingWhatTheySend();
+    const { container } = await drawnCompositor(inputValues, COMPOSITOR_WITH_ONE_BAND);
+
+    expect(container.querySelectorAll('[data-node-graph-add-slot="bands"]')).toHaveLength(1);
+    const removeButtons = container.querySelectorAll<HTMLButtonElement>('[data-node-graph-remove-slot="bands"]');
+    expect(removeButtons).toHaveLength(1);
+    expect(removeButtons[0]?.disabled).toBe(true);
+    await act(async () => removeButtons[0]?.click());
+
+    expect(sent).toEqual([]);
   });
 });
