@@ -2,17 +2,23 @@
 // runtime tarball on get.tatolab.com, and the app version it releases as. The app version is the
 // bundled runtime's when that is newer than every app version shipped, and otherwise the last
 // shipped app version's next patch, so every release is newer than the last and the updaters take it.
+// It also says whether that release serves the control contract version of the streamlib commit the
+// app's runtime client is pinned to; when it does not, the run builds and publishes nothing.
 //
 // Usage: node scripts/plan_tatolab_app_release.mjs [STREAMLIB_VERSION]
 //   STREAMLIB_VERSION  the streamlib release to bundle; blank bundles the one get.tatolab.com
 //                      serves as `latest`
 //   GITHUB_OUTPUT      where the plan is written as step outputs; printed when unset
-import { appendFile } from "node:fs/promises";
+import { appendFile, readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 /** The update feed's base, and the record the publish step writes there of the release it shipped. */
 export const GET_TATOLAB_COM_URL = "https://get.tatolab.com";
 export const PUBLISHED_RELEASE_RECORD_PATH = "app/tato-studio-release.json";
+
+const STREAMLIB_CLIENT_CONTRACT_PATH = "sdk/tatolab-runtime-client/contract.json";
+const STREAMLIB_RAW_FILES_URL = "https://raw.githubusercontent.com/tatolab/streamlib";
+const RUNTIME_CLIENT_PIN_FILE_URL = new URL("../tatolab-runtime-client-pin.json", import.meta.url);
 
 const SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 
@@ -49,6 +55,28 @@ export function planTatolabAppRelease({ streamlibVersion, publishedAppVersion })
   return { appVersion: compareSemver(streamlibVersion, nextPatch) >= 0 ? streamlibVersion : nextPatch };
 }
 
+/** A control contract's `info["x-contract-version"]`, refused when it names none. */
+export function contractVersionOfTheContract(contract, source) {
+  const contractVersion = contract?.info?.["x-contract-version"];
+  if (!Number.isInteger(contractVersion)) throw new Error(`${source} names no x-contract-version under info`);
+  return contractVersion;
+}
+
+/**
+ * Whether `streamlibTag` serves the contract version of the pinned commit, and, when it does not,
+ * the warning that names both versions.
+ */
+export function planTheContractVersion({ pinnedStreamlibCommit, pinnedContractVersion, streamlibTag, releaseContractVersion }) {
+  if (pinnedContractVersion === releaseContractVersion) return { releaseServesThePinnedContractVersion: true, warning: null };
+  return {
+    releaseServesThePinnedContractVersion: false,
+    warning:
+      `streamlib ${streamlibTag} serves control contract version ${releaseContractVersion}; the app's runtime client is pinned to ` +
+      `streamlib ${pinnedStreamlibCommit}, which serves version ${pinnedContractVersion}: nothing is built or published until the pin ` +
+      `and the streamlib release serve the same contract version`,
+  };
+}
+
 /** The `version:` line of an electron-updater manifest, or `null`. */
 export function versionOfTheUpdateManifest(manifestText) {
   const match = /^version: *(\S+)$/m.exec(manifestText);
@@ -83,17 +111,39 @@ async function lastPublishedAppVersion() {
   return manifestResponse === null ? null : versionOfTheUpdateManifest(await manifestResponse.text());
 }
 
+async function pinnedStreamlibCommit() {
+  const pin = JSON.parse(await readFile(RUNTIME_CLIENT_PIN_FILE_URL, "utf8"));
+  if (!/^[0-9a-f]{40}$/.test(pin.streamlib_commit ?? "")) throw new Error(`the runtime client pin names no full streamlib commit: ${pin.streamlib_commit}`);
+  return pin.streamlib_commit;
+}
+
+async function contractVersionOfStreamlibAt(ref) {
+  const contractUrl = `${STREAMLIB_RAW_FILES_URL}/${ref}/${STREAMLIB_CLIENT_CONTRACT_PATH}`;
+  const contractResponse = await fetch(contractUrl, { cache: "no-store" });
+  if (!contractResponse.ok) throw new Error(`${contractUrl} answered ${contractResponse.status}`);
+  return contractVersionOfTheContract(await contractResponse.json(), contractUrl);
+}
+
 async function main() {
   const requestedStreamlibVersion = (process.argv[2] ?? "").trim();
   const streamlibRelease = await streamlibReleaseWithItsLinuxRuntime(
     requestedStreamlibVersion === "" ? await streamlibVersionServedAsLatest() : requestedStreamlibVersion,
   );
   const plan = planTatolabAppRelease({ streamlibVersion: streamlibRelease.version, publishedAppVersion: await lastPublishedAppVersion() });
+  const pinnedCommit = await pinnedStreamlibCommit();
+  const contractVersionPlan = planTheContractVersion({
+    pinnedStreamlibCommit: pinnedCommit,
+    pinnedContractVersion: await contractVersionOfStreamlibAt(pinnedCommit),
+    streamlibTag: streamlibRelease.tag,
+    releaseContractVersion: await contractVersionOfStreamlibAt(streamlibRelease.tag),
+  });
+  if (contractVersionPlan.warning !== null) process.stdout.write(`::warning::${contractVersionPlan.warning}\n`);
   const outputs = {
     app_version: plan.appVersion,
     streamlib_tag: streamlibRelease.tag,
     streamlib_version: streamlibRelease.version,
     linux_runtime_tarball_url: streamlibRelease.linuxRuntimeTarballUrl,
+    streamlib_release_serves_the_pinned_contract_version: contractVersionPlan.releaseServesThePinnedContractVersion,
   };
   const outputLines = `${Object.entries(outputs).map(([name, value]) => `${name}=${value}`).join("\n")}\n`;
   process.stdout.write(outputLines);

@@ -48,6 +48,7 @@ jobs:
       streamlib_tag: ${{ steps.plan.outputs.streamlib_tag }}
       streamlib_version: ${{ steps.plan.outputs.streamlib_version }}
       linux_runtime_tarball_url: ${{ steps.plan.outputs.linux_runtime_tarball_url }}
+      streamlib_release_serves_the_pinned_contract_version: ${{ steps.plan.outputs.streamlib_release_serves_the_pinned_contract_version }}
       streamlib_release_contains_the_client_pin: ${{ steps.client-pin.outputs.streamlib_release_contains_the_client_pin }}
     steps:
       - uses: actions/checkout@v5
@@ -62,6 +63,8 @@ jobs:
         with:
           node-version: 22
 
+      # A streamlib release serving another control contract version than the pinned commit builds
+      # and publishes nothing: the build would refuse its runtime unit only once it is built.
       - id: plan
         env:
           REQUESTED_STREAMLIB_VERSION: ${{ inputs.streamlib_version }}
@@ -89,7 +92,9 @@ jobs:
   build-macos:
     name: Build, sign and notarize for macOS
     needs: plan
-    if: needs.plan.outputs.streamlib_release_contains_the_client_pin == 'true'
+    if: >-
+      needs.plan.outputs.streamlib_release_contains_the_client_pin == 'true' &&
+      needs.plan.outputs.streamlib_release_serves_the_pinned_contract_version == 'true'
     # Pinned, not macos-latest: the image decides the SDK, and the app's floor is macOS 26.0.
     runs-on: macos-26
     timeout-minutes: 240
@@ -237,7 +242,9 @@ jobs:
   build-linux:
     name: Build for Linux
     needs: plan
-    if: needs.plan.outputs.streamlib_release_contains_the_client_pin == 'true'
+    if: >-
+      needs.plan.outputs.streamlib_release_contains_the_client_pin == 'true' &&
+      needs.plan.outputs.streamlib_release_serves_the_pinned_contract_version == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     env:
