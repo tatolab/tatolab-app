@@ -29,7 +29,7 @@ describe("the Studio's own controls, checked against the kit the way an author's
   it("pass the compiler and the linter, each tied to the class type its manifest entry declares", () => {
     const answer = checkAnExtensionFolder(NODE_UI_FOLDER);
     expect(answer.compiler_printed).toBe("");
-    expect(answer.warnings).toEqual([]);
+    expect(answer.refused_files).toEqual([]);
     expect(answer.passed).toBe(true);
   });
 

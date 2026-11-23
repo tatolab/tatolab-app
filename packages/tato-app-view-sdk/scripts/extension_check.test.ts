@@ -101,19 +101,27 @@ describe("checking an extension folder against the kit", () => {
     expect(answer.compiler_printed).toContain("Cannot find module '@tatolab/tato-app-view-sdk/node_ui_host'");
   });
 
-  test("an extension's own .js, .mjs or .map is a warning that names .ts, and vendored code is read as it is", () => {
+  test("an extension's own .js, .mjs or .map fails the check, each file named with .ts as what to write, and vendored code is read as it is", () => {
     const answer = checkAnExtensionFolder(
       folderHolding({ "main.ts": "export const level: number = 1;\n", "old.js": "export const level = 1;\n", "old.mjs": "", "main.js.map": "{}", "vendor/library.js": "// @ts-ignore\nexport const any = 1;\n", "tatolab_view.json": "{}" }),
       kitFolder,
     );
-    expect(answer.passed).toBe(true);
-    expect([...answer.warnings].sort()).toEqual(["main.js.map", "old.js", "old.mjs"].map((file) => `${file}: an extension's code is written in .ts, and only .ts is checked`));
+    expect(answer.passed).toBe(false);
+    expect(answer.compiler_printed).toBe("");
+    expect([...answer.refused_files].sort()).toEqual(
+      ["main.js.map", "old.js", "old.mjs"].map((file) => `an extension's own code is written in .ts, so \`${file}\` is refused: write it as .ts, or put a library the extension carries under vendor/ with its .d.ts beside it`),
+    );
   });
 
-  test("a folder holding no .ts is not compiled, and passes with its warnings", () => {
-    const answer = checkAnExtensionFolder(folderHolding({ "view.js": "export {};\n", "tatolab_view.json": "{}" }), kitFolder);
-    expect(answer.passed).toBe(true);
-    expect(answer.warnings).toHaveLength(1);
+  test("a view made of .js files alone fails the check, each file named", () => {
+    const answer = checkAnExtensionFolder(folderHolding({ "view.js": "export {};\n", "vendor/library.js": "export {};\n", "vendor/library.d.ts": "export {};\n", "tatolab_view.json": "{}" }), kitFolder);
+    expect(answer.passed).toBe(false);
+    expect(answer.refused_files).toEqual(["an extension's own code is written in .ts, so `view.js` is refused: write it as .ts, or put a library the extension carries under vendor/ with its .d.ts beside it"]);
+  });
+
+  test("a folder holding no code at all is not compiled, and passes", () => {
+    const answer = checkAnExtensionFolder(folderHolding({ "index.html": "<!doctype html>\n", "tatolab_view.json": "{}" }), kitFolder);
+    expect(answer).toEqual({ extension_folder: answer.extension_folder, passed: true, compiler_printed: "", linter_printed: "", refused_files: [] });
   });
 });
 

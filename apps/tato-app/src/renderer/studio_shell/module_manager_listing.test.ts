@@ -289,7 +289,7 @@ describe("what the Marketplace window lists", () => {
 describe("what a module's details say of the views it adds", () => {
   const wallCamera: ViewOfAWorkspaceDependency = {
     view_type_id: "lobby-wall:wall_camera",
-    manifest_json: { contract: "1.0", title: "Wall camera", entry: "index.html", placement: "node", inputs: [{ name: "video", family: "image" }], outputs: [{ name: "pan", family: "array" }, { name: "tilt", family: "array" }], capabilities: ["camera"] },
+    manifest_json: { contract: "1.1", title: "Wall camera", entry: "index.html", placement: "node", inputs: [{ name: "video", pin_type: { type: "texture" } }], outputs: [{ name: "pan", pin_type: { type: "tensor" } }, { name: "tilt", pin_type: { type: "tensor" } }], capabilities: ["camera"] },
     opens: true,
     not_opened_because: null,
   };

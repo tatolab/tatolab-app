@@ -40,7 +40,7 @@ describe("the views a view reads", () => {
           import_folder: "acme-dj",
           opens: true,
           not_opened_because: null,
-          manifest_json: { contract: "1.0", title: "DJ Deck", entry: "index.html", placement: "node", outputs: [{ name: "crossfader", family: "array" }] },
+          manifest_json: { contract: "1.1", title: "DJ Deck", entry: "index.html", placement: "node", outputs: [{ name: "crossfader", pin_type: { type: "tensor" } }] },
           folder_url: "tatolab-app://app/project_views/acme-dj/deck/",
           newer_version_blocked_because: null,
         },

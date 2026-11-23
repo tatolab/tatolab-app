@@ -50,15 +50,15 @@ const STUDIOS_FLOAT_CONTROL_LISTED: ListedNodeUiElement = {
 };
 
 const DJ_DECK_MANIFEST = manifestOf({
-  contract: "1.0",
+  contract: "1.1",
   title: "DJ Deck",
   entry: "index.html",
   placement: "node",
-  inputs: [{ name: "deck_a", family: "channels" }],
+  inputs: [{ name: "deck_a", pin_type: { type: "audio" } }],
   outputs: [
-    { name: "crossfader", family: "array" },
-    { name: "play_a", family: "array" },
-    { name: "cover", family: "image" },
+    { name: "crossfader", pin_type: { type: "tensor" } },
+    { name: "play_a", pin_type: { type: "tensor" } },
+    { name: "cover", pin_type: { type: "texture" } },
   ],
   settings: { type: "object", properties: { show_waveform: { type: "boolean", default: true }, zoom: { type: "number", minimum: 1, default: 1 } } },
 });
@@ -559,13 +559,13 @@ describe("a view's connection to Studio, through the one bridge every view is se
     const { connection } = await connectedView({ ...DJ_DECK_MANIFEST, capabilities: ["read.selection", "camera"] }, {});
     expect(connection.grant).toEqual({
       view_type_id: "acme-dj:deck",
-      contract: "1.0",
+      contract: "1.1",
       placement: "node",
-      inputs: [{ name: "deck_a", family: "channels" }],
+      inputs: [{ name: "deck_a", family: "channels", pin_type: { type: "audio" } }],
       outputs: [
-        { name: "crossfader", family: "array" },
-        { name: "play_a", family: "array" },
-        { name: "cover", family: "image" },
+        { name: "crossfader", family: "array", pin_type: { type: "tensor" } },
+        { name: "play_a", family: "array", pin_type: { type: "tensor" } },
+        { name: "cover", family: "image", pin_type: { type: "texture" } },
       ],
       capabilities: ["read.selection", "camera"],
     });
@@ -717,7 +717,7 @@ describe("a view's connection to Studio, through the one bridge every view is se
     const bridge = new TatolabViewBridge(
       portDouble,
       "acme-dj:deck",
-      { ...DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
+      { ...DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image", pin_type: { type: "texture" } }] },
       host.hostServices,
       recordingAreaServices(undefined).areaServices,
       { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
