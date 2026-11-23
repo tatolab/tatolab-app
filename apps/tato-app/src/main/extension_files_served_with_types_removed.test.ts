@@ -4,6 +4,7 @@ import { afterEach, expect, test } from "vitest";
 import { ExtensionFolderChecksKept, folderVersionOf, type ExtensionFolderPassed } from "./extension_check_gate.js";
 import {
   projectViewFileOfTheRequest,
+  responseCarryingTheExtensionFileAnswer,
   projectViewFileRequestsAnsweredOn,
   projectViewFolderUrl,
   ProjectViewsListedToTheWindows,
@@ -87,7 +88,7 @@ const DECK_SCRIPT_WITH_ITS_TYPES_REMOVED = [
 const SCRIPT_WITH_AN_ENUM = ["const tracks = 2;", "", "enum Lane {", "  Left,", "}", ""].join("\n");
 const VENDORED_SCRIPT = "export const chart = (points: number) => points;\n";
 const VENDORED_DECLARATION = "export declare const chart: (points: number) => number;\n";
-/** A view's own built `.js`, outside `vendor/`, which is still served as it was read. */
+/** A view's own built `.js`, outside `vendor/`, which is not served as a script. */
 const BUILT_SCRIPT = "export const meter = (level) => level;\n";
 
 /** The views the gate passed: deck and weather, each file by its path in night-show. */
@@ -164,7 +165,7 @@ test("a view made only of .ts files is served as JavaScript with its types remov
   });
 });
 
-test("a library in the view's vendor/ folder is served as it is written, its declaration as text, and a .js file outside it and any other file as the gate read them", async () => {
+test("a library in the view's vendor/ folder is served as it is written, its declaration as text, any other file as the gate read it, and a .js file outside it as application/octet-stream", async () => {
   const served = projectViewFilesServedOverAnOpenNightShow();
   const deckFolderUrl = projectViewFolderUrl(NIGHT_SHOW, DECK_VERSION, "views/deck");
 
@@ -181,9 +182,25 @@ test("a library in the view's vendor/ folder is served as it is written, its dec
   });
   expect(withItsBytesAsText(await served.answerAProjectViewFileRequest(new URL("built_meter.js", deckFolderUrl).href))).toEqual({
     kind: "served",
-    content_type: "text/javascript; charset=utf-8",
+    content_type: "application/octet-stream",
     file_text: BUILT_SCRIPT,
   });
+});
+
+test("every extension file's response forbids the page to sniff its type, so an author's .js outside vendor/, served as application/octet-stream, runs neither as a module nor as a classic script", async () => {
+  const served = projectViewFilesServedOverAnOpenNightShow();
+  const deckFolderUrl = projectViewFolderUrl(NIGHT_SHOW, DECK_VERSION, "views/deck");
+  const builtMeterUrl = new URL("built_meter.js", deckFolderUrl).href;
+  const missingUrl = new URL("missing.ts", deckFolderUrl).href;
+  const tatolabAppLog = createTatolabAppLog("debug", () => undefined);
+
+  const builtMeterResponse = responseCarryingTheExtensionFileAnswer(builtMeterUrl, await served.answerAProjectViewFileRequest(builtMeterUrl), tatolabAppLog);
+  expect(builtMeterResponse.status).toBe(200);
+  expect(Object.fromEntries(builtMeterResponse.headers)).toEqual({ "content-type": "application/octet-stream", "cache-control": "no-store", "x-content-type-options": "nosniff" });
+  expect(await builtMeterResponse.text()).toBe(BUILT_SCRIPT);
+  const missingResponse = responseCarryingTheExtensionFileAnswer(missingUrl, await served.answerAProjectViewFileRequest(missingUrl), tatolabAppLog);
+  expect(missingResponse.status).toBe(404);
+  expect(missingResponse.headers.get("x-content-type-options")).toBe("nosniff");
 });
 
 test("a .ts file whose types cannot be removed is not served, and the Studio names the file and the line", async () => {

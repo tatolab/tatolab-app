@@ -40,12 +40,13 @@ interface ManifestControl {
 /** What the check found in one extension folder. */
 export interface ExtensionCheckAnswer {
   readonly extension_folder: string;
-  /** Whether the compiler and the linter both passed. A warning never fails the check. */
+  /** Whether no file was refused and the compiler and the linter both passed. */
   readonly passed: boolean;
   /** What the compiler printed, with each error at a tie line reported against the manifest entry it was written from. */
   readonly compiler_printed: string;
   readonly linter_printed: string;
-  readonly warnings: readonly string[];
+  /** Why each of the extension's own `.js`, `.mjs` or `.map` files is refused, in the runtime's words. */
+  readonly refused_files: readonly string[];
 }
 
 /** The kit's tie lines: the tie file's header, and the lines written for each control. */
@@ -98,8 +99,10 @@ function filesOutsideVendoredCode(folder: string): string[] {
 /** Checks the extension folder `extensionFolder` against the kit in `kitFolder`. */
 export function checkAnExtensionFolder(extensionFolder: string, kitFolder: string = VIEW_SDK_KIT_FOLDER): ExtensionCheckAnswer {
   const files = filesOutsideVendoredCode(extensionFolder);
-  const warnings = files.filter((file) => /\.(m?js|map)$/.test(file)).map((file) => `${file}: an extension's code is written in .ts, and only .ts is checked`);
-  if (!files.some((file) => file.endsWith(".ts"))) return { extension_folder: extensionFolder, passed: true, compiler_printed: "", linter_printed: "", warnings };
+  const refusedFiles = files
+    .filter((file) => /\.(m?js|map)$/.test(file))
+    .map((file) => `an extension's own code is written in .ts, so \`${file}\` is refused: write it as .ts, or put a library the extension carries under ${VENDORED_FOLDER}/ with its .d.ts beside it`);
+  if (!files.some((file) => file.endsWith(".ts"))) return { extension_folder: extensionFolder, passed: refusedFiles.length === 0, compiler_printed: "", linter_printed: "", refused_files: refusedFiles };
   const checkFolder = mkdtempSync(path.join(tmpdir(), "tatolab_extension_check-"));
   try {
     cpSync(extensionFolder, checkFolder, { recursive: true, filter: (source) => path.basename(source) !== "node_modules" });
@@ -112,7 +115,13 @@ export function checkAnExtensionFolder(extensionFolder: string, kitFolder: strin
     if (controls.length > 0) writeFileSync(path.join(checkFolder, TIE_FILE), tieFileFor(controls, tieLines));
     const compiler = runOver(checkFolder, NATIVE_TYPESCRIPT_COMPILER, ["-p", "."]);
     const linter = runOver(checkFolder, STANDALONE_LINTER, ["-c", path.join(kitFolder, "oxlint.json"), "--ignore-pattern", "node_modules/**", "--ignore-pattern", `${VENDORED_FOLDER}/**`, "."]);
-    return { extension_folder: extensionFolder, passed: compiler.passed && linter.passed, compiler_printed: tieErrorsAgainstTheManifest(compiler.printed, controls, tieLines), linter_printed: linter.printed, warnings };
+    return {
+      extension_folder: extensionFolder,
+      passed: refusedFiles.length === 0 && compiler.passed && linter.passed,
+      compiler_printed: tieErrorsAgainstTheManifest(compiler.printed, controls, tieLines),
+      linter_printed: linter.printed,
+      refused_files: refusedFiles,
+    };
   } finally {
     rmSync(checkFolder, { recursive: true, force: true });
   }

@@ -17,7 +17,7 @@ for (const projectFolder of projectFolders) {
     const answer = checkAnExtensionFolder(extensionFolder);
     everyExtensionPassed &&= answer.passed;
     process.stdout.write(`${answer.passed ? "passed" : "failed"}: ${extensionFolder}\n`);
-    for (const warning of answer.warnings) process.stdout.write(`  warning: ${warning}\n`);
+    for (const refusal of answer.refused_files) process.stdout.write(`  error: ${refusal}\n`);
     const printed = [answer.compiler_printed, answer.linter_printed].filter((text) => !answer.passed && text.trim() !== "");
     for (const text of printed) process.stdout.write(`${text.trimEnd()}\n`);
   }

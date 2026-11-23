@@ -41,14 +41,14 @@ export function isAPathInsideTheViewsFolder(path: string): boolean {
 /** The families of the outputs a panel writes: each value of one is set on the view node's input of the output's name, and published on the output. */
 export const FAMILIES_A_PANEL_WRITES: readonly PortFamily[] = ["array", "channels", "records"];
 
-/** An input or output a `node` view declares, as a node declares a port: by its pin type, or by the older `family` alone. */
+/** An input or output a `node` view declares, as a node declares a port: by its pin type. */
 export type ViewDeclaredPort = {
   /** Lower-case letters, digits and underscores, named once among the view's ports. */
   name: string;
-  /** The one family the port carries: the one its pin type's messages belong to, when it names one. */
+  /** The one family the messages of the port's pin type belong to, read from it. */
   family: PortFamily;
-  /** The pin type the port carries; left out on a port declared by `family` alone. */
-  pin_type?: PinType | undefined;
+  /** The pin type the port carries. */
+  pin_type: PinType;
   description?: string | undefined;
   /** The lowest and highest value an Array port carries, for a control such as a fader, lowest first. */
   range?: [number, number] | undefined;

@@ -70,6 +70,18 @@ export type ExtensionFileAnswer = { kind: "served"; content_type: string; file_b
 /** The status of a request a known failure left unserved: refused (403), not found (404), or not servable as written (422). */
 type ProjectViewFileNotServedStatus = 403 | 404 | 422;
 
+/** The header that holds a page to the content type an extension's file is served with: a `<script>` runs no file served as bytes of no script's type. */
+const NO_SNIFFING_OF_THE_CONTENT_TYPE = { "X-Content-Type-Options": "nosniff" } as const;
+
+/** The response that carries `answer` to a request for an extension's file at `requestUrl`: its bytes, or its status and why, which is logged; neither is sniffed for another type. */
+export function responseCarryingTheExtensionFileAnswer(requestUrl: string, answer: ExtensionFileAnswer, tatolabAppLog: TatolabAppLog): Response {
+  if (answer.kind === "not_served") {
+    tatolabAppLog.debug("an extension's file was not served", { request_url: requestUrl, because: answer.because });
+    return new Response(answer.because, { status: answer.status, headers: { "Content-Type": "text/plain; charset=utf-8", ...NO_SNIFFING_OF_THE_CONTENT_TYPE } });
+  }
+  return new Response(new Uint8Array(answer.file_bytes), { status: 200, headers: { "Content-Type": answer.content_type, "Cache-Control": "no-store", ...NO_SNIFFING_OF_THE_CONTENT_TYPE } });
+}
+
 /** How the running app answers a request for a project view's file. */
 export type AnswerAProjectViewFileRequest = (requestUrl: string) => Promise<ExtensionFileAnswer>;
 

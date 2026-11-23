@@ -42,16 +42,6 @@
             "type": "string",
             "pattern": "^[a-z_][a-z0-9_]*$"
           },
-          "family": {
-            "type": "string",
-            "enum": [
-              "image",
-              "array",
-              "channels",
-              "packets",
-              "records"
-            ]
-          },
           "pin_type": {
             "type": "object",
             "allOf": [
@@ -78,25 +68,10 @@
           }
         },
         "required": [
-          "name"
+          "name",
+          "pin_type"
         ],
-        "additionalProperties": false,
-        "allOf": [
-          {
-            "anyOf": [
-              {
-                "required": [
-                  "pin_type"
-                ]
-              },
-              {
-                "required": [
-                  "family"
-                ]
-              }
-            ]
-          }
-        ]
+        "additionalProperties": false
       },
       "default": []
     },
@@ -109,16 +84,6 @@
             "type": "string",
             "pattern": "^[a-z_][a-z0-9_]*$"
           },
-          "family": {
-            "type": "string",
-            "enum": [
-              "image",
-              "array",
-              "channels",
-              "packets",
-              "records"
-            ]
-          },
           "pin_type": {
             "type": "object",
             "allOf": [
@@ -145,25 +110,10 @@
           }
         },
         "required": [
-          "name"
+          "name",
+          "pin_type"
         ],
-        "additionalProperties": false,
-        "allOf": [
-          {
-            "anyOf": [
-              {
-                "required": [
-                  "pin_type"
-                ]
-              },
-              {
-                "required": [
-                  "family"
-                ]
-              }
-            ]
-          }
-        ]
+        "additionalProperties": false
       },
       "default": []
     },

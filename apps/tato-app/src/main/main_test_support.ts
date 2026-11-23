@@ -56,7 +56,7 @@ function refusalOfAFolderHoldingNoProject(toolName: string, projectDirectory: st
 }
 
 /** The `tatolab_view.json` of the one view, `views/meter`, the fake runtime lists in each import. */
-export const FAKE_METER_VIEW_MANIFEST = { contract: "1.0", title: "Meter", entry: "index.html", placement: "node", inputs: [{ name: "level", family: "array" }] };
+export const FAKE_METER_VIEW_MANIFEST = { contract: "1.1", title: "Meter", entry: "index.html", placement: "node", inputs: [{ name: "level", pin_type: { type: "tensor" } }] };
 
 /** The release the runtime reading each project's file describes itself as. */
 export const FAKE_RUNTIME_RELEASE = "0.69.37";

@@ -51,7 +51,7 @@ test("a passing check over the very bytes read, with this Studio's SDK, passes; 
   expect(gateDecisionOf(meterCheck(), METER_FILES_READ, "", null)).toEqual({ kind: "passed" });
   expect(
     gateDecisionOf(
-      meterCheck({ findings: [{ check: "extension_lint", finding_code: "not_written_in_ts", severity: "warning", words: "write it in .ts", path: "views/meter/old.js" }] }),
+      meterCheck({ findings: [{ check: "extension_manifest", finding_code: "default_control_not_judged", severity: "warning", words: "nodes/meter.py does not parse", path: "node_ui/tatolab_node_ui.json" }] }),
       METER_FILES_READ,
       "",
       null,
@@ -80,6 +80,34 @@ test("a type error blocks the view with the Studio's line, then each finding wit
       "imports/lobby-wall/views/meter/meter.ts:1:14: error: Type 'string' is not assignable to type 'number'. (TS2322)",
       "imports/lobby-wall/views/meter/meter.ts:2: error: Unexpected any. Specify a different type. (typescript(no-explicit-any))",
     ].join("\n"),
+  });
+});
+
+test("a view made of .js files is blocked with the runtime's finding, which names the file and .ts as what to write", () => {
+  const meterScript = "export const level = 1;\n";
+  const filesRead = new Map([
+    ["views/meter/index.html", Buffer.from(METER_PAGE)],
+    ["views/meter/meter.js", Buffer.from(meterScript)],
+  ]);
+  const notWrittenInTs =
+    "an extension's own code is written in .ts, so `meter.js` is refused: write it as .ts, or put a library the extension carries under vendor/ with its .d.ts beside it";
+  const failed = meterCheck({
+    verdict: "failed",
+    checks: [
+      { check: "extension_types", state: "passed", checked_with: ["tsc 7.0.2", sdkAsCheckedWith()] },
+      { check: "extension_lint", state: "failed", checked_with: ["oxlint 1.91.0", sdkAsCheckedWith()] },
+    ],
+    findings: [{ check: "extension_lint", finding_code: "not_written_in_ts", severity: "error", words: notWrittenInTs, path: "views/meter/meter.js", line: null, column: null }],
+    files_checked: [
+      { path: "views/meter/index.html", content_sha256: sha256OfTheText(METER_PAGE) },
+      { path: "views/meter/meter.js", content_sha256: sha256OfTheText(meterScript) },
+    ],
+  });
+
+  expect(gateDecisionOf(failed, filesRead, "", null)).toEqual({
+    kind: "blocked",
+    checked_to_its_end: true,
+    words: ["This view's code did not pass the runtime's check, so the Studio does not load it.", `views/meter/meter.js: error: ${notWrittenInTs} (not_written_in_ts)`].join("\n"),
   });
 });
 
