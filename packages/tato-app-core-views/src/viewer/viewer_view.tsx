@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { PortFamilyPlaceholder } from "@tatolab/tato-app-view-sdk/design_system/port_family_placeholder";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
-import { drawThePortViewerFrame, drawThePortViewerPixels, type PortViewerEvent, type StopWatching, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import { LatestPortViewerPictureDrawnEachAnimationFrame, type PortViewerEvent, type StopWatching, type TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
 import {
   familyOfThePort,
   type PortViewerMessageReading,
@@ -84,17 +84,22 @@ function PortViewerPicture({
     const showThePicture = (formatWireName: string) => {
       if (shownKind !== "picture") show({ kind: "picture", format_wire_name: formatWireName });
     };
+    const canvas = canvasRef.current;
+    const pictureDrawn =
+      canvas === null
+        ? null
+        : new LatestPortViewerPictureDrawnEachAnimationFrame(canvas, (picture, isDrawn) => {
+            if (isDrawn) showThePicture(picture.format_wire_name);
+            else if (shownKind !== "undrawable") show({ kind: "undrawable", format_wire_name: picture.format_wire_name });
+          });
     const handleTheEvent = (event: PortViewerEvent) => {
-      const canvas = canvasRef.current;
-      if (event.kind === "image_frame") {
-        if (canvas !== null) drawThePortViewerFrame(canvas, event.video_frame);
-        event.video_frame.close();
-        showThePicture(event.format_wire_name);
-      } else if (event.kind === "image_pixels") {
-        const drawn = canvas !== null && drawThePortViewerPixels(canvas, event.width, event.height, event.format_wire_name, event.bytes_per_row, event.pixels);
-        if (drawn) showThePicture(event.format_wire_name);
-        else if (shownKind !== "undrawable") show({ kind: "undrawable", format_wire_name: event.format_wire_name });
-      } else if (event.kind === "message") {
+      if (event.kind === "image_frame" || event.kind === "image_pixels") {
+        if (pictureDrawn !== null) pictureDrawn.drawOnTheNextAnimationFrame(event);
+        else if (event.kind === "image_frame") event.video_frame.close();
+        return;
+      }
+      pictureDrawn?.dropTheWaitingPicture();
+      if (event.kind === "message") {
         messagesRead += 1 + event.skipped_since_last_read;
         if (event.reading.family === "packets") packetsUnitsSeen = packetsUnitsSeenWith(packetsUnitsSeen, event.reading);
         const nowMs = performance.now();
@@ -107,7 +112,14 @@ function PortViewerPicture({
       }
     };
     // Studio refuses only a watch it holds under the same id already, which opening again, under a new watch id, does not repeat.
-    return connection.watchPortViewer({ stream, node_id, port }, handleTheEvent, (because) => show({ kind: "ended", because, recovery: "open_the_port_again" }));
+    const stopWatching = connection.watchPortViewer({ stream, node_id, port }, handleTheEvent, (because) => {
+      pictureDrawn?.dropTheWaitingPicture();
+      show({ kind: "ended", because, recovery: "open_the_port_again" });
+    });
+    return () => {
+      stopWatching();
+      pictureDrawn?.dropTheWaitingPicture();
+    };
   }, [connection, stream, node_id, port, timesOpenedAgain]);
   const isAPicture = shown.kind === "picture";
   const streamFactsWords = portStreamFactsWords(streamFactsOfThePort).join(" · ");
