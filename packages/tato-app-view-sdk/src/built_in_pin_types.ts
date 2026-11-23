@@ -33,6 +33,7 @@ function pinTypeOfItsNameAlone(typeName: BuiltInPinTypeName): PinType | null {
     case "list_of":
     case "bundle":
     case "named":
+    case "connection":
     case "pin_type_choice":
       return null;
   }

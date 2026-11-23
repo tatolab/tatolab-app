@@ -94,6 +94,7 @@
 [data-pin-type="trigger"] { --node-graph-pin-colour: var(--studio-pin-type-trigger); }
 [data-pin-type="bundle"] { --node-graph-pin-colour: var(--studio-pin-type-bundle); }
 [data-pin-type="named"] { --node-graph-pin-colour: var(--studio-pin-type-named); }
+[data-pin-type="connection"] { --node-graph-pin-colour: var(--studio-pin-type-connection); }
 [data-pin-type="node_reference"] { --node-graph-pin-colour: var(--studio-pin-type-node-reference); }
 [data-pin-type="pin_type_choice"] { --node-graph-pin-colour: var(--studio-pin-type-pin-type-choice); }
 [data-pin-type="untyped"] { --node-graph-pin-colour: var(--studio-pin-type-untyped); }

@@ -27,6 +27,7 @@ export const ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME: { readonly [Name in BuiltInPinT
   list_of: { type: "list_of", element_type: { type: "float" } },
   bundle: { type: "bundle", members: [{ name: "gain", member_type: { type: "float" } }] },
   named: { type: "named", named_pin_type: "acme:Spectrum" },
+  connection: { type: "connection", connection_type: "acme:Session" },
   node_reference: { type: "node_reference" },
   pin_type_choice: { type: "pin_type_choice" },
 };

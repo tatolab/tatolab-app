@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { AUDIO_CAPTURE_DEVICE_CONTROL, isAnAudioCaptureDeviceInput, nodeOfABody, takesAControl } from "./controlled_inputs.js";
-import type { InputAddress } from "./node_inputs.js";
+import { valueAddressOfTheInput, type InputAddress } from "./node_inputs.js";
 
 const WIDTH: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "PATTERN-ID", input: "width", member: null };
 
@@ -76,4 +76,14 @@ test("a_node_body_is_told_each_input_whose_type_is_exact_wired_or_not_and_no_nod
     ],
   });
   expect(nodeOfABody("nodes.pattern:Pattern", [{ ...width, value_address: null }])).toBeNull();
+});
+
+test("a_connection_input_takes_no_control_wired_or_not_as_the_runtime_renders_it_reading_no_value", () => {
+  const relay = { name: "relay", pin: { pin_type: { type: "connection", connection_type: "acme:RelayConnection" }, flow: "value" }, annotations: {}, setting: null } as const;
+  const unwiredAddress = valueAddressOfTheInput(WIDTH.graph, "TRACK-ID", { name: "relay", flow: "value" });
+  expect(unwiredAddress).toBeNull();
+  expect(takesAControl({ ...relay, value_address: unwiredAddress, wire: null })).toBeNull();
+  const wiredAddress = valueAddressOfTheInput(WIDTH.graph, "TRACK-ID", { name: "relay", flow: "value", value_comes_from: "wire" });
+  expect(wiredAddress).toBeNull();
+  expect(takesAControl({ ...relay, value_address: wiredAddress, wire: { into: { ...WIDTH, input: "relay" }, wiring: WIRED_FROM_THE_CAMERA } })).toBeNull();
 });
