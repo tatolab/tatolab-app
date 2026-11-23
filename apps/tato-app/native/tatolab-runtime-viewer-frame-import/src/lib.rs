@@ -420,6 +420,7 @@ fn port_family_of(descriptor_kind: Option<DataChannelPayloadDescriptorKind>) -> 
         Some(DataChannelPayloadDescriptorKind::PacketsUnit) => "packets",
         Some(DataChannelPayloadDescriptorKind::RecordsMessage) => "records",
         Some(DataChannelPayloadDescriptorKind::ArrayFrame) => "array",
+        Some(DataChannelPayloadDescriptorKind::BundleFrame) => "bundle",
         Some(DataChannelPayloadDescriptorKind::Bytes) | None => "bytes",
     }
 }
@@ -533,6 +534,10 @@ fn family_reading_of(
                 ..FamilyReadingOfAMessage::default()
             },
         },
+        Some(DataChannelPayloadDescriptorKind::BundleFrame) => FamilyReadingOfAMessage {
+            unreadable_because: Some("this Viewer does not read a Bundle frame's members".to_owned()),
+            ..FamilyReadingOfAMessage::default()
+        },
         _ => FamilyReadingOfAMessage::default(),
     }
 }
@@ -625,7 +630,7 @@ fn hold_and_describe_the_image_frame(
 
 #[cfg(test)]
 mod tests {
-    use super::{electron_pixel_format_of, family_reading_of, records_json_of};
+    use super::{electron_pixel_format_of, family_reading_of, port_family_of, records_json_of};
     use streamlib_ipc_types::{
         ChannelsBlockDescriptorBody, DataChannelPayloadDescriptorKind, PacketsUnitDescriptorBody,
     };
@@ -670,5 +675,13 @@ mod tests {
         assert_eq!(electron_pixel_format_of("rgba16_float"), Some("rgbaf16"));
         assert_eq!(electron_pixel_format_of("bgra32"), Some("bgra"));
         assert_eq!(electron_pixel_format_of("rgba32_float"), None);
+    }
+
+    #[test]
+    fn a_bundle_frame_reads_as_a_bundle_whose_members_this_viewer_does_not_read() {
+        let bundle_frame = Some(DataChannelPayloadDescriptorKind::BundleFrame);
+        assert_eq!(port_family_of(bundle_frame), "bundle");
+        let reading = family_reading_of(bundle_frame, &[0; streamlib_ipc_types::DATA_CHANNEL_PAYLOAD_DESCRIPTOR_BODY_BYTES], &[]);
+        assert!(reading.unreadable_because.unwrap().contains("Bundle frame"));
     }
 }
