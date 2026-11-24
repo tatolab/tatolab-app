@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { StreamCondition } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { streamConditionSummary, streamDiagnosticLines } from "./stream_condition_words";
+import { streamDiagnosticLines } from "./stream_condition_words";
 
 const CONDITION: StreamCondition = {
   load: "not_loaded",
@@ -13,10 +13,6 @@ const CONDITION: StreamCondition = {
     { kind: "node_not_ready", place: { on: "node", node_id: "C1", node_name: "camera" }, words: "Waiting for the camera", recovery: "wait_for_the_node" },
   ],
 };
-
-test("a_condition_reads_as_its_load_playback_and_health", () => {
-  expect(streamConditionSummary(CONDITION)).toBe("not loaded, stopped, failed");
-});
 
 test("each_diagnostic_leads_with_where_it_applies_and_carries_the_action_that_recovers_it", () => {
   expect(streamDiagnosticLines(CONDITION, "Lobby Wall").map(({ tone, lead, words, whatRecoversFromIt, action }) => ({ tone, lead, words, whatRecoversFromIt, action }))).toEqual([

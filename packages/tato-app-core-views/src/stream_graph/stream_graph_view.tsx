@@ -9,7 +9,6 @@ import { FormDialog } from "@tatolab/tato-app-view-sdk/design_system/form_dialog
 import { SearchPopover, type SearchPopoverAction } from "@tatolab/tato-app-view-sdk/design_system/search_popover";
 import { Plus, Store } from "lucide-react";
 import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
-import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ImportedProject, StopWatching, StudioSelection, TatoAppViewConnection, ViewSettings } from "@tatolab/tato-app-view-sdk";
 import { graphAddressOfTheStreamsOwnLevel, type GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
@@ -35,7 +34,7 @@ import { codeOfTheNodeType, openTheCodeOfTheNodeType } from "../shared/code_of_t
 import { CODE_VIEW_TYPE_ID } from "../shared/files_the_code_view_opens";
 import { NewNodeFileForm } from "../shared/new_node_file_form";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
-import { StreamConditionChip, StreamDiagnosticBars } from "../shared/stream_condition_bar";
+import { StreamDiagnosticBars } from "../shared/stream_condition_bar";
 import type { StreamDiagnosticLine, StreamDiagnosticLink } from "../shared/stream_condition_words";
 import { streamGraphCanvasContents, type StreamGraphCanvasContents } from "./stream_graph_canvas_contents";
 import { useStreamGraphEditsSentToTheRuntime } from "../shared/stream_graph_edit_sending";
@@ -500,11 +499,6 @@ function StreamGraphOfTheTab({
 
   const conditionOfTheStream = (
     <>
-      {streamCondition !== null && (
-        <StudioViewToolbarTools label="Stream graph condition">
-          <StreamConditionChip condition={streamCondition} />
-        </StudioViewToolbarTools>
-      )}
       {streamCondition === null && listedStream?.state === "failed" && (
         <RefusalLine
           layout="bar"

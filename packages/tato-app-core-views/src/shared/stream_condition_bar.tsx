@@ -1,19 +1,7 @@
-import type { StreamCondition, StreamHealth } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { StreamCondition } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
-import { StatusChip, type StatusChipTone } from "@tatolab/tato-app-view-sdk/design_system/status_chip";
-import { streamConditionSummary, streamDiagnosticLines, type StreamDiagnosticLine } from "./stream_condition_words";
-
-const HEALTH_TONES: Record<StreamHealth, StatusChipTone> = { healthy: "positive", degraded: "caution", failed: "danger" };
-
-/** A stream's load, playback and health as one chip, toned by its health. */
-export function StreamConditionChip({ condition }: { condition: StreamCondition }) {
-  return (
-    <StatusChip tone={HEALTH_TONES[condition.health]} data-stream-condition={condition.health}>
-      {streamConditionSummary(condition)}
-    </StatusChip>
-  );
-}
+import { streamDiagnosticLines, type StreamDiagnosticLine } from "./stream_condition_words";
 
 /**
  * A bar per diagnostic of a stream's condition, where it applies leading the runtime's words, what recovers from it under them, with the

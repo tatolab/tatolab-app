@@ -800,8 +800,7 @@ describe("the studio", () => {
     const startRefused = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-stream-diagnostic="start_refused"]') ?? expect.unreachable("no start refused bar"));
     fireEvent.click(within(startRefused).getByRole("button", { name: "Restart playback" }));
 
-    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-condition]')?.textContent).toBe("loaded, playing, healthy"), { timeout: 10_000 });
-    expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-diagnostic="start_refused"]')).toBeNull();
+    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-diagnostic="start_refused"]')).toBeNull(), { timeout: 10_000 });
     expect(coreViewPage("stream_graph", "stream-graph").textContent).not.toContain("Restart playback was refused");
   });
 
@@ -816,14 +815,13 @@ describe("the studio", () => {
     expect(restart.ownerDocument.activeElement).toBe(restart);
   });
 
-  it("draws a stopped stream's saved graph with its condition in the Stream graph's frame, and says no stream is open once its tab closes", async () => {
+  it("draws a stopped stream's saved graph in the Stream graph, and says no stream is open once its tab closes", async () => {
     await mountedWindowOverTheMock("state=running");
     const rehearsalStream = mockStreamIdOf({ project_directory: PULSE_STAGE_FOLDER, stream_name: "rehearsal" });
     fireEvent.doubleClick(await waitFor(() => outlinerRow(`stream:${rehearsalStream}`)));
 
     await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[aria-label="Graph of rehearsal"]')).not.toBeNull());
     expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-graph-state="not_read"]')).toBeNull();
-    await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-condition="healthy"]')?.textContent).toBe("not loaded, stopped, healthy"));
 
     for (const closeButton of document.querySelectorAll<HTMLElement>('[aria-label^="Close "]')) fireEvent.click(closeButton);
     await waitFor(() => expect(coreViewPage("stream_graph", "stream-graph").querySelector('[data-stream-graph-state="no_tab"]')).not.toBeNull());
