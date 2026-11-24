@@ -77,7 +77,7 @@ test("a_change_that_lands_during_a_read_is_applied_again_on_what_the_read_answer
   expect(lastValues?.kind === "values" && lastValues.values[0]?.value_read).toEqual({ value: null, comes_from: "wire" });
 });
 
-test("a_change_that_reads_what_is_kept_already_or_names_an_input_the_reading_does_not_hold_is_told_to_nobody_and_a_reading_like_the_last_neither", () => {
+test("a_change_that_reads_what_is_kept_already_or_names_an_input_the_reading_does_not_hold_is_told_to_nobody_and_a_failed_read_neither", () => {
   const readings = new StreamInputValuesReadings();
   readings.readStarting();
   readings.readLanded(graphReading(saved(0.5)));
@@ -86,10 +86,19 @@ test("a_change_that_reads_what_is_kept_already_or_names_an_input_the_reading_doe
   readings.takeTheChange({ node: "MIX-ID", input: "video", member: null, value_read: live(1) });
   readings.takeTheChange(gainChanged(live(1), "NEW-ID"));
   readings.readStarting();
-  readings.readLanded(graphReading(saved(0.5)));
-  readings.readStarting();
   readings.readLanded(null);
   expect(told).toHaveLength(1);
+});
+
+test("a_reading_like_the_last_is_told_again_as_the_runtimes_word_that_its_inputs_still_read_the_same", () => {
+  const readings = new StreamInputValuesReadings();
+  readings.readStarting();
+  readings.readLanded(graphReading(saved(0.5)));
+  const told = watched(readings);
+  readings.readStarting();
+  readings.readLanded(graphReading(saved(0.5)));
+  expect(told).toHaveLength(2);
+  expect(told[1]).toEqual(told[0]);
 });
 
 test("each_member_of_a_bundle_input_is_kept_on_its_own_and_a_change_naming_one_member_changes_that_member_alone", () => {

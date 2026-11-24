@@ -52,7 +52,6 @@ const valuesReadingOf = (kept: ValuesOfAReading): StreamInputValuesReading => ({
 /** One stream's input values, kept from its graph readings and the changes the runtime announces, told to each watcher. */
 export class StreamInputValuesReadings {
   private kept: ValuesOfAReading | null = null;
-  private keptJson: string | null = null;
   /** The changes announced since the read in flight started; `null` while none is. */
   private changesSinceTheReadStarted: StreamGraphInputValueChange[] | null = null;
   private readonly listeners = new Set<(reading: StreamInputValuesReading) => void>();
@@ -75,19 +74,16 @@ export class StreamInputValuesReadings {
     this.changesSinceTheReadStarted = [];
   }
 
-  /** The read in flight landed with `graph`, or `null` when it failed; values that differ from those kept are told to every watcher. */
+  /** The read in flight landed with `graph`, or `null` when it failed; what it reads is told to every watcher. */
   readLanded(graph: StreamGraph | null): void {
     const changesSinceTheReadStarted = this.changesSinceTheReadStarted ?? [];
     this.changesSinceTheReadStarted = null;
     if (graph === null) return;
     const kept = valuesOfTheReading(graph);
     for (const change of changesSinceTheReadStarted) applyTheChange(kept, change);
-    const reading = valuesReadingOf(kept);
-    const readingJson = jsonTextOf(reading);
     this.kept = kept;
-    if (readingJson === this.keptJson) return;
-    this.keptJson = readingJson;
-    this.tellEveryWatcher(reading);
+    // A reading like the last is told too: a view's value sent ahead waits for the runtime's word, which may be that nothing changed.
+    this.tellEveryWatcher(valuesReadingOf(kept));
   }
 
   /** The runtime announced `change`: apply it to the values kept and tell every watcher, when it changes what an input reads. */
@@ -96,7 +92,6 @@ export class StreamInputValuesReadings {
     if (this.kept === null) return;
     const changed = applyTheChange(this.kept, change);
     if (changed === null) return;
-    this.keptJson = null;
     this.tellEveryWatcher({ kind: "changed", stream_asset: this.kept.stream_asset, change: changed });
   }
 

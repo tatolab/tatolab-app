@@ -479,11 +479,19 @@ describe("the studio", () => {
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
   });
 
-  it("chooses an image for Image File's asset field in the asset picker over the window, sends its UUID, undoes it with one ⌘Z, imports one that is chosen at once, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
+  it("chooses an image for Image File's asset field in the asset picker over the window, sends its UUID, undoes it with one ⌘Z pressed before the runtime answers, imports one that is chosen at once, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
     const assetsSent: unknown[] = [];
     const mediaTheImportOffered: (readonly string[] | null)[] = [];
     let refusesTheNextAssetSet = false;
+    // The first image chosen reaches the runtime only once ⌘Z has read who is editing, the step before the undo is sent, so the
+    // undo is asked while that edit is unanswered.
+    let readWhoIsEditing = (): void => undefined;
+    const theUndoAsked = new Promise<void>((resolve) => {
+      readWhoIsEditing = resolve;
+    });
+    let isTheFirstPickAnswered = false;
+    const firstPickAnsweredAtEachUndo: boolean[] = [];
     await mountedWindowOverTheMock("state=node-not-ready", {
       ...mockBackend,
       ...nodeTypesListingImageFile(mockBackend),
@@ -491,12 +499,27 @@ describe("the studio", () => {
         mediaTheImportOffered.push(media);
         return mockBackend.importAssetsIntoTheOpenProject(media);
       },
+      readThePersonEditingInStudio: async () => {
+        const author = await mockBackend.readThePersonEditingInStudio();
+        readWhoIsEditing();
+        return author;
+      },
+      undoInTheOpenProject: (author) => {
+        firstPickAnsweredAtEachUndo.push(isTheFirstPickAnswered);
+        return mockBackend.undoInTheOpenProject(author);
+      },
       transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
         const assetSet = operations.find((operation) => operation.operation === "set_node_input_value" && operation.input === "asset");
         if (assetSet !== undefined && assetSet.operation === "set_node_input_value") {
           assetsSent.push(assetSet.value ?? null);
           if (refusesTheNextAssetSet)
             return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: assetSet.node, refused_link: null, refused_field: "asset", refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "input `asset`: not an asset of the project" } };
+          if (assetsSent.length === 1) {
+            await theUndoAsked;
+            const answered = await mockBackend.transactInTheOpenProject(operations, mode, idempotencyKey);
+            isTheFirstPickAnswered = true;
+            return answered;
+          }
         }
         return mockBackend.transactInTheOpenProject(operations, mode, idempotencyKey);
       },
@@ -507,7 +530,13 @@ describe("the studio", () => {
     const properties = () => coreViewPage("properties");
     const assetWords = () => properties().querySelector<HTMLInputElement>('[data-properties-port="asset"] [data-property-asset-field] input') ?? expect.unreachable("no asset field");
     const openThePicker = async () => {
-      fireEvent.click(properties().querySelector<HTMLElement>('[data-properties-port="asset"] [data-property-asset-choose]') ?? expect.unreachable("no Choose an asset… button"));
+      // Choose is pressable again only once the frame hears the last pick ended, which comes after the picker leaves the window.
+      const choose = await waitFor(() => {
+        const button = properties().querySelector<HTMLElement>('[data-properties-port="asset"] [data-property-asset-choose]') ?? expect.unreachable("no Choose an asset… button");
+        expect(button.getAttribute("aria-disabled")).toBeNull();
+        return button;
+      });
+      fireEvent.click(choose);
       await waitFor(() => screen.getByRole("dialog", { name: "Choose an image" }));
       const pickerFrame = await waitFor(() => document.querySelector<HTMLIFrameElement>('[data-project-asset-picker] iframe[data-tatolab-view="library"]') ?? expect.unreachable("no Library in the asset picker"));
       return pickerFrame.contentDocument ?? expect.unreachable("the picker's Library has no page");
@@ -528,6 +557,7 @@ describe("the studio", () => {
 
     fireEvent.keyDown(document, { key: "z", metaKey: true });
     await waitFor(() => expect(assetWords().value).toBe("None"), { timeout: 5000 });
+    expect(firstPickAnsweredAtEachUndo).toEqual([true]);
 
     const pickerToImportFrom = await openThePicker();
     fireEvent.click(await waitFor(() => pickerToImportFrom.querySelector<HTMLElement>("[data-library-import-asset]") ?? expect.unreachable("no Import in the picker")));
