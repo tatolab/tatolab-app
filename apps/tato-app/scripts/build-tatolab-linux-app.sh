@@ -22,11 +22,14 @@
 #                            workflow passes the version it plans, never older than the runtime's
 #   --local-proof-test-root  read the runtime under TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof;
 #                            for proving on a development machine, never shipped
-#   --app-update-feed-url URL  the feed the app checks for updates (default: get.tatolab.com's);
+#   --app-update-feed-url URL  the feed a local-proof build checks for updates (default: none);
 #                            only with --local-proof-test-root, for proving an update locally
 #   --release                a build the release workflow makes: About reads `-release` after the
 #                            commit; every other build reads `-dev`
 set -euo pipefail
+# Every file and directory the build makes is packed with the modes this gives it, whatever the
+# machine's umask: under 002 they come out group-writable, and the .deb check refuses them.
+umask 022
 
 usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
 tato_app_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -152,7 +155,8 @@ packaged_build_features="$(node scripts/tatolab_app_build_features.mjs read "$pa
   || { echo "the packaged app's build features carry no build id, are unreadable, or are not the shipping ones" >&2; exit 1; }
 echo "    built at tatolab-app $(sed -n 's/^tatolabAppCommit=//p' <<<"$packaged_build_features"), $(sed -n 's/^buildKind=//p' <<<"$packaged_build_features")"
 if $local_proof_test_root; then
-  expected_app_update_feed_url="${app_update_feed_url:-$(node -p 'require("./src/main/tatolab_app_build_features.json").appUpdateFeedUrl')}"
+  # A local-proof build checks only the local feed it was built with, and none without one.
+  expected_app_update_feed_url="${app_update_feed_url:-null}"
   grep -qx "machineDirectoriesUnderATestRoot=true" <<<"$packaged_build_features" \
     || { echo "the packaged app was not built with machineDirectoriesUnderATestRoot: $packaged_build_features" >&2; exit 1; }
   grep -qxF "appUpdateFeedUrl=$expected_app_update_feed_url" <<<"$packaged_build_features" \
@@ -301,9 +305,16 @@ app_directory="$linux_build_directory/Tato-Studio.AppDir"
 lay_out_the_app_under "$app_directory"
 cp "$app_directory/usr/share/applications/Tatolab.desktop" "$app_directory/Tatolab.desktop"
 cp "$app_directory/usr/share/icons/hicolor/256x256/apps/Tatolab.png" "$app_directory/Tatolab.png"
+# An AppImage's files are owned by whoever mounts it, so its chrome-sandbox can never be setuid
+# root. Chromium then sandboxes through unprivileged user namespaces; where the kernel or AppArmor
+# refuses them, the app runs without its sandbox and says so, rather than aborting at start.
 cat > "$app_directory/AppRun" <<'APPRUN'
 #!/bin/sh
-exec "$APPDIR/usr/lib/tatolab/Tatolab" "$@"
+if unshare --user --map-root-user true 2>/dev/null; then
+  exec "$APPDIR/usr/lib/tatolab/Tatolab" "$@"
+fi
+echo "Tato Studio: could not open an unprivileged user namespace, and an AppImage's chrome-sandbox cannot be setuid root, so it runs with --no-sandbox" >&2
+exec "$APPDIR/usr/lib/tatolab/Tatolab" --no-sandbox "$@"
 APPRUN
 chmod 0755 "$app_directory/AppRun"
 rm -f "$output_appimage"

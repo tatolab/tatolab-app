@@ -9,10 +9,11 @@
 //                               the tatolab-app commit this checkout is at, whether the build is dev
 //                               or release, and whether the checkout has uncommitted changes
 //   --release                   a build the release workflow makes; every other build is dev
-//   --local-proof-test-root     every machine directory under the local-proof test root; never shipped
+//   --local-proof-test-root     every machine directory under the local-proof test root, and no update
+//                               feed unless --app-update-feed-url names one; never shipped
 //   --app-update-feed-url URL   the app reads its updates from URL; only with --local-proof-test-root
 //   read                        prints machineDirectoriesUnderATestRoot=<true|false>,
-//                               appUpdateFeedUrl=<URL>, tatolabAppCommit=<sha>, buildKind=<dev|release>
+//                               appUpdateFeedUrl=<URL|null>, tatolabAppCommit=<sha>, buildKind=<dev|release>
 //                               and builtWithUncommittedChanges=<true|false>, one per line; exits 1
 //                               when the asar carries no build id
 //   --shipping                  exits 1, naming each, when a feature is not the shipping one
@@ -60,8 +61,8 @@ function buildFeaturesFromSource(buildFeaturesSource) {
   const isExactlyTheFeatures =
     Object.keys(otherBuildFeatures).sort().join(",") === "appUpdateFeedUrl,machineDirectoriesUnderATestRoot" &&
     typeof otherBuildFeatures.machineDirectoriesUnderATestRoot === "boolean" &&
-    typeof otherBuildFeatures.appUpdateFeedUrl === "string" &&
-    URL.canParse(otherBuildFeatures.appUpdateFeedUrl) &&
+    (otherBuildFeatures.appUpdateFeedUrl === null ||
+      (typeof otherBuildFeatures.appUpdateFeedUrl === "string" && URL.canParse(otherBuildFeatures.appUpdateFeedUrl))) &&
     (tatolabAppBuildId === null || isABuildId(tatolabAppBuildId));
   return isExactlyTheFeatures ? { ...otherBuildFeatures, tatolabAppBuildId } : null;
 }
@@ -83,8 +84,11 @@ async function buildIdOfThisCheckout(buildKind) {
 
 const shippingBuildFeaturesFile = path.join(tatoAppRoot, "src", "main", "tatolab_app_build_features.json");
 const shippingBuildFeatures = buildFeaturesFromSource(await readFile(shippingBuildFeaturesFile, "utf8"));
-if (shippingBuildFeatures === null || shippingBuildFeatures.machineDirectoriesUnderATestRoot || shippingBuildFeatures.tatolabAppBuildId !== null) {
-  process.stderr.write(`${shippingBuildFeaturesFile} is not the shipping build features, with a tatolabAppBuildId of null\n`);
+if (shippingBuildFeatures === null ||
+  shippingBuildFeatures.machineDirectoriesUnderATestRoot ||
+  shippingBuildFeatures.appUpdateFeedUrl === null ||
+  shippingBuildFeatures.tatolabAppBuildId !== null) {
+  process.stderr.write(`${shippingBuildFeaturesFile} is not the shipping build features: no test root, an update feed URL, and a tatolabAppBuildId of null\n`);
   process.exit(1);
 }
 
@@ -125,7 +129,8 @@ if (subcommand === "write") {
   const tatolabAppBuildId = checkoutBuildId.buildId;
   const writtenBuildFeatures = {
     machineDirectoriesUnderATestRoot: localProofTestRoot,
-    appUpdateFeedUrl: localAppUpdateFeedUrl ?? shippingBuildFeatures.appUpdateFeedUrl,
+    // A local-proof build checks only a local feed, so it never offers a released version over itself.
+    appUpdateFeedUrl: localProofTestRoot ? localAppUpdateFeedUrl : shippingBuildFeatures.appUpdateFeedUrl,
     tatolabAppBuildId,
   };
   await writeFile(targetFile, `${JSON.stringify(writtenBuildFeatures, null, 2)}\n`);
@@ -140,7 +145,7 @@ if (subcommand === "write") {
   const packagedBuildFeatures = buildFeaturesFromSource(packagedBuildFeaturesSource);
   if (packagedBuildFeatures === null) {
     process.stderr.write(
-      `${targetFile}'s ${buildFeaturesPathInTheAsar} is not exactly machineDirectoriesUnderATestRoot (a boolean), appUpdateFeedUrl (a URL) ` +
+      `${targetFile}'s ${buildFeaturesPathInTheAsar} is not exactly machineDirectoriesUnderATestRoot (a boolean), appUpdateFeedUrl (a URL or null) ` +
         "and tatolabAppBuildId (a 40-hex tatolabAppCommit, a buildKind of dev or release, and builtWithUncommittedChanges, a boolean)\n",
     );
     process.exit(1);
@@ -160,7 +165,7 @@ if (subcommand === "write") {
       shippingRefusals.push("was built with machineDirectoriesUnderATestRoot (every machine directory under the local-proof test root)");
     }
     if (packagedBuildFeatures.appUpdateFeedUrl !== shippingBuildFeatures.appUpdateFeedUrl) {
-      shippingRefusals.push(`checks ${packagedBuildFeatures.appUpdateFeedUrl} for updates, not ${shippingBuildFeatures.appUpdateFeedUrl}`);
+      shippingRefusals.push(`checks ${packagedBuildFeatures.appUpdateFeedUrl ?? "no feed"} for updates, not ${shippingBuildFeatures.appUpdateFeedUrl}`);
     }
     for (const shippingRefusal of shippingRefusals) process.stderr.write(`${shippingRefusal}\n`);
     if (shippingRefusals.length > 0) process.exit(1);

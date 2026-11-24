@@ -45,6 +45,8 @@ import { answerProjectViewFileRequestsWith, registerTheWindowPageSchemeBeforeRea
 
 const tatolabAppLog = createTatolabAppLogToStandardError();
 const tatolabPlatformItems = tatolabPlatformItemsForThisBuild();
+// The AppImage's AppRun passes it where the machine refuses Chromium's sandbox.
+if (app.commandLine.hasSwitch("no-sandbox")) tatolabAppLog.warn("the app runs without Chromium's sandbox, as --no-sandbox asks");
 process.on("unhandledRejection", (unhandledRejection) => {
   tatolabAppLog.error("a promise was rejected and nothing handled it", { failure: describeCaughtFailure(unhandledRejection) });
 });
