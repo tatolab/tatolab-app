@@ -1,7 +1,7 @@
-// What a view says of a stream's condition as the runtime lists it: its load, playback and health in
-// words, and each diagnostic where it applies, in the runtime's words, with what recovers from it.
+// What a view says of a stream's condition as the runtime lists it: each diagnostic where it applies, in
+// the runtime's words, with what recovers from it.
 
-import type { ProjectStreamsRecovery, StreamCondition, StreamDiagnostic, StreamDiagnosticKind, StreamDiagnosticPlace, StreamDiagnosticRecovery, StreamGraphLink, StreamHealth, StreamLoad, StreamPlayback } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { ProjectStreamsRecovery, StreamCondition, StreamDiagnostic, StreamDiagnosticKind, StreamDiagnosticPlace, StreamDiagnosticRecovery, StreamGraphLink } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** A link as a diagnostic names it: the nodes at its ends by name, and their ports. */
 export type StreamDiagnosticLink = Extract<StreamDiagnosticPlace, { on: "link" }>;
@@ -27,10 +27,6 @@ export interface StreamDiagnosticLine {
   diagnostic: StreamDiagnostic;
 }
 
-const LOAD_WORDS: Record<StreamLoad, string> = { loading: "loading", loaded: "loaded", unloading: "unloading", not_loaded: "not loaded" };
-const PLAYBACK_WORDS: Record<StreamPlayback, string> = { starting: "starting", playing: "playing", paused: "paused", stopping: "stopping", stopped: "stopped" };
-const HEALTH_WORDS: Record<StreamHealth, string> = { healthy: "healthy", degraded: "degraded", failed: "failed" };
-
 /** The diagnostics that leave a stream running as it was: the rest keep it, or a part of it, from running. */
 const DIAGNOSTICS_THAT_WARN: ReadonlySet<StreamDiagnosticKind> = new Set(["node_not_ready", "edit_not_live", "recorded_by_an_earlier_runtime"]);
 
@@ -49,11 +45,6 @@ const RECOVERY_WORDS_AND_ACTION: Record<StreamDiagnosticRecovery, { words: strin
   wait_for_the_node: { words: "It clears once the node is ready.", actionAt: () => NO_ACTION },
   retry_the_load: { words: "Reload the project to try again.", actionAt: () => RELOAD_THE_PROJECT },
 };
-
-/** The condition in one line: its load, playback and health. */
-export function streamConditionSummary(condition: StreamCondition): string {
-  return `${LOAD_WORDS[condition.load]}, ${PLAYBACK_WORDS[condition.playback]}, ${HEALTH_WORDS[condition.health]}`;
-}
 
 /** Where `place` is, in words, the stream as a whole named `streamWords`. */
 export function diagnosticPlaceWords(place: StreamDiagnosticPlace, streamWords: string): string {

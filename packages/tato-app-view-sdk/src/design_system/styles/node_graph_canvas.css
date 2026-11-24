@@ -3,9 +3,18 @@
 .node-graph-canvas {
   --xy-background-color: var(--studio-area);
   --xy-edge-stroke: var(--studio-graph-link);
+  --xy-selection-background-color: var(--brand-soft);
+  --xy-selection-border: 1px solid var(--brand);
   transition: opacity 120ms var(--ease);
 }
 .node-graph-canvas .react-flow__node { cursor: default; }
+/* The pointer keeps the arrow over the canvas it draws a selection box on; the hand grabs anywhere, the cards included. */
+.node-graph-canvas .react-flow__pane.selection { cursor: default; }
+.node-graph-canvas-hand .react-flow__node { cursor: grab; }
+.node-graph-canvas-hand .react-flow__pane.dragging .react-flow__node { cursor: grabbing; }
+/* React Flow's box around a dragged-out selection is left out: the selected cards mark themselves and dragging one moves them all, while
+   the box would catch every press over its bounds, keeping the hand from panning there and the pointer from reaching what lies under it. */
+.node-graph-canvas .react-flow__nodesselection { display: none; }
 .node-graph-canvas .react-flow__node:focus-visible { outline: none; }
 .node-graph-canvas .react-flow__node:focus-visible .node-graph-card { outline: 2px solid var(--ring); outline-offset: 2px; }
 /* Zoomed out past reading them, a card's inline controls are hidden without taking their room, so no row changes height. The attribute is NODE_GRAPH_INLINE_CONTROL_ATTRIBUTE in support/node_graph_flow_elements.ts. */
