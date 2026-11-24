@@ -8,8 +8,8 @@ function graphNode(name: string, inputs: string[], outputs: string[], fields: Gr
     id: name.toUpperCase(),
     type: `nodes.${name}:Effect`,
     kind: "process",
-    inputs: inputs.map((port) => aGraphPort(port, "image")),
-    outputs: outputs.map((port) => aGraphPort(port, null)),
+    inputs: inputs.map((port) => aGraphPort(port)),
+    outputs: outputs.map((port) => aGraphPort(port)),
     ...fields,
     components: { state: "Running", ...fields.components },
   });
@@ -22,7 +22,7 @@ const GRAPH: StreamGraph = aStreamGraph(
   [
     graphNode("camera", [], [], {
       outputs: [
-        aGraphPort("video", "image", {
+        aGraphPort("video", {
           stream_facts: { family: "image", frame_rate: { numerator: 30000, denominator: 1001 }, content_light_level: null, mastering_display_colour_volume: null },
           pin_type: { type: "texture" },
           flow: "stream",
@@ -36,7 +36,7 @@ const GRAPH: StreamGraph = aStreamGraph(
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_types_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED).nodes).toEqual([
-    { node_id: "camera", title: "camera", type_name: "Effect", node_type: "nodes.camera:Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", member: null, bundle: null, pin: { pin_type: { type: "texture" }, flow: "stream" }, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, slot: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null, kind: { look: "process" } },
+    { node_id: "camera", title: "camera", type_name: "Effect", node_type: "nodes.camera:Effect", description: null, condition: { look: "healthy" }, inputs: [], outputs: [{ name: "video", member: null, bundle: null, pin: { pin_type: { type: "texture" }, flow: "stream" }, description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, slot: null }], saved_position: null, frame_id: null, is_collapsed: false, subgraph: null, kind: { look: "process" } },
     {
       node_id: "invert",
       title: "invert",
@@ -44,8 +44,8 @@ test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_of_their_type
       node_type: "nodes.invert:Effect",
       description: null,
       condition: { look: "healthy" },
-      inputs: [{ name: "video_in", member: null, bundle: null, pin: null, family: "image", description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, slot: null }],
-      outputs: [{ name: "video_out", member: null, bundle: null, pin: null, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, slot: null }],
+      inputs: [{ name: "video_in", member: null, bundle: null, pin: null, description: null, annotations: {}, stream_facts_words: ["29.97 fps"], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, slot: null }],
+      outputs: [{ name: "video_out", member: null, bundle: null, pin: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, slot: null }],
       saved_position: null,
       frame_id: null,
       is_collapsed: false,
@@ -213,7 +213,7 @@ test("an_input_that_holds_a_value_is_addressed_by_its_nodes_id_at_the_level_draw
     ...GRAPH,
     nodes: GRAPH.nodes.map((node) =>
       node.name === "invert"
-        ? { ...node, ports: { ...node.ports, inputs: [...node.ports.inputs, aGraphPort("gain", "channels", { pin_type: { type: "float" }, flow: "value", value: gain, value_comes_from: "saved" })] } }
+        ? { ...node, ports: { ...node.ports, inputs: [...node.ports.inputs, aGraphPort("gain", { pin_type: { type: "float" }, flow: "value", value: gain, value_comes_from: "saved" })] } }
         : node,
     ),
   });
@@ -249,7 +249,7 @@ test("a_cards_settings_come_first_among_its_inputs_a_typed_ones_port_and_then_ea
   const withGain: StreamGraph = {
     ...GRAPH,
     nodes: GRAPH.nodes.map((node) =>
-      node.name === "invert" ? { ...node, ports: { ...node.ports, inputs: [...node.ports.inputs, aGraphPort("gain", "channels", { pin_type: { type: "float" }, flow: "value", value: 1, value_comes_from: "default" })] } } : node,
+      node.name === "invert" ? { ...node, ports: { ...node.ports, inputs: [...node.ports.inputs, aGraphPort("gain", { pin_type: { type: "float" }, flow: "value", value: 1, value_comes_from: "default" })] } } : node,
     ),
   };
   const level = { project_folder: "/projects/demo", stream_asset: "stream-asset", level: [] };
@@ -286,15 +286,15 @@ test("each_input_takes_a_wire_as_the_graph_marks_it_else_as_its_node_type_does_a
   const stringValue = { pin_type: { type: "string" }, flow: "value" } as const;
   const graph = aStreamGraph(
     [
-      graphNode("variable", [], [], { outputs: [aGraphPort("value", null, stringValue)] }),
+      graphNode("variable", [], [], { outputs: [aGraphPort("value", stringValue)] }),
       graphNode("gateway", [], [], {
         type: described.node_type,
         inputs: [
-          aGraphPort("relay", null, { ...stringValue, value_comes_from: "wire", takes_a_wire: true }),
-          aGraphPort("token", null, { ...stringValue, value: "", value_comes_from: "default", takes_a_wire: false }),
-          aGraphPort("gain", null, { pin_type: { type: "float" }, flow: "value", value: 1, value_comes_from: "default", takes_a_wire: false }),
-          aGraphPort("level", null, { pin_type: { type: "float" }, flow: "value", value: 0, value_comes_from: "default" }),
-          aGraphPort("video_in", "image", { pin_type: { type: "texture" }, flow: "stream" }),
+          aGraphPort("relay", { ...stringValue, value_comes_from: "wire", takes_a_wire: true }),
+          aGraphPort("token", { ...stringValue, value: "", value_comes_from: "default", takes_a_wire: false }),
+          aGraphPort("gain", { pin_type: { type: "float" }, flow: "value", value: 1, value_comes_from: "default", takes_a_wire: false }),
+          aGraphPort("level", { pin_type: { type: "float" }, flow: "value", value: 0, value_comes_from: "default" }),
+          aGraphPort("video_in", { pin_type: { type: "texture" }, flow: "stream" }),
         ],
       }),
     ],
@@ -319,8 +319,8 @@ test("a_view_nodes_settings_which_the_graph_serves_first_among_its_inputs_take_n
       graphNode("pictureandfader", [], [], {
         type: "Pulse Stage:picture_and_fader",
         inputs: [
-          aGraphPort("picture_fit", "records", { pin_type: { type: "menu", option_names: ["contain", "cover"] }, flow: "value", value: "contain", value_comes_from: "default", takes_a_wire: false }),
-          aGraphPort("picture", "image"),
+          aGraphPort("picture_fit", { pin_type: { type: "menu", option_names: ["contain", "cover"] }, flow: "value", value: "contain", value_comes_from: "default", takes_a_wire: false }),
+          aGraphPort("picture", { pin_type: { type: "texture" }, flow: "stream" }),
         ],
       }),
     ],
@@ -380,8 +380,8 @@ test("a_link_the_runtime_marks_free_or_warns_of_carries_its_marks_on_the_input_i
   const meaningsDiffer = { warning: "meanings_differ", output_meaning: "seconds", input_meaning: "frames", words: "the output carries `seconds` and the input takes `frames`" } as const;
   const graph = aStreamGraph(
     [
-      graphNode("clock", [], [], { outputs: [aGraphPort("elapsed", "channels", { pin_type: { type: "float" }, flow: "value" }), aGraphPort("beat", "channels", { pin_type: { type: "integer" }, flow: "value" })] }),
-      graphNode("counter", [], [], { inputs: [aGraphPort("count", "channels", { pin_type: { type: "integer" }, flow: "value" }), aGraphPort("level", "channels", { pin_type: { type: "float" }, flow: "value" }), aGraphPort("rate", "channels", { pin_type: { type: "float" }, flow: "value" })] }),
+      graphNode("clock", [], [], { outputs: [aGraphPort("elapsed", { pin_type: { type: "float" }, flow: "value" }), aGraphPort("beat", { pin_type: { type: "integer" }, flow: "value" })] }),
+      graphNode("counter", [], [], { inputs: [aGraphPort("count", { pin_type: { type: "integer" }, flow: "value" }), aGraphPort("level", { pin_type: { type: "float" }, flow: "value" }), aGraphPort("rate", { pin_type: { type: "float" }, flow: "value" })] }),
     ],
     [
       { ...aGraphLink("Lwarned", ["clock", "elapsed"], ["counter", "count"]), free_conversion: true, warnings: [meaningsDiffer] },
@@ -403,14 +403,14 @@ test("a_link_the_runtime_marks_free_or_warns_of_carries_its_marks_on_the_input_i
 test("a_convert_node_the_runtime_inserted_on_a_link_is_an_ordinary_card_collapsed_where_the_runtime_placed_it_between_the_two_nodes_it_joins", () => {
   const graph = aStreamGraph(
     [
-      graphNode("camera", [], [], { outputs: [aGraphPort("video", "image", { pin_type: { type: "texture" }, flow: "stream" })] }),
+      graphNode("camera", [], [], { outputs: [aGraphPort("video", { pin_type: { type: "texture" }, flow: "stream" })] }),
       graphNode("texturetotensor", [], [], {
         type: "tatolab.stream:TextureToTensor",
         studio: { position: [100, 50], collapsed: true },
-        inputs: [aGraphPort("image", "image", { pin_type: { type: "texture" }, flow: "stream" })],
-        outputs: [aGraphPort("array", "array", { pin_type: { type: "tensor" }, flow: "stream" })],
+        inputs: [aGraphPort("image", { pin_type: { type: "texture" }, flow: "stream" })],
+        outputs: [aGraphPort("array", { pin_type: { type: "tensor" }, flow: "stream" })],
       }),
-      graphNode("model", [], [], { inputs: [aGraphPort("tensor", "array", { pin_type: { type: "tensor" }, flow: "stream" })] }),
+      graphNode("model", [], [], { inputs: [aGraphPort("tensor", { pin_type: { type: "tensor" }, flow: "stream" })] }),
     ],
     [aGraphLink("Limage", ["camera", "video"], ["texturetotensor", "image"]), aGraphLink("Larray", ["texturetotensor", "array"], ["model", "tensor"])],
   );
@@ -427,10 +427,10 @@ test("a_bundle_pin_carries_a_row_for_each_member_each_input_member_set_at_its_ow
   const levelsType: StreamGraphPortPin["pin_type"] = { type: "bundle", members: [{ name: "left", member_type: { type: "float" } }, { name: "right", member_type: { type: "float" } }] };
   const graph = aStreamGraph(
     [
-      graphNode("beat", [], [], { outputs: [aGraphPort("count", "channels", { pin_type: { type: "float" }, flow: "value" })] }),
+      graphNode("beat", [], [], { outputs: [aGraphPort("count", { pin_type: { type: "float" }, flow: "value" })] }),
       graphNode("mix", [], [], {
-        inputs: [aGraphPort("levels", "channels", { pin_type: levelsType, flow: "value", member_values: [{ member: "left", value: 0.25, value_comes_from: "saved" }, { member: "right", value_comes_from: "wire" }] })],
-        outputs: [aGraphPort("meters", "channels", { pin_type: levelsType, flow: "value" })],
+        inputs: [aGraphPort("levels", { pin_type: levelsType, flow: "value", member_values: [{ member: "left", value: 0.25, value_comes_from: "saved" }, { member: "right", value_comes_from: "wire" }] })],
+        outputs: [aGraphPort("meters", { pin_type: levelsType, flow: "value" })],
         studio: { contract: 1, metadata: { open_bundles: { inputs: ["levels"], outputs: [] } } },
       }),
     ],
@@ -451,10 +451,10 @@ test("a_bundle_pin_carries_a_row_for_each_member_each_input_member_set_at_its_ow
 });
 
 test("a_pin_group_slots_pins_carry_their_slot_named_in_it_and_the_last_slot_of_a_group_that_follows_its_wires_is_its_empty_one", () => {
-  const slotPort = (group: string, slot: number, pin: string) => aGraphPort(`${group}.${slot}.${pin}`, null, { pin_group_slot: { group, slot, pin } });
+  const slotPort = (group: string, slot: number, pin: string) => aGraphPort(`${group}.${slot}.${pin}`, { pin_group_slot: { group, slot, pin } });
   const compositor = graphNode("compositor", [], [], {
-    inputs: [aGraphPort("bands", null), slotPort("layers", 0, "picture"), slotPort("layers", 0, "opacity"), slotPort("layers", 1, "picture"), slotPort("layers", 1, "opacity")],
-    outputs: [aGraphPort("composited", null), slotPort("bands", 0, "banded"), slotPort("bands", 1, "banded")],
+    inputs: [aGraphPort("bands"), slotPort("layers", 0, "picture"), slotPort("layers", 0, "opacity"), slotPort("layers", 1, "picture"), slotPort("layers", 1, "opacity")],
+    outputs: [aGraphPort("composited"), slotPort("bands", 0, "banded"), slotPort("bands", 1, "banded")],
   });
   const described: NodeTypeDescription = {
     node_type: "nodes.compositor:Effect",

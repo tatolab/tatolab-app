@@ -4,7 +4,8 @@ import { createMockTatolabBackend } from "./mock_tatolab_backend";
 import { readMockTatolabOptions } from "./mock_tatolab_options";
 import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, StreamActionFollowed, StreamGraph } from "../src/shared/tatolab_backend_contract";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
-import { familyOfThePort, inputValueReadOfThePort, jsonObjectMembersOf } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { inputValueReadOfThePort, jsonObjectMembersOf } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { mockFamilyOfThePort } from "./mock_port_families";
 import { suggestedGraphEditOf } from "@tatolab/tato-app-view-sdk/suggested_graph_edit_of_a_refusal";
 
 afterEach(() => {
@@ -762,8 +763,8 @@ describe("the mock backend's port families", () => {
       const read = await graph;
       return {
         // A Set or Get Variable's `value` carries whatever is linked to it, so the runtime serves no family on it.
-        graph: read.nodes.filter((node) => !VARIABLE_NODE_TYPES.includes(node.type)).flatMap((node) => [...node.ports.inputs, ...node.ports.outputs].map(familyOfThePort)),
-        described: (await described).node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [...nodeType.inputs, ...nodeType.outputs].map(familyOfThePort))),
+        graph: read.nodes.filter((node) => !VARIABLE_NODE_TYPES.includes(node.type)).flatMap((node) => [...node.ports.inputs, ...node.ports.outputs].map(mockFamilyOfThePort)),
+        described: (await described).node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [...nodeType.inputs, ...nodeType.outputs].map(mockFamilyOfThePort))),
       };
     };
     const unservedWhenAsked = await familiesOfMain("port_families=unserved");

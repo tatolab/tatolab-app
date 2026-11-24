@@ -30,7 +30,7 @@ import type {
   StreamGraphOnTheWire,
 } from "@tatolab/runtime-client/contract";
 import type { PinFlow, PinType } from "./pin_type_readings.js";
-import { PORT_FAMILIES, type PortFamily } from "./port_families.js";
+import type { PortFamily } from "./port_families.js";
 
 export { jsonTextOf } from "./json_text.js";
 
@@ -201,6 +201,11 @@ export function pinOfThePort(port: Pick<GraphNodePortOnTheWire, "pin_type" | "fl
   return port.pin_type === undefined || port.flow === undefined ? null : { pin_type: port.pin_type, flow: port.flow };
 }
 
+/** Whether a port carrying `pinType` may carry a picture: a Texture, or a port of no exact type, which the Node visualizer plays as one. */
+export function mayCarryAPicture(pinType: PinType | null | undefined): boolean {
+  return pinType === null || pinType === undefined || pinType.type === "texture";
+}
+
 /** The value an input reads while unlinked, `null` while a link feeds it or it reads none, and where it comes from, `null` while it reads none. */
 export type StreamGraphInputValueRead = { value: JsonValue | null; comes_from: InputValueComesFromOnTheWire | null };
 
@@ -225,14 +230,6 @@ export function memberValueReadsOfThePort(port: { readonly member_values?: reado
     const valueRead = inputValueReadOfThePort(row);
     return valueRead === null ? [] : [{ member: row.member, value_read: valueRead }];
   });
-}
-
-/** The family a port names under its `family` key, or under that declaration's own `family`; `null` for none, or one this app does not know. */
-export function familyOfThePort(port: { readonly family?: unknown }): PortFamily | null {
-  const familyOnTheWire = typeof port.family === "object" && port.family !== null && "family" in port.family ? port.family.family : port.family;
-  if (typeof familyOnTheWire !== "string") return null;
-  const familyName = familyOnTheWire.toLowerCase();
-  return PORT_FAMILIES.find((family) => family === familyName) ?? null;
 }
 
 /** What each shape of `Facts` is of, and the pin type it names: one pair for each shape. */

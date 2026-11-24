@@ -36,7 +36,7 @@ export function studioViewNodeAddressOf(projectFolder: string | null, graph: Str
  */
 export function studioViewInputWiring(stream: string, graph: StreamGraph, viewNode: StreamGraphNode, declaredInputs: readonly Pick<ViewDeclaredPort, "name">[]): Record<string, InputWiring> {
   return Object.fromEntries(
-    declaredInputs.map((declaredInput) => [declaredInput.name, wiringOfTheInput(stream, graph, viewNode.name, declaredInput.name, null)]),
+    declaredInputs.map((declaredInput) => [declaredInput.name, wiringOfTheInput(stream, graph, viewNode.name, declaredInput.name)]),
   );
 }
 

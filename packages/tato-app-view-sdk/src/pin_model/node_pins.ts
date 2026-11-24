@@ -3,7 +3,6 @@
 
 import type { PinAnnotations } from "../pin_type_readings.js";
 import { jsonObjectMembersOf, type JsonValue, type NodeTypeInputDescribed, type NodeTypePortDescribed, type SettingReadTime, type StreamGraphPort, type StreamGraphPortPin } from "../studio_readings.js";
-import type { PortFamily } from "../port_families.js";
 import type { InputWiring } from "./input_wiring.js";
 import type { NodeInputLink } from "./node_input_link.js";
 import type { InputAddress } from "./node_inputs.js";
@@ -14,8 +13,6 @@ export interface NodePin {
   /** The member of the bundle `name` carries that this row is; `null` on a whole port. */
   readonly member: string | null;
   readonly pin: StreamGraphPortPin | null;
-  /** The family the runtime still serves beside the type; only the canvas's own wiring check reads it, until the runtime judges a link. */
-  readonly family: PortFamily | null;
   /** The port's description as its node type declares it; `null` for none. */
   readonly description: string | null;
   /** What its node type's annotations state of its value, such as its range and the control that edits it; empty where it states none. */

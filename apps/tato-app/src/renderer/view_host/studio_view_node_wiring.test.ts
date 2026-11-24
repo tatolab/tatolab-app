@@ -9,7 +9,7 @@ function graphNode(name: string, type: string, config: StreamGraphNode["config"]
 
 const DECK = graphNode("djdeck", "acme-dj:deck", { level: 0.5 }, []);
 const GRAPH: StreamGraph = aStreamGraph(
-  [graphNode("player", "acme_dj:Player", {}, [aGraphPort("audio", "channels")]), graphNode("camera", "tatolab.stream:Camera", {}, [aGraphPort("video", "image")]), DECK, graphNode("otherview", "acme-stage:rig", {}, [])],
+  [graphNode("player", "acme_dj:Player", {}, [aGraphPort("audio")]), graphNode("camera", "tatolab.stream:Camera", {}, [aGraphPort("video", { pin_type: { type: "texture" }, flow: "stream" })]), DECK, graphNode("otherview", "acme-stage:rig", {}, [])],
   [
     aGraphLink("L1", ["player", "audio"], ["djdeck", "deck_a"]),
     aGraphLink("L2", ["camera", "video"], ["djdeck", "deck_b"]),

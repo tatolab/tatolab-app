@@ -214,7 +214,7 @@ describe("the studio", () => {
     await waitFor(() => expect(coreViewPage("properties").querySelector("[data-properties-not-ready-because]")).toBeNull());
   });
 
-  it("shows a stopped node's port as its family's placeholder in the Node visualizer, opening no read of it", async () => {
+  it("shows a stopped node's port as the placeholder of its pin type in the Node visualizer, opening no read of it", async () => {
     await mountedWindowOverTheMock("state=running&node_states=stopped&outliner=open");
     await waitFor(() => outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`));
     fireEvent.doubleClick(outlinerRow(`stream:${PULSE_STAGE_MAIN_STREAM}`));
@@ -222,7 +222,7 @@ describe("the studio", () => {
 
     const placeholder = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="node_not_running"]') ?? expect.unreachable("no placeholder for the stopped node"));
     expect(placeholder.getAttribute("data-viewer-node-state")).toBe("Stopped");
-    expect(placeholder.getAttribute("data-family")).toBe("image");
+    expect(placeholder.getAttribute("data-pin-type")).toBe("texture");
     expect(placeholder.textContent).toContain("Kaleidoscope › result");
     expect(placeholder.textContent).toContain("Not running. It shows here live once the stream plays.");
     expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).toBeNull();
@@ -374,7 +374,7 @@ describe("the studio", () => {
     expect(look(socket("tally", "output:tally"))).toEqual(["untyped", null, "tally · No exact type · values unchecked\nHow many pictures it has seen, and the size of the latest"]);
   });
 
-  it("names each port's type and flow in Properties beside a mark in its type's look, and an untyped port's family as a family", async () => {
+  it("names each port's type and flow in Properties beside a mark in its type's look, and an untyped port as stating no exact type", async () => {
     await mountedWindowOverTheMock("state=running");
     const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="kaleidoscope"]') ?? expect.unreachable("no Kaleidoscope card")));
@@ -389,7 +389,7 @@ describe("the studio", () => {
 
     fireEvent.click(streamGraph.querySelector<HTMLElement>('[data-node-graph-card="click"]') ?? expect.unreachable("no click card"));
     await waitFor(() => expect(portRow("cue")).not.toBeNull());
-    expect(wordsAndMark("cue")).toEqual(["No exact type · Records", "untyped"]);
+    expect(wordsAndMark("cue")).toEqual(["No exact type", "untyped"]);
   });
 
   it("draws a socket on each setting the runtime says takes a wire, hiding a wired one's control and naming what drives it in Properties, and none on a Graph Input's settings", async () => {

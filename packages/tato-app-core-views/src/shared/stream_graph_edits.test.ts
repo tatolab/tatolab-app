@@ -35,7 +35,8 @@ const STREAM_ASSET = "7194d1f9-721a-41e5-9cc9-7db50336a1ed";
 const studioOnTheWire = (fields: Partial<StreamGraphNodeStudioFields>): NonNullable<StreamGraphNode["studio"]> => ({ contract: 1, ...fields });
 
 function graphNode(name: string, id: string, ports: { inputs?: [string, "image" | "array" | null][]; outputs?: [string, "image" | "array" | null][] }, studio: Partial<StreamGraphNodeStudioFields> = {}): StreamGraphNode {
-  const declared = (portsOfOneSide: [string, "image" | "array" | null][] = []) => portsOfOneSide.map(([name, family]) => aGraphPort(name, family));
+  const declared = (portsOfOneSide: [string, "image" | "array" | null][] = []) =>
+    portsOfOneSide.map(([name, carries]) => aGraphPort(name, carries === "image" ? { pin_type: { type: "texture" }, flow: "stream" } : carries === "array" ? { pin_type: { type: "float" } } : {}));
   return aGraphNode(name, { id, kind: "process", config: {}, inputs: declared(ports.inputs), outputs: declared(ports.outputs), studio: studioOnTheWire(studio), components: { state: "Running" } });
 }
 
@@ -201,7 +202,7 @@ test("deleting_disconnects_the_selected_links_removes_the_nodes_and_notes_and_le
   ]);
 });
 
-test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_ports_of_the_links_family_and_one_without_them_asks_nothing", () => {
+test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_ports_of_the_links_pin_type_and_one_without_them_asks_nothing", () => {
   expect(cardLetGoOverALinkEdits(edited(), new Map(), "halftone", "L1")).toEqual([
     { operation: "disconnect", stream: STREAM_ASSET, source: { node: "uuid-pattern", port: "video" }, target: { node: "uuid-display", port: "video" } },
     { operation: "connect", stream: STREAM_ASSET, source: { node: "uuid-pattern", port: "video" }, target: { node: "uuid-halftone", port: "frames" } },
@@ -211,19 +212,19 @@ test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_ports_of_the_links_fa
   expect(cardLetGoOverALinkEdits(meterOnly, new Map(), "meter", "L1")).toEqual([]);
 });
 
-test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_input_of_the_links_family_that_takes_a_wire", () => {
-  const setting = aGraphPort("source_frames", "image", { takes_a_wire: false });
-  const withASettingFirst = aGraphNode("lens", { id: "uuid-lens", kind: "process", config: {}, inputs: [setting, aGraphPort("frames", "image", { takes_a_wire: true })], outputs: [aGraphPort("image", "image")], components: { state: "Running" } });
+test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_input_of_the_links_pin_type_that_takes_a_wire", () => {
+  const setting = aGraphPort("source_frames", { pin_type: { type: "texture" }, flow: "stream", takes_a_wire: false });
+  const withASettingFirst = aGraphNode("lens", { id: "uuid-lens", kind: "process", config: {}, inputs: [setting, aGraphPort("frames", { takes_a_wire: true })], outputs: [aGraphPort("image", { pin_type: { type: "texture" }, flow: "stream" })], components: { state: "Running" } });
   expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, withASettingFirst] }), new Map(), "lens", "L1")[1]).toEqual({
     operation: "connect",
     stream: STREAM_ASSET,
     source: { node: "uuid-pattern", port: "video" },
     target: { node: "uuid-lens", port: "frames" },
   });
-  const takingNoWire = aGraphNode("still", { id: "uuid-still", kind: "process", config: {}, inputs: [setting], outputs: [aGraphPort("image", "image")], components: { state: "Running" } });
+  const takingNoWire = aGraphNode("still", { id: "uuid-still", kind: "process", config: {}, inputs: [setting], outputs: [aGraphPort("image", { pin_type: { type: "texture" }, flow: "stream" })], components: { state: "Running" } });
   expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, takingNoWire] }), new Map(), "still", "L1")).toEqual([]);
 
-  const unmarked = aGraphNode("lens", { id: "uuid-lens", kind: "process", config: {}, inputs: [aGraphPort("source_frames", "image"), aGraphPort("frames", "image")], outputs: [aGraphPort("image", "image")], components: { state: "Running" } });
+  const unmarked = aGraphNode("lens", { id: "uuid-lens", kind: "process", config: {}, inputs: [aGraphPort("source_frames", { pin_type: { type: "texture" }, flow: "stream" }), aGraphPort("frames", { pin_type: { type: "texture" }, flow: "stream" })], outputs: [aGraphPort("image", { pin_type: { type: "texture" }, flow: "stream" })], components: { state: "Running" } });
   const lensDescribed: NodeTypeDescription = { ...describedNodeType("nodes.lens:Node", [], []), inputs: [{ name: "source_frames", documentation: "", family: { family: "image" }, ...A_SETTING, takes_a_wire: false }] };
   expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, unmarked] }), new Map([["nodes.lens:Node", lensDescribed]]), "lens", "L1")[1]).toMatchObject({ target: { node: "uuid-lens", port: "frames" } });
 });

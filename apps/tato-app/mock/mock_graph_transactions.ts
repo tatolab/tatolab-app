@@ -19,10 +19,11 @@ import { retypeThePortsTheBundleTypeChooses } from "./mock_make_bundle_stand_in"
 import { BUILT_IN_PIN_TYPES } from "@tatolab/tato-app-view-sdk/built_in_pin_types";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import type { PinType } from "@tatolab/tato-app-view-sdk/pin_type_readings";
-import { FAMILY_CARRYING_A_PIN_OF } from "@tatolab/tato-app-view-sdk/port_families";
+import { FAMILY_CARRYING_A_PIN_OF, PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
+import { mockFamilyOfThePort } from "./mock_port_families";
 import { membersOfTheBundle } from "@tatolab/tato-app-view-sdk/pin_model/node_input_link";
-import { familyOfThePort, fragmentKindOfTheNode, isAJsonValue, NODE_STUDIO_FIELDS_NONE_SET, type NodeTypePortDescribed } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { PORT_FAMILIES, type JsonValue, type NodeTypeDescription, type PortFamily, type ProjectGraphTransaction, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
+import { fragmentKindOfTheNode, isAJsonValue, NODE_STUDIO_FIELDS_NONE_SET, type NodeTypePortDescribed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { type JsonValue, type NodeTypeDescription, type ProjectGraphTransaction, type StreamGraphAction, type StreamGraphActionLinkEnd, type StreamGraphGroup, type StreamGraphNodeStudioFields, type StreamGraphNote } from "../src/shared/tatolab_backend_contract";
 
 /** A mock stream a graph action can name: its id, and the graph the mock holds for it. */
 export interface MockStreamGraphTarget {
@@ -257,7 +258,7 @@ export function isAHistoryOperationTheMockMakesAgainFromTheEditInside(historyOpe
 
 /** A port of a node added from `port`, as its node type's description describes it: its name, family and pin type as described, stating no stream facts and reading no value yet. */
 function graphPortOfTheDescribedPort(port: Pick<NodeTypePortDescribed, "name" | "family" | "pin_type" | "flow">): MockGraphPort {
-  const family = familyOfThePort(port);
+  const family = mockFamilyOfThePort(port);
   return { name: port.name, family, stream_facts: null, values_checked: family === "records" ? false : null, pin: exactPinOfTheDeclaredPort(port), value_read: null };
 }
 

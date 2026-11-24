@@ -9,7 +9,6 @@ import { putTheNodeTypeOnTheDrag } from "@tatolab/tato-app-view-sdk/design_syste
 import { SectionNavigationList } from "@tatolab/tato-app-view-sdk/design_system/section_navigation_list";
 import { StudioAreaHeaderChoiceMenu } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
-import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { PropertySection } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
@@ -17,9 +16,9 @@ import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/ru
 import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ImportedProject, ProjectAssetPick, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
-import { familyOfThePort, type NodeTypeDescribedOrWhyNot, type NodeTypePortDescribed, type OpenProjectReading, type ProjectAsset, type ProjectAssetsReading, type StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { type NodeTypeDescribedOrWhyNot, type NodeTypePortDescribed, type OpenProjectReading, type ProjectAsset, type ProjectAssetsReading, type StudioViewListed } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
-import { pinTypeWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
+import { pinTypeWords, pinWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
 import { studioIconNamed } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { CoreViewFrame } from "../shared/core_view_page";
@@ -52,23 +51,22 @@ import {
 } from "./library_assets_of_the_listing";
 import { libraryViewGroupsOf, libraryViewRowIdOf, studioViewPortsWords, studioViewShownWhereWords } from "./library_views_of_the_listing";
 
-/** One declared port's row: which way it faces, its name, and its type or family in words. It draws no pin mark, since a type found with the graph is known only on the canvas. */
-function LibraryPortRow({ direction, portName, familyWords, portTitle, dataAttribute }: { direction: "In" | "Out"; portName: string; familyWords: string; portTitle: string | undefined; dataAttribute: "data-library-port" | "data-library-view-port" }) {
+/** One declared port's row: which way it faces, its name, and its type in words. It draws no pin mark, since a type found with the graph is known only on the canvas. */
+function LibraryPortRow({ direction, portName, typeWords, portTitle, dataAttribute }: { direction: "In" | "Out"; portName: string; typeWords: string; portTitle: string | undefined; dataAttribute: "data-library-port" | "data-library-view-port" }) {
   return (
     <div className="flex h-6 min-w-0 items-center gap-2 text-xs" title={portTitle} {...{ [dataAttribute]: portName }}>
       <span className="w-6 shrink-0 text-right text-2xs text-fg-3">{direction}</span>
       <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg">{portName}</span>
-      <span className="shrink-0 text-fg-3">{familyWords}</span>
+      <span className="shrink-0 text-fg-3">{typeWords}</span>
     </div>
   );
 }
 
-/** What a described port carries, in words: the pin type it states exactly, else its family, else its annotation as written. */
+/** What a described port carries, in words: the pin type it states exactly, else its annotation as written, else that it states no exact type. */
 function describedPortTypeWords(port: NodeTypePortDescribed & { annotation?: string | null }): string {
   const pin = exactPinOfTheDeclaredPort(port);
   if (pin !== null) return pinTypeWords(pin.pin_type);
-  const family = familyOfThePort(port);
-  return family === null ? (port.annotation ?? "Family not stated") : portFamilyWords(family);
+  return port.annotation === undefined || port.annotation === null || port.annotation === "" ? pinWords(null) : port.annotation;
 }
 
 function PortsOfTheDeclaration({ direction, ports }: { direction: "In" | "Out"; ports: readonly (NodeTypePortDescribed & { annotation?: string | null })[] }) {
@@ -77,7 +75,7 @@ function PortsOfTheDeclaration({ direction, ports }: { direction: "In" | "Out"; 
       key={`${direction}:${port.name}`}
       direction={direction}
       portName={port.name}
-      familyWords={describedPortTypeWords(port)}
+      typeWords={describedPortTypeWords(port)}
       portTitle={port.documentation === "" ? (port.annotation ?? undefined) : port.documentation}
       dataAttribute="data-library-port"
     />
@@ -199,7 +197,7 @@ function PortsOfTheView({ direction, ports }: { direction: "In" | "Out"; ports: 
       key={`${direction}:${port.name}`}
       direction={direction}
       portName={port.name}
-      familyWords={portFamilyWords(port.family)}
+      typeWords={pinTypeWords(port.pin_type)}
       portTitle={port.description === "" ? undefined : port.description}
       dataAttribute="data-library-view-port"
     />

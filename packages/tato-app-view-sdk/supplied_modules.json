@@ -52,7 +52,7 @@
   { "name": "@tatolab/tato-app-view-sdk/design_system/notice_dialog", "served_file": "design_system/notice_dialog.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/design_system/panel_section", "served_file": "design_system/panel_section.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/design_system/pending_action_words", "served_file": "design_system/pending_action_words.js", "imports_no_library": false },
-  { "name": "@tatolab/tato-app-view-sdk/design_system/port_family_placeholder", "served_file": "design_system/port_family_placeholder.js", "imports_no_library": false },
+  { "name": "@tatolab/tato-app-view-sdk/design_system/port_placeholder", "served_file": "design_system/port_placeholder.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/design_system/progress_meter", "served_file": "design_system/progress_meter.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/design_system/project_asset_card", "served_file": "design_system/project_asset_card.js", "imports_no_library": false },
   { "name": "@tatolab/tato-app-view-sdk/design_system/project_card", "served_file": "design_system/project_card.js", "imports_no_library": false },

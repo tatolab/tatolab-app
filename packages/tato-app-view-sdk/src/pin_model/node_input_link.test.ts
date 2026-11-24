@@ -7,8 +7,8 @@ import { freeConversionWords, nodeInputLinkOfTheGraph } from "./node_input_link.
 function graphWithTheCountIntoTheBase(marks: Pick<StreamGraphLink, "free_conversion" | "warnings">): StreamGraph {
   return aStreamGraph(
     [
-      aGraphNode("beat", { outputs: [aGraphPort("count", "channels", { pin_type: { type: "integer" }, flow: "value" })] }),
-      aGraphNode("warmth", { inputs: [aGraphPort("base", "channels", { pin_type: { type: "float" }, flow: "value" })] }),
+      aGraphNode("beat", { outputs: [aGraphPort("count", { pin_type: { type: "integer" }, flow: "value" })] }),
+      aGraphNode("warmth", { inputs: [aGraphPort("base", { pin_type: { type: "float" }, flow: "value" })] }),
     ],
     [{ ...aGraphLink("Lcount", ["beat", "count"], ["warmth", "base"]), ...marks }],
   );

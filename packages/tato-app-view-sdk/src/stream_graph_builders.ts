@@ -3,11 +3,10 @@
 // only what it reads.
 
 import type { GraphLinkOnTheWire, GraphLinkStateOnTheWire, GraphNodeComponentsOnTheWire, GraphNodeOnTheWire, GraphNodePortOnTheWire, StreamGraphOnTheWire } from "@tatolab/runtime-client/contract";
-import type { PortFamily } from "./port_families.js";
 
-/** The port `name` of `family`, as the runtime renders a port's family beside it; `null` for one that names none. */
-export function aGraphPort(name: string, family: PortFamily | null, fields: Omit<Partial<GraphNodePortOnTheWire>, "name" | "family"> = {}): GraphNodePortOnTheWire {
-  return { name, ...(family === null ? {} : { family: { family } }), ...fields };
+/** The port `name`, with the fields a test reads of it, such as its pin type. */
+export function aGraphPort(name: string, fields: Omit<Partial<GraphNodePortOnTheWire>, "name" | "family"> = {}): GraphNodePortOnTheWire {
+  return { name, ...fields };
 }
 
 /** The fields of a node beside its name, with its ports and components written apart; each it leaves out reads as the runtime renders none. */

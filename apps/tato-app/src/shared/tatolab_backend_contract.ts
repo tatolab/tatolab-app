@@ -79,9 +79,8 @@ export type {
   PortViewerMessageReading,
   PortViewerRecovery,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
-export { PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
 export type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
-export { TATO_STUDIO_MCP_CLIENT_NAME, familyOfThePort, fragmentOfTheNode, inputValueReadOfThePort, memberValueReadsOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
+export { TATO_STUDIO_MCP_CLIENT_NAME, fragmentOfTheNode, inputValueReadOfThePort, memberValueReadsOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
 import type { JsonValue, ListedStream, PortViewerMessageReading, PortViewerRecovery, ProjectFileFinding, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
 

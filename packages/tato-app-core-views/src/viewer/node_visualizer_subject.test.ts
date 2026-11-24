@@ -9,9 +9,9 @@ function nodeWithOutputs(name: string, outputs: StreamGraphPort[]): StreamGraphN
   return aGraphNode(name, { id: `id-${name}`, type: "Processor", kind: "process", config: {}, outputs, components: { state: "Running" } });
 }
 
-const CAMERA = nodeWithOutputs("camera", [aGraphPort("video", "image")]);
-const METER = nodeWithOutputs("brightnessmeter", [aGraphPort("readings", "records", { values_checked: false }), aGraphPort("preview", "image")]);
-const LFO = nodeWithOutputs("lfo", [aGraphPort("result", "array")]);
+const CAMERA = nodeWithOutputs("camera", [aGraphPort("video", { pin_type: { type: "texture" }, flow: "stream" })]);
+const METER = nodeWithOutputs("brightnessmeter", [aGraphPort("readings", { values_checked: false }), aGraphPort("preview", { pin_type: { type: "texture" }, flow: "stream" })]);
+const LFO = nodeWithOutputs("lfo", [aGraphPort("result")]);
 const DISPLAY = nodeWithOutputs("displaywindow", []);
 
 const GRAPH: StreamGraph = aStreamGraph([CAMERA, METER, LFO, DISPLAY], [aGraphLink("camera-to-display", ["camera", "video"], ["displaywindow", "video"])], { stream: STREAM });
@@ -23,7 +23,7 @@ describe("what the Node visualizer shows", () => {
     expect(nodeVisualizerSubjectOf(GRAPH, { kind: "node", stream: "another-stream", node: "camera" })).toEqual({ kind: "nothing_selected" });
   });
 
-  it("is the selected node's first Image port, whatever order its ports come in, or else its first port of any family, linked or not", () => {
+  it("is the selected node's first Texture output, whatever order its ports come in, or else its first output of any type, linked or not", () => {
     expect(nodeVisualizerSubjectOf(GRAPH, { kind: "node", stream: STREAM, node: "brightnessmeter" })).toEqual({ kind: "port", port: { node_id: "id-brightnessmeter", node_name: "brightnessmeter", port: "preview" } });
     expect(nodeVisualizerSubjectOf(GRAPH, { kind: "node", stream: STREAM, node: "lfo" })).toEqual({ kind: "port", port: { node_id: "id-lfo", node_name: "lfo", port: "result" } });
   });

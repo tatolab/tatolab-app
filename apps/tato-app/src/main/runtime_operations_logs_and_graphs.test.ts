@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "vitest";
 import { controlOperationResponseOfTheRecordedToolResponse, httpResponse } from "./fake_local_api_server.js";
 import { answerOf, cleanUpWhatTheTestStarted, controlOperationResponseOfTheResultText, failureOf, fakeLocalApiServerAnswering, headAndBodyOf, recordedResponseBody } from "./runtime_operations_test_support.js";
 import { describeStreamGraph, readProjectLogRecords } from "./runtime_operations.js";
-import { bagsDroppedOnTheLink, bagsRefusedOnTheOutputPort, familyOfThePort, pinOfThePort, streamFactsOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { bagsDroppedOnTheLink, bagsRefusedOnTheOutputPort, pinOfThePort, streamFactsOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 afterEach(cleanUpWhatTheTestStarted);
 
@@ -71,10 +71,11 @@ test("describing_a_stream_graph_calls_the_graph_tool_and_passes_on_the_answer_th
     ["halftonelenseffect", "nodes.halftone_lens_effect:HalftoneLensEffect", "process", "Running"],
     ["brightnessmeter", "nodes.brightness_meter:BrightnessMeter", "process", "Running"],
   ]);
-  expect(graph.nodes.map((node) => [node.name, node.ports.inputs.map(familyOfThePort), node.ports.outputs.map(familyOfThePort)])).toEqual([
-    ["testpatternsource", [], ["image"]],
-    ["halftonelenseffect", ["image"], ["image"]],
-    ["brightnessmeter", ["image"], []],
+  const pinTypeNameOf = (port: { pin_type?: { type: string } }) => port.pin_type?.type ?? null;
+  expect(graph.nodes.map((node) => [node.name, node.ports.inputs.map(pinTypeNameOf), node.ports.outputs.map(pinTypeNameOf)])).toEqual([
+    ["testpatternsource", [], ["texture"]],
+    ["halftonelenseffect", ["texture"], ["texture"]],
+    ["brightnessmeter", ["texture"], []],
   ]);
   expect(graph.links.map((link) => [link.id, link.source, link.target, link.state])).toEqual([
     ["Lftoljv5iob8nwq68jpemlbwg", { node: "testpatternsource", port: "video" }, { node: "halftonelenseffect", port: "video_from_upstream" }, "wired"],

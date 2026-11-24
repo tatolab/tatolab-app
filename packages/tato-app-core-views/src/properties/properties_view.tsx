@@ -20,7 +20,6 @@ import {
   type OwnFieldOfTheInput,
 } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import { nodePinWordsBesideItsSlot, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
-import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
@@ -47,6 +46,7 @@ import {
   type StreamGraphNode,
   type StreamGraphPort,
   type StreamGraphReading,
+  mayCarryAPicture,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
 import { AudioCaptureDeviceFieldOfTheSetting } from "./audio_capture_device_field";
@@ -106,11 +106,6 @@ function meaningOfAPort(pin: Pick<NodePin, "stream_facts_words">, port: Pick<Str
     .filter((words): words is string => words !== null)
     .join("\n");
   return meaning === "" ? undefined : meaning;
-}
-
-/** A pin's type and flow in words; a pin with no exact type says so, with its family. */
-function typeWordsOfThePin(pin: Pick<NodePin, "pin" | "family">): string {
-  return pin.pin === null && pin.family !== null ? `${pinWords(null)} · ${portFamilyWords(pin.family)}` : pinWords(pin.pin);
 }
 
 /** Where the value an unwired input shows comes from, in a word. */
@@ -178,7 +173,7 @@ function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin
       direction="input"
       portName={nodePinWordsBesideItsSlot(pin)}
       searchWords={searchWords}
-      typeWords={typeWordsOfThePin(pin)}
+      typeWords={pinWords(pin.pin)}
       pinMark={<NodeGraphPinMarkSlot pin={pin.pin} takesAWire={pin.takes_a_wire} />}
       nameMarks={<NodeGraphRebuildsTheNodeMark pin={pin} />}
       meaning={meaningOfAPort(pin, port)}
@@ -281,7 +276,7 @@ function OutputRowOfTheNode({ pin, port, bandShade, graph, node, searchWords }: 
       direction="output"
       portName={nodePinWordsBesideItsSlot(pin)}
       searchWords={searchWords}
-      typeWords={typeWordsOfThePin(pin)}
+      typeWords={pinWords(pin.pin)}
       pinMark={<NodeGraphPinMark pin={pin.pin} />}
       meaning={meaningOfAPort(pin, port)}
       description={pin.description ?? undefined}
@@ -496,7 +491,7 @@ function PropertiesOfTheSelectedNode({
               ))
             )}
             {outputPortsListed
-              .filter(({ port }) => port.family === "image")
+              .filter(({ pin }) => mayCarryAPicture(pin.pin?.pin_type))
               .map(({ port }) => (
                 <div key={port.name} className="flex justify-end">
                   <ActionButton

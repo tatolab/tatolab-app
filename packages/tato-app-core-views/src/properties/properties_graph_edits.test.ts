@@ -1,5 +1,4 @@
 import type { JsonValue, StreamGraphLink, StreamGraphNode, StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
-import type { PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
 import { aGraphLink, aGraphNode, aGraphPort } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 import { expect, test } from "vitest";
 import {
@@ -10,8 +9,11 @@ import {
   promoteToGraphInput,
 } from "./properties_graph_edits";
 
-function aPort(name: string, family: PortFamily | null): StreamGraphPort {
-  return aGraphPort(name, family);
+/** A port carrying a picture (`"image"`), a number (`"number"`), or what the runtime has not typed (`null`). */
+function aPort(name: string, carries: "image" | "number" | null): StreamGraphPort {
+  if (carries === "image") return aGraphPort(name, { pin_type: { type: "texture" }, flow: "stream" });
+  if (carries === "number") return aGraphPort(name, { pin_type: { type: "float" } });
+  return aGraphPort(name);
 }
 
 function aNode(name: string, inputs: StreamGraphPort[], outputs: StreamGraphPort[]): StreamGraphNode {
@@ -22,9 +24,9 @@ function aLink(source: StreamGraphNode, sourcePort: string, target: StreamGraphN
   return aGraphLink(`${source.name}.${sourcePort}->${target.name}.${targetPort}`, [source.name, sourcePort], [target.name, targetPort]);
 }
 
-const camera = aNode("camera", [], [aPort("video", "image"), aPort("level", "channels")]);
+const camera = aNode("camera", [], [aPort("video", "image"), aPort("level", "number")]);
 const invert = aNode("invert", [aPort("video_in", "image")], [aPort("video_out", "image")]);
-const meter = aNode("meter", [aPort("frames", "image"), aPort("gain", "channels")], []);
+const meter = aNode("meter", [aPort("frames", "image"), aPort("gain", "number")], []);
 const graph = { nodes: [camera, invert, meter], links: [aLink(camera, "video", invert, "video_in"), aLink(invert, "video_out", meter, "frames")] };
 
 test("a port's linked ends name the node and port on the other side", () => {
@@ -51,7 +53,7 @@ function promotionOf(name: string, settings: [string, JsonValue][], target: { no
 
 test("promoting an input is one transaction: a new Graph Input named for the node and input, its port and the input's type set as its settings, the value the input shows saved as its `value`, wired into it", () => {
   const glow = { id: "id-glow", name: "glow" };
-  const amount = aGraphPort("amount", "channels", { pin_type: { type: "float" }, flow: "value", value: 0.7, value_comes_from: "saved" });
+  const amount = aGraphPort("amount", { pin_type: { type: "float" }, flow: "value", value: 0.7, value_comes_from: "saved" });
   expect(promoteToGraphInput("asset", { node: glow, input: amount, valueShown: 0.3, isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set(["glow"]) })).toEqual(
     promotionOf("glow_amount", [["port", "glow_amount"], ["pin_type", { type: "float" }], ["value", 0.3]], { node: "id-glow", port: "amount" }),
   );
@@ -59,7 +61,7 @@ test("promoting an input is one transaction: a new Graph Input named for the nod
 
 test("a promotion takes the first free name, and below a stream's own level sets no value and no annotation", () => {
   const glow = { id: "id-glow", name: "glow" };
-  const amount = aGraphPort("amount", "channels", { pin_type: { type: "float" }, flow: "value", annotations: { control: "dial" }, value: 0.7, value_comes_from: "saved" });
+  const amount = aGraphPort("amount", { pin_type: { type: "float" }, flow: "value", annotations: { control: "dial" }, value: 0.7, value_comes_from: "saved" });
   expect(promoteToGraphInput("asset", { node: glow, input: amount, valueShown: 0.7, isOnTheStreamsOwnLevel: false, nodeNamesTaken: new Set(["glow", "glow_amount", "glow_amount_2"]) })).toEqual(
     promotionOf("glow_amount_3", [["port", "glow_amount_3"], ["pin_type", { type: "float" }]], { node: "id-glow", port: "amount" }),
   );
@@ -67,7 +69,7 @@ test("a promotion takes the first free name, and below a stream's own level sets
 
 test("promoting an input states its annotations its type takes as the Graph Input's settings, a range only where it states both ends", () => {
   const caption = { id: "id-caption", name: "caption" };
-  const lines = aGraphPort("lines", "channels", {
+  const lines = aGraphPort("lines", {
     pin_type: { type: "integer" },
     flow: "value",
     annotations: { range: { minimum: 1, maximum: 8 }, step: 1, unit: "lines", meaning: "count", control: "dial", project_asset: null },
@@ -82,7 +84,7 @@ test("promoting an input states its annotations its type takes as the Graph Inpu
     ),
   );
 
-  const anchor = aGraphPort("anchor", "channels", { pin_type: { type: "vector", component_count: "two" }, flow: "value", annotations: { range: { minimum: -1 }, step: 0.1, unit: "frames", control: "xy_pad" } });
+  const anchor = aGraphPort("anchor", { pin_type: { type: "vector", component_count: "two" }, flow: "value", annotations: { range: { minimum: -1 }, step: 0.1, unit: "frames", control: "xy_pad" } });
   expect(promoteToGraphInput("asset", { node: caption, input: anchor, valueShown: [0, -0.5], isOnTheStreamsOwnLevel: true, nodeNamesTaken: new Set() })).toEqual(
     promotionOf("caption_anchor", [["port", "caption_anchor"], ["pin_type", { type: "vector", component_count: "two" }], ["control", "xy_pad"], ["value", [0, -0.5]]], { node: "id-caption", port: "anchor" }),
   );

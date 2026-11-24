@@ -10,7 +10,7 @@ const HEIGHT: NodeTypeInputDescribed = { name: "height", documentation: "", mode
 const TEST_PATTERN: Pick<NodeTypeDescription, "inputs"> = { inputs: [{ name: "frames", documentation: "", mode: "wire_only" }, WIDTH, HEIGHT] };
 
 test("a_nodes_settings_not_among_its_ports_are_those_its_type_describes_that_its_graph_lists_as_no_input_port", () => {
-  const exposedWidth = aGraphNode("pattern", { inputs: [aGraphPort("frames", "image"), aGraphPort("width", "channels")] });
+  const exposedWidth = aGraphNode("pattern", { inputs: [aGraphPort("frames", { pin_type: { type: "texture" }, flow: "stream" }), aGraphPort("width")] });
   expect(settingsOfTheNodeNotAmongItsPorts(TEST_PATTERN, exposedWidth).map((setting) => setting.name)).toEqual(["height"]);
   expect(settingsOfTheNodeNotAmongItsPorts(TEST_PATTERN, aGraphNode("pattern")).map((setting) => setting.name)).toEqual(["width", "height"]);
   expect(settingsOfTheNodeNotAmongItsPorts(undefined, aGraphNode("pattern"))).toEqual([]);

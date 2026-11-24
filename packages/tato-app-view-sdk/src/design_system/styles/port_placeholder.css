@@ -1,0 +1,98 @@
+/* What a port's preview shows while it has nothing live to show: an emblem drawn in the colour and shape of what its pin type carries over a
+   field of faint points, the way TouchDesigner shows a grid where a viewer has no picture. */
+.port-placeholder {
+  --port-placeholder-colour: var(--fg-3);
+  position: relative;
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: 14px;
+  overflow: hidden;
+  padding: 24px;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 45%, color-mix(in oklab, var(--port-placeholder-colour) 14%, transparent), transparent 70%),
+    var(--port-preview-surface-background);
+}
+
+/* What a port's preview draws behind its picture or placeholder: the area's colour under a field of faint points. */
+/* A typed port's placeholder takes its pin type's socket colour, which `[data-pin-type]` sets. */
+.port-placeholder[data-pin-type] { --port-placeholder-colour: var(--node-graph-pin-colour); }
+
+.port-placeholder, .port-preview-surface {
+  --port-preview-surface-background:
+    radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--fg-3) 22%, transparent) 1px, transparent 1.5px) 0 0 / 20px 20px,
+    var(--studio-area);
+}
+.port-preview-surface { background: var(--port-preview-surface-background); }
+/* The editor's checker behind a not-ready node's picture, showing through the runtime's transparent frames. */
+.port-preview-surface[data-viewer-node-not-ready] {
+  background: repeating-conic-gradient(color-mix(in oklab, var(--fg-3) 28%, var(--studio-area)) 0% 25%, var(--studio-area) 0% 50%) 0 0 / 16px 16px;
+}
+
+.port-placeholder-emblem {
+  width: min(100%, 320px);
+  flex: none;
+  aspect-ratio: 16 / 9;
+  color: var(--port-placeholder-colour);
+  overflow: visible;
+}
+.port-placeholder-emblem * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* A picture: a frame with corner marks, a soft field of colour drifting inside it. */
+.port-placeholder-glow { animation: port-placeholder-drift 14s ease-in-out infinite alternate; }
+.port-placeholder-glow:nth-of-type(2) { animation-duration: 18s; animation-delay: -6s; }
+.port-placeholder-glow:nth-of-type(3) { animation-duration: 22s; animation-delay: -11s; }
+@keyframes port-placeholder-drift {
+  0% { transform: translate(-18%, -10%) scale(1); }
+  50% { transform: translate(16%, 12%) scale(1.25); }
+  100% { transform: translate(-8%, 14%) scale(0.9); }
+}
+
+/* A signal of numbers: waves sliding along under one another. */
+.port-placeholder-wave { animation: port-placeholder-slide 6s linear infinite; }
+.port-placeholder-wave:nth-of-type(2) { animation-duration: 9s; }
+.port-placeholder-wave:nth-of-type(3) { animation-duration: 13s; }
+@keyframes port-placeholder-slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* A tensor: a grid of values, brightening outward from its centre. */
+.port-placeholder-value { animation: port-placeholder-swell 3.2s ease-in-out infinite; }
+@keyframes port-placeholder-swell {
+  0%, 100% { opacity: 0.12; transform: scale(0.8); }
+  50% { opacity: 0.85; transform: scale(1); }
+}
+
+/* Encoded units: units rising and settling one after another. */
+.port-placeholder-unit { transform-origin: bottom; animation: port-placeholder-rise 2.4s ease-in-out infinite; }
+@keyframes port-placeholder-rise {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+/* A record: rows with a sheen passing down them. */
+.port-placeholder-row { animation: port-placeholder-sheen 3s ease-in-out infinite; }
+@keyframes port-placeholder-sheen {
+  0%, 100% { opacity: 0.3; }
+  40% { opacity: 0.85; }
+}
+
+/* A port with no pin type: frames spreading from the centre. */
+.port-placeholder-frame { animation: port-placeholder-spread 4.5s ease-out infinite; }
+.port-placeholder-frame:nth-of-type(2) { animation-delay: -1.5s; }
+.port-placeholder-frame:nth-of-type(3) { animation-delay: -3s; }
+@keyframes port-placeholder-spread {
+  from { opacity: 0.8; transform: scale(0.2); }
+  to { opacity: 0; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .port-placeholder-emblem * { animation: none; }
+}
