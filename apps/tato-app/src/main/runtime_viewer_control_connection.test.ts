@@ -87,13 +87,20 @@ test("a_viewer_of_a_port_whose_open_viewer_answers_no_pin_type_opens_with_none",
 });
 
 test("a_viewer_whose_open_viewer_answers_a_pin_type_that_is_none_is_not_opened_and_is_not_the_runtimes_refusal", async () => {
-  const answeredWithAnUnknownPinType = JSON.parse(JSON.stringify({ ...OPEN_VIEWER_RESULT_ON_LINUX, pin_type: { type: "colour_wheel" } }));
-  const { connection } = await connectionOver(fakeRuntimeOfConnections({ open_viewer: () => Effect.succeed(answeredWithAnUnknownPinType) }).layer);
+  const answeredWithNoPinType = JSON.parse(JSON.stringify({ ...OPEN_VIEWER_RESULT_ON_LINUX, pin_type: { type: 42 } }));
+  const { connection } = await connectionOver(fakeRuntimeOfConnections({ open_viewer: () => Effect.succeed(answeredWithNoPinType) }).layer);
 
   const notOpened = failureOf(await settled(connection.openViewer(A_TARGET)));
 
   expect(notOpened.theRuntimeRefusedIt).toBe(false);
   expect(notOpened.words).toMatch(/the runtime's open_viewer result could not be read: its pin_type is not a pin type: /);
+});
+
+test("a_viewer_whose_open_viewer_answers_a_pin_type_a_later_runtime_adds_opens_with_that_type_as_it_was_answered", async () => {
+  const answeredWithALaterPinType = JSON.parse(JSON.stringify({ ...OPEN_VIEWER_RESULT_ON_LINUX, pin_type: { type: "colour_wheel" } }));
+  const { connection } = await connectionOver(fakeRuntimeOfConnections({ open_viewer: () => Effect.succeed(answeredWithALaterPinType) }).layer);
+
+  expect(answerOf(await settled(connection.openViewer(A_TARGET))).pin_type).toEqual({ type: "colour_wheel" });
 });
 
 test("a_viewer_of_a_float_output_opens_with_the_pin_type_a_real_open_viewer_answered", async () => {

@@ -986,6 +986,26 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "connection_type": {
+              "$ref": "#/$defs/NamedPinTypeImportPath"
+            },
+            "one_referrer_per_referenced_node": {
+              "type": "boolean"
+            },
+            "type": {
+              "type": "string",
+              "const": "connection"
+            }
+          },
+          "required": [
+            "type",
+            "connection_type"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
             "referenced_node_type": {
               "type": [
                 "string",
@@ -1023,7 +1043,8 @@
             "type"
           ]
         }
-      ]
+      ],
+      "x-may-grow": true
     },
     "NamedPinTypeImportPath": {
       "type": "string"

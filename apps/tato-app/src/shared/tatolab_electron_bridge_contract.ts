@@ -7,6 +7,7 @@ import type {
   NewProjectDefaults,
   DescribeNodeTypesToolResult,
   ListNodeTypesToolResult,
+  ListAudioCaptureDevicesToolResult,
   ProjectAssetListing,
   ProjectAssetsImported,
   AssetPreviewPicture,
@@ -76,6 +77,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "read_project_log_records",
   "describe_stream_graph",
   "list_node_types",
+  "list_audio_capture_devices",
   "describe_node_types",
   "list_project_assets",
   "import_assets_into_the_open_project",
@@ -372,6 +374,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   read_project_log_records: { commandArguments: { project_directory: string; after: string | null; until: string | null } & ProjectLogNarrowing; answer: ProjectLogRecordsPage };
   describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraph };
   list_node_types: { commandArguments: { project_directory: string }; answer: ListNodeTypesToolResult };
+  /** The machine's audio inputs and the monitors of its outputs, the runtime's `list_audio_capture_devices` answer as the contract types it; refused in the runtime's own words. */
+  list_audio_capture_devices: { commandArguments: undefined; answer: ListAudioCaptureDevicesToolResult };
   describe_node_types: { commandArguments: { project_directory: string; node_types: readonly string[] }; answer: DescribeNodeTypesToolResult };
   /** `project_directory` the asking window's project, one of its imports, or a project the runtime lists; refused in the runtime's own words. */
   list_project_assets: { commandArguments: { project_directory: string }; answer: ProjectAssetListing };

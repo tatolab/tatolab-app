@@ -4,6 +4,8 @@
 // A graph action and a graph edit mode are the control contract's own types.
 
 import type {
+  AudioCaptureDeviceKindOnTheWire,
+  AudioCaptureDeviceOnTheWire,
   BundleMemberValueReadOnTheWire,
   CheckLinkCandidatesRequest,
   GraphEditMode,
@@ -18,6 +20,7 @@ import type {
   LinkCandidateEnd,
   LinkCandidatesCheckResult,
   LinkCheckResult,
+  ListAudioCaptureDevicesToolResult,
   ListNodeTypesToolResult,
   NodeTypeDescribedOrWhyNot,
   NodeTypeDescription,
@@ -533,6 +536,11 @@ export type ProjectAssetsImported = {
 
 /** An asset's preview picture read, or why not, in Studio's or the runtime's words. */
 export type AssetPreviewReading = { kind: "read"; picture: AssetPreviewPicture } | { kind: "not_read"; because: string };
+
+export type { AudioCaptureDeviceKindOnTheWire, AudioCaptureDeviceOnTheWire, ListAudioCaptureDevicesToolResult };
+
+/** The machine's audio inputs and the monitors of its outputs as the runtime's `list_audio_capture_devices` lists them, the backend's default first, or why they were not listed, in Studio's or the runtime's words. */
+export type AudioCaptureDevicesReading = { kind: "listed"; listing: ListAudioCaptureDevicesToolResult } | { kind: "not_listed"; because: string };
 
 /** Files the person chose imported into the project, nothing chosen, or why nothing was asked of the runtime. */
 export type ProjectAssetsImporting = { kind: "imported"; assets_imported: ProjectAssetsImported } | { kind: "nothing_chosen" } | { kind: "not_imported"; because: string };

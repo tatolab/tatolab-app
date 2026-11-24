@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { NodeTypeDescription, PoppedOutView } from "../shared/tatolab_backend_contract";
+import type { NodeTypeDescription, PoppedOutView, StreamGraphAction } from "../shared/tatolab_backend_contract";
+import { jsonObjectMembersOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { ModuleManagerSectionAsked } from "../shared/tatolab_electron_bridge_contract";
 import { connectToTatoAppOverPort, type TatoAppViewConnection, type ViewSettings } from "@tatolab/tato-app-view-sdk";
 import type { TatolabBackend } from "./backend/tatolab_backend";
@@ -62,6 +63,36 @@ function nodeTypesListingImageFile(backend: Pick<TatolabBackend, "listNodeTypes"
         outputs: [{ name: "image", documentation: "", pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" }],
       };
       return { node_types: nodeTypes.includes(IMAGE_FILE) ? [...described.node_types, imageFileDescribed] : described.node_types };
+    },
+  };
+}
+
+/**
+ * The mock `backend`'s node types as `nodeTypesListingImageFile` gives them, Image File's described with a stand-in `device_id`
+ * setting as Microphone Source declares its own: the mock's graph holds no Microphone Source, so a test of the device menu puts
+ * the setting on a node it holds.
+ */
+function nodeTypesListingImageFileWithACaptureDeviceSetting(backend: Pick<TatolabBackend, "listNodeTypes" | "describeNodeTypes">): Pick<TatolabBackend, "listNodeTypes" | "describeNodeTypes"> {
+  const listingImageFile = nodeTypesListingImageFile(backend);
+  return {
+    listNodeTypes: listingImageFile.listNodeTypes,
+    describeNodeTypes: async (projectDirectory, nodeTypes) => {
+      const described = await listingImageFile.describeNodeTypes(projectDirectory, nodeTypes);
+      const deviceIdSetting = {
+        name: "device_id",
+        documentation: "Backend-named capture device, as the runtime's `list_audio_capture_devices` lists it. Unset: the backend's default device.",
+        pin_type: { kind: "is", pin_type: { type: "string" } },
+        flow: "value",
+        annotations: { control: "audio_capture_device" },
+        mode: "setting_only",
+        read: "at_setup",
+        default_value: null,
+        lifetime: "kept",
+        value_json_schema: { anyOf: [{ type: "string" }, { type: "null" }], default: null },
+      } as const;
+      return {
+        node_types: described.node_types.map((nodeType) => (nodeType.node_type !== IMAGE_FILE || "not_described_because" in nodeType ? nodeType : { ...nodeType, inputs: [...nodeType.inputs, deviceIdSetting] })),
+      };
     },
   };
 }
@@ -521,6 +552,66 @@ describe("the studio", () => {
     fireEvent.click(await waitFor(() => pickerToBeRefused.querySelector<HTMLElement>('[data-library-asset="media/poster.png"]') ?? expect.unreachable("no poster card in the picker")));
     await waitFor(() => expect(properties().querySelector('[data-properties-port="asset"]')?.textContent).toContain("input `asset`: not an asset of the project"), { timeout: 5000 });
     expect(assetWords().value).toBe("media/night-sky.jpg");
+  });
+
+  it("offers the machine's audio inputs for a setting naming a capture device, sends the device picked, unsets it with Default input, and keeps a saved device the machine lacks as missing", { timeout: 30_000 }, async () => {
+    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
+    const deviceValuesSent: unknown[] = [];
+    /** The stand-in `device_id` set on Image File as the mock keeps a setting it holds no description of: in the node's config, taken out for anything but a device's id. */
+    const deviceIdSetInTheConfig = async (node: string, deviceId: unknown): Promise<StreamGraphAction> => {
+      const graph = await mockBackend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM);
+      const { device_id: _deviceHeld, ...config } = jsonObjectMembersOf(graph.nodes.find((graphNode) => graphNode.id === node)?.config);
+      return { operation: "set_node_config", stream: graph.asset ?? "", node, config: typeof deviceId === "string" ? { ...config, device_id: deviceId } : config };
+    };
+    await mountedWindowOverTheMock("state=node-not-ready", {
+      ...mockBackend,
+      ...nodeTypesListingImageFileWithACaptureDeviceSetting(mockBackend),
+      transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
+        const operationsTheMockApplies = await Promise.all(
+          operations.map(async (operation) => {
+            if (operation.operation !== "set_node_input_value" || operation.input !== "device_id") return operation;
+            deviceValuesSent.push("value" in operation ? operation.value : "no value");
+            return deviceIdSetInTheConfig(operation.node, operation.value);
+          }),
+        );
+        return mockBackend.transactInTheOpenProject(operationsTheMockApplies, mode, idempotencyKey);
+      },
+    });
+    const streamGraph = coreViewPage("stream_graph", "stream-graph");
+    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="posterimage"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
+
+    const properties = () => coreViewPage("properties");
+    const deviceMenu = () => properties().querySelector<HTMLElement>('[data-properties-port="device_id"] [data-property-audio-capture-device="device_id"] button') ?? expect.unreachable("no device menu");
+    const chooseInTheDeviceMenu = async (words: string) => {
+      pressAsAPointerDoes(deviceMenu());
+      fireEvent.click(await screen.findByRole("menuitem", { name: words }));
+    };
+    await waitFor(() => expect(deviceMenu().textContent).toBe("Default input"), { timeout: 5000 });
+    pressAsAPointerDoes(deviceMenu());
+    await waitFor(() =>
+      expect(screen.getAllByRole("menuitem").map((entry) => entry.textContent)).toEqual([
+        "Default input",
+        "Elgato Wave XLR Mono",
+        "Cam Link 4K Digital Stereo (IEC958)",
+        "What the default output plays (now Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI))",
+        "Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI)",
+        "Monitor of Elgato Wave XLR Analog Stereo",
+      ]),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI)" }));
+    await waitFor(() => expect(deviceMenu().textContent).toBe("Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI)"), { timeout: 5000 });
+    await waitFor(() => expect(deviceValuesSent).toEqual(["alsa_output.pci-0000_0b_00.1.hdmi-stereo.monitor"]), { timeout: 5000 });
+
+    await chooseInTheDeviceMenu("Default input");
+    await waitFor(() => expect(deviceMenu().textContent).toBe("Default input"), { timeout: 5000 });
+    await waitFor(() => expect(deviceValuesSent).toEqual(["alsa_output.pci-0000_0b_00.1.hdmi-stereo.monitor", null]), { timeout: 5000 });
+
+    const graph = await mockBackend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM);
+    const imageFile = graph.nodes.find((node) => node.name === "posterimage") ?? expect.unreachable("no Image File in the graph");
+    await act(async () => mockBackend.transactInTheOpenProject([await deviceIdSetInTheConfig(imageFile.id, "alsa_input.usb-gone.mono")], "commit", null));
+    await waitFor(() => expect(deviceMenu().textContent).toBe("alsa_input.usb-gone.mono (missing)"), { timeout: 5000 });
+    pressAsAPointerDoes(deviceMenu());
+    await waitFor(() => expect(screen.getAllByRole("menuitem").map((entry) => entry.textContent).at(-1)).toBe("alsa_input.usb-gone.mono (missing)"));
   });
 
   it("shows under Image File's asset field the runtime's words when it refuses to list the project's assets", { timeout: 20_000 }, async () => {

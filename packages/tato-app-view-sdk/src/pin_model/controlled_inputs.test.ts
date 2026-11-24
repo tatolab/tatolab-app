@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { nodeOfABody, takesAControl } from "./controlled_inputs.js";
-import type { InputAddress } from "./node_inputs.js";
+import { AUDIO_CAPTURE_DEVICE_CONTROL, isAnAudioCaptureDeviceInput, nodeOfABody, takesAControl } from "./controlled_inputs.js";
+import { valueAddressOfTheInput, type InputAddress } from "./node_inputs.js";
 
 const WIDTH: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "PATTERN-ID", input: "width", member: null };
 
@@ -15,6 +15,17 @@ test("a_string_holding_a_project_assets_uuid_takes_no_control_so_the_panels_own_
   const asset = { name: "asset", pin: { pin_type: { type: "string" }, flow: "value" }, value_address: { ...WIDTH, input: "asset" }, setting: { read: "at_setup" }, wire: null } as const;
   expect(takesAControl({ ...asset, annotations: { project_asset: { media: ["image"] } } })).toBeNull();
   expect(takesAControl({ ...asset, annotations: {} })).not.toBeNull();
+});
+
+test("a_string_whose_annotation_names_the_audio_capture_device_control_takes_no_control_so_the_panels_own_device_menu_picks_it", () => {
+  const deviceId = { name: "device_id", pin: { pin_type: { type: "string" }, flow: "value" }, value_address: { ...WIDTH, input: "device_id" }, setting: { read: "at_setup" }, wire: null } as const;
+  expect(AUDIO_CAPTURE_DEVICE_CONTROL).toBe("audio_capture_device");
+  expect(takesAControl({ ...deviceId, annotations: { control: "audio_capture_device" } })).toBeNull();
+  expect(takesAControl({ ...deviceId, annotations: { control: "multiline" } })).not.toBeNull();
+  expect(takesAControl({ ...deviceId, annotations: {} })).not.toBeNull();
+  expect(isAnAudioCaptureDeviceInput({ type: "string" }, { control: "audio_capture_device" })).toBe(true);
+  expect(isAnAudioCaptureDeviceInput({ type: "integer" }, { control: "audio_capture_device" })).toBe(false);
+  expect(isAnAudioCaptureDeviceInput({ type: "string" }, { control: null })).toBe(false);
 });
 
 const VIDEO_IN: InputAddress = { ...WIDTH, input: "video_in" };
@@ -65,4 +76,14 @@ test("a_node_body_is_told_each_input_whose_type_is_exact_wired_or_not_and_no_nod
     ],
   });
   expect(nodeOfABody("nodes.pattern:Pattern", [{ ...width, value_address: null }])).toBeNull();
+});
+
+test("a_connection_input_takes_no_control_wired_or_not_as_the_runtime_renders_it_reading_no_value", () => {
+  const relay = { name: "relay", pin: { pin_type: { type: "connection", connection_type: "acme:RelayConnection" }, flow: "value" }, annotations: {}, setting: null } as const;
+  const unwiredAddress = valueAddressOfTheInput(WIDTH.graph, "TRACK-ID", { name: "relay", flow: "value" });
+  expect(unwiredAddress).toBeNull();
+  expect(takesAControl({ ...relay, value_address: unwiredAddress, wire: null })).toBeNull();
+  const wiredAddress = valueAddressOfTheInput(WIDTH.graph, "TRACK-ID", { name: "relay", flow: "value", value_comes_from: "wire" });
+  expect(wiredAddress).toBeNull();
+  expect(takesAControl({ ...relay, value_address: wiredAddress, wire: { into: { ...WIDTH, input: "relay" }, wiring: WIRED_FROM_THE_CAMERA } })).toBeNull();
 });

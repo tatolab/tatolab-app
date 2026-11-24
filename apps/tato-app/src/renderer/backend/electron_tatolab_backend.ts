@@ -45,6 +45,7 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     listProjectAssets: (projectDirectory) => invokeTatolabCommand("list_project_assets", { project_directory: projectDirectory }),
     importAssetsIntoTheOpenProject: (media) => invokeTatolabCommand("import_assets_into_the_open_project", { media }),
     readAssetPreviewOfTheOpenProject: (asset) => invokeTatolabCommand("read_asset_preview_of_the_open_project", { asset }),
+    listAudioCaptureDevices: () => invokeTatolabCommand("list_audio_capture_devices", undefined),
     relocateAssetInTheOpenProject: async (asset, toPath) => {
       await invokeTatolabCommand("relocate_asset_in_the_open_project", { asset, to_path: toPath });
     },

@@ -24,6 +24,7 @@ export const PIN_TYPE_KEYS = [
   "trigger",
   "bundle",
   "named",
+  "connection",
   "node_reference",
   "pin_type_choice",
   "untyped",
@@ -110,6 +111,8 @@ export function pinTypeWords(pinType: PinType): string {
       return qualified("Bundle", pinType.members.map((member) => member.name).join(", "));
     case "named":
       return pinType.named_pin_type;
+    case "connection":
+      return qualified("Connection", pinType.connection_type);
     case "node_reference":
       return qualified("Node reference", pinType.referenced_node_type ?? null);
     case "pin_type_choice":

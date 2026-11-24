@@ -1,7 +1,8 @@
 // Which inputs a surface draws a control for, and what that control is told of its input. An input
 // takes a control while it holds a value of its own, unwired, in a stream's graph, and its type is
 // exact; an untyped input takes none, and neither does a String holding a project asset's UUID, which
-// only Properties' own asset field picks. A setting its node reads as it is set up sends nothing
+// only Properties' own asset field picks, or one naming an audio capture device, which only its own
+// device menu picks. A setting its node reads as it is set up sends nothing
 // while its control moves, since each value it takes rebuilds the node: it commits on release alone.
 // An input of a type only a wire carries, such as a Texture, holds no value: it takes a control only
 // where its node type's annotation names one, such as a preview, which shows what its wire carries.
@@ -10,7 +11,7 @@
 // and where none does, the row draws no control.
 // A node body draws whichever of its node's inputs it states, each input whose type is exact, wired or not.
 
-import type { BuiltInPinTypeName, PinAnnotations, PinValues } from "../pin_types.js";
+import type { BuiltInPinTypeName, PinAnnotations, PinType, PinValues } from "../pin_types.js";
 import type { InputPinDeclaration } from "../node_ui/input_control_element.js";
 import { jsonTextOf, type StreamGraphPortPin } from "../studio_readings.js";
 import type { InputWiring } from "./input_wiring.js";
@@ -39,6 +40,14 @@ export interface InputAControlMayDraw {
   readonly wire: NodePin["wire"];
 }
 
+/** The control a String input's annotation names when it holds the id of an audio capture device, as the runtime's `list_audio_capture_devices` lists it. */
+export const AUDIO_CAPTURE_DEVICE_CONTROL = "audio_capture_device";
+
+/** Whether an input of `pinType` annotated with `annotations` holds the id of an audio capture device: a String whose annotation names that control. */
+export function isAnAudioCaptureDeviceInput(pinType: PinType, annotations: PinAnnotations): boolean {
+  return pinType.type === "string" && annotations.control === AUDIO_CAPTURE_DEVICE_CONTROL;
+}
+
 /** A built-in type only a wire carries: one that stores no value and is no Trigger, which a person fires. */
 type PinTypeOnlyAWireCarries = Exclude<BuiltInPinTypeName, keyof PinValues | "trigger" | "named">;
 
@@ -51,7 +60,7 @@ function declarationOfTheInput(input: InputAControlMayDraw, pin: StreamGraphPort
 
 /**
  * The input a control draws for `input`, or `null` where it takes none: one with no exact type, a String holding a project
- * asset's UUID, an input a link feeds that holds a value, one of a type only a wire carries, which holds none whatever the
+ * asset's UUID or naming an audio capture device, an input a link feeds that holds a value, one of a type only a wire carries, which holds none whatever the
  * runtime reads of it, that its node type's annotation names no control for, and one of a named type or a type only a wire
  * carries that Studio reads no wire into. The control reads the annotations its node type states; an input that may be unset
  * is not told apart.
@@ -66,6 +75,7 @@ export function takesAControl(input: InputAControlMayDraw): ControlledInput | nu
   }
   if (input.value_address === null) return null;
   if (input.pin.pin_type.type === "string" && input.annotations.project_asset !== undefined && input.annotations.project_asset !== null) return null;
+  if (isAnAudioCaptureDeviceInput(input.pin.pin_type, input.annotations)) return null;
   return { address: input.value_address, declaration: declarationOfTheInput(input, input.pin), rebuilds_its_node: doesAChangeRebuildTheNode(input), driven_by: null };
 }
 

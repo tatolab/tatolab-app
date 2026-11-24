@@ -25,6 +25,7 @@ test("a_pin_type_reads_in_plain_words", () => {
   expect(pinTypeWords({ type: "integer" })).toBe("Integer");
   expect(pinTypeWords({ type: "vector", component_count: "three" })).toBe("Vector · 3 components");
   expect(pinTypeWords({ type: "named", named_pin_type: "FaceLandmarks" })).toBe("FaceLandmarks");
+  expect(pinTypeWords({ type: "connection", connection_type: "acme:RelayConnection" })).toBe("Connection · acme:RelayConnection");
 });
 
 test("a_pins_words_name_its_type_and_how_its_messages_are_read", () => {

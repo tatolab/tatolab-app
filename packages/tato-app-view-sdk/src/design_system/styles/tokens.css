@@ -210,6 +210,7 @@
   --studio-pin-type-trigger: #f0f0f2;
   --studio-pin-type-bundle: #d6b8ff;
   --studio-pin-type-named: #d4b896;
+  --studio-pin-type-connection: #9fc28a;
   --studio-pin-type-node-reference: #7fb3b3;
   --studio-pin-type-pin-type-choice: #b0b4d6;
   --studio-pin-type-untyped: var(--studio-graph-pin);

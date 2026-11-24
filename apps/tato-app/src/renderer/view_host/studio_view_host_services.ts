@@ -1,7 +1,7 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { ProjectLogReadings } from "./project_log_readings";
 import type { ProjectListingReadingsWhileWatched } from "./project_listing_readings_while_watched";
-import type { AssetPreviewPicture, AssetPreviewReading, PackageCatalogReading, ProjectAssetListing } from "../../shared/tatolab_backend_contract";
+import type { AssetPreviewPicture, AssetPreviewReading, AudioCaptureDevicesReading, PackageCatalogReading, ProjectAssetListing } from "../../shared/tatolab_backend_contract";
 import type { ProjectTransactionsReadings } from "./project_transactions_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
@@ -33,7 +33,7 @@ export interface StudioWindowValuesServedToViews {
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, node types, assets and history, their language servers, and the port viewers of their running nodes. */
 export interface StudioViewHostProjectServices {
-  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "checkProjectFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "deleteAssetFromTheOpenProject" | "setNodeTypeGroupInTheOpenProject" | "openModuleManagerWindow" | "readPackageCatalog" | "importFromTheMarketplace" | "stopOpenProject" | "runOpenProject" | "reloadProject">;
+  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "createNodeFile" | "checkProjectFile" | "listProjectFiles" | "importAssetsIntoTheOpenProject" | "relocateAssetInTheOpenProject" | "readAssetPreviewOfTheOpenProject" | "listAudioCaptureDevices" | "deleteAssetFromTheOpenProject" | "setNodeTypeGroupInTheOpenProject" | "openModuleManagerWindow" | "readPackageCatalog" | "importFromTheMarketplace" | "stopOpenProject" | "runOpenProject" | "reloadProject">;
   projectLogReadings: ProjectLogReadings;
   projectNodeTypesDescribedReadings: ProjectNodeTypesDescribedReadings;
   projectAssetReadings: ProjectListingReadingsWhileWatched<ProjectAssetListing>;
@@ -246,6 +246,11 @@ export function studioViewHostServicesOf(
       changeTheOpenProjectForAView(projectFolder, assetChangeSources, () => backend.relocateAssetInTheOpenProject(asset, toPath)),
     readAssetPreviewInTheProject: (projectFolder, asset) => readAnAssetPreviewOfTheOpenProjectForAView(projectFolder, sources.openProject.readLatest, () => backend.readAssetPreviewOfTheOpenProject(asset)),
     deleteAssetFromTheProject: (projectFolder, asset) => changeTheOpenProjectForAView(projectFolder, assetChangeSources, () => backend.deleteAssetFromTheOpenProject(asset)),
+    listAudioCaptureDevices: () =>
+      backend.listAudioCaptureDevices().then(
+        (listing): AudioCaptureDevicesReading => ({ kind: "listed", listing }),
+        (rejection: unknown): AudioCaptureDevicesReading => ({ kind: "not_listed", because: describeBackendRejection(rejection) }),
+      ),
     setNodeTypeGroupInTheProject: (projectFolder, nodeType, group) =>
       changeTheOpenProjectForAView(projectFolder, nodeTypeGroupChangeSources, () => backend.setNodeTypeGroupInTheOpenProject(nodeType, group)),
     recoverTheProjectsStreams: (projectFolder, recovery) => recoverTheOpenProjectsStreamsForAView(projectFolder, recovery, { readTheOpenProject: sources.openProject.readLatest, readTheListedStreams: sources.listedStreams.readLatest, backend }),

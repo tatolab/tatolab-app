@@ -8,6 +8,7 @@ import type {
   CheckLinkCandidatesRequest,
   LinkCandidatesCheckResult,
   AssetPreviewPicture,
+  ListAudioCaptureDevicesToolResult,
   GraphEditMode,
   JsonValue,
   ListedStreamsReading,
@@ -163,6 +164,8 @@ export type ViewAsk =
   | { kind: "read_asset_preview_in_the_project"; project_folder: string; asset: string }
   /** Stop tracking the asset `asset` of the project, its file leaving it, through the runtime's `delete_asset`, by the person editing. */
   | { kind: "delete_asset_from_the_project"; project_folder: string; asset: string }
+  /** The machine's audio inputs and the monitors of its outputs, through the runtime's `list_audio_capture_devices`. */
+  | { kind: "list_audio_capture_devices" }
   /** File the node type `node_type` under `group`, a `/`-separated path, in the project through the runtime's `set_node_type_group`, by the person editing; `null` puts it back where an import or its author files it. */
   | { kind: "set_node_type_group_in_the_project"; project_folder: string; node_type: string; group: string | null }
   /** Recover the project's streams with `recovery`: their playback stopped and started again, or the project read again from disk. */
@@ -236,6 +239,8 @@ export type ViewAskAnswer =
   | { kind: "the_person_editing"; author: ProjectTransactionAuthor }
   | { kind: "project_assets_imported"; assets_imported: ProjectAssetsImported }
   | { kind: "asset_preview_read"; picture: AssetPreviewPicture }
+  /** What the runtime's `list_audio_capture_devices` answered, the contract's own answer. */
+  | { kind: "audio_capture_devices_listed"; listing: ListAudioCaptureDevicesToolResult }
   /** The person closed the open dialog choosing no file. */
   | { kind: "nothing_chosen" }
   /** The asset the person chose in the asset picker, by its UUID. */

@@ -7,7 +7,7 @@ const BUILT_IN_PIN_TYPE_NAMES: readonly BuiltInPinTypeName[] = Object.values(ONE
 
 test("with no element listed, every built-in pin type's input gets the read-only line with its reason", () => {
   const table = new NodeUiControlTable({ elements: [] });
-  expect(BUILT_IN_PIN_TYPE_NAMES).toHaveLength(21);
+  expect(BUILT_IN_PIN_TYPE_NAMES).toHaveLength(22);
   for (const name of BUILT_IN_PIN_TYPE_NAMES) {
     const pinType = ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME[name];
     const typeWords = pinType.type === "named" ? pinType.named_pin_type : name.replaceAll("_", " ");
