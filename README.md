@@ -210,8 +210,10 @@ needs where unprivileged user namespaces are off. `Depends` names Electron's lib
 versions or `t64` suffixes, so one package installs on Ubuntu 22.04 and 24.04; the build fails if
 the app links a library the list does not name. It recommends `curl` for the installer's command.
 Its `resources/` carry streamlib's runtime unit in `tatolab-runtime/` (the release tarball's `bin/`,
-`lib/` and `streamlib-commit`), whose `bin/tatolabd` the app runs as its child. The AppImage carries the same app; it has no setuid sandbox helper, so it needs unprivileged user
-namespaces (on by default on Ubuntu 22.04, restricted by AppArmor on 24.04).
+`lib/` and `streamlib-commit`), whose `bin/tatolabd` the app runs as its child. The AppImage carries the same app; it has no setuid sandbox helper, so Chromium's sandbox needs
+unprivileged user namespaces (on by default on Ubuntu 22.04, restricted by AppArmor on 24.04).
+Where its launcher cannot open one, it starts the app with `--no-sandbox` and says so on standard
+error, and the app logs a warning that it runs without the sandbox.
 
 ## Building on macOS
 
@@ -265,8 +267,9 @@ is on that test port; two proofs on one machine each set their own. The app link
 the root's `home/.local/bin`. Use it to prove the app on a development Mac. It is
 never shipped: `assemble-tatolab-app-bundle.sh` refuses a test-root unit without the flag, and
 `verify-tatolab-app-bundle.sh --shipping` fails such a bundle, whether the marker or the build
-features inside the asar give it away, and fails one that checks any
-update feed but get.tatolab.com's.
+features inside the asar give it away, and fails one that checks no update feed or any
+update feed but get.tatolab.com's. A local proof build checks for no update unless
+`--app-update-feed-url` names a feed.
 
 The individual steps are separate scripts in `apps/tato-app/scripts/`:
 
@@ -313,7 +316,8 @@ the script), checks the fuses, the build features, the `.deb`'s members, sandbox
 `machineDirectoriesUnderATestRoot` on, so the app reads the runtime under
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, and names both packages `-local-proof`;
 `--app-update-feed-url URL`, only with it, points the app at a local update feed; `--release`, which
-the release workflow passes, makes About read `-release`.
+the release workflow passes, makes About read `-release`. The build sets its own `umask 022`, so the
+packages' files have the same modes whatever the shell's umask is.
 
 ## Working on the window
 
