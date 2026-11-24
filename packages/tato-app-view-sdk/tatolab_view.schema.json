@@ -489,6 +489,12 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "members": {
               "type": "array",
               "items": {
@@ -1033,6 +1039,9 @@
               "items": {
                 "$ref": "#/$defs/PinType"
               }
+            },
+            "among_the_bundles_its_stream_declares": {
+              "type": "boolean"
             },
             "type": {
               "type": "string",
