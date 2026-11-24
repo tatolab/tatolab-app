@@ -201,6 +201,11 @@ export default class ListRows extends HTMLElement implements InputControlElement
     this.#showTheButtons();
   }
 
+  connectedCallback(): void {
+    // A row holds its controls and its buttons side by side, so on a node it takes the width they need.
+    this.toggleAttribute("data-takes-its-own-width", true);
+  }
+
   set value(list: unknown[]) {
     this.#list = [...list];
     this.#drawTheRows();

@@ -497,6 +497,16 @@
   width: 16px;
 }
 
+/* On a node the List takes its own width: each column at most a control's width on a node and at least enough to read
+   a short value, so a row of a bundle's members fits the card as it grows to its widest. */
+:host([data-surface="node"]) .list-row-grid {
+  grid-template-columns: repeat(var(--list-part-count, 1), minmax(56px, 88px)) auto;
+}
+
+:host([data-surface="node"]) .list-row-control > * {
+  width: 100%;
+}
+
 /* A Boolean's checkbox: a box ticked in the brand colour while true. */
 .checkbox {
   display: block;

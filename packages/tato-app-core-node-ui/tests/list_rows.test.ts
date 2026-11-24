@@ -253,6 +253,10 @@ describe("the List rows", () => {
     expect(partOf(control, ".list-add").hidden).toBe(true);
   });
 
+  it("takes its own width on a node, so its row of controls and buttons is not held to one control's width", () => {
+    expect(mountedListRows(NO_STUDIO_CALLS, []).hasAttribute("data-takes-its-own-width")).toBe(true);
+  });
+
   it("shows no member names over a List of one small type", () => {
     const control = mountedListRows(studioOfTextLines().studio, ["one"]);
     expect(partOf(control, ".list-member-names").hidden).toBe(true);
