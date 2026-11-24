@@ -54,8 +54,12 @@ class StandInAssetControl extends HTMLElement implements InputControlElement<"as
   get words(): string {
     return this.#held === null ? "None" : (this.#paths.get(this.#held.asset) ?? this.#held.asset);
   }
+  /** Whether a pick it asked for has not ended yet. */
+  isPicking = false;
   async choose(): Promise<void> {
+    this.isPicking = true;
     const ending = await (this.#studio ?? expect.unreachable("the control has no pin")).pickAProjectAsset({ media: ["image"], chosen_now: this.#held?.asset ?? null });
+    this.isPicking = false;
     this.#refusal = ending.kind === "not_started" ? ending.because : null;
     this.#draw();
     if (ending.kind === "chosen" && ending.asset !== this.#held?.asset) fireInputControlEvent(this, "change", { asset: ending.asset });
@@ -462,11 +466,19 @@ describe("the studio", () => {
     await waitFor(() => expect(rowLabels().length).toBeGreaterThan(2));
   });
 
-  it("chooses an image for Image File's asset control in the asset picker over the window, sends its UUID, imports one that is chosen at once, undoes that with one ⌘Z, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
+  it("chooses an image for Image File's asset control in the asset picker over the window, sends its UUID, imports one that is chosen at once, undoes that with one ⌘Z pressed before the runtime answers, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
     const assetsSent: unknown[] = [];
     const mediaTheImportOffered: (readonly string[] | null)[] = [];
     let refusesTheNextAssetSet = false;
+    // The image imported reaches the runtime only once ⌘Z has read who is editing, the step before the undo is sent, so the
+    // undo is asked while that edit is unanswered.
+    let readWhoIsEditing = (): void => undefined;
+    const theUndoAsked = new Promise<void>((resolve) => {
+      readWhoIsEditing = resolve;
+    });
+    let isTheImportedPickAnswered = false;
+    const importedPickAnsweredAtEachUndo: boolean[] = [];
     await mountedWindowOverTheMock("state=node-not-ready", {
       ...mockBackend,
       ...nodeTypesListingImageFile(mockBackend),
@@ -474,12 +486,27 @@ describe("the studio", () => {
         mediaTheImportOffered.push(media);
         return mockBackend.importAssetsIntoTheOpenProject(media);
       },
+      readThePersonEditingInStudio: async () => {
+        const author = await mockBackend.readThePersonEditingInStudio();
+        readWhoIsEditing();
+        return author;
+      },
+      undoInTheOpenProject: (author) => {
+        importedPickAnsweredAtEachUndo.push(isTheImportedPickAnswered);
+        return mockBackend.undoInTheOpenProject(author);
+      },
       transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
         const assetSet = operations.find((operation) => operation.operation === "set_node_input_value" && operation.input === "asset");
         if (assetSet !== undefined && assetSet.operation === "set_node_input_value") {
           assetsSent.push(jsonObjectMembersOf(assetSet.value ?? null)["asset"] ?? null);
           if (refusesTheNextAssetSet)
             return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: assetSet.node, refused_link: null, refused_field: "asset", refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "input `asset`: not an asset of the project" } };
+          if (assetsSent.length === 2) {
+            await theUndoAsked;
+            const answered = await mockBackend.transactInTheOpenProject(operations, mode, idempotencyKey);
+            isTheImportedPickAnswered = true;
+            return answered;
+          }
         }
         return mockBackend.transactInTheOpenProject(operations, mode, idempotencyKey);
       },
@@ -494,6 +521,8 @@ describe("the studio", () => {
     };
     const assetWords = () => ({ value: assetControl().words });
     const openThePicker = async () => {
+      // Choose is pressable again only once the last pick ended, which comes after the picker leaves the window.
+      await waitFor(() => expect(assetControl().isPicking).toBe(false));
       void assetControl().choose();
       await waitFor(() => screen.getByRole("dialog", { name: "Choose an image" }));
       const pickerFrame = await waitFor(() => document.querySelector<HTMLIFrameElement>('[data-project-asset-picker] iframe[data-tatolab-view="library"]') ?? expect.unreachable("no Library in the asset picker"));
@@ -520,6 +549,7 @@ describe("the studio", () => {
 
     fireEvent.keyDown(document, { key: "z", metaKey: true });
     await waitFor(() => expect(assetWords().value).toBe("media/poster.png"), { timeout: 5000 });
+    expect(importedPickAnsweredAtEachUndo).toEqual([true]);
 
     await openThePicker();
     fireEvent.click(within(screen.getByRole("dialog", { name: "Choose an image" })).getByRole("button", { name: "Close" }));
