@@ -79,7 +79,7 @@ export class ProjectTransactionsReadings {
     const answering =
       undoOrRedoBefore === null
         ? send()
-        : undoOrRedoBefore.then(() => (this.readTheOpenProjectFolder() === projectFolder ? send() : { kind: "not_sent", because: onlyTheOpenProjectsFeedRefusal(projectFolder) }));
+        : undoOrRedoBefore.then((): Promise<ProjectGraphTransactionApplying> | ProjectGraphTransactionApplying => (this.readTheOpenProjectFolder() === projectFolder ? send() : { kind: "not_sent", because: onlyTheOpenProjectsFeedRefusal(projectFolder) }));
     this.transactionsUnanswered.add(answering);
     void answering.then(() => this.transactionsUnanswered.delete(answering));
     return answering;
