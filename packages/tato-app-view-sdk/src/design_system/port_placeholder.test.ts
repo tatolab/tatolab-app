@@ -11,7 +11,7 @@ describe("the emblem a port's placeholder draws for its pin type", () => {
     expect(drawnFor([{ type: "tensor" }])).toEqual(["grid"]);
     expect(drawnFor([{ type: "encoded_video" }, { type: "encoded_audio" }])).toEqual(["units", "units"]);
     expect(
-      drawnFor([{ type: "boolean" }, { type: "integer" }, { type: "float" }, { type: "color" }, { type: "vector", component_count: 3 }, { type: "rectangle" }, { type: "transform" }, { type: "audio" }]),
+      drawnFor([{ type: "boolean" }, { type: "integer" }, { type: "float" }, { type: "color" }, { type: "vector", component_count: "three" }, { type: "rectangle" }, { type: "transform" }, { type: "audio" }]),
     ).toEqual(Array(8).fill("waves"));
     expect(drawnFor([{ type: "string" }, { type: "menu", option_names: ["a"] }, { type: "asset" }, { type: "trigger" }])).toEqual(Array(4).fill("rows"));
   });
