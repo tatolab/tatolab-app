@@ -18,6 +18,9 @@
 }
 
 /* What a port's preview draws behind its picture or placeholder: the area's colour under a field of faint points. */
+/* A typed port's placeholder takes its pin type's socket colour, which `[data-pin-type]` sets. */
+.port-placeholder[data-pin-type] { --port-placeholder-colour: var(--node-graph-pin-colour); }
+
 .port-placeholder, .port-preview-surface {
   --port-preview-surface-background:
     radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--fg-3) 22%, transparent) 1px, transparent 1.5px) 0 0 / 20px 20px,
@@ -28,11 +31,6 @@
 .port-preview-surface[data-viewer-node-not-ready] {
   background: repeating-conic-gradient(color-mix(in oklab, var(--fg-3) 28%, var(--studio-area)) 0% 25%, var(--studio-area) 0% 50%) 0 0 / 16px 16px;
 }
-.port-placeholder[data-port-carries="picture"] { --port-placeholder-colour: var(--studio-port-picture); }
-.port-placeholder[data-port-carries="tensor"] { --port-placeholder-colour: var(--studio-port-tensor); }
-.port-placeholder[data-port-carries="signal"] { --port-placeholder-colour: var(--studio-port-signal); }
-.port-placeholder[data-port-carries="encoded"] { --port-placeholder-colour: var(--studio-port-encoded); }
-.port-placeholder[data-port-carries="record"] { --port-placeholder-colour: var(--studio-port-record); }
 
 .port-placeholder-emblem {
   width: min(100%, 320px);

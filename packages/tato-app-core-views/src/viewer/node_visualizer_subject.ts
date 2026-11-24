@@ -1,4 +1,4 @@
-import { type StreamGraph, type StreamGraphNode, type StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { mayCarryAPicture, type StreamGraph, type StreamGraphNode, type StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeTitle } from "../shared/node_words";
 
 /** One output port of a stream's graph: its node's id as `graph` lists it, that node's name, and the port's own name. */
@@ -14,7 +14,7 @@ export function nodeVisualizerSubjectOf(graph: StreamGraph, selection: StudioSel
   if (selectedNode === undefined) return { kind: "nothing_selected" };
   const played =
     selectedNode.ports.outputs.find((outputPort) => outputPort.pin_type?.type === "texture") ??
-    selectedNode.ports.outputs.find((outputPort) => outputPort.pin_type === undefined) ??
+    selectedNode.ports.outputs.find((outputPort) => mayCarryAPicture(outputPort.pin_type)) ??
     selectedNode.ports.outputs[0];
   if (played === undefined) return { kind: "node_without_output", node: selectedNode };
   return { kind: "port", port: { node_id: selectedNode.id, node_name: selectedNode.name, port: played.name } };

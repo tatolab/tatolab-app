@@ -222,7 +222,7 @@ describe("the studio", () => {
 
     const placeholder = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-state="node_not_running"]') ?? expect.unreachable("no placeholder for the stopped node"));
     expect(placeholder.getAttribute("data-viewer-node-state")).toBe("Stopped");
-    expect(placeholder.getAttribute("data-port-carries")).toBe("picture");
+    expect(placeholder.getAttribute("data-pin-type")).toBe("texture");
     expect(placeholder.textContent).toContain("Kaleidoscope › result");
     expect(placeholder.textContent).toContain("Not running. It shows here live once the stream plays.");
     expect(coreViewPage("viewer", "viewer").querySelector("[data-viewer-playing]")).toBeNull();

@@ -2,6 +2,8 @@
 // naming the stream by its stream asset and a node by its UUID, as the runtime's action contract spells them.
 // The canvas names a card by its node's name, which a link end names it by too.
 
+import { isTheSamePinType } from "@tatolab/tato-app-view-sdk/built_in_pin_types";
+import type { PinType } from "@tatolab/tato-app-view-sdk/pin_type_readings";
 import {
   fragmentKindOfTheNode,
   fragmentOfTheNode,
@@ -171,9 +173,9 @@ function linkEndOfThePin(node: string, end: WiredPinEnd): StreamGraphActionLinkE
   return { node, port: end.pin, ...(end.member === null ? {} : { member: end.member }) };
 }
 
-/** The first port of `ports` that can take or give a pin of the type named `typeName`: one of that type, or one of no exact type; any port when the type is unknown. */
-function firstPortOfTheType(ports: readonly Pick<StreamGraphPort, "name" | "pin_type">[], typeName: string | null): string | null {
-  return (typeName === null ? ports[0] : (ports.find((port) => port.pin_type === undefined || port.pin_type.type === typeName) ?? null))?.name ?? null;
+/** The first port of `ports` that can take or give a pin of `pinType`: one of that very type, or one of no exact type; any port when the type is unknown. */
+function firstPortOfTheType(ports: readonly Pick<StreamGraphPort, "name" | "pin_type">[], pinType: PinType | null): string | null {
+  return (pinType === null ? ports[0] : (ports.find((port) => port.pin_type === undefined || isTheSamePinType(port.pin_type, pinType)) ?? null))?.name ?? null;
 }
 
 /** The inputs of `nodeType` a wire can end at: each its description marks as taking one, a setting among them, and each it marks neither way. */
@@ -247,11 +249,11 @@ export function cardLetGoOverALinkEdits(edited: EditedStreamGraph, describedByTy
   const link = edited.graph.links.find((graphLink) => linkIdAsTheCanvasKeysIt(graphLink) === linkId);
   if (node === undefined || link === undefined) return [];
   const sourcePort = edited.graph.nodes.find((graphNode) => graphNode.name === link.source.node)?.ports.outputs.find((port) => port.name === link.source.port);
-  const typeName = sourcePort?.pin_type?.type ?? null;
+  const linkPinType = sourcePort?.pin_type ?? null;
   const describedInputs = describedByType.get(node.type)?.inputs ?? [];
   const inputsTakingAWire = node.ports.inputs.filter((port) => doesTheInputPortTakeAWire(port, describedInputs.find((input) => input.name === port.name)));
-  const input = firstPortOfTheType(inputsTakingAWire, typeName);
-  const output = firstPortOfTheType(node.ports.outputs, typeName);
+  const input = firstPortOfTheType(inputsTakingAWire, linkPinType);
+  const output = firstPortOfTheType(node.ports.outputs, linkPinType);
   const linkSource = linkEndByNodeId(edited, link.source);
   const linkTarget = linkEndByNodeId(edited, link.target);
   if (input === null || output === null || linkSource === null || linkTarget === null) return [];

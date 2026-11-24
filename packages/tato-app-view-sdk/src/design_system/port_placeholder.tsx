@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from "react";
 import type { PinType } from "../pin_types";
+import { pinTypeKeyOfTheType } from "../pin_model/pin_type_words";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 
 const EMBLEM_WIDTH = 320;
@@ -8,7 +9,7 @@ const EMBLEM_HEIGHT = 180;
 const IMAGE_GLOWS = [
   { centreX: 110, centreY: 78, radius: 90, colour: "currentColor", opacity: 0.6 },
   { centreX: 214, centreY: 112, radius: 80, colour: "var(--brand)", opacity: 0.5 },
-  { centreX: 176, centreY: 60, radius: 60, colour: "var(--studio-port-signal)", opacity: 0.28 },
+  { centreX: 176, centreY: 60, radius: 60, colour: "var(--studio-pin-type-float)", opacity: 0.28 },
 ] as const;
 
 function PictureFrameEmblem() {
@@ -167,20 +168,29 @@ function UntypedFramesEmblem() {
   );
 }
 
-/** What a port's placeholder draws for the pin type it carries: a picture, a signal of numbers, a tensor, encoded units or a record. */
-export type PortPlaceholderCarries = "picture" | "signal" | "tensor" | "encoded" | "record";
+/** The emblem a port's placeholder draws: a frame for a picture, waves for a value that changes over time, a grid for a tensor, rising units for encoded media, rows for words and records. */
+export type PortPlaceholderEmblem = "frame" | "waves" | "grid" | "units" | "rows";
 
-/** What a port carrying `pinType` shows on its placeholder; `null` for a port with no pin type. */
-export function whatThePortPlaceholderCarries(pinType: PinType | null): PortPlaceholderCarries | null {
+const HEAVY_MEMBER_TYPES: ReadonlySet<PinType["type"]> = new Set(["texture", "audio", "encoded_video", "encoded_audio"]);
+
+/** The emblem of a whole value of `bundle`: none when it holds a picture, sound or encoded units, the grid when it holds only tensors, else rows. */
+function emblemOfTheBundle(bundle: Extract<PinType, { type: "bundle" }>): PortPlaceholderEmblem | null {
+  if (bundle.members.some(({ member_type }) => HEAVY_MEMBER_TYPES.has(member_type.type))) return null;
+  if (bundle.members.length > 0 && bundle.members.every(({ member_type }) => member_type.type === "tensor")) return "grid";
+  return "rows";
+}
+
+/** The emblem a port carrying `pinType` shows on its placeholder; `null`, the neutral one, for a port with no pin type, or one whose type no one emblem stands for. */
+export function emblemOfThePinType(pinType: PinType | null): PortPlaceholderEmblem | null {
   if (pinType === null) return null;
   switch (pinType.type) {
     case "texture":
-      return "picture";
+      return "frame";
     case "tensor":
-      return "tensor";
+      return "grid";
     case "encoded_video":
     case "encoded_audio":
-      return "encoded";
+      return "units";
     case "boolean":
     case "integer":
     case "float":
@@ -189,22 +199,37 @@ export function whatThePortPlaceholderCarries(pinType: PinType | null): PortPlac
     case "rectangle":
     case "transform":
     case "audio":
-      return "signal";
-    default:
-      return "record";
+      return "waves";
+    case "string":
+    case "menu":
+    case "asset":
+    case "trigger":
+      return "rows";
+    case "bundle":
+      return emblemOfTheBundle(pinType);
+    case "list_of":
+    case "named":
+    case "connection":
+    case "node_reference":
+    case "pin_type_choice":
+      return null;
+    default: {
+      const kindNotDrawn: never = pinType;
+      return kindNotDrawn;
+    }
   }
 }
 
-function PortPlaceholderEmblem({ carries }: { carries: PortPlaceholderCarries | null }) {
-  if (carries === "picture") return <PictureFrameEmblem />;
-  if (carries === "signal") return <SignalWavesEmblem />;
-  if (carries === "tensor") return <TensorGridEmblem />;
-  if (carries === "encoded") return <EncodedUnitsEmblem />;
-  if (carries === "record") return <RecordRowsEmblem />;
+function EmblemDrawn({ emblem }: { emblem: PortPlaceholderEmblem | null }) {
+  if (emblem === "frame") return <PictureFrameEmblem />;
+  if (emblem === "waves") return <SignalWavesEmblem />;
+  if (emblem === "grid") return <TensorGridEmblem />;
+  if (emblem === "units") return <EncodedUnitsEmblem />;
+  if (emblem === "rows") return <RecordRowsEmblem />;
   return <UntypedFramesEmblem />;
 }
 
-/** What a port's preview shows while nothing live reaches it: an emblem of what its pin type carries, what it previews, when it will show live, and, folded under Details, words such as the runtime's own. */
+/** What a port's preview shows while nothing live reaches it: an emblem of what its pin type carries in that type's colour, what it previews, when it will show live, and, folded under Details, words such as the runtime's own. */
 export function PortPlaceholder({
   pinType,
   title,
@@ -221,11 +246,11 @@ export function PortPlaceholder({
   /** The control that recovers what the placeholder stands in for, under its explanation. */
   action?: ReactNode;
 } & ControlDataAttributes) {
-  const carries = whatThePortPlaceholderCarries(pinType);
+  const emblem = emblemOfThePinType(pinType);
   return (
-    <div className="port-placeholder" data-port-carries={carries ?? undefined} {...controlDataAttributes}>
+    <div className="port-placeholder" data-pin-type={pinType === null ? undefined : pinTypeKeyOfTheType(pinType)} data-port-placeholder-emblem={emblem ?? undefined} {...controlDataAttributes}>
       <svg className="port-placeholder-emblem" viewBox={`0 0 ${EMBLEM_WIDTH} ${EMBLEM_HEIGHT}`} aria-hidden>
-        <PortPlaceholderEmblem carries={carries} />
+        <EmblemDrawn emblem={emblem} />
       </svg>
       <div className="flex max-w-md flex-col items-center gap-1 text-center">
         <div className="text-sm text-fg">{title}</div>

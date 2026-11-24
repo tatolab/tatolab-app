@@ -13,6 +13,7 @@ import {
   type StreamGraphPort,
   type StreamGraphReading,
   type StreamTabAddress,
+  mayCarryAPicture,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
 import { CoreViewFrame } from "../shared/core_view_page";
@@ -136,7 +137,7 @@ export function PortViewerPicture({
         <PortPlaceholder
           pinType={streamFactsOfThePort.pin_type}
           title={portWords}
-          explanation={streamFactsOfThePort.pin_type === null || streamFactsOfThePort.pin_type.type === "texture" ? "Waiting for the node's next frame." : "Waiting for the node's next message."}
+          explanation={mayCarryAPicture(streamFactsOfThePort.pin_type) ? "Waiting for the node's next frame." : "Waiting for the node's next message."}
           data-viewer-waiting=""
         />
       )}

@@ -717,7 +717,6 @@ describe("a bundle pin", () => {
         member: null,
         bundle: { members: [memberPin("left"), memberPin("right")], is_open: isOpen },
         pin: { pin_type: { type: "bundle", members: [{ name: "left", member_type: { type: "float" } }, { name: "right", member_type: { type: "float" } }] }, flow: "value" },
-        family: "channels",
         description: null,
         annotations: {},
         stream_facts_words: [],

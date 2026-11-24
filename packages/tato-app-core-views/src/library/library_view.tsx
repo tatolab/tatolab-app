@@ -66,7 +66,7 @@ function LibraryPortRow({ direction, portName, typeWords, portTitle, dataAttribu
 function describedPortTypeWords(port: NodeTypePortDescribed & { annotation?: string | null }): string {
   const pin = exactPinOfTheDeclaredPort(port);
   if (pin !== null) return pinTypeWords(pin.pin_type);
-  return port.annotation ?? pinWords(null);
+  return port.annotation === undefined || port.annotation === null || port.annotation === "" ? pinWords(null) : port.annotation;
 }
 
 function PortsOfTheDeclaration({ direction, ports }: { direction: "In" | "Out"; ports: readonly (NodeTypePortDescribed & { annotation?: string | null })[] }) {

@@ -201,6 +201,11 @@ export function pinOfThePort(port: Pick<GraphNodePortOnTheWire, "pin_type" | "fl
   return port.pin_type === undefined || port.flow === undefined ? null : { pin_type: port.pin_type, flow: port.flow };
 }
 
+/** Whether a port carrying `pinType` may carry a picture: a Texture, or a port of no exact type, which the Node visualizer plays as one. */
+export function mayCarryAPicture(pinType: PinType | null | undefined): boolean {
+  return pinType === null || pinType === undefined || pinType.type === "texture";
+}
+
 /** The value an input reads while unlinked, `null` while a link feeds it or it reads none, and where it comes from, `null` while it reads none. */
 export type StreamGraphInputValueRead = { value: JsonValue | null; comes_from: InputValueComesFromOnTheWire | null };
 
