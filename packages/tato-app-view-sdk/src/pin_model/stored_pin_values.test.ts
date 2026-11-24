@@ -143,3 +143,28 @@ test("a choice among the bundles of a stream that declares none takes no type, n
   expect(jsonOfTheStoredPinValue(NO_BUNDLE_OF_THE_STREAM, { type: "float" })).toBeUndefined();
   expect(storedPinValueOfTheJson(A_BUNDLE_OF_THE_STREAM, { type: "bundle", name: "Pitch", members: [{ name: "level", member_type: { type: "float" } }] })).toBeUndefined();
 });
+
+const LAYERS = {
+  type: "list_of",
+  element_type: {
+    type: "bundle",
+    name: "Layer",
+    members: [
+      { name: "label", member_type: { type: "string" } },
+      { name: "opacity", member_type: { type: "float" }, default_value: 1 },
+    ],
+  },
+} satisfies PinType & JsonValue;
+
+test("a List of bundles reads and sends each element as its members, each in its type's form, a member with a default left out", () => {
+  const saved = [{ label: "back" }, { label: "front", opacity: 0.5 }];
+  expect(storedPinValueOfTheJson(LAYERS, saved)).toEqual(saved);
+  expect(jsonOfTheStoredPinValue(LAYERS, saved)).toEqual(saved);
+});
+
+test("a List of bundles with an element missing a member that declares no default, naming no member, or holding a member not of its type's form reads as no value", () => {
+  for (const element of [{ opacity: 0.5 }, { label: "back", depth: 2 }, { label: 3 }, "back"]) {
+    expect(storedPinValueOfTheJson(LAYERS, [element])).toBeUndefined();
+    expect(jsonOfTheStoredPinValue(LAYERS, [element])).toBeUndefined();
+  }
+});

@@ -387,7 +387,8 @@
   box-shadow: inset 0 0 0 1px var(--studio-graph-card-line);
 }
 
-/* A List: a row for each element, its element's control before a button that removes it, then a button that adds one. */
+/* A List: a row for each element, its element's control, or one control for each member of a bundle under the members'
+   names, before buttons that move it up, move it down and remove it; then a button that adds one. */
 .list-rows {
   display: flex;
   flex-direction: column;
@@ -395,20 +396,40 @@
   min-width: 0;
 }
 
-.list-row {
-  display: flex;
+.list-row-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--list-part-count, 1), minmax(0, 1fr)) auto;
+  column-gap: 4px;
+}
+
+.list-row,
+.list-member-names {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: 2px;
   min-width: 0;
 }
 
+.list-member-names[hidden] {
+  display: none;
+}
+
+.list-member-name {
+  overflow: hidden;
+  color: var(--fg-3);
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .list-row-control {
-  flex: 1;
   min-width: 0;
 }
 
 .list-row-words {
-  flex: 1;
+  display: block;
   min-width: 0;
   overflow: hidden;
   color: var(--fg-3);
@@ -416,7 +437,12 @@
   white-space: nowrap;
 }
 
-.list-row-remove,
+.list-row-buttons {
+  display: flex;
+  gap: 0;
+}
+
+.list-row-button,
 .list-add {
   flex: none;
   height: 24px;
@@ -430,7 +456,7 @@
   cursor: pointer;
 }
 
-.list-row-remove {
+.list-row-button {
   width: 20px;
 }
 
@@ -440,17 +466,17 @@
   font-family: var(--font-sans, system-ui, sans-serif);
 }
 
-.list-row-remove:hover:not(:disabled),
+.list-row-button:hover:not(:disabled),
 .list-add:hover:not(:disabled) {
   color: var(--fg);
 }
 
-.list-row-remove:focus-visible,
+.list-row-button:focus-visible,
 .list-add:focus-visible {
   box-shadow: 0 0 0 2px var(--ring);
 }
 
-.list-row-remove:disabled,
+.list-row-button:disabled,
 .list-add:disabled {
   cursor: default;
   opacity: 0.5;
@@ -461,9 +487,13 @@
   font-family: var(--font-sans, system-ui, sans-serif);
 }
 
-:host([data-surface="node"]) .list-row-remove,
+:host([data-surface="node"]) .list-row-button,
 :host([data-surface="node"]) .list-add {
   height: 20px;
+}
+
+:host([data-surface="node"]) .list-row-button {
+  width: 16px;
 }
 
 /* A Boolean's checkbox: a box ticked in the brand colour while true. */

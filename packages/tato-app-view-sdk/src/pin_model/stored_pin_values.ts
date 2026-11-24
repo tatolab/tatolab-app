@@ -1,12 +1,13 @@
 // An input's value as the store holds it, JSON, and as a control holds it, the stored value its pin
-// type generates. Each built-in type that stores a value and has a control is read each way; any
-// other type, a bundle among them, reads as no value, so no control is handed a value of a form it
-// does not declare. A Trigger stores none. A Pin type choice stores the pin type it chose, read as
+// type generates. Each built-in type that stores a value and has a control is read each way, and a
+// bundle, as a List's element is one, as an object of its members, each read as its type; any other
+// type reads as no value, so no control is handed a value of a form it does not declare. A Trigger
+// stores none. A Pin type choice stores the pin type it chose, read as
 // the type the choice stores for it: an entry of its `among` list, a type its menu offers when the
 // list is empty, or the one listed bundle of the stream an unnamed saved bundle has the members of.
 
 import { pinTypesTheChoiceOffers, pinTypeTheChoiceTakes, type PinTypeChoice } from "./pin_type_choice.js";
-import type { AssetPinValue, BuiltInPinTypeName, ColorPinValue, PinType, RectanglePinValue, VectorComponentCount, VectorPinValue } from "../pin_types.js";
+import type { AssetPinValue, BuiltInPinTypeName, BundleMember, ColorPinValue, PinType, RectanglePinValue, VectorComponentCount, VectorPinValue } from "../pin_types.js";
 import type { StoredPinValue } from "../node_ui/input_control_element.js";
 import { isAJsonValue, type JsonValue } from "../studio_readings.js";
 import { isAPinType } from "./pin_type_check.js";
@@ -104,6 +105,24 @@ function listOf<Element>(value: unknown, readTheElement: (element: unknown) => E
   return elements;
 }
 
+/** `value` as a bundle of `members`: an object of no key but a member's, each member it holds read by `readTheMember`, each it leaves out declaring a default; `undefined` otherwise. */
+function bundleOf<Member>(value: unknown, members: readonly BundleMember[], readTheMember: (memberType: PinType, member: unknown) => Member | undefined): Record<string, Member> | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const entries = new Map<string, unknown>(Object.entries(value));
+  const bundle: Record<string, Member> = {};
+  for (const member of members) {
+    if (!entries.has(member.name)) {
+      if (member.default_value === undefined) return undefined;
+      continue;
+    }
+    const read = readTheMember(member.member_type, entries.get(member.name));
+    if (read === undefined) return undefined;
+    bundle[member.name] = read;
+    entries.delete(member.name);
+  }
+  return entries.size === 0 ? bundle : undefined;
+}
+
 /** The pin type `choice` takes `value` as, as JSON; `undefined` for a value that is no pin type, or one the choice does not take. */
 function pinTypeTheChoiceTakesTheValueAs(choice: PinTypeChoice, value: unknown): (PinType & JsonValue) | undefined {
   if (!isAJsonValue(value) || !isAPinType(value)) return undefined;
@@ -146,6 +165,8 @@ export function storedPinValueOfTheJson(pinType: PinType, value: JsonValue | nul
       const elementType = pinType.element_type;
       return listOf(value, (element) => (isAJsonValue(element) ? storedPinValueOfTheJson(elementType, element) : undefined));
     }
+    case "bundle":
+      return bundleOf(value, pinType.members, (memberType, member) => (isAJsonValue(member) ? storedPinValueOfTheJson(memberType, member) : undefined));
     case "pin_type_choice":
       return pinTypeTheChoiceTakesTheValueAs(pinType, value);
     case "color":
@@ -181,6 +202,8 @@ export function jsonOfTheStoredPinValue(pinType: PinType, stored: unknown): Json
       const elementType = pinType.element_type;
       return listOf(stored, (element) => jsonOfTheStoredPinValue(elementType, element));
     }
+    case "bundle":
+      return bundleOf(stored, pinType.members, (memberType, member) => jsonOfTheStoredPinValue(memberType, member));
     case "pin_type_choice":
       return pinTypeTheChoiceTakesTheValueAs(pinType, stored);
     case "color":
