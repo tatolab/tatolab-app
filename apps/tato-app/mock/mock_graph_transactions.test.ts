@@ -45,7 +45,6 @@ const CANVAS = mockNodeIdOf(STREAM_ID, "canvas");
 /** Pulse Stage's `GlowBlur`, which reads pictures on `image`: a node type the recording describes. */
 const GLOW_BLUR = "nodes.looks:GlowBlur";
 /** Pulse Stage's `ClickTrack`, whose `volume` is a setting: a node type the recording describes. */
-const CLICK_TRACK = "nodes.click_track:ClickTrack";
 /** Pulse Stage's `ClickCue`, which reads an Integer `count` and a Boolean `downbeat`: a node type the recording describes. */
 const CLICK_CUE = "nodes.beat:ClickCue";
 
@@ -192,23 +191,6 @@ test("a collapsed node is saved as a stream the subgraph places, wired through i
   apply(graph, undo.flatMap((action) => (action === null ? [] : [action])));
   expect(graph.nodes.map((node) => node.name)).toEqual(["canvas", "glowblur"]);
   expect(graph.links).toMatchObject([{ source_node: "canvas", source_port: "image", target_node: "glowblur", target_port: "image" }]);
-});
-
-test("a node takes a setting as the input its description lists, fed by a Graph Input of the family asked, and its undo puts it back", () => {
-  const graph = aCanvasAlone();
-  apply(graph, [{ operation: "add_node", stream: STREAM_ASSET, type: CLICK_TRACK, as: "click" }]);
-  const click = mockNodeIdOf(STREAM_ID, "clicktrack");
-  const exposed = apply(graph, [
-    { operation: "set_exposed_config_fields", stream: STREAM_ASSET, node: click, exposed_config_fields: ["volume"] },
-    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "clicktrack_volume", config: { port: "clicktrack_volume", family: "channels" }, as: "graph_input" },
-    { operation: "connect", stream: STREAM_ASSET, source: { node: "graph_input", port: "value" }, target: { node: click, port: "volume" } },
-  ]);
-  const clickNode = graph.nodes.find((node) => node.name === "clicktrack") ?? expect.unreachable("no click track");
-  expect(clickNode.exposed_config_fields).toEqual(["volume"]);
-  expect(clickNode.input_ports.map((port) => port.name)).toEqual(["cue", "volume"]);
-  expect(graph.nodes.find((node) => node.name === "clicktrack_volume")).toMatchObject({ state: null, input_ports: [], output_ports: [{ name: "value", family: "channels" }] });
-  expect(graph.links).toMatchObject([{ source_node: "clicktrack_volume", target_node: "clicktrack", target_port: "volume", state: "wired" }]);
-  expect(exposed.inverse_operations.map((operation) => graphActionApplyingTheHistoryOperation(operation)?.operation)).toEqual(["disconnect", "remove_node", "set_exposed_config_fields"]);
 });
 
 test("a Graph Input, Graph Output or Set Variable added with no name takes the next free one, and a Get Variable reads the last setter's", () => {

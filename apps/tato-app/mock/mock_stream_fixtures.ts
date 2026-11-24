@@ -178,8 +178,6 @@ export interface MockGraphNode {
   pins?: Record<string, JsonValue>;
   /** The default each input that holds a value reads while none is set, as its port declares it, by input name. */
   input_defaults?: Record<string, JsonValue>;
-  /** The config fields it takes as inputs, each also one of `input_ports`. */
-  exposed_config_fields?: string[];
   /** Its settings, held as its config's fields, which `set_node_input_value` sets in `config`: each one no port, or one of `input_ports` that reads the value its config holds, else the default its port reads. */
   settings?: string[];
   input_ports: MockGraphPort[];

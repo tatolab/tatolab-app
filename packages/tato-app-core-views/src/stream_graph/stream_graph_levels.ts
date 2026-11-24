@@ -41,9 +41,9 @@ export function isTheInsideOfTheSubgraphEdited(subgraph: StreamGraphNode): boole
   return fragmentOfTheNode(subgraph) !== null && fragmentKindOfTheNode(subgraph) === "placed_stream" && theImportAPlacedStreamIsOf(subgraph) === null;
 }
 
-/** The import whose stream `subgraph` places, from its config's `stream.from`; `null` for a stream of its own project. */
+/** The import whose stream `subgraph` places, from the `stream.from` of its input values; `null` for a stream of its own project. */
 function theImportAPlacedStreamIsOf(subgraph: StreamGraphNode): string | null {
-  const placedStream = jsonObjectMembersOf(subgraph.config)["stream"];
+  const placedStream = jsonObjectMembersOf(subgraph.input_values)["stream"];
   if (placedStream === null || typeof placedStream !== "object" || Array.isArray(placedStream)) return null;
   const importedFrom = placedStream["from"];
   return typeof importedFrom === "string" ? importedFrom : null;

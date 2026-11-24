@@ -233,7 +233,7 @@ test("an_input_that_holds_a_value_is_addressed_by_its_nodes_id_at_the_level_draw
   expect(streamGraphCanvasContents(linked, NONE_DESCRIBED, null, level).nodes.find((node) => node.node_id === "invert")?.inputs.map((input) => input.value_address)).toEqual([null]);
 });
 
-test("a_cards_settings_come_first_among_its_inputs_a_typed_ones_port_and_then_each_one_of_a_node_type_not_yet_typed_addressed_where_its_value_is_kept_and_one_the_node_takes_as_an_input_is_none", () => {
+test("a_cards_settings_come_first_among_its_inputs_a_typed_ones_port_and_then_each_one_of_a_node_type_not_yet_typed_addressed_where_its_value_is_kept", () => {
   const described: NodeTypeDescription = {
     node_type: "nodes.invert:Effect",
     described_from: "interpreter",
@@ -258,13 +258,6 @@ test("a_cards_settings_come_first_among_its_inputs_a_typed_ones_port_and_then_ea
     ["gain", { read: "each_run" }, { pin_type: { type: "float" }, flow: "value" }, null, "gain"],
     ["width", { read: "at_setup" }, null, "Canvas width.", "width"],
     ["video_in", null, null, null, null],
-  ]);
-  const gainExposed: StreamGraph = { ...withGain, nodes: withGain.nodes.map((node) => (node.name === "invert" ? { ...node, exposed_config_fields: ["gain"] } : node)) };
-  const invertTakingGainAsAnInput = streamGraphCanvasContents(gainExposed, new Map([[described.node_type, described]]), null, level).nodes.find((node) => node.node_id === "invert");
-  expect(invertTakingGainAsAnInput?.inputs.map((input) => [input.name, input.setting])).toEqual([
-    ["width", { read: "at_setup" }],
-    ["video_in", null],
-    ["gain", null],
   ]);
 });
 

@@ -176,7 +176,6 @@ function mockGraphNodeOfTheRecordedNode(node: StreamGraphNode): MockGraphNode {
     // An input the runtime read as `saved` holds that value, whether its graph document keeps it among the node's pins or, as a Graph Input's `value`, among its input values.
     pins: { ...Object.fromEntries(inputPorts.flatMap((port) => (port.value_read?.comes_from === "saved" ? [[port.name, port.value_read.value] as const] : []))), ...jsonObjectMembersOf(node.pins) },
     input_defaults: inputDefaults,
-    exposed_config_fields: node.exposed_config_fields ?? [],
     // The mock reads `wire` on a linked input itself; unlinked, an input the runtime read from its wire reads its default, nothing while a value input has none, and takes no stored value as a stream or Trigger input.
     input_ports: inputPorts.map((port) => (port.value_read?.comes_from === "wire" ? { ...port, value_read: valueReadOfTheUnlinkedInput(port, inputDefaults) } : port)),
     output_ports: node.ports.outputs.map((port) => mockGraphPortOfTheRecordedPort(port, "output")),
@@ -292,7 +291,6 @@ function standInBundleNode(): MockGraphNode {
     config: {},
     pins: { levels: { left: 0.25 } },
     input_defaults: {},
-    exposed_config_fields: [],
     input_ports: [
       {
         name: "levels",
@@ -345,7 +343,6 @@ function standInSweepNodes(): readonly MockGraphNode[] {
       config: {},
       pins: {},
       input_defaults: { position: 0.5, width: 0.1 },
-      exposed_config_fields: [],
       input_ports: [floatPort("position", 0.5), floatPort("width", 0.1)],
       output_ports: [{ name: "result", family: "channels", stream_facts: null, values_checked: null, pin: STAND_IN_SWEEP_PIN, value_read: null }],
       studio: { ...NODE_STUDIO_FIELDS_NONE_SET },
@@ -359,7 +356,6 @@ function standInSweepNodes(): readonly MockGraphNode[] {
       config: {},
       pins: {},
       input_defaults: {},
-      exposed_config_fields: [],
       input_ports: [{ name: "sweep", family: "channels", stream_facts: null, values_checked: null, pin: STAND_IN_SWEEP_PIN, value_read: { value: null, comes_from: null } }],
       output_ports: [{ name: "result", family: "channels", stream_facts: null, values_checked: null, pin: { pin_type: { type: "float" }, flow: "value" }, value_read: null }],
       studio: { ...NODE_STUDIO_FIELDS_NONE_SET },
@@ -452,7 +448,6 @@ function standInNodeWithAWiredSetting(): MockGraphNode {
     config: {},
     pins: {},
     input_defaults: inputDefaults,
-    exposed_config_fields: [],
     input_ports: described.inputs.map((input) => ({
       ...portOf(input),
       value_read: input.name in inputDefaults ? { value: inputDefaults[input.name] ?? null, comes_from: "default" } : null,

@@ -309,7 +309,7 @@ test("a_second_studio_edit_sent_before_the_graph_shows_the_first_builds_on_it_in
 });
 
 describe("subgraphs", () => {
-  const LEVELS = { ...graphNode("levels", "uuid-levels", { outputs: [["level", "array"]] }), type: "generators.mics:mic_levels", config: { mic_count: 2 }, fragment: { kind: "generated" as const, nodes: [], links: [], groups: [] } };
+  const LEVELS = { ...graphNode("levels", "uuid-levels", { outputs: [["level", "array"]] }), type: "generators.mics:mic_levels", input_values: { mic_count: 2 }, fragment: { kind: "generated" as const, nodes: [], links: [], groups: [] } };
   const LOOK = { ...graphNode("subgraph", "uuid-look", {}), type: "tatolab.project:StreamFragment", fragment: { kind: "placed_stream" as const, nodes: [], links: [], groups: [] } };
 
   test("a_collapsed_selection_names_its_nodes_by_uuid_and_takes_the_first_free_subgraph_name", () => {

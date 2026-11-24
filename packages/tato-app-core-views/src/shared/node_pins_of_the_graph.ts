@@ -37,12 +37,8 @@ function describedWordsOfThePort(ports: readonly NodeTypePortDescribed[] | undef
   return { description: descriptionWords(described?.documentation), annotations: port.annotations ?? described?.annotations ?? {} };
 }
 
-/**
- * The setting the input `inputName` of `node` is as `described`, its node type's description, lists it; `null` for an input that
- * takes a wire, one it lists none of, and a setting the node takes as an input, exposed, which a wire feeds.
- */
-function settingOfTheInput(node: Pick<StreamGraphNode, "exposed_config_fields">, described: Pick<NodeTypeDescription, "inputs"> | undefined, inputName: string): NodePin["setting"] {
-  if (node.exposed_config_fields?.includes(inputName) === true) return null;
+/** The setting the input `inputName` is as `described`, its node type's description, lists it; `null` for an input that takes a wire, and one it lists none of. */
+function settingOfTheInput(described: Pick<NodeTypeDescription, "inputs"> | undefined, inputName: string): NodePin["setting"] {
   const input = described?.inputs.find((describedInput) => describedInput.name === inputName);
   return input === undefined ? null : settingOfTheDescribedInput(input);
 }
@@ -118,7 +114,7 @@ export function nodeInputs(
 ): NodePin[] {
   const openInputs = openBundlesOfTheMetadata(studioFieldsOfTheNode(node).metadata).inputs;
   const ofThePorts = node.ports.inputs.map((port): NodePin => {
-    const setting = settingOfTheInput(node, described, port.name);
+    const setting = settingOfTheInput(described, port.name);
     const takesAWire = doesTheInputPortTakeAWire(port, described?.inputs.find((input) => input.name === port.name));
     const pin = pinOfThePort(port);
     const memberValueReads = memberValueReadsOfThePort(port);

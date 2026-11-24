@@ -48,8 +48,8 @@ function drawTheGraphEdits(connection: Pick<TatoAppViewConnection, "transactInTh
   };
 }
 
-function exposing(setting: string): StreamGraphAction[] {
-  return [{ operation: "set_exposed_config_fields", stream: "stream-asset", node: "node-id", exposed_config_fields: [setting] }];
+function exposing(input: string): StreamGraphAction[] {
+  return [{ operation: "set_node_input_value", stream: "stream-asset", node: "node-id", input, value: 30 }];
 }
 
 function anApplied(mode: GraphEditMode): ProjectGraphTransactionApplying {
