@@ -88,7 +88,7 @@ if (shippingBuildFeatures === null ||
   shippingBuildFeatures.machineDirectoriesUnderATestRoot ||
   shippingBuildFeatures.appUpdateFeedUrl === null ||
   shippingBuildFeatures.tatolabAppBuildId !== null) {
-  process.stderr.write(`${shippingBuildFeaturesFile} is not the shipping build features, with a tatolabAppBuildId of null\n`);
+  process.stderr.write(`${shippingBuildFeaturesFile} is not the shipping build features: no test root, an update feed URL, and a tatolabAppBuildId of null\n`);
   process.exit(1);
 }
 

@@ -37,12 +37,16 @@ function electronUpdaterReading(appUpdater: AppUpdater, appUpdateFeedUrl: string
   return appUpdater;
 }
 
-/** The feed electron-updater reads at `appUpdateFeedUrl` for `appUpdatePackaging`, or why this app cannot update itself. */
+/** Why a local-proof build built with no local feed offers no updates. */
+const LOCAL_PROOF_APP_UPDATE_REFUSAL = "A local-proof build of Tato Studio checks for no update.";
+
+/** The feed electron-updater reads at `appUpdateFeedUrl` for `appUpdatePackaging`, or why this app cannot update itself; a `null` feed is a local-proof build's. */
 export function createElectronTatolabAppUpdateFeed(
   appUpdatePackaging: TatolabAppUpdatePackaging,
-  appUpdateFeedUrl: string,
+  appUpdateFeedUrl: string | null,
   tatolabAppLog: TatolabAppLog,
 ): TatolabAppUpdateFeedForThisBuild {
+  if (appUpdateFeedUrl === null) return { kind: "not_offered", reason: LOCAL_PROOF_APP_UPDATE_REFUSAL };
   switch (appUpdatePackaging.kind) {
     case "not_offered":
       return { kind: "not_offered", reason: appUpdatePackaging.reason };
