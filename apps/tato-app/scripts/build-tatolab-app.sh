@@ -29,7 +29,7 @@
 #                            and no administrator prompt; for proving on this Mac, never shipped
 #   --notarize               notarize and staple the app and the .dmg, for a release (needs
 #                            APPLE_API_KEY_PATH, APPLE_API_KEY_ID, APPLE_API_ISSUER)
-#   --app-update-feed-url URL  the feed the app checks for updates (default: get.tatolab.com's);
+#   --app-update-feed-url URL  the feed a local-proof build checks for updates (default: none);
 #                            only with --local-proof-test-root, for proving an update locally
 #   --release                a build the release workflow makes: About reads `-release` after the
 #                            commit; every other build reads `-dev`

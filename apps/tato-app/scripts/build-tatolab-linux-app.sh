@@ -22,7 +22,7 @@
 #                            workflow passes the version it plans, never older than the runtime's
 #   --local-proof-test-root  read the runtime under TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof;
 #                            for proving on a development machine, never shipped
-#   --app-update-feed-url URL  the feed the app checks for updates (default: get.tatolab.com's);
+#   --app-update-feed-url URL  the feed a local-proof build checks for updates (default: none);
 #                            only with --local-proof-test-root, for proving an update locally
 #   --release                a build the release workflow makes: About reads `-release` after the
 #                            commit; every other build reads `-dev`
@@ -313,7 +313,7 @@ cat > "$app_directory/AppRun" <<'APPRUN'
 if unshare --user --map-root-user true 2>/dev/null; then
   exec "$APPDIR/usr/lib/tatolab/Tatolab" "$@"
 fi
-echo "Tato Studio: this machine refuses unprivileged user namespaces, and an AppImage's chrome-sandbox cannot be setuid root, so it runs with --no-sandbox" >&2
+echo "Tato Studio: could not open an unprivileged user namespace, and an AppImage's chrome-sandbox cannot be setuid root, so it runs with --no-sandbox" >&2
 exec "$APPDIR/usr/lib/tatolab/Tatolab" --no-sandbox "$@"
 APPRUN
 chmod 0755 "$app_directory/AppRun"
