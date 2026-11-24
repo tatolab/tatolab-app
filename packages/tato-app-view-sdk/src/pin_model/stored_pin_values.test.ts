@@ -157,14 +157,20 @@ const LAYERS = {
 } satisfies PinType & JsonValue;
 
 test("a List of bundles reads and sends each element as its members, each in its type's form, a member with a default left out", () => {
-  const saved = [{ label: "back" }, { label: "front", opacity: 0.5 }];
+  const saved: JsonValue[] = [{ label: "back" }, { label: "front", opacity: 0.5 }];
   expect(storedPinValueOfTheJson(LAYERS, saved)).toEqual(saved);
   expect(jsonOfTheStoredPinValue(LAYERS, saved)).toEqual(saved);
 });
 
 test("a List of bundles with an element missing a member that declares no default, naming no member, or holding a member not of its type's form reads as no value", () => {
-  for (const element of [{ opacity: 0.5 }, { label: "back", depth: 2 }, { label: 3 }, "back"]) {
+  const elements: JsonValue[] = [{ opacity: 0.5 }, { label: "back", depth: 2 }, { label: 3 }, "back"];
+  for (const element of elements) {
     expect(storedPinValueOfTheJson(LAYERS, [element])).toBeUndefined();
     expect(jsonOfTheStoredPinValue(LAYERS, [element])).toBeUndefined();
   }
+});
+
+test("a bundle input reads and sends its members as an object, as an element of a List of them does", () => {
+  expect(storedPinValueOfTheJson(LAYERS.element_type, { label: "back" })).toEqual({ label: "back" });
+  expect(jsonOfTheStoredPinValue(LAYERS.element_type, { label: "back", opacity: 0.5 })).toEqual({ label: "back", opacity: 0.5 });
 });

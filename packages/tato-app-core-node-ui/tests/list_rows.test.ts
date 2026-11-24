@@ -173,6 +173,19 @@ describe("the List rows", () => {
     expect(fired.at(-1)).toEqual({ name: "change", value: ["threes", "one", "two"] });
   });
 
+  it("keeps the focus on the pressed move button, or on the row's other one where the move leaves it disabled", async () => {
+    const control = mountedListRows(studioOfTextLines().studio, ["one", "two", "three"]);
+    await wordsOfTheRows(control, 3);
+    const moveUpOfThree = control.shadowRoot?.querySelectorAll<HTMLButtonElement>(".list-row-move-up")[2];
+    moveUpOfThree?.focus();
+    moveUpOfThree?.click();
+    expect(await wordsOfTheRows(control, 3)).toEqual(["one", "three", "two"]);
+    expect(control.shadowRoot?.activeElement).toBe(moveUpOfThree);
+    moveUpOfThree?.click();
+    expect(await wordsOfTheRows(control, 3)).toEqual(["three", "one", "two"]);
+    expect(control.shadowRoot?.activeElement).toBe(control.shadowRoot?.querySelector(".list-row-move-down"));
+  });
+
   it("neither moves an element while read only", async () => {
     const control = mountedListRows(studioOfTextLines().studio, ["one", "two"], "read_only");
     await wordsOfTheRows(control, 2);

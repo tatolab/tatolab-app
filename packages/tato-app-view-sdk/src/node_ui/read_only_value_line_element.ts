@@ -7,7 +7,7 @@ import type { ControlledPin, InputControlElement, InputControlState, StoredPinVa
 import { jsonTextOf } from "../json_text.js";
 
 /** A stored value in words: text as it is, a number or a truth value as written, any other form as JSON. */
-function wordsForTheStoredValue(value: StoredPinValue<BuiltInPinTypeName>): string {
+export function wordsForTheStoredValue(value: StoredPinValue<BuiltInPinTypeName>): string {
   if (value === null) return "No value";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);

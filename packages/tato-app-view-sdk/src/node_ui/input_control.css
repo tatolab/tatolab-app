@@ -399,7 +399,9 @@
 .list-row-grid {
   display: grid;
   grid-template-columns: repeat(var(--list-part-count, 1), minmax(0, 1fr)) auto;
+  row-gap: 2px;
   column-gap: 4px;
+  min-width: 0;
 }
 
 .list-row,
@@ -439,7 +441,6 @@
 
 .list-row-buttons {
   display: flex;
-  gap: 0;
 }
 
 .list-row-button,

@@ -18,6 +18,7 @@ import {
   fireInputControlEvent,
   isTheCancelOfAnInputControl,
   valueTheInputControlEventCarries,
+  wordsForTheStoredValue,
   type ControlledPin,
   type InputControlElement,
   type InputControlState,
@@ -32,14 +33,6 @@ type RowControl = InputControlElement<BuiltInPinTypeName>;
 /** Whether `value`, read from the List the host set, is a value a control of its type is handed: the host reads each element in its type's form, so it is one unless it is no JSON at all. */
 function isAControlValue(value: unknown): value is RowControl["value"] {
   return isAJsonValue(value) || typeof value === "bigint";
-}
-
-/** A stored value in words: text as it is, a number or a truth value as written, any other form as JSON. */
-function wordsOf(value: unknown): string {
-  if (value === undefined || value === null) return "No value";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);
-  return JSON.stringify(value);
 }
 
 /** What a row holds a control for: the whole element, or one member of a bundle. */
@@ -123,7 +116,7 @@ export function aNewElementOf(elementType: PinType, annotations: PinAnnotations)
 
 /** `element`'s members, keyed by name, or none where it is not an object. */
 function membersOf(element: unknown): Readonly<Record<string, unknown>> {
-  return typeof element === "object" && element !== null && !Array.isArray(element) ? (element as Record<string, unknown>) : {};
+  return typeof element === "object" && element !== null && !Array.isArray(element) ? Object.fromEntries(Object.entries(element)) : {};
 }
 
 /** The part of a row that is `member` of a List's bundle element: its pin, named by the member and typed as it, and how it reads and sets the member, a member left out reading its default. */
@@ -176,7 +169,7 @@ export default class ListRows extends HTMLElement implements InputControlElement
     this.#memberNames.className = "list-member-names";
     this.#memberNames.setAttribute("aria-hidden", "true");
     this.#memberNames.hidden = true;
-    this.#rowsElement.className = "list-rows list-row-grid";
+    this.#rowsElement.className = "list-row-grid";
     this.#empty.className = "list-empty";
     this.#empty.textContent = "Empty";
     this.#add.type = "button";
@@ -286,6 +279,7 @@ export default class ListRows extends HTMLElement implements InputControlElement
           words.setAttribute("role", "group");
           words.setAttribute("aria-label", pin.declaration.label);
           words.title = because;
+          words.setAttribute("aria-description", because);
         }
         cell.words = words;
         this.#handTheElement(listRow, this.#rows.indexOf(listRow));
@@ -318,7 +312,7 @@ export default class ListRows extends HTMLElement implements InputControlElement
     for (const { part, control, words } of listRow.cells) {
       const value = part.valueIn(element);
       if (control !== null && isAControlValue(value)) control.value = value;
-      if (words !== null && part.refusalShowsTheValue) words.textContent = wordsOf(value);
+      if (words !== null && part.refusalShowsTheValue) words.textContent = wordsForTheStoredValue(isAControlValue(value) ? value : null);
     }
   }
 
@@ -361,7 +355,7 @@ export default class ListRows extends HTMLElement implements InputControlElement
     fireInputControlEvent(this, "change", this.#list);
   }
 
-  /** Swaps a row with the one `step` away, its controls moving with it, as one change. */
+  /** Swaps a row with the one `step` away, its controls moving with it, as one change. The other row is the one moved in the page, so the pressed button keeps its focus, which passes to the row's other move button where the move leaves it disabled. */
   #moveTheElement(listRow: ListRow, step: -1 | 1): void {
     const index = this.#rows.indexOf(listRow);
     const other = index + step;
@@ -371,9 +365,11 @@ export default class ListRows extends HTMLElement implements InputControlElement
     this.#list = this.#list.with(index, this.#list[other]).with(other, this.#list[index]);
     this.#rows[index] = otherRow;
     this.#rows[other] = listRow;
-    if (step < 0) otherRow.row.before(listRow.row);
-    else otherRow.row.after(listRow.row);
+    if (step < 0) listRow.row.after(otherRow.row);
+    else listRow.row.before(otherRow.row);
     this.#handEachRowItsElement();
+    const pressed = step < 0 ? listRow.move_up : listRow.move_down;
+    if (pressed.disabled) (step < 0 ? listRow.move_down : listRow.move_up).focus();
     fireInputControlEvent(this, "change", this.#list);
   }
 
