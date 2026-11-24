@@ -58,7 +58,7 @@ const PIN_TYPES_A_GRAPH_INPUT_CHOOSES: ReadonlyMap<BuiltInPinTypeName, PinTypeDe
 );
 
 /** The pin type a Graph Input fed into `input` chooses, with its row of the contract's table: `input`'s own, where it is one of `PIN_TYPES_A_GRAPH_INPUT_CHOOSES`; `null` for none. */
-function pinTypeAGraphInputChooses(input: Pick<StreamGraphPort, "pin_type" | "annotations">): { pin_type: PinType & JsonValue; described: PinTypeDescription } | null {
+function pinTypeAGraphInputChooses(input: Pick<StreamGraphPort, "pin_type">): { pin_type: PinType & JsonValue; described: PinTypeDescription } | null {
   const pinType = input.pin_type;
   const described = pinType === undefined ? undefined : PIN_TYPES_A_GRAPH_INPUT_CHOOSES.get(pinType.type);
   if (pinType === undefined || described === undefined || !isAJsonValue(pinType)) return null;
@@ -66,7 +66,7 @@ function pinTypeAGraphInputChooses(input: Pick<StreamGraphPort, "pin_type" | "an
 }
 
 /** Whether an input of `pin` can be promoted to a Graph Input: one of a type a Graph Input chooses. */
-export function canAGraphInputFeedThePin(pin: Pick<StreamGraphPort, "pin_type" | "annotations">): boolean {
+export function canAGraphInputFeedThePin(pin: Pick<StreamGraphPort, "pin_type">): boolean {
   return pinTypeAGraphInputChooses(pin) !== null;
 }
 

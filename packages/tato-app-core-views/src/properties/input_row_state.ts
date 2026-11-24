@@ -19,7 +19,7 @@ export type InputRowState =
 
 /** What an input row is decided from. */
 export interface InputOfARow {
-  readonly input: Pick<NodePin, "pin" | "annotations" | "value_address" | "setting" | "takes_a_wire">;
+  readonly input: Pick<NodePin, "pin" | "value_address" | "setting" | "takes_a_wire">;
   /** Where the runtime reads the input's value from; `null` where it reads none. */
   readonly value_comes_from: InputValueComesFrom | null;
   /** The links at the input's level that feed it. */
@@ -34,7 +34,7 @@ export interface InputOfARow {
  */
 export function inputRowStateOf({ input, value_comes_from, driven_by, is_editable }: InputOfARow): InputRowState {
   if (driven_by.length > 0) return { kind: "wired", driven_by, can_be_disconnected: is_editable };
-  const canBePromoted = is_editable && input.setting === null && input.takes_a_wire && input.pin !== null && canAGraphInputFeedThePin({ pin_type: input.pin.pin_type, annotations: input.annotations });
+  const canBePromoted = is_editable && input.setting === null && input.takes_a_wire && input.pin !== null && canAGraphInputFeedThePin({ pin_type: input.pin.pin_type });
   if (input.value_address !== null) return { kind: "holds_a_value", address: input.value_address, can_be_promoted: canBePromoted };
   if (value_comes_from === "wire") return { kind: "wired_from_outside_the_level" };
   return { kind: "not_connected", can_be_promoted: canBePromoted };

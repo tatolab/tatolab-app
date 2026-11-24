@@ -16,27 +16,27 @@ const camera: StreamGraphNode = aGraphNode("camera", { id: "id-camera", type: "t
 const FROM_THE_CAMERA: LinkedEndOfAPort = { link: aGraphLink("L1", ["camera", "frames"], ["glow", "video"]), node: camera, port: "frames" };
 
 test("an input a link at its level feeds is wired by that link, though the runtime's reading still gives it a value of its own", () => {
-  expect(inputRowStateOf({ input: { pin: FLOAT, annotations: {}, value_address: AMOUNT, setting: null, takes_a_wire: true }, value_comes_from: "saved", driven_by: [FROM_THE_CAMERA], is_editable: true })).toEqual({ kind: "wired", driven_by: [FROM_THE_CAMERA], can_be_disconnected: true });
-  expect(inputRowStateOf({ input: { pin: TEXTURE, annotations: {}, value_address: null, setting: null, takes_a_wire: true }, value_comes_from: "wire", driven_by: [FROM_THE_CAMERA], is_editable: false })).toEqual({ kind: "wired", driven_by: [FROM_THE_CAMERA], can_be_disconnected: false });
+  expect(inputRowStateOf({ input: { pin: FLOAT, value_address: AMOUNT, setting: null, takes_a_wire: true }, value_comes_from: "saved", driven_by: [FROM_THE_CAMERA], is_editable: true })).toEqual({ kind: "wired", driven_by: [FROM_THE_CAMERA], can_be_disconnected: true });
+  expect(inputRowStateOf({ input: { pin: TEXTURE, value_address: null, setting: null, takes_a_wire: true }, value_comes_from: "wire", driven_by: [FROM_THE_CAMERA], is_editable: false })).toEqual({ kind: "wired", driven_by: [FROM_THE_CAMERA], can_be_disconnected: false });
 });
 
 test("an unwired input holding a value is addressed, and offers a promotion where its type is one a Graph Input chooses and the graph can be edited", () => {
-  expect(inputRowStateOf({ input: { pin: FLOAT, annotations: {}, value_address: AMOUNT, setting: null, takes_a_wire: true }, value_comes_from: "default", driven_by: [], is_editable: true })).toEqual({ kind: "holds_a_value", address: AMOUNT, can_be_promoted: true });
-  expect(inputRowStateOf({ input: { pin: FLOAT, annotations: {}, value_address: AMOUNT, setting: null, takes_a_wire: true }, value_comes_from: "default", driven_by: [], is_editable: false })).toEqual({ kind: "holds_a_value", address: AMOUNT, can_be_promoted: false });
-  expect(inputRowStateOf({ input: { pin: null, annotations: {}, value_address: AMOUNT, setting: null, takes_a_wire: true }, value_comes_from: "saved", driven_by: [], is_editable: true })).toEqual({ kind: "holds_a_value", address: AMOUNT, can_be_promoted: false });
+  expect(inputRowStateOf({ input: { pin: FLOAT, value_address: AMOUNT, setting: null, takes_a_wire: true }, value_comes_from: "default", driven_by: [], is_editable: true })).toEqual({ kind: "holds_a_value", address: AMOUNT, can_be_promoted: true });
+  expect(inputRowStateOf({ input: { pin: FLOAT, value_address: AMOUNT, setting: null, takes_a_wire: true }, value_comes_from: "default", driven_by: [], is_editable: false })).toEqual({ kind: "holds_a_value", address: AMOUNT, can_be_promoted: false });
+  expect(inputRowStateOf({ input: { pin: null, value_address: AMOUNT, setting: null, takes_a_wire: true }, value_comes_from: "saved", driven_by: [], is_editable: true })).toEqual({ kind: "holds_a_value", address: AMOUNT, can_be_promoted: false });
 });
 
 test("a Texture or Encoded video input offers no promotion, since a client sets no value of either", () => {
-  expect(inputRowStateOf({ input: { pin: TEXTURE, annotations: {}, value_address: null, setting: null, takes_a_wire: true }, value_comes_from: null, driven_by: [], is_editable: true })).toEqual({ kind: "not_connected", can_be_promoted: false });
-  expect(inputRowStateOf({ input: { pin: ENCODED_VIDEO, annotations: {}, value_address: null, setting: null, takes_a_wire: true }, value_comes_from: null, driven_by: [], is_editable: true })).toEqual({ kind: "not_connected", can_be_promoted: false });
-  expect(inputRowStateOf({ input: { pin: STRING, annotations: {}, value_address: null, setting: null, takes_a_wire: true }, value_comes_from: null, driven_by: [], is_editable: true })).toEqual({ kind: "not_connected", can_be_promoted: true });
+  expect(inputRowStateOf({ input: { pin: TEXTURE, value_address: null, setting: null, takes_a_wire: true }, value_comes_from: null, driven_by: [], is_editable: true })).toEqual({ kind: "not_connected", can_be_promoted: false });
+  expect(inputRowStateOf({ input: { pin: ENCODED_VIDEO, value_address: null, setting: null, takes_a_wire: true }, value_comes_from: null, driven_by: [], is_editable: true })).toEqual({ kind: "not_connected", can_be_promoted: false });
+  expect(inputRowStateOf({ input: { pin: STRING, value_address: null, setting: null, takes_a_wire: true }, value_comes_from: null, driven_by: [], is_editable: true })).toEqual({ kind: "not_connected", can_be_promoted: true });
 });
 
 test("an input the runtime reads from a wire that no link at its level holds is named only as wired", () => {
-  expect(inputRowStateOf({ input: { pin: FLOAT, annotations: {}, value_address: null, setting: null, takes_a_wire: true }, value_comes_from: "wire", driven_by: [], is_editable: true })).toEqual({ kind: "wired_from_outside_the_level" });
+  expect(inputRowStateOf({ input: { pin: FLOAT, value_address: null, setting: null, takes_a_wire: true }, value_comes_from: "wire", driven_by: [], is_editable: true })).toEqual({ kind: "wired_from_outside_the_level" });
 });
 
 test("an input the runtime marks as taking no wire offers no promotion, since no Graph Input's link can end at it", () => {
-  expect(inputRowStateOf({ input: { pin: STRING, annotations: {}, value_address: AMOUNT, setting: null, takes_a_wire: false }, value_comes_from: "default", driven_by: [], is_editable: true })).toEqual({ kind: "holds_a_value", address: AMOUNT, can_be_promoted: false });
-  expect(inputRowStateOf({ input: { pin: FLOAT, annotations: {}, value_address: null, setting: null, takes_a_wire: false }, value_comes_from: null, driven_by: [], is_editable: true })).toEqual({ kind: "not_connected", can_be_promoted: false });
+  expect(inputRowStateOf({ input: { pin: STRING, value_address: AMOUNT, setting: null, takes_a_wire: false }, value_comes_from: "default", driven_by: [], is_editable: true })).toEqual({ kind: "holds_a_value", address: AMOUNT, can_be_promoted: false });
+  expect(inputRowStateOf({ input: { pin: FLOAT, value_address: null, setting: null, takes_a_wire: false }, value_comes_from: null, driven_by: [], is_editable: true })).toEqual({ kind: "not_connected", can_be_promoted: false });
 });

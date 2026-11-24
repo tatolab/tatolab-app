@@ -362,7 +362,20 @@ function graphInputValueInput(family: PortFamily, savedValue: JsonValue): MockGr
   return { name: "value", family, stream_facts: null, values_checked: family === "records" ? false : null, pin: null, value_read: { value: savedValue, comes_from: "saved" }, takes_a_wire: false };
 }
 
-/** A top-level `GraphInput` named `name`, declaring the input port `port` of `family` with `config`, as the runtime renders one back: running, a `value` input reading `savedValue`, which its config does not repeat, and one `value` output. */
+/** The `lifetime` setting of a top-level `GraphInput`, a String that takes no wire, as the runtime renders it, reading `lifetime` where its config saves one and the runtime's default `kept` else. */
+function graphInputLifetimeInput(lifetime: JsonValue | undefined): MockGraphPort {
+  return {
+    name: "lifetime",
+    family: "records",
+    stream_facts: null,
+    values_checked: null,
+    pin: { pin_type: { type: "string" }, flow: "value" },
+    value_read: lifetime === undefined ? { value: "kept", comes_from: "default" } : { value: lifetime, comes_from: "saved" },
+    takes_a_wire: false,
+  };
+}
+
+/** A top-level `GraphInput` named `name`, declaring the input port `port` of `family` with `config`, as the runtime renders one back: running, a `value` input reading `savedValue`, which its config does not repeat, its `lifetime` setting, and one `value` output. */
 function graphInputDeclaring(name: string, family: PortFamily, config: Record<string, JsonValue> & { port: string }, savedValue: JsonValue): MockGraphNode {
   return {
     name,
@@ -370,7 +383,7 @@ function graphInputDeclaring(name: string, family: PortFamily, config: Record<st
     state: "Running",
     config: { ...config, family },
     pins: { value: savedValue },
-    input_ports: [graphInputValueInput(family, savedValue)],
+    input_ports: [graphInputValueInput(family, savedValue), graphInputLifetimeInput(config["lifetime"])],
     output_ports: portsStatingNoStreamFacts(family, "value"),
   };
 }

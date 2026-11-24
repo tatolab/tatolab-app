@@ -178,7 +178,7 @@ export interface MockTatolabOptions {
   isRemovingAModuleRefused: boolean;
   /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node; its import brings one that does not open. */
   isTheFixtureViewListed: boolean;
-  /** `?node_ui=unserved`: the Studio's own controls are listed with scripts nothing serves, so each ends at the read-only line with why; `?node_ui=refused`: listing them is refused, so each input draws its own field. They are listed and served by default. */
+  /** `?node_ui=unserved`: the Studio's own controls are listed with scripts nothing serves, so each ends at the read-only line with why; `?node_ui=refused`: listing them is refused, so each input shows its value in words. They are listed and served by default. */
   nodeUiElementsListing: MockNodeUiElementsListing;
   /** `?node_bodies=served`: the mock project brings Pulse Stage's body for its kaleidoscope, a drawing of its wedges and a fader for its spin, one for each stage of `?main_graph=large`, which the canvas measurements mount, and the default control of `nodes.sweep:Sweep`, which `?main_graph=every_pin_kind_with_a_named_type` draws; `?node_bodies=blocked`: it lists them with a finding of their folder's check, so each card draws its rows alone. None by default. */
   projectNodeBodies: MockProjectNodeBodies;

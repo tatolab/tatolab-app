@@ -89,12 +89,12 @@ test("promoting an input states its annotations its type takes as the Graph Inpu
 });
 
 test("an input of a type that stores no value, or a List, is one no Graph Input feeds", () => {
-  expect(canAGraphInputFeedThePin({ pin_type: { type: "float" }, annotations: {} })).toBe(true);
-  expect(canAGraphInputFeedThePin({ pin_type: { type: "menu", option_names: ["left", "right"] }, annotations: {} })).toBe(true);
-  expect(canAGraphInputFeedThePin({ pin_type: { type: "trigger" }, annotations: {} })).toBe(false);
-  expect(canAGraphInputFeedThePin({ pin_type: { type: "texture" }, annotations: {} })).toBe(false);
-  expect(canAGraphInputFeedThePin({ pin_type: { type: "list_of", element_type: { type: "float" } }, annotations: {} })).toBe(false);
-  expect(canAGraphInputFeedThePin({ pin_type: undefined, annotations: {} })).toBe(false);
+  expect(canAGraphInputFeedThePin({ pin_type: { type: "float" } })).toBe(true);
+  expect(canAGraphInputFeedThePin({ pin_type: { type: "menu", option_names: ["left", "right"] } })).toBe(true);
+  expect(canAGraphInputFeedThePin({ pin_type: { type: "trigger" } })).toBe(false);
+  expect(canAGraphInputFeedThePin({ pin_type: { type: "texture" } })).toBe(false);
+  expect(canAGraphInputFeedThePin({ pin_type: { type: "list_of", element_type: { type: "float" } } })).toBe(false);
+  expect(canAGraphInputFeedThePin({ pin_type: undefined })).toBe(false);
 });
 
 test("taking out the link that drives an input disconnects it by both nodes' UUIDs", () => {

@@ -7,8 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./shared/*": "./src/shared/*.ts",
-    "./views/*": "./src/*/*_view.tsx",
-    "./config_form_fields": "./src/properties/config_form_fields.ts"
+    "./views/*": "./src/*/*_view.tsx"
   },
   "scripts": {
     "build": "vite build",

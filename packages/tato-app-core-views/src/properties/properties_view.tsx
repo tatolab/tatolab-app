@@ -71,25 +71,22 @@ import {
 /** The stream's own level, which a node selection with no `level` is at. */
 const NO_LEVEL: readonly string[] = [];
 
-/** The open project an asset field reads its assets from and opens the asset picker through; `null` while no project is open. */
-interface OpenProjectOfTheAssetFields {
+/** The open project the audio device menu reads the machine's capture devices through; `null` while no project is open. */
+interface OpenProjectOfTheDeviceMenus {
   connection: TatoAppViewConnection;
   projectFolder: string;
 }
 
-const OpenProjectOfTheAssetFieldsContext = createContext<OpenProjectOfTheAssetFields | null>(null);
+const OpenProjectOfTheDeviceMenusContext = createContext<OpenProjectOfTheDeviceMenus | null>(null);
 
 /** The id of the field holding the value an unlinked input of the node takes. */
 function pinValueFieldId(nodeId: string, portName: string): string {
   return `${nodeId}:${portName}:pin`;
 }
 
-/** What a field of the panel's own sets through: the store's value of one input or setting, and its own refusals. */
+/** What a field of the panel's own sets through: the store's value of one input or setting. */
 interface OwnFieldOfTheRow {
   address: InputAddress;
-  /** The place its words or a picker that did not open say why under. */
-  place: PlaceOfAnEdit;
-  graphEdits: GraphEditsOfTheNode;
 }
 
 /** The value an input or setting holds of its own in the store, `null` while it reads its default or none. */
@@ -212,7 +209,7 @@ function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin
       wireReading={wireDriven === null ? undefined : <InputControlMount input={wireDriven} surface="properties" readOnly={streamAsset === null} fallback={null} className="w-full" />}
       unlinkedValue={
         state.kind === "holds_a_value" ? (
-          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} nodePin={pin} row={{ address: state.address, place, graphEdits }} />
+          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} nodePin={pin} row={{ address: state.address }} />
         ) : state.kind === "wired_from_outside_the_level" ? (
           <span className="text-fg-3" data-properties-input-wired-from-outside-the-level>
             Wired
@@ -226,7 +223,7 @@ function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin
 /** The menu of the machine's audio capture devices for a setting naming one, each choice set as one commit and Default input taking the value off. */
 function AudioCaptureDeviceFieldOfTheInput({ fieldId, row }: { fieldId: string; row: OwnFieldOfTheRow }) {
   const ownField = useOwnFieldOfTheInput(row.address, "commit");
-  const openProject = useContext(OpenProjectOfTheAssetFieldsContext);
+  const openProject = useContext(OpenProjectOfTheDeviceMenusContext);
   return (
     <AudioCaptureDeviceFieldOfTheSetting
       fieldId={fieldId}
@@ -538,7 +535,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const openProject = useViewReading(connection.watchOpenProject);
   const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   const graphEditsInTheProject = useGraphEditsInTheOpenProject(connection, projectFolder);
-  const openProjectOfTheAssetFields = useMemo(() => (projectFolder === null ? null : { connection, projectFolder }), [connection, projectFolder]);
+  const openProjectOfTheDeviceMenus = useMemo(() => (projectFolder === null ? null : { connection, projectFolder }), [connection, projectFolder]);
   const [searchWords, setSearchWords] = useState("");
   const { inputValues, inputControls } = useInputControlsOfTheFrame(connection);
   if (selection?.kind === "nodes" && activeStreamTab?.stream === selection.stream) {
@@ -552,7 +549,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
       <StudioViewToolbarTools label="Properties search">
         <SearchField label="Search properties" placeholder="Search properties" text={searchWords} onTextChanged={setSearchWords} width="fills_the_row" data-properties-search="" />
       </StudioViewToolbarTools>
-      <OpenProjectOfTheAssetFieldsContext.Provider value={openProjectOfTheAssetFields}>
+      <OpenProjectOfTheDeviceMenusContext.Provider value={openProjectOfTheDeviceMenus}>
         <InputControlBinderContext value={inputControls}>
           <PropertiesOfTheSelectedNode
             key={`${selection.stream}/${(selection.level ?? []).join("/")}`}
@@ -566,7 +563,7 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
             searchWords={searchWords}
           />
         </InputControlBinderContext>
-      </OpenProjectOfTheAssetFieldsContext.Provider>
+      </OpenProjectOfTheDeviceMenusContext.Provider>
     </>
   );
 }
