@@ -374,12 +374,12 @@ function fireTheTriggerInput(graph: MockGraphLevel, node: MockGraphNode, input: 
   }
 }
 
-/** Whether `input` is a setting of `node` held in its config: one it names among its settings, or one its node type describes as a setting that is none of its ports. */
 /** Whether `input` is a setting of a Graph Input or Output the mock drew no port of, as for one a transaction added: any input of it but the `value` it carries. */
 function isASettingOfAGraphInputOrOutput(node: Pick<MockGraphNode, "type" | "input_ports">, input: string): boolean {
   return (node.type === GRAPH_INPUT_NODE_TYPE || node.type === GRAPH_OUTPUT_NODE_TYPE) && input !== "value" && !node.input_ports.some((port) => port.name === input);
 }
 
+/** Whether `input` is a setting of `node` held in its config: one it names among its settings, or one its node type describes as a setting that is none of its ports. */
 function isASettingOfTheNode(node: Pick<MockGraphNode, "type" | "settings" | "input_ports">, input: string, nodeTypesDescribed: readonly NodeTypeDescription[]): boolean {
   if (node.settings?.includes(input) === true) return true;
   const described = nodeTypesDescribed.find((nodeType) => nodeType.node_type === node.type);

@@ -26,19 +26,11 @@ import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
 import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
 import {
-  PropertyAssetField,
-  PropertyCheckbox,
-  PropertyChoiceField,
   PropertyHeadingNameField,
-  PropertyListEntry,
-  PropertyListEntryCount,
-  PropertyNumberField,
   PropertyPortRow,
   PropertyRow,
   type PropertyPortBandShade,
   PropertySection,
-  PropertySliderField,
-  PropertyTextField,
 } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { AreasForAViewTypeReading, StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
@@ -50,7 +42,6 @@ import {
   nodeTypeDescriptionsByType,
   type NodeTypeDescription,
   type NodeTypeInputDescribed,
-  type ProjectAssetsReading,
   type StreamGraph,
   type StreamGraphInputValueRead,
   type StreamGraphNode,
@@ -62,28 +53,18 @@ import { AudioCaptureDeviceFieldOfTheSetting } from "./audio_capture_device_fiel
 import { CoreViewFrame } from "../shared/core_view_page";
 import { useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
-import { nameInWords, nodeTitle, nodeTypeClassName, wordsForTheSeveralSelectedNodes } from "../shared/node_words";
-import { configFormFieldValueWords, doesTheSettingTakeNull, fieldsOfAListEntry, listOfRecordsOfTheSetting, recordsOfAListField, type ConfigFormField, type ListOfRecordsOfTheSetting } from "./config_form_fields";
+import { nodeTitle, nodeTypeClassName, wordsForTheSeveralSelectedNodes } from "../shared/node_words";
 import { propertiesListedWords, propertiesMatchingTheSearch } from "./properties_matching_the_search";
 import { areasToShowTheViewIn, viewShownInAreasWords } from "./view_node_areas";
-import { chosenProjectAssetOf, chosenProjectAssetWords, projectAssetsForTheAssetFieldsOf } from "./project_asset_choices";
-import { previewPictureUrlOf } from "../library/library_asset_preview_pictures";
-import { useAssetPreviewPicturesOfTheProject } from "../library/use_asset_preview_pictures_of_the_project";
 import { useGraphEditsInTheOpenProject, type GraphEditsInTheOpenProject, type GraphEditsOfTheNode, type PlaceOfAnEdit } from "./graph_edits_in_the_open_project";
 import { streamGraphLevelAtTheSubgraphIds } from "../stream_graph/stream_graph_levels";
 import { nodeInputs, nodeOutputs, wiresReadAtTheLevel } from "../shared/node_pins_of_the_graph";
 import { selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 import { inputRowStateOf, type InputRowState } from "./input_row_state";
 import {
-  configValueFromTheWordsTyped,
-  LIST_ENTRY_MOVED_ON_REFUSAL,
   linkDrivingTheInputTakenOut,
   linkedEndsOfThePort,
-  listWithARecordAdded,
-  listWithoutTheRecord,
-  listWithTheRecordFieldSet,
   nodeIdInShort,
-  pinValueFromTheWordsTyped,
   promoteToGraphInput,
 } from "./properties_graph_edits";
 
@@ -103,151 +84,6 @@ function pinValueFieldId(nodeId: string, portName: string): string {
   return `${nodeId}:${portName}:pin`;
 }
 
-/** The control of one field of an entry of a setting's list of records, each value chosen handed to `onChosen`; read only without it. */
-function ListEntryFieldControl({
-  fieldId,
-  field,
-  onChosen,
-  onWordsRefused,
-}: {
-  fieldId: string;
-  field: ConfigFormField;
-  onChosen: ((newValue: JsonValue) => void) | undefined;
-  /** Says why words typed into the field are no value it takes. */
-  onWordsRefused: (because: string) => void;
-}) {
-  const isTheTypesDefault = field.value_source !== "config";
-  const { control, value } = field;
-  const commitTheWords =
-    onChosen === undefined
-      ? undefined
-      : (words: string) => {
-          const valueTyped = configValueFromTheWordsTyped(field, words);
-          if (valueTyped.kind === "not_a_value") onWordsRefused(valueTyped.because);
-          else onChosen(valueTyped.value);
-        };
-  switch (control.kind) {
-    case "number":
-      if (onChosen !== undefined && commitTheWords !== undefined && control.minimum !== null && control.maximum !== null && control.maximum > control.minimum) {
-        // A list of records is a setting its node reads as it is set up, so a drag sends nothing until it is let go.
-        return (
-          <PropertySliderField
-            fieldId={fieldId}
-            value={typeof value === "number" ? value : null}
-            minimum={control.minimum}
-            maximum={control.maximum}
-            isWholeNumber={control.is_whole_number}
-            isTheTypesDefault={isTheTypesDefault}
-            onDragStarted={() => undefined}
-            onLiveEdit={() => undefined}
-            onCommitted={onChosen}
-            valueTypedBesideTheSlider={{ label: `${nameInWords(field.key)} value`, onWordsTyped: commitTheWords }}
-          />
-        );
-      }
-      return (
-        <PropertyNumberField
-          fieldId={fieldId}
-          value={typeof value === "number" ? value : null}
-          minimum={control.minimum}
-          maximum={control.maximum}
-          isTheTypesDefault={isTheTypesDefault}
-          onCommitted={commitTheWords}
-        />
-      );
-    case "toggle":
-      return <PropertyCheckbox fieldId={fieldId} isOn={value === true} isTheTypesDefault={isTheTypesDefault} onToggled={onChosen} />;
-    case "choice":
-      return (
-        <PropertyChoiceField
-          fieldId={fieldId}
-          words={configFormFieldValueWords(value)}
-          isTheTypesDefault={isTheTypesDefault}
-          choices={onChosen === undefined ? undefined : control.choices.map((choice) => ({ words: configFormFieldValueWords(choice), onChosen: () => onChosen(choice) }))}
-        />
-      );
-    case "project_asset":
-      return (
-        <ProjectAssetFieldOfTheConfig
-          fieldId={fieldId}
-          name={field.key}
-          value={field.value_source === "unset" ? null : field.value}
-          mediaItTakes={control.media_it_takes}
-          isTheTypesDefault={isTheTypesDefault}
-          takesNull={field.is_nullable}
-          onChosen={onChosen}
-          onPickNotStarted={onWordsRefused}
-        />
-      );
-    case "list_of_records":
-    case "text":
-    case "json":
-      return <PropertyTextField fieldId={fieldId} words={field.value_source === "unset" ? "" : configFormFieldValueWords(value)} isTheTypesDefault={isTheTypesDefault} onCommitted={commitTheWords} />;
-  }
-}
-
-/** What an asset field is handed: the name of what it sets, its value, the media it takes, whether it is the type's default and takes no asset, what choosing an asset does, read only without `onChosen`, and where a picker that did not open says why. */
-interface ProjectAssetFieldOfTheConfigProps {
-  fieldId: string;
-  name: string;
-  value: JsonValue | null;
-  mediaItTakes: string[] | null;
-  isTheTypesDefault: boolean;
-  takesNull: boolean;
-  onChosen: ((asset: JsonValue) => void) | undefined;
-  onPickNotStarted: (because: string) => void;
-}
-
-/** A field naming a project asset by its UUID: the asset it names, by path with its picture, beside a button that opens Studio's asset picker; the value as written while no project is open. */
-function ProjectAssetFieldOfTheConfig(props: ProjectAssetFieldOfTheConfigProps) {
-  const openProject = useContext(OpenProjectOfTheAssetFieldsContext);
-  if (openProject === null) {
-    const { fieldId, value, isTheTypesDefault } = props;
-    return <PropertyAssetField fieldId={fieldId} words={chosenProjectAssetWords([], value)} previewPictureUrl={null} isTheTypesDefault={isTheTypesDefault} />;
-  }
-  return <ProjectAssetFieldOfTheOpenProject key={openProject.projectFolder} {...props} openProject={openProject} />;
-}
-
-function ProjectAssetFieldOfTheOpenProject({
-  fieldId,
-  name,
-  value,
-  mediaItTakes,
-  isTheTypesDefault,
-  takesNull,
-  onChosen,
-  onPickNotStarted,
-  openProject: { connection, projectFolder },
-}: ProjectAssetFieldOfTheConfigProps & { openProject: OpenProjectOfTheAssetFields }) {
-  const watchTheProjectsAssets = useCallback((listener: (reading: ProjectAssetsReading) => void): StopWatching => connection.watchProjectAssets(projectFolder, listener), [connection, projectFolder]);
-  const projectAssets = projectAssetsForTheAssetFieldsOf(useViewReading(watchTheProjectsAssets));
-  const previewPictures = useAssetPreviewPicturesOfTheProject(connection, projectFolder);
-  const [isThePickerOpen, setIsThePickerOpen] = useState(false);
-  const assetsListed = projectAssets.kind === "listed" ? projectAssets.assets : [];
-  const chosenAsset = chosenProjectAssetOf(assetsListed, value);
-  const chooseAnAsset = (whenChosen: (asset: JsonValue) => void) => {
-    setIsThePickerOpen(true);
-    void connection.pickAProjectAsset({ media: mediaItTakes, chosen_now: chosenAsset?.asset ?? null }).then((ending) => {
-      setIsThePickerOpen(false);
-      if (ending.kind === "chosen") whenChosen(ending.asset);
-      else if (ending.kind === "not_started") onPickNotStarted(ending.because);
-    });
-  };
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <PropertyAssetField
-        fieldId={fieldId}
-        words={chosenProjectAssetWords(assetsListed, value)}
-        previewPictureUrl={chosenAsset === null ? null : previewPictureUrlOf(previewPictures?.pictureOf(chosenAsset) ?? null)}
-        isTheTypesDefault={isTheTypesDefault}
-        choosing={onChosen === undefined ? undefined : { label: `Choose an asset for ${nameInWords(name)}…`, disabledReason: isThePickerOpen ? "The asset picker is open." : null, onChooseAsked: () => chooseAnAsset(onChosen) }}
-        clearing={onChosen === undefined || !takesNull || value === null || value === "" ? undefined : { label: `Choose no asset for ${nameInWords(name)}`, onCleared: () => onChosen(null) }}
-      />
-      {projectAssets.kind === "refused" && <RefusalLine lead="The project's assets weren't listed:" words={projectAssets.because} data-property-asset-listing-refusal="" />}
-    </div>
-  );
-}
-
 /** What a field of the panel's own sets through: the store's value of one input or setting, and its own refusals. */
 interface OwnFieldOfTheRow {
   address: InputAddress;
@@ -265,86 +101,6 @@ function ownValueShown(ownField: OwnFieldOfTheInput | null): JsonValue | null {
 /** The value an input or setting shows in the store, its own or its default; `null` where it shows none. */
 function valueShown(ownField: OwnFieldOfTheInput | null): JsonValue | null {
   return ownField?.shown.value ?? null;
-}
-
-/** The panel's own asset field for a String holding a project asset's UUID: the asset chosen set as the value, as one commit. */
-function AssetFieldOfTheInput({ fieldId, row, mediaItTakes, takesNull }: { fieldId: string; row: OwnFieldOfTheRow; mediaItTakes: string[] | null; takesNull: boolean }) {
-  const ownField = useOwnFieldOfTheInput(row.address, "commit");
-  return (
-    <ProjectAssetFieldOfTheConfig
-      fieldId={fieldId}
-      name={row.address.input}
-      value={valueShown(ownField)}
-      mediaItTakes={mediaItTakes}
-      isTheTypesDefault={ownValueShown(ownField) === null}
-      takesNull={takesNull}
-      onChosen={ownField === null ? undefined : (asset) => ownField.releaseTheValue(asset)}
-      onPickNotStarted={(because) => row.graphEdits.keepTheRefusal(row.place, because)}
-    />
-  );
-}
-
-/**
- * The panel's own rows for a setting holding a list of records: how many entries it holds, with a way to add one, then each
- * entry's fields, which set the whole list as one commit, read from the value the store shows.
- */
-function ListOfRecordsOfTheInput({ fieldId, row, list }: { fieldId: string; row: OwnFieldOfTheRow; list: ListOfRecordsOfTheSetting }) {
-  const ownField = useOwnFieldOfTheInput(row.address, "commit");
-  const { graphEdits } = row;
-  const settingName = row.address.input;
-  const records = recordsOfAListField(valueShown(ownField));
-  const setTheList = (place: PlaceOfAnEdit, listWanted: (listEditedFrom: JsonValue) => JsonValue[] | null) => {
-    if (ownField === null) return;
-    const listSet = listWanted(valueShown(ownField));
-    if (listSet === null) graphEdits.keepTheRefusal(place, LIST_ENTRY_MOVED_ON_REFUSAL);
-    else ownField.releaseTheValue(listSet);
-  };
-  return (
-    <div className="flex w-full min-w-0 flex-col gap-1" data-properties-list-of-records={settingName}>
-      <PropertyListEntryCount
-        fieldId={fieldId}
-        entryCount={records.length}
-        isTheTypesDefault={ownValueShown(ownField) === null}
-        addition={ownField === null ? undefined : { label: `Add an entry to ${nameInWords(settingName)}`, onAdded: () => setTheList(row.place, (listEditedFrom) => listWithARecordAdded(listEditedFrom, list.new_item)) }}
-      />
-      {records.map((record, index) => {
-        const entryLabel = `${nameInWords(settingName)} ${index}`;
-        return (
-          <PropertyListEntry
-            key={index}
-            label={entryLabel}
-            removal={ownField === null ? undefined : { label: `Remove ${entryLabel}`, onRemoved: () => setTheList(row.place, (listEditedFrom) => listWithoutTheRecord(listEditedFrom, index, record)) }}
-            data-config-list-entry={`${settingName}:${index}`}
-          >
-            {fieldsOfAListEntry(list.item_schema, record).map((entryField) => {
-              const entryFieldPlace: PlaceOfAnEdit = `input:${settingName}:${index}:${entryField.key}`;
-              const setTheEntryField = (newValue: JsonValue | undefined) => setTheList(entryFieldPlace, (listEditedFrom) => listWithTheRecordFieldSet(listEditedFrom, index, record, entryField.key, newValue));
-              return (
-                <PropertyRow
-                  key={entryField.key}
-                  label={nameInWords(entryField.key)}
-                  meaning={entryField.description === null ? entryField.key : `${entryField.key} · ${entryField.description}`}
-                  refusal={graphEdits.refusalsByPlace.get(entryFieldPlace) ?? null}
-                  reset={ownField === null || entryField.value_source !== "config" ? undefined : { label: `Reset ${entryLabel} ${nameInWords(entryField.key)} to its type's default`, onReset: () => setTheEntryField(undefined) }}
-                  data-config-field={`${settingName}:${index}:${entryField.key}`}
-                  data-config-field-value-source={entryField.value_source}
-                >
-                  {(entryFieldId) => (
-                    <ListEntryFieldControl
-                      fieldId={entryFieldId}
-                      field={entryField}
-                      onChosen={ownField === null ? undefined : setTheEntryField}
-                      onWordsRefused={(because) => graphEdits.keepTheRefusal(entryFieldPlace, because)}
-                    />
-                  )}
-                </PropertyRow>
-              );
-            })}
-          </PropertyListEntry>
-        );
-      })}
-    </div>
-  );
 }
 
 /** What a port's name shows while the pointer rests on it: the stream facts it reads, and that a Records port's values are not checked. */
@@ -456,7 +212,7 @@ function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin
       wireReading={wireDriven === null ? undefined : <InputControlMount input={wireDriven} surface="properties" readOnly={streamAsset === null} fallback={null} className="w-full" />}
       unlinkedValue={
         state.kind === "holds_a_value" ? (
-          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} nodePin={pin} describedInput={describedInput} row={{ address: state.address, place, graphEdits }} />
+          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} nodePin={pin} row={{ address: state.address, place, graphEdits }} />
         ) : state.kind === "wired_from_outside_the_level" ? (
           <span className="text-fg-3" data-properties-input-wired-from-outside-the-level>
             Wired
@@ -485,20 +241,12 @@ function AudioCaptureDeviceFieldOfTheInput({ fieldId, row }: { fieldId: string; 
 }
 
 /**
- * The panel's own field for an input no control draws: the asset field for one holding a project asset's UUID, the menu of
- * the machine's audio capture devices for one naming a device, the entry rows of a setting holding a list of records, and
- * else its value as JSON.
+ * The panel's own field for an input no control of the table draws: the menu of the machine's audio capture devices for one
+ * naming a device, and else its value in words, which no surface sets.
  */
-function OwnFieldOfTheRowsInput({ fieldId, nodePin, describedInput, row }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations">; describedInput: NodeTypeInputDescribed | undefined; row: OwnFieldOfTheRow }) {
-  const projectAsset = nodePin.annotations.project_asset;
-  if (projectAsset !== undefined && projectAsset !== null) {
-    const mediaItTakes = projectAsset.media === undefined || projectAsset.media === null || projectAsset.media.length === 0 ? null : [...projectAsset.media];
-    return <AssetFieldOfTheInput fieldId={fieldId} row={row} mediaItTakes={mediaItTakes} takesNull={doesTheSettingTakeNull(describedInput?.value_json_schema)} />;
-  }
+function OwnFieldOfTheRowsInput({ fieldId, nodePin, row }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations">; row: OwnFieldOfTheRow }) {
   if (nodePin.pin !== null && isAnAudioCaptureDeviceInput(nodePin.pin.pin_type, nodePin.annotations)) return <AudioCaptureDeviceFieldOfTheInput fieldId={fieldId} row={row} />;
-  const list = listOfRecordsOfTheSetting(describedInput?.value_json_schema);
-  if (list !== null) return <ListOfRecordsOfTheInput fieldId={fieldId} row={row} list={list} />;
-  return <JsonFieldOfTheInput fieldId={fieldId} address={row.address} />;
+  return <InputValueWords address={row.address} pinType={nodePin.pin?.pin_type ?? null} data-properties-input-value-words={row.address.input} />;
 }
 
 /**
@@ -506,10 +254,10 @@ function OwnFieldOfTheRowsInput({ fieldId, nodePin, describedInput, row }: { fie
  * words while that control loads, and the panel's own field where the table has no control for it. Under it, the store's
  * refusal of the last value sent to it.
  */
-function ValueOfTheUnwiredInput({ fieldId, nodePin, describedInput, row }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations" | "setting">; describedInput: NodeTypeInputDescribed | undefined; row: OwnFieldOfTheRow }) {
+function ValueOfTheUnwiredInput({ fieldId, nodePin, row }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations" | "setting">; row: OwnFieldOfTheRow }) {
   const { address } = row;
   const controlled = takesAControl({ name: address.input, pin: nodePin.pin, annotations: nodePin.annotations, value_address: address, setting: nodePin.setting, wire: null });
-  const ownField = <OwnFieldOfTheRowsInput fieldId={fieldId} nodePin={nodePin} describedInput={describedInput} row={row} />;
+  const ownField = <OwnFieldOfTheRowsInput fieldId={fieldId} nodePin={nodePin} row={row} />;
   return (
     <div className="flex w-full min-w-0 flex-col gap-1">
       {controlled === null ? (
@@ -519,21 +267,6 @@ function ValueOfTheUnwiredInput({ fieldId, nodePin, describedInput, row }: { fie
       )}
       <RefusalOfTheInputsValue address={address} />
     </div>
-  );
-}
-
-/** The panel's own field for an input the table has no control for: its value as JSON, each commit set as the input's value, the words left empty taking it off. */
-function JsonFieldOfTheInput({ fieldId, address }: { fieldId: string; address: InputAddress }) {
-  const ownField = useOwnFieldOfTheInput(address, "commit");
-  const ownValue = ownValueShown(ownField);
-  return (
-    <PropertyTextField
-      fieldId={fieldId}
-      words={ownValue === null ? "" : configFormFieldValueWords(ownValue)}
-      isTheTypesDefault={ownValue === null}
-      label={`Value of ${address.input}`}
-      onCommitted={ownField === null ? undefined : (words) => (words.trim() === "" ? ownField.clearTheValue() : ownField.releaseTheValue(pinValueFromTheWordsTyped(words)))}
-    />
   );
 }
 

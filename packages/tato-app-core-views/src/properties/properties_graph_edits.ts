@@ -6,49 +6,6 @@ import type { BuiltInPinTypeName, PinAnnotations, PinType } from "@tatolab/tato-
 import type { PinAnnotationName, PinTypeDescription } from "@tatolab/tato-app-view-sdk/pin_types";
 import { isAJsonValue, type JsonValue, type StreamGraph, type StreamGraphAction, type StreamGraphLink, type StreamGraphNode, type StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { GRAPH_INPUT_NODE_TYPE, GRAPH_INPUT_VALUE_INPUT } from "../controls/graph_inputs_of_the_stream";
-import { recordsOfAListField, type ConfigFormField, type JsonObject } from "./config_form_fields";
-
-/** A value read from what the person typed into a field, or why it is not one the field takes. */
-export type ValueTyped = { kind: "value"; value: JsonValue } | { kind: "not_a_value"; because: string };
-
-/** The value `words` typed into `field` stand for under its control. */
-export function configValueFromTheWordsTyped(field: Pick<ConfigFormField, "control" | "is_nullable">, words: string): ValueTyped {
-  const trimmed = words.trim();
-  if (trimmed === "" && field.is_nullable) return { kind: "value", value: null };
-  switch (field.control.kind) {
-    case "number": {
-      const number = Number(trimmed);
-      if (trimmed === "") return { kind: "not_a_value", because: "A number is needed." };
-      if (!Number.isFinite(number)) return { kind: "not_a_value", because: `${trimmed} is not a number.` };
-      if (field.control.is_whole_number && !Number.isInteger(number)) return { kind: "not_a_value", because: `${words} is not a whole number.` };
-      return { kind: "value", value: number };
-    }
-    case "json":
-    case "list_of_records":
-      return jsonValueTyped(words);
-    case "text":
-    case "choice":
-    case "project_asset":
-    case "toggle":
-      return { kind: "value", value: words };
-  }
-}
-
-/** `words` as JSON, or why they are not. */
-function jsonValueTyped(words: string): ValueTyped {
-  try {
-    const parsed: JsonValue = JSON.parse(words);
-    return { kind: "value", value: parsed };
-  } catch {
-    return { kind: "not_a_value", because: `${words} is not JSON.` };
-  }
-}
-
-/** The value `words` typed into an unlinked input stand for: JSON where they read as JSON, else the words as text. */
-export function pinValueFromTheWordsTyped(words: string): JsonValue {
-  const typed = jsonValueTyped(words);
-  return typed.kind === "value" ? typed.value : words;
-}
 
 /** A node's id cut to its first and last four characters, as the panel's heading shows it. */
 export function nodeIdInShort(nodeId: string): string {
@@ -72,60 +29,6 @@ export function linkedEndsOfThePort(graph: Pick<StreamGraph, "nodes" | "links">,
     return otherNode === undefined ? [] : [{ link, node: otherNode, port: direction === "input" ? link.source.port : link.target.port }];
   });
 }
-
-/** Whether two JSON values hold the same values, whatever order an object's keys come in. */
-function holdTheSameJsonValues(left: JsonValue | undefined, right: JsonValue | undefined): boolean {
-  if (Array.isArray(left) || Array.isArray(right)) {
-    return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((item, itemIndex) => holdTheSameJsonValues(item, right[itemIndex]));
-  }
-  if (typeof left === "object" && left !== null && typeof right === "object" && right !== null) {
-    const leftKeys = Object.keys(left);
-    return leftKeys.length === Object.keys(right).length && leftKeys.every((key) => Object.hasOwn(right, key) && holdTheSameJsonValues(left[key], right[key]));
-  }
-  return left === right;
-}
-
-/** `record` without the value at `key`, or the whole record when `key` is `null`. */
-function recordWithoutTheKey(record: JsonObject, key: string | null): JsonObject {
-  if (key === null) return record;
-  const { [key]: _valueAtTheKey, ...recordWithoutIt } = record;
-  return recordWithoutIt;
-}
-
-/**
- * The list edited from's records when its record at `index` is still `recordTheRowShows`, apart from `keyBeingSet`, whose
- * value a drag in progress changes; `null` when the list has moved on, so the edit would land on another entry.
- */
-function theRecordStillShown(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject, keyBeingSet: string | null): JsonObject[] | null {
-  const records = recordsOfAListField(listEditedFrom);
-  const recordEditedFrom = records[index];
-  return recordEditedFrom !== undefined && holdTheSameJsonValues(recordWithoutTheKey(recordEditedFrom, keyBeingSet), recordWithoutTheKey(recordTheRowShows, keyBeingSet)) ? records : null;
-}
-
-/** `listEditedFrom` with the record at `index` holding `value` at `key`, or without `key` when `value` is `undefined`; `null` when that record, apart from `key`, is no longer `recordTheRowShows`. */
-export function listWithTheRecordFieldSet(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject, key: string, value: JsonValue | undefined): JsonObject[] | null {
-  const records = theRecordStillShown(listEditedFrom, index, recordTheRowShows, key);
-  return (
-    records?.map((record, recordIndex) => {
-      if (recordIndex !== index) return record;
-      const recordWithoutTheValue = recordWithoutTheKey(record, key);
-      return value === undefined ? recordWithoutTheValue : { ...recordWithoutTheValue, [key]: value };
-    }) ?? null
-  );
-}
-
-/** `listEditedFrom` with `newItem` added at its end. */
-export function listWithARecordAdded(listEditedFrom: JsonValue, newItem: JsonObject): JsonObject[] {
-  return [...recordsOfAListField(listEditedFrom), newItem];
-}
-
-/** `listEditedFrom` without the record at `index`, the records after it moving up one; `null` when that record is no longer `recordTheRowShows`. */
-export function listWithoutTheRecord(listEditedFrom: JsonValue, index: number, recordTheRowShows: JsonObject): JsonObject[] | null {
-  return theRecordStillShown(listEditedFrom, index, recordTheRowShows, null)?.filter((_record, recordIndex) => recordIndex !== index) ?? null;
-}
-
-/** Why an edit of a list entry was not sent: the list changed under it. */
-export const LIST_ENTRY_MOVED_ON_REFUSAL = "This entry changed before the edit was sent, so nothing was changed. Try again on the entry as it shows now.";
 
 /** What a promotion reads of the input it promotes, and of the level of the graph it is at. */
 export interface InputToPromote {
@@ -154,13 +57,12 @@ const PIN_TYPES_A_GRAPH_INPUT_CHOOSES: ReadonlyMap<BuiltInPinTypeName, PinTypeDe
   ]),
 );
 
-/** The pin type a Graph Input fed into `input` chooses, with its row of the contract's table: `input`'s own, where it is one of `PIN_TYPES_A_GRAPH_INPUT_CHOOSES`, and no String naming a project asset, which only Properties' asset field picks; `null` for none. */
+/** The pin type a Graph Input fed into `input` chooses, with its row of the contract's table: `input`'s own, where it is one of `PIN_TYPES_A_GRAPH_INPUT_CHOOSES`; `null` for none. */
 function pinTypeAGraphInputChooses(input: Pick<StreamGraphPort, "pin_type" | "annotations">): { pin_type: PinType & JsonValue; described: PinTypeDescription } | null {
   const pinType = input.pin_type;
   const described = pinType === undefined ? undefined : PIN_TYPES_A_GRAPH_INPUT_CHOOSES.get(pinType.type);
   if (pinType === undefined || described === undefined || !isAJsonValue(pinType)) return null;
-  const namesAProjectAsset = input.annotations?.project_asset !== undefined && input.annotations.project_asset !== null;
-  return namesAProjectAsset ? null : { pin_type: pinType, described };
+  return { pin_type: pinType, described };
 }
 
 /** Whether an input of `pin` can be promoted to a Graph Input: one of a type a Graph Input chooses. */

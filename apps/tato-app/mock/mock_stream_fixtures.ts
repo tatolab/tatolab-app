@@ -378,8 +378,8 @@ function graphInputDeclaring(name: string, family: PortFamily, config: Record<st
 /** The node and port of Pulse Stage's picture each extra node reads: its Kaleidoscope's folded lights. */
 const THE_FOLDED_LIGHTS = { node: "kaleidoscope", port: "result" } as const;
 
-/** What Core Nodes' `ImageFile` reports while its `asset` config is unset, in the runtime's words. */
-const IMAGE_FILE_NOT_READY_BECAUSE = "ImageFile names no image asset. To fix: set its `asset` config to the UUID of a PNG or JPEG imported into the project";
+/** What Core Nodes' `ImageFile` reports while its `asset` input is unset, in the runtime's words. */
+const IMAGE_FILE_NOT_READY_BECAUSE = "ImageFile names no image asset. To fix: set its `asset` input to a PNG or JPEG imported into the project";
 
 /** A Core Nodes `ImageFile` naming no asset, so it reports itself not ready and keeps running. */
 const IMAGE_FILE_NOT_READY_NODE: MockGraphNode = {
@@ -387,7 +387,7 @@ const IMAGE_FILE_NOT_READY_NODE: MockGraphNode = {
   type: "core_nodes.image_file:ImageFile",
   state: "Running",
   not_ready_because: IMAGE_FILE_NOT_READY_BECAUSE,
-  config: { asset: "" },
+  config: {},
   settings: ["asset"],
   input_ports: [],
   output_ports: portsStatingNoStreamFacts("image", "image"),

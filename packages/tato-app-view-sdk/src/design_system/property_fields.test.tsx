@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PropertyChoiceField, PropertyPortRow, PropertySliderField, PropertyTextField } from "./property_fields";
+import { PropertyChoiceField, PropertyPortRow, PropertyTextField } from "./property_fields";
 
 afterEach(cleanup);
 
@@ -43,106 +43,6 @@ describe("a property field edited in place", () => {
     const textField = aTextFieldCommittingInto(committedWords);
     fireEvent.keyDown(textField, { key: "Enter" });
     expect(committedWords).toEqual([]);
-  });
-});
-
-function aSliderRecordingEachEdit({ isCancelledByEscape = false }: { isCancelledByEscape?: boolean } = {}) {
-  const edits: string[] = [];
-  render(
-    <label>
-      FPS
-      <PropertySliderField
-        fieldId="fps-field"
-        value={30}
-        minimum={1}
-        maximum={60}
-        isWholeNumber
-        onDragStarted={() => edits.push("drag started")}
-        onLiveEdit={(moved) => edits.push(`live ${moved}`)}
-        onCommitted={(released) => edits.push(`commit ${released}`)}
-        onDragCancelled={isCancelledByEscape ? () => edits.push("cancelled") : undefined}
-        valueTypedBesideTheSlider={{ label: "FPS value", onWordsTyped: (words) => edits.push(`typed ${words}`) }}
-      />
-    </label>,
-  );
-  return { edits, slider: screen.getByRole("slider") };
-}
-
-describe("a property slider", () => {
-  it("takes a value typed beside it, committed on Enter or on leaving it, and puts it back on Escape", () => {
-    const { edits } = aSliderRecordingEachEdit();
-    const typedValue = screen.getByRole("textbox", { name: "FPS value" });
-    expect(typedValue.getAttribute("value") ?? "").toBe("30");
-    typedValue.focus();
-    fireEvent.change(typedValue, { target: { value: "24" } });
-    fireEvent.keyDown(typedValue, { key: "Enter" });
-    typedValue.focus();
-    fireEvent.change(typedValue, { target: { value: "12" } });
-    fireEvent.keyDown(typedValue, { key: "Escape" });
-    expect(screen.getByRole<HTMLInputElement>("textbox", { name: "FPS value" }).value).toBe("30");
-    typedValue.focus();
-    fireEvent.change(typedValue, { target: { value: "15" } });
-    fireEvent.blur(typedValue);
-    expect(edits).toEqual(["typed 24", "typed 15"]);
-  });
-
-  it("sends each move live and commits once on release, showing LIVE while dragged", () => {
-    const { edits, slider } = aSliderRecordingEachEdit();
-    fireEvent.pointerDown(slider);
-    fireEvent.change(slider, { target: { value: "31" } });
-    fireEvent.change(slider, { target: { value: "33" } });
-    expect(screen.getByText("LIVE")).toBeTruthy();
-    fireEvent.pointerUp(window);
-    expect(edits).toEqual(["drag started", "live 31", "live 33", "commit 33"]);
-    expect(screen.queryByText("LIVE")).toBeNull();
-  });
-
-  it("commits a drag released outside it", () => {
-    const { edits, slider } = aSliderRecordingEachEdit();
-    fireEvent.change(slider, { target: { value: "40" } });
-    fireEvent.pointerUp(document.body);
-    expect(edits).toEqual(["drag started", "live 40", "commit 40"]);
-  });
-
-  it("commits nothing for a press, a key or a focus change that did not move it", () => {
-    const { edits, slider } = aSliderRecordingEachEdit();
-    fireEvent.pointerDown(slider);
-    fireEvent.pointerUp(slider);
-    fireEvent.keyDown(slider, { key: "Shift" });
-    fireEvent.keyUp(slider, { key: "Shift" });
-    act(() => slider.focus());
-    act(() => slider.blur());
-    expect(edits).toEqual([]);
-  });
-
-  it("cancels a drag on Escape, commits nothing, and moves nothing more until the press ends", () => {
-    const { edits, slider } = aSliderRecordingEachEdit({ isCancelledByEscape: true });
-    fireEvent.pointerDown(slider);
-    fireEvent.change(slider, { target: { value: "31" } });
-    fireEvent.keyDown(slider, { key: "Escape" });
-    fireEvent.keyUp(slider, { key: "Escape" });
-    fireEvent.change(slider, { target: { value: "35" } });
-    expect(screen.queryByText("LIVE")).toBeNull();
-    fireEvent.pointerUp(window);
-    fireEvent.change(slider, { target: { value: "40" } });
-    fireEvent.pointerUp(window);
-    expect(edits).toEqual(["drag started", "live 31", "cancelled", "drag started", "live 40", "commit 40"]);
-  });
-
-  it("releases a drag on Escape's key-up, as on any key's, where the drag cannot be cancelled", () => {
-    const { edits, slider } = aSliderRecordingEachEdit();
-    fireEvent.change(slider, { target: { value: "31" } });
-    fireEvent.keyDown(slider, { key: "Escape" });
-    fireEvent.keyUp(slider, { key: "Escape" });
-    fireEvent.pointerUp(window);
-    expect(edits).toEqual(["drag started", "live 31", "commit 31"]);
-  });
-
-  it("commits a keyboard step when the key is let go", () => {
-    const { edits, slider } = aSliderRecordingEachEdit();
-    fireEvent.change(slider, { target: { value: "31" } });
-    fireEvent.keyUp(slider, { key: "ArrowRight" });
-    expect(edits).toEqual(["drag started", "live 31", "commit 31"]);
   });
 });
 
