@@ -20,7 +20,7 @@ beforeAll(() => {
 const GRAPH = { project_folder: "/projects/demo", stream_asset: "main.stream", level: [] } as const;
 
 function aPin(name: string, fields: Partial<NodePin> = {}): NodePin {
-  return { name, member: null, bundle: null, pin: { pin_type: { type: "texture" }, flow: "stream" }, family: null, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, slot: null, ...fields };
+  return { name, member: null, bundle: null, pin: { pin_type: { type: "texture" }, flow: "stream" }, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: null, takes_a_wire: true, wire: null, link: null, slot: null, ...fields };
 }
 
 function aSlotPin(group: string, slot: number, pin: string, slots: NodePinSlot["slots"], isTheEmptySlot: boolean): NodePin {

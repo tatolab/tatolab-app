@@ -10,7 +10,6 @@ import { valueAddressOfTheInput, valueAddressOfTheMember, type GraphAddress } fr
 import { doesTheInputPortTakeAWire, exactPinOfTheDeclaredPort, openBundlesOfTheMetadata, settingOfTheDescribedInput, type NodePin, type NodePinBundle, type NodePinSlot, type NodePinWire } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { settingsOfTheNodeNotAmongItsPorts } from "@tatolab/tato-app-view-sdk/pin_model/node_settings";
 import {
-  familyOfThePort,
   memberValueReadsOfThePort,
   pinOfThePort,
   studioFieldsOfTheNode,
@@ -54,7 +53,6 @@ function nodePinOfTheSettingNotAmongThePorts(node: Pick<StreamGraphNode, "id">, 
     name: setting.name,
     member: null,
     pin: exactPinOfTheDeclaredPort(setting),
-    family: null,
     description: descriptionWords(setting.documentation),
     annotations: setting.annotations ?? {},
     stream_facts_words: [],
@@ -101,7 +99,7 @@ export function wiresReadAtTheLevel(stream: string, valuesAt: GraphAddress | nul
 /** What the input `port` of `node` reads through its wire in `graph`, at `wiresAt`; `null` for one that takes no wire, and where no wire is read. */
 function wireIntoTheInput(graph: Pick<StreamGraph, "nodes" | "links">, node: StreamGraphNode, port: StreamGraphPort, takesAWire: boolean, wiresAt: WiresReadAt | null): NodePinWire | null {
   if (wiresAt === null || !takesAWire) return null;
-  return { into: { graph: wiresAt.graph, node_id: node.id, input: port.name, member: null }, wiring: wiringOfTheInput(wiresAt.stream, graph, node.name, port.name, familyOfThePort(port)) };
+  return { into: { graph: wiresAt.graph, node_id: node.id, input: port.name, member: null }, wiring: wiringOfTheInput(wiresAt.stream, graph, node.name, port.name) };
 }
 
 /**
@@ -128,7 +126,6 @@ export function nodeInputs(
       name: port.name,
       member,
       pin: pinOfTheEnd(pin, member),
-      family: null,
       description: null,
       annotations: {},
       stream_facts_words: [],
@@ -144,7 +141,6 @@ export function nodeInputs(
       name: port.name,
       member: null,
       pin,
-      family: familyOfThePort(port),
       ...describedWordsOfThePort(described?.inputs, port),
       stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)),
       value_address: valueAddressOfTheInput(valuesAt, node.id, port),
@@ -169,7 +165,6 @@ export function nodeOutputs(node: StreamGraphNode, described: NodeTypeDescriptio
       name: port.name,
       member,
       pin: pinOfTheEnd(pin, member),
-      family: null,
       description: null,
       annotations: {},
       stream_facts_words: [],
@@ -185,7 +180,6 @@ export function nodeOutputs(node: StreamGraphNode, described: NodeTypeDescriptio
       name: port.name,
       member: null,
       pin,
-      family: familyOfThePort(port),
       ...describedWordsOfThePort(described?.outputs, port),
       stream_facts_words: portStreamFactsWords(port),
       value_address: null,

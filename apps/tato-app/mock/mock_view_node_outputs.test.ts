@@ -5,7 +5,8 @@ import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inp
 import type { PortViewerEvent } from "../src/shared/tatolab_backend_contract";
 import { createMockTatolabBackend } from "./mock_tatolab_backend";
 import { readMockTatolabOptions } from "./mock_tatolab_options";
-import { familyOfThePort, inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { mockFamilyOfThePort } from "./mock_port_families";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -25,7 +26,7 @@ it("a value set live on the fixture view node's input of its output's name is wh
   const viewNode = graph.nodes.find((node) => node.name === "pictureandfader");
   if (viewNode === undefined || typeof graph.asset !== "string") return expect.unreachable("the main stream holds the fixture view's node");
   const faderInput = viewNode.ports.inputs.find((port) => port.name === "fader") ?? expect.unreachable("the fixture view's node takes a fader");
-  expect([familyOfThePort(faderInput), inputValueReadOfThePort(faderInput)]).toEqual(["array", { value: null, comes_from: null }]);
+  expect([mockFamilyOfThePort(faderInput), inputValueReadOfThePort(faderInput)]).toEqual(["array", { value: null, comes_from: null }]);
   const wiredFromTheFader = graph.links.find((link) => link.source.node === "pictureandfader" && link.source.port === "fader");
   expect(wiredFromTheFader?.target.node).toBe("fadermeter");
 

@@ -5,13 +5,13 @@
 
 import type {
   PinType,
-  PortFamily,
   PortViewerChannelWaveform,
   PortViewerEvent,
   PortViewerImageFrameFacts,
   PortViewerMessageReading,
   PortViewerTarget,
 } from "../src/shared/tatolab_backend_contract";
+import type { PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
 
 const MOCK_IMAGE_FRAME_EVERY_MILLISECONDS = 33;
 const MOCK_MESSAGE_EVERY_MILLISECONDS = 33;

@@ -10,12 +10,12 @@ function node(id: string, name: string, type: string, graphInterface: StreamGrap
 
 /** The `value` input a running top-level `GraphInput` renders, of type `type`, reading `value` from where `comesFrom` says. */
 function valueInput(type: "float" | "string", value: JsonValue, comesFrom: "default" | "saved" | "live" = "default", annotations: StreamGraphPort["annotations"] = {}): StreamGraphPort {
-  return aGraphPort("value", null, { pin_type: { type }, flow: "value", annotations, value, value_comes_from: comesFrom });
+  return aGraphPort("value", { pin_type: { type }, flow: "value", annotations, value, value_comes_from: comesFrom });
 }
 
 /** The `lifetime` setting a `GraphInput` renders, reading `lifetime`. */
 function lifetimeInput(lifetime: "kept" | "reset"): StreamGraphPort {
-  return aGraphPort("lifetime", null, { pin_type: { type: "string" }, flow: "value", value: lifetime, value_comes_from: "saved" });
+  return aGraphPort("lifetime", { pin_type: { type: "string" }, flow: "value", value: lifetime, value_comes_from: "saved" });
 }
 
 const STREAM_LEVEL: GraphAddress = { project_folder: "/projects/s06-perform", stream_asset: "0df4a7aa-1111-2222-3333-444444444444", level: [] };

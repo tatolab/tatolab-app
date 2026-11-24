@@ -20,7 +20,6 @@ import {
   type OwnFieldOfTheInput,
 } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import { nodePinWordsBesideItsSlot, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
-import { portFamilyWords } from "@tatolab/tato-app-view-sdk/port_families";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
 import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
 import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
@@ -108,9 +107,9 @@ function meaningOfAPort(pin: Pick<NodePin, "stream_facts_words">, port: Pick<Str
   return meaning === "" ? undefined : meaning;
 }
 
-/** A pin's type and flow in words; a pin with no exact type says so, with its family. */
-function typeWordsOfThePin(pin: Pick<NodePin, "pin" | "family">): string {
-  return pin.pin === null && pin.family !== null ? `${pinWords(null)} · ${portFamilyWords(pin.family)}` : pinWords(pin.pin);
+/** A pin's type and flow in words; a pin with no exact type says so. */
+function typeWordsOfThePin(pin: Pick<NodePin, "pin">): string {
+  return pinWords(pin.pin);
 }
 
 /** Where the value an unwired input shows comes from, in a word. */
@@ -496,7 +495,7 @@ function PropertiesOfTheSelectedNode({
               ))
             )}
             {outputPortsListed
-              .filter(({ port }) => port.family === "image")
+              .filter(({ pin }) => pin.pin?.pin_type.type === "texture")
               .map(({ port }) => (
                 <div key={port.name} className="flex justify-end">
                   <ActionButton

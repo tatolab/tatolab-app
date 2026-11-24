@@ -65,7 +65,7 @@ function theViewerMountedOnAnImagePort() {
         target={CAMERA_VIDEO}
         nodeName="camera"
         portWords="camera › video"
-        streamFactsOfThePort={{ stream_facts: null, values_checked: false, family: "image" }}
+        streamFactsOfThePort={{ stream_facts: null, values_checked: false, pin_type: { type: "texture" } }}
         isTheNodeNotReady={false}
       />,
     ),
@@ -130,7 +130,7 @@ function theViewerMountedOnAPortWithNoFamily() {
         target={{ stream: "studio", node_id: "counter-id", port: "count" }}
         nodeName="counter"
         portWords="counter › count"
-        streamFactsOfThePort={{ stream_facts: undefined, values_checked: undefined, family: null }}
+        streamFactsOfThePort={{ stream_facts: undefined, values_checked: undefined, pin_type: null }}
         isTheNodeNotReady={false}
       />,
     ),

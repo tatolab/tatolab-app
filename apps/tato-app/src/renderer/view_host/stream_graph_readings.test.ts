@@ -10,7 +10,7 @@ afterEach(() => {
 
 /** A graph of one node of each type, each with a `gain` input reading `gain`, saved. */
 function graphOfTheTypes(stream: string, nodeTypes: string[], gain: number): StreamGraph {
-  const gainInput = aGraphPort("gain", "channels", { value: gain, value_comes_from: "saved" });
+  const gainInput = aGraphPort("gain", { value: gain, value_comes_from: "saved" });
   return aStreamGraph(
     nodeTypes.map((type, index) => aGraphNode(`n${index}`, { id: `P${index}`, type, kind: "process", config: {}, inputs: [gainInput] })),
     [],

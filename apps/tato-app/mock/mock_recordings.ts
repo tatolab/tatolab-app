@@ -36,7 +36,6 @@ import type { Result } from "../src/main/result";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import {
   canvasNotesOfTheGraph,
-  familyOfThePort,
   inputValueReadOfThePort,
   jsonObjectMembersOf,
   NODE_STUDIO_FIELDS_NONE_SET,
@@ -47,6 +46,7 @@ import {
 import type { ControlContractComponentName, ControlContractComponents } from "@tatolab/runtime-client/contract";
 import type { DescribeNodeTypesToolResult, JsonValue, ListAudioCaptureDevicesToolResult, ListNodeTypesToolResult, NodeTypeDescription, ProjectActionRefusal, StreamGraph, StreamGraphLink, StreamGraphLinkWarning, StreamGraphNode, StreamGraphPort, StreamGraphPortPin } from "../src/shared/tatolab_backend_contract";
 import type { MockGraphLink, MockGraphNode, MockGraphPort, MockStreamGraph } from "./mock_stream_fixtures";
+import { mockFamilyOfThePort } from "./mock_port_families";
 
 /** A recording the readers cannot read: the recording, or the reader, has drifted from the runtime. */
 class MockRecordingUnreadable extends Error {
@@ -136,7 +136,7 @@ const RECORDED_PULSE_STAGE_GRAPH_OF_MAIN: StreamGraph = recordedResultOfTheContr
 function mockGraphPortOfTheRecordedPort(port: StreamGraphPort, direction: "input" | "output"): MockGraphPort {
   return {
     name: port.name,
-    family: familyOfThePort(port),
+    family: mockFamilyOfThePort(port),
     stream_facts: streamFactsOfThePort(port),
     values_checked: port.values_checked ?? null,
     pin: pinOfThePort(port),
@@ -440,7 +440,7 @@ function recordedTensorToAudioDescribed(): NodeTypeDescription {
 function standInNodeWithAWiredSetting(): MockGraphNode {
   const described = recordedTensorToAudioDescribed();
   const portOf = (port: NodeTypeDescription["outputs"][number]): MockGraphPort => {
-    const family = familyOfThePort(port);
+    const family = mockFamilyOfThePort(port);
     return { name: port.name, family, stream_facts: null, values_checked: family === "records" ? false : null, pin: exactPinOfTheDeclaredPort(port), value_read: null };
   };
   const inputDefaults = Object.fromEntries(described.inputs.flatMap((input) => (input.default_value === undefined || input.default_value === null || !isAJsonValue(input.default_value) ? [] : [[input.name, input.default_value] as const])));

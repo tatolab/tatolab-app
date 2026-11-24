@@ -8,7 +8,6 @@ import type { SearchPopoverItem } from "@tatolab/tato-app-view-sdk/design_system
 import type { NodeGraphCardKind } from "@tatolab/tato-app-view-sdk/design_system/support/node_graph_canvas_contract";
 import { exactPinOfTheDeclaredPort, settingOfTheDescribedInput, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import {
-  familyOfThePort,
   nodeTypeDescriptionsByType,
   type ListNodeTypesToolResult,
   type NodeTypeDescription,
@@ -125,7 +124,6 @@ function nodePinOfTheDescribedPort(port: NodeTypePortDescribed): NodePin {
     member: null,
     bundle: null,
     pin: exactPinOfTheDeclaredPort(port),
-    family: familyOfThePort(port),
     description: descriptionWords(port.documentation),
     annotations: port.annotations ?? {},
     stream_facts_words: [],

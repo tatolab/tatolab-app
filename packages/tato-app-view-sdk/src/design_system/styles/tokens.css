@@ -186,11 +186,11 @@
   --studio-graph-kind-placed-stream: #ffd60a;
   --studio-graph-kind-unknown: #9a9aa3;
   --studio-graph-kind-mark-ink: #14101f;
-  --studio-family-image: #6f9bff;
-  --studio-family-array: #f0a845;
-  --studio-family-channels: #3fcf8e;
-  --studio-family-packets: #e07a5f;
-  --studio-family-records: #a0a4ad;
+  --studio-port-picture: #6f9bff;
+  --studio-port-tensor: #f0a845;
+  --studio-port-signal: #3fcf8e;
+  --studio-port-encoded: #e07a5f;
+  --studio-port-record: #a0a4ad;
   --studio-pin-type-boolean: #e8749a;
   --studio-pin-type-integer: #3fae8a;
   --studio-pin-type-float: #8fd17a;

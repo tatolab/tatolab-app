@@ -15,9 +15,9 @@ const EDITED: EditedStreamGraph = (() => {
   const edited = editedStreamGraphOf(
     aStreamGraph(
       [
-        aGraphNode("beat", { id: BEAT, outputs: [aGraphPort("count", "channels")] }),
-        aGraphNode("warmth", { id: WARMTH, inputs: [aGraphPort("beats_per_bar", "channels"), aGraphPort("base", "channels"), aGraphPort("count", "channels"), aGraphPort("level", "channels")] }),
-        aGraphNode("tally", { id: TALLY, inputs: [aGraphPort("picture", "image")] }),
+        aGraphNode("beat", { id: BEAT, outputs: [aGraphPort("count")] }),
+        aGraphNode("warmth", { id: WARMTH, inputs: [aGraphPort("beats_per_bar"), aGraphPort("base"), aGraphPort("count"), aGraphPort("level")] }),
+        aGraphNode("tally", { id: TALLY, inputs: [aGraphPort("picture", { pin_type: { type: "texture" }, flow: "stream" })] }),
       ],
       [],
       { asset: STREAM_ASSET },

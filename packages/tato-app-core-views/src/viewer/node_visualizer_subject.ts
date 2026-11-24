@@ -1,4 +1,4 @@
-import { familyOfThePort, type StreamGraph, type StreamGraphNode, type StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { type StreamGraph, type StreamGraphNode, type StudioSelection } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { nodeTitle } from "../shared/node_words";
 
 /** One output port of a stream's graph: its node's id as `graph` lists it, that node's name, and the port's own name. */
@@ -7,14 +7,14 @@ export type NodeVisualizerPortAddress = { node_id: string; node_name: string; po
 /** What the Node visualizer shows for the selection: nothing selected in this stream, a selected node with no output, or the selected node's port it plays. */
 export type NodeVisualizerSubject = { kind: "nothing_selected" } | { kind: "node_without_output"; node: StreamGraphNode } | { kind: "port"; port: NodeVisualizerPortAddress };
 
-/** The selected node of `graph`'s stream and what the Node visualizer plays of it: its first port that may carry a picture, an Image port or one whose family the runtime does not serve, or else its first port of any family. */
+/** The selected node of `graph`'s stream and what the Node visualizer plays of it: its first port that may carry a picture, a Texture port or one of no exact type, or else its first port of any type. */
 export function nodeVisualizerSubjectOf(graph: StreamGraph, selection: StudioSelection | null): NodeVisualizerSubject {
   if (selection?.kind !== "node" || selection.stream !== graph.stream || (selection.level ?? []).length > 0) return { kind: "nothing_selected" };
   const selectedNode = graph.nodes.find((node) => node.name === selection.node);
   if (selectedNode === undefined) return { kind: "nothing_selected" };
   const played =
-    selectedNode.ports.outputs.find((outputPort) => familyOfThePort(outputPort) === "image") ??
-    selectedNode.ports.outputs.find((outputPort) => familyOfThePort(outputPort) === null) ??
+    selectedNode.ports.outputs.find((outputPort) => outputPort.pin_type?.type === "texture") ??
+    selectedNode.ports.outputs.find((outputPort) => outputPort.pin_type === undefined) ??
     selectedNode.ports.outputs[0];
   if (played === undefined) return { kind: "node_without_output", node: selectedNode };
   return { kind: "port", port: { node_id: selectedNode.id, node_name: selectedNode.name, port: played.name } };

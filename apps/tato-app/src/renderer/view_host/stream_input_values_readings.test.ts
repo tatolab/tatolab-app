@@ -11,8 +11,8 @@ function graphNode(id: string, gain: StreamGraphInputValueRead | null, fragmentN
     kind: fragmentNodes === null ? "function" : "fragment",
     config: {},
     inputs: [
-      aGraphPort("gain", "channels", { pin_type: { type: "float" }, flow: "value", ...(gain === null ? {} : { value: gain.value, value_comes_from: gain.comes_from }) }),
-      aGraphPort("video", "image", { pin_type: { type: "texture" }, flow: "stream" }),
+      aGraphPort("gain", { pin_type: { type: "float" }, flow: "value", ...(gain === null ? {} : { value: gain.value, value_comes_from: gain.comes_from }) }),
+      aGraphPort("video", { pin_type: { type: "texture" }, flow: "stream" }),
     ],
     ...(fragmentNodes === null ? {} : { fragment: { nodes: fragmentNodes, links: [], groups: [] } }),
     components: { state: "Running" },
@@ -103,7 +103,7 @@ test("a_reading_like_the_last_is_told_again_as_the_runtimes_word_that_its_inputs
 
 test("each_member_of_a_bundle_input_is_kept_on_its_own_and_a_change_naming_one_member_changes_that_member_alone", () => {
   const readings = new StreamInputValuesReadings();
-  const levels = aGraphPort("levels", "channels", {
+  const levels = aGraphPort("levels", {
     pin_type: { type: "bundle", members: [{ name: "left", member_type: { type: "float" } }, { name: "right", member_type: { type: "float" } }] },
     flow: "value",
     member_values: [

@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import type { PortFamily } from "../port_families";
+import type { PinType } from "../pin_types";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 
 const EMBLEM_WIDTH = 320;
@@ -8,10 +8,10 @@ const EMBLEM_HEIGHT = 180;
 const IMAGE_GLOWS = [
   { centreX: 110, centreY: 78, radius: 90, colour: "currentColor", opacity: 0.6 },
   { centreX: 214, centreY: 112, radius: 80, colour: "var(--brand)", opacity: 0.5 },
-  { centreX: 176, centreY: 60, radius: 60, colour: "var(--studio-family-channels)", opacity: 0.28 },
+  { centreX: 176, centreY: 60, radius: 60, colour: "var(--studio-port-signal)", opacity: 0.28 },
 ] as const;
 
-function ImageFrameEmblem() {
+function PictureFrameEmblem() {
   const frameClipId = useId();
   const glowGradientIdPrefix = useId();
   const cornerMarks = ["M 8 34 V 8 H 34", "M 286 8 H 312 V 34", "M 312 146 V 172 H 286", "M 34 172 H 8 V 146"];
@@ -33,7 +33,7 @@ function ImageFrameEmblem() {
         {IMAGE_GLOWS.map((glow, index) => (
           <rect
             key={index}
-            className="port-family-placeholder-glow"
+            className="port-placeholder-glow"
             x={glow.centreX - glow.radius}
             y={glow.centreY - glow.radius}
             width={glow.radius * 2}
@@ -62,7 +62,7 @@ const CHANNEL_WAVES = [
   { wavelength: 80, amplitude: 12, opacity: 0.3 },
 ] as const;
 
-function ChannelsWavesEmblem() {
+function SignalWavesEmblem() {
   const emblemClipId = useId();
   return (
     <>
@@ -74,7 +74,7 @@ function ChannelsWavesEmblem() {
       <line x1={0} x2={EMBLEM_WIDTH} y1={EMBLEM_HEIGHT / 2} y2={EMBLEM_HEIGHT / 2} stroke="currentColor" strokeOpacity={0.15} />
       <g clipPath={`url(#${emblemClipId})`}>
         {CHANNEL_WAVES.map((wave) => (
-          <path key={wave.wavelength} className="port-family-placeholder-wave" d={wavePathOf(wave.wavelength, wave.amplitude)} fill="none" stroke="currentColor" strokeOpacity={wave.opacity} strokeWidth={2} strokeLinecap="round" />
+          <path key={wave.wavelength} className="port-placeholder-wave" d={wavePathOf(wave.wavelength, wave.amplitude)} fill="none" stroke="currentColor" strokeOpacity={wave.opacity} strokeWidth={2} strokeLinecap="round" />
         ))}
       </g>
     </>
@@ -86,7 +86,7 @@ const ARRAY_ROWS = 7;
 const ARRAY_CELL_PITCH = 20;
 const ARRAY_CELL_SIZE = 16;
 
-function ArrayGridEmblem() {
+function TensorGridEmblem() {
   const centreColumn = (ARRAY_COLUMNS - 1) / 2;
   const centreRow = (ARRAY_ROWS - 1) / 2;
   return (
@@ -98,7 +98,7 @@ function ArrayGridEmblem() {
         return (
           <rect
             key={index}
-            className="port-family-placeholder-value"
+            className="port-placeholder-value"
             x={EMBLEM_WIDTH / 2 + (column - centreColumn) * ARRAY_CELL_PITCH - ARRAY_CELL_SIZE / 2}
             y={EMBLEM_HEIGHT / 2 + (row - centreRow) * ARRAY_CELL_PITCH - ARRAY_CELL_SIZE / 2}
             width={ARRAY_CELL_SIZE}
@@ -115,7 +115,7 @@ function ArrayGridEmblem() {
 
 const PACKETS_UNIT_HEIGHTS = [70, 42, 50, 38, 56, 44, 120, 48, 40, 60, 36, 52, 128, 46, 54, 40, 58, 44];
 
-function PacketsUnitsEmblem() {
+function EncodedUnitsEmblem() {
   const unitPitch = 16;
   const firstUnitX = (EMBLEM_WIDTH - unitPitch * PACKETS_UNIT_HEIGHTS.length) / 2 + 4;
   return (
@@ -126,7 +126,7 @@ function PacketsUnitsEmblem() {
         return (
           <rect
             key={index}
-            className="port-family-placeholder-unit"
+            className="port-placeholder-unit"
             x={firstUnitX + index * unitPitch}
             y={160 - unitHeight}
             width={startsAGroup ? 10 : 8}
@@ -144,11 +144,11 @@ function PacketsUnitsEmblem() {
 
 const RECORD_VALUE_WIDTHS = [120, 84, 140, 66, 104];
 
-function RecordsRowsEmblem() {
+function RecordRowsEmblem() {
   return (
     <>
       {RECORD_VALUE_WIDTHS.map((valueWidth, row) => (
-        <g key={row} className="port-family-placeholder-row" style={{ animationDelay: `${(row * 0.22).toFixed(2)}s` }}>
+        <g key={row} className="port-placeholder-row" style={{ animationDelay: `${(row * 0.22).toFixed(2)}s` }}>
           <rect x={48} y={24 + row * 28} width={64} height={10} rx={5} fill="currentColor" fillOpacity={0.55} />
           <rect x={128} y={24 + row * 28} width={valueWidth} height={10} rx={5} fill="currentColor" />
         </g>
@@ -157,53 +157,82 @@ function RecordsRowsEmblem() {
   );
 }
 
-function UnknownFamilyFramesEmblem() {
+function UntypedFramesEmblem() {
   return (
     <>
       {[0, 1, 2].map((frame) => (
-        <rect key={frame} className="port-family-placeholder-frame" x={16} y={8} width={EMBLEM_WIDTH - 32} height={EMBLEM_HEIGHT - 16} rx={14} fill="none" stroke="currentColor" strokeWidth={1.5} />
+        <rect key={frame} className="port-placeholder-frame" x={16} y={8} width={EMBLEM_WIDTH - 32} height={EMBLEM_HEIGHT - 16} rx={14} fill="none" stroke="currentColor" strokeWidth={1.5} />
       ))}
     </>
   );
 }
 
-function PortFamilyEmblem({ family }: { family: PortFamily | null }) {
-  if (family === "image") return <ImageFrameEmblem />;
-  if (family === "channels") return <ChannelsWavesEmblem />;
-  if (family === "array") return <ArrayGridEmblem />;
-  if (family === "packets") return <PacketsUnitsEmblem />;
-  if (family === "records") return <RecordsRowsEmblem />;
-  return <UnknownFamilyFramesEmblem />;
+/** What a port's placeholder draws for the pin type it carries: a picture, a signal of numbers, a tensor, encoded units or a record. */
+export type PortPlaceholderCarries = "picture" | "signal" | "tensor" | "encoded" | "record";
+
+/** What a port carrying `pinType` shows on its placeholder; `null` for a port with no pin type. */
+export function whatThePortPlaceholderCarries(pinType: PinType | null): PortPlaceholderCarries | null {
+  if (pinType === null) return null;
+  switch (pinType.type) {
+    case "texture":
+      return "picture";
+    case "tensor":
+      return "tensor";
+    case "encoded_video":
+    case "encoded_audio":
+      return "encoded";
+    case "boolean":
+    case "integer":
+    case "float":
+    case "color":
+    case "vector":
+    case "rectangle":
+    case "transform":
+    case "audio":
+      return "signal";
+    default:
+      return "record";
+  }
 }
 
-/** What a port's preview shows while nothing live reaches it: its family's emblem, what it previews, when it will show live, and, folded under Details, words such as the runtime's own. */
-export function PortFamilyPlaceholder({
-  family,
+function PortPlaceholderEmblem({ carries }: { carries: PortPlaceholderCarries | null }) {
+  if (carries === "picture") return <PictureFrameEmblem />;
+  if (carries === "signal") return <SignalWavesEmblem />;
+  if (carries === "tensor") return <TensorGridEmblem />;
+  if (carries === "encoded") return <EncodedUnitsEmblem />;
+  if (carries === "record") return <RecordRowsEmblem />;
+  return <UntypedFramesEmblem />;
+}
+
+/** What a port's preview shows while nothing live reaches it: an emblem of what its pin type carries, what it previews, when it will show live, and, folded under Details, words such as the runtime's own. */
+export function PortPlaceholder({
+  pinType,
   title,
   explanation,
   details,
   action,
   ...controlDataAttributes
 }: {
-  /** The family the previewed port carries; `null` draws a neutral emblem. */
-  family: PortFamily | null;
+  /** The pin type the previewed port carries; `null` draws a neutral emblem. */
+  pinType: PinType | null;
   title: string;
   explanation: string;
   details?: ReactNode;
   /** The control that recovers what the placeholder stands in for, under its explanation. */
   action?: ReactNode;
 } & ControlDataAttributes) {
+  const carries = whatThePortPlaceholderCarries(pinType);
   return (
-    <div className="port-family-placeholder" data-family={family ?? undefined} {...controlDataAttributes}>
-      <svg className="port-family-placeholder-emblem" viewBox={`0 0 ${EMBLEM_WIDTH} ${EMBLEM_HEIGHT}`} aria-hidden>
-        <PortFamilyEmblem family={family} />
+    <div className="port-placeholder" data-port-carries={carries ?? undefined} {...controlDataAttributes}>
+      <svg className="port-placeholder-emblem" viewBox={`0 0 ${EMBLEM_WIDTH} ${EMBLEM_HEIGHT}`} aria-hidden>
+        <PortPlaceholderEmblem carries={carries} />
       </svg>
       <div className="flex max-w-md flex-col items-center gap-1 text-center">
         <div className="text-sm text-fg">{title}</div>
         <div className="text-2xs text-fg-3">{explanation}</div>
         {action !== undefined && <div className="mt-2">{action}</div>}
         {details !== undefined && (
-          <details className="mt-1 text-2xs text-fg-3" data-port-family-placeholder-details="">
+          <details className="mt-1 text-2xs text-fg-3" data-port-placeholder-details="">
             <summary className="cursor-pointer select-none hover:text-fg-2">Details</summary>
             <div className="mt-1 break-words select-text">{details}</div>
           </details>

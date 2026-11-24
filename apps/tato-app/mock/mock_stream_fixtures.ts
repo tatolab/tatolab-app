@@ -5,7 +5,6 @@ import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_li
 import type {
   JsonValue,
   ListedStream,
-  PortFamily,
   PortStreamFacts,
   ProjectLogRecord,
   StreamGraphGroup,
@@ -20,6 +19,7 @@ import type {
   StreamLocation,
   TatolabPlatform,
 } from "../src/shared/tatolab_backend_contract";
+import type { PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
 
 function fnv1aHashOf(text: string): number {
   let hash = 2166136261;

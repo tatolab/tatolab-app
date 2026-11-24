@@ -3,7 +3,6 @@
 // The canvas names a card by its node's name, which a link end names it by too.
 
 import {
-  familyOfThePort,
   fragmentKindOfTheNode,
   fragmentOfTheNode,
   isAJsonValue,
@@ -13,11 +12,11 @@ import {
   type JsonValue,
   type NodeTypeDescription,
   type NodeTypeInputDescribed,
-  type NodeTypePortDescribed,
   type StreamGraphAction,
   type StreamGraphActionLinkEnd,
   type StreamGraphNode,
   type StreamGraphNodeStudioFields,
+  type StreamGraphPort,
   type StudioCanvasPair,
   type StreamGraph,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
@@ -172,9 +171,9 @@ function linkEndOfThePin(node: string, end: WiredPinEnd): StreamGraphActionLinkE
   return { node, port: end.pin, ...(end.member === null ? {} : { member: end.member }) };
 }
 
-/** The first port of `ports` that can take or give `family`; any port when the family is unknown, or one the port does not state. */
-function firstPortOfTheFamily(ports: readonly Pick<NodeTypePortDescribed, "name" | "family">[], family: string | null): string | null {
-  return (family === null ? ports[0] : (ports.find((port) => { const portFamily = familyOfThePort(port); return portFamily === family || portFamily === null; }) ?? null))?.name ?? null;
+/** The first port of `ports` that can take or give a pin of the type named `typeName`: one of that type, or one of no exact type; any port when the type is unknown. */
+function firstPortOfTheType(ports: readonly Pick<StreamGraphPort, "name" | "pin_type">[], typeName: string | null): string | null {
+  return (typeName === null ? ports[0] : (ports.find((port) => port.pin_type === undefined || port.pin_type.type === typeName) ?? null))?.name ?? null;
 }
 
 /** The inputs of `nodeType` a wire can end at: each its description marks as taking one, a setting among them, and each it marks neither way. */
@@ -239,8 +238,8 @@ export function linkIdAsTheCanvasKeysIt(link: StreamGraph["links"][number]): str
 }
 
 /**
- * `nodeName`'s node spliced into the link `linkId`: the link's source feeds its first input of that family that takes a wire, as
- * the runtime marks it in the graph or in its node type's description in `describedByType`, its first output of that family feeds
+ * `nodeName`'s node spliced into the link `linkId`: the link's source feeds its first input of the source's pin type that takes a wire, as
+ * the runtime marks it in the graph or in its node type's description in `describedByType`, its first output of that type feeds
  * the link's target, and the link goes; nothing when it has no such ports.
  */
 export function cardLetGoOverALinkEdits(edited: EditedStreamGraph, describedByType: ReadonlyMap<string, Pick<NodeTypeDescription, "inputs">>, nodeName: string, linkId: string): StreamGraphAction[] {
@@ -248,12 +247,11 @@ export function cardLetGoOverALinkEdits(edited: EditedStreamGraph, describedByTy
   const link = edited.graph.links.find((graphLink) => linkIdAsTheCanvasKeysIt(graphLink) === linkId);
   if (node === undefined || link === undefined) return [];
   const sourcePort = edited.graph.nodes.find((graphNode) => graphNode.name === link.source.node)?.ports.outputs.find((port) => port.name === link.source.port);
-  const family = sourcePort === undefined ? null : familyOfThePort(sourcePort);
-  const familyOfEach = (ports: StreamGraphNode["ports"]["inputs"]) => ports.map((port) => ({ name: port.name, family: familyOfThePort(port) }));
+  const typeName = sourcePort?.pin_type?.type ?? null;
   const describedInputs = describedByType.get(node.type)?.inputs ?? [];
   const inputsTakingAWire = node.ports.inputs.filter((port) => doesTheInputPortTakeAWire(port, describedInputs.find((input) => input.name === port.name)));
-  const input = firstPortOfTheFamily(familyOfEach(inputsTakingAWire), family);
-  const output = firstPortOfTheFamily(familyOfEach(node.ports.outputs), family);
+  const input = firstPortOfTheType(inputsTakingAWire, typeName);
+  const output = firstPortOfTheType(node.ports.outputs, typeName);
   const linkSource = linkEndByNodeId(edited, link.source);
   const linkTarget = linkEndByNodeId(edited, link.target);
   if (input === null || output === null || linkSource === null || linkTarget === null) return [];
