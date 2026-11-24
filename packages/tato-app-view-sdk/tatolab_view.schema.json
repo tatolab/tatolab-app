@@ -918,7 +918,8 @@
                                       "type"
                                     ]
                                   }
-                                ]
+                                ],
+                                "x-may-grow": true
                               },
                               "type": {
                                 "type": "string",
@@ -930,7 +931,8 @@
                               "element_type"
                             ]
                           }
-                        ]
+                        ],
+                        "x-may-grow": true
                       }
                     }
                   }
@@ -954,7 +956,8 @@
                               "type"
                             ]
                           }
-                        ]
+                        ],
+                        "x-may-grow": true
                       }
                     }
                   }
