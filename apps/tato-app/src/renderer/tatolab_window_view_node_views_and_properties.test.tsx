@@ -479,11 +479,16 @@ describe("the studio", () => {
     expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
   });
 
-  it("chooses an image for Image File's asset field in the asset picker over the window, sends its UUID, undoes it with one ⌘Z, imports one that is chosen at once, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
+  it("chooses an image for Image File's asset field in the asset picker over the window, sends its UUID, undoes it with one ⌘Z pressed before the runtime answers, imports one that is chosen at once, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
     const assetsSent: unknown[] = [];
     const mediaTheImportOffered: (readonly string[] | null)[] = [];
     let refusesTheNextAssetSet = false;
+    // The first image chosen reaches the runtime only once ⌘Z is pressed, so the undo is asked while that edit is unanswered.
+    let pressTheUndo = (): void => undefined;
+    const theUndoPressed = new Promise<void>((resolve) => {
+      pressTheUndo = resolve;
+    });
     await mountedWindowOverTheMock("state=node-not-ready", {
       ...mockBackend,
       ...nodeTypesListingImageFile(mockBackend),
@@ -497,6 +502,7 @@ describe("the studio", () => {
           assetsSent.push(assetSet.value ?? null);
           if (refusesTheNextAssetSet)
             return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: assetSet.node, refused_link: null, refused_field: "asset", refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "input `asset`: not an asset of the project" } };
+          if (assetsSent.length === 1) await theUndoPressed;
         }
         return mockBackend.transactInTheOpenProject(operations, mode, idempotencyKey);
       },
@@ -527,6 +533,7 @@ describe("the studio", () => {
     await waitFor(() => expect(properties().querySelector('[data-properties-port="asset"] [data-property-asset-picture]')?.getAttribute("src")).toMatch(/^data:image\//));
 
     fireEvent.keyDown(document, { key: "z", metaKey: true });
+    pressTheUndo();
     await waitFor(() => expect(assetWords().value).toBe("None"), { timeout: 5000 });
 
     const pickerToImportFrom = await openThePicker();

@@ -4,9 +4,11 @@ import type { ProjectTransaction, ProjectTransactionsReading } from "./studio_vi
 
 const OPEN_PROJECT_FOLDER = "/home/sam/streams/pattern";
 
-/** Readings over a backend that has undone nothing yet, recording each undo it is asked for. */
-function readingsOverAFakeBackend(openProjectFolder: string | null) {
+/** Readings over a backend that has undone nothing yet, recording each undo it is asked for; each transaction is answered once `transactionsAnswered` settles. */
+function readingsOverAFakeBackend(openProjectFolder: string | null, transactionsAnswered: Promise<void> = Promise.resolve()) {
   const undosAsked: string[] = [];
+  const transactionsAnsweredBeforeEachUndo: number[] = [];
+  let transactionsAnsweredSoFar = 0;
   const transactionsAsked: unknown[] = [];
   const checksAsked: unknown[] = [];
   const readings = new ProjectTransactionsReadings(
@@ -15,6 +17,7 @@ function readingsOverAFakeBackend(openProjectFolder: string | null) {
       onProjectTransactionsChanged: () => () => undefined,
       undoInTheOpenProject: async (author) => {
         undosAsked.push(author.name);
+        transactionsAnsweredBeforeEachUndo.push(transactionsAnsweredSoFar);
         const undone: ProjectTransaction = {
           format_version: 2,
           transaction: "t2",
@@ -35,6 +38,8 @@ function readingsOverAFakeBackend(openProjectFolder: string | null) {
       redoInTheOpenProject: async () => Promise.reject(new Error("redo failed: Sam has undone nothing that is left to redo")),
       transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
         transactionsAsked.push({ operations, mode, idempotencyKey });
+        await transactionsAnswered;
+        transactionsAnsweredSoFar += 1;
         if (operations[0]?.operation === "remove_node") return Promise.reject(new Error("No runtime answers."));
         return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: "n", refused_link: null, refused_field: null, refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "no node n" } };
       },
@@ -47,7 +52,7 @@ function readingsOverAFakeBackend(openProjectFolder: string | null) {
     },
     () => openProjectFolder,
   );
-  return { readings, undosAsked, transactionsAsked, checksAsked };
+  return { readings, undosAsked, transactionsAsked, checksAsked, transactionsAnsweredBeforeEachUndo };
 }
 
 test("undo and redo reach the backend only for the window's open project, before any feed is read, and a refusal comes back in its own words", async () => {
@@ -62,6 +67,25 @@ test("undo and redo reach the backend only for the window's open project, before
   const noProjectOpen = readingsOverAFakeBackend(null);
   expect((await noProjectOpen.readings.undoInTheProject(OPEN_PROJECT_FOLDER, sam)).kind).toBe("not_applied");
   expect(noProjectOpen.undosAsked).toEqual([]);
+});
+
+test("an undo asked while an edit is unanswered reaches the backend once that edit is answered, so it takes back the edit just made", async () => {
+  let answerTheEdit = (): void => undefined;
+  const { readings, undosAsked, transactionsAnsweredBeforeEachUndo } = readingsOverAFakeBackend(
+    OPEN_PROJECT_FOLDER,
+    new Promise<void>((resolve) => {
+      answerTheEdit = resolve;
+    }),
+  );
+  const edit = readings.transactInTheProject(OPEN_PROJECT_FOLDER, [{ operation: "rename_node", stream: "s", node: "n", name: "camera" }], "commit", "k1");
+  const undo = readings.undoInTheProject(OPEN_PROJECT_FOLDER, { kind: "person", name: "Sam" });
+  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+  expect(undosAsked).toEqual([]);
+
+  answerTheEdit();
+  await edit;
+  expect((await undo).kind).toBe("applied");
+  expect(transactionsAnsweredBeforeEachUndo).toEqual([1]);
 });
 
 test("a graph transaction reaches the backend only for the window's open project, its structured refusal kept whole and any other in its own words", async () => {

@@ -27,6 +27,8 @@ export class ProjectTransactionsReadings {
   private latestReading: ProjectTransactionsReading | null = null;
   private readonly listeners = new Set<(reading: ProjectTransactionsReading) => void>();
   private stopListeningToTheBackend: (() => void) | null = null;
+  /** The transactions sent and not yet answered, which an undo or redo asked for after them waits on. */
+  private readonly transactionsUnanswered = new Set<Promise<unknown>>();
 
   constructor(
     private readonly backend: Pick<TatolabBackend, "readOpenProjectTransactions" | "onProjectTransactionsChanged" | "undoInTheOpenProject" | "redoInTheOpenProject" | "transactInTheOpenProject" | "checkLinkCandidatesInTheOpenProject" | "readThePersonEditingInStudio">,
@@ -65,10 +67,13 @@ export class ProjectTransactionsReadings {
     idempotencyKey: string | null,
   ): Promise<ProjectGraphTransactionApplying> => {
     if (this.readTheOpenProjectFolder() !== projectFolder) return { kind: "not_sent", because: onlyTheOpenProjectsFeedRefusal(projectFolder) };
-    return this.backend.transactInTheOpenProject(operations, mode, idempotencyKey).then(
+    const answering = this.backend.transactInTheOpenProject(operations, mode, idempotencyKey).then(
       (applying): ProjectGraphTransactionApplying => applying,
       (rejection: unknown): ProjectGraphTransactionApplying => ({ kind: "not_sent", because: describeBackendRejection(rejection) }),
     );
+    this.transactionsUnanswered.add(answering);
+    void answering.then(() => this.transactionsUnanswered.delete(answering));
+    return answering;
   };
 
   /** The runtime's `check_link_candidates` of `request` on a stream of the open project, which changes nothing. */
@@ -89,6 +94,8 @@ export class ProjectTransactionsReadings {
 
   private async undoOrRedo(projectFolder: string, apply: () => Promise<ProjectTransaction>): Promise<ProjectTransactionApplying> {
     if (this.readTheOpenProjectFolder() !== projectFolder) return { kind: "not_applied", because: onlyTheOpenProjectsFeedRefusal(projectFolder) };
+    // An edit sent before the undo or redo was asked for is applied first, so an undo takes back the edit the person just made.
+    await Promise.all([...this.transactionsUnanswered]);
     return apply().then(
       (transaction) => ({ kind: "applied", transaction }),
       (rejection: unknown) => ({ kind: "not_applied", because: describeBackendRejection(rejection) }),
