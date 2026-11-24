@@ -5,7 +5,8 @@ import type { ProjectTransaction, ProjectTransactionsReading } from "./studio_vi
 const OPEN_PROJECT_FOLDER = "/home/sam/streams/pattern";
 
 /** Readings over a backend that has undone nothing yet, recording each undo it is asked for; each transaction is answered once `transactionsAnswered` settles. */
-function readingsOverAFakeBackend(openProjectFolder: string | null, transactionsAnswered: Promise<void> = Promise.resolve()) {
+function readingsOverAFakeBackend(openProject: string | null | (() => string | null), transactionsAnswered: Promise<void> = Promise.resolve()) {
+  const readTheOpenProjectFolder = typeof openProject === "function" ? openProject : () => openProject;
   const undosAsked: string[] = [];
   const transactionsAnsweredBeforeEachUndo: number[] = [];
   let transactionsAnsweredSoFar = 0;
@@ -48,9 +49,9 @@ function readingsOverAFakeBackend(openProjectFolder: string | null, transactions
         if (request.among === "node_type_ports") return Promise.reject(new Error("No runtime answers."));
         return { candidates: [{ end: { kind: "placed_port", node: "n", port: "video" }, check: { outcome: "connects" } }] };
       },
-      readThePersonEditingInStudio: async () => (openProjectFolder === null ? Promise.reject(new Error("No project is open in this window.")) : { kind: "person", name: "sam" }),
+      readThePersonEditingInStudio: async () => (readTheOpenProjectFolder() === null ? Promise.reject(new Error("No project is open in this window.")) : { kind: "person", name: "sam" }),
     },
-    () => openProjectFolder,
+    readTheOpenProjectFolder,
   );
   return { readings, undosAsked, transactionsAsked, checksAsked, transactionsAnsweredBeforeEachUndo };
 }
@@ -71,7 +72,7 @@ test("undo and redo reach the backend only for the window's open project, before
 
 test("an undo asked while an edit is unanswered reaches the backend once that edit is answered, so it takes back the edit just made", async () => {
   let answerTheEdit = (): void => undefined;
-  const { readings, undosAsked, transactionsAnsweredBeforeEachUndo } = readingsOverAFakeBackend(
+  const { readings, undosAsked, transactionsAsked, transactionsAnsweredBeforeEachUndo } = readingsOverAFakeBackend(
     OPEN_PROJECT_FOLDER,
     new Promise<void>((resolve) => {
       answerTheEdit = resolve;
@@ -82,10 +83,36 @@ test("an undo asked while an edit is unanswered reaches the backend once that ed
   for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
   expect(undosAsked).toEqual([]);
 
+  const editAfterTheUndo = readings.transactInTheProject(OPEN_PROJECT_FOLDER, [{ operation: "rename_node", stream: "s", node: "n", name: "screen" }], "commit", "k2");
+  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+  expect(transactionsAsked).toHaveLength(1);
+
   answerTheEdit();
   await edit;
   expect((await undo).kind).toBe("applied");
+  await editAfterTheUndo;
   expect(transactionsAnsweredBeforeEachUndo).toEqual([1]);
+  expect(transactionsAsked).toHaveLength(2);
+});
+
+test("an undo or redo that waited on an edit is not sent once the window has another project open", async () => {
+  let openProjectFolder: string | null = OPEN_PROJECT_FOLDER;
+  let answerTheEdit = (): void => undefined;
+  const { readings, undosAsked } = readingsOverAFakeBackend(
+    () => openProjectFolder,
+    new Promise<void>((resolve) => {
+      answerTheEdit = resolve;
+    }),
+  );
+  const edit = readings.transactInTheProject(OPEN_PROJECT_FOLDER, [{ operation: "rename_node", stream: "s", node: "n", name: "camera" }], "commit", "k1");
+  const undo = readings.undoInTheProject(OPEN_PROJECT_FOLDER, { kind: "person", name: "Sam" });
+  const redo = readings.redoInTheProject(OPEN_PROJECT_FOLDER, { kind: "person", name: "Sam" });
+  openProjectFolder = "/home/sam/streams/imports/lobby-wall";
+  answerTheEdit();
+  await edit;
+  expect(await undo).toEqual({ kind: "not_applied", because: onlyTheOpenProjectsFeedRefusal(OPEN_PROJECT_FOLDER) });
+  expect(await redo).toEqual({ kind: "not_applied", because: onlyTheOpenProjectsFeedRefusal(OPEN_PROJECT_FOLDER) });
+  expect(undosAsked).toEqual([]);
 });
 
 test("a graph transaction reaches the backend only for the window's open project, its structured refusal kept whole and any other in its own words", async () => {
