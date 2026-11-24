@@ -4,7 +4,7 @@ import { createMockTatolabBackend } from "./mock_tatolab_backend";
 import { readMockTatolabOptions } from "./mock_tatolab_options";
 import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, StreamActionFollowed, StreamGraph } from "../src/shared/tatolab_backend_contract";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
-import { familyOfThePort, jsonObjectMembersOf } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { familyOfThePort, inputValueReadOfThePort, jsonObjectMembersOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { suggestedGraphEditOf } from "@tatolab/tato-app-view-sdk/suggested_graph_edit_of_a_refusal";
 
 afterEach(() => {
@@ -811,5 +811,20 @@ describe("the mock backend's update dialog", () => {
     await answeredAfterTheMockAnswers(backend.answerTheAppUpdateAnnouncement("update_landed", "0.45.0", "dismiss"));
 
     expect((await statusAfterTheMockAnswers(backend)).app_update_announcement).toBeNull();
+  });
+});
+
+describe("the mock's declared Graph Inputs", () => {
+  it("serve each Graph Input's lifetime as its `lifetime` setting, as the runtime renders it, so Perform reads `strobe` as reset at Stop", async () => {
+    const { backend } = await runningMockBackend("state=running&graph_inputs=declared");
+    const reading = backend.describeStreamGraph(MAIN);
+    await vi.advanceTimersByTimeAsync(100);
+    const graph = await reading;
+    const lifetimeOf = (name: string) => {
+      const port = graph.nodes.find((node) => node.name === name)?.ports.inputs.find((input) => input.name === "lifetime");
+      return port === undefined ? undefined : inputValueReadOfThePort(port);
+    };
+    expect(lifetimeOf("strobe_input")).toEqual({ value: "reset", comes_from: "saved" });
+    expect(lifetimeOf("cue_input")).toEqual({ value: "kept", comes_from: "default" });
   });
 });

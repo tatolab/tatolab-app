@@ -10,13 +10,65 @@ import { createMockTatolabBackend } from "../../mock/mock_tatolab_backend";
 import { readMockTatolabOptions } from "../../mock/mock_tatolab_options";
 import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import { studioLayoutStorageKey } from "./studio_shell/studio_layout";
-import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PULSE_STAGE_FOLDER, PULSE_STAGE_MAIN_STREAM, coreViewPage, inTheCoreView, libraryRow, showTheLibraryInTheViewerArea, outlinerRow, outlinerRowIds, AREAS_OF_THE_COMPOSITION_LAYOUT, theAreasShownAre, keepThePulseStageLayout, cleanUpTheWindowsOfEarlierTests } from "./tatolab_window_view_test_support";
+import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PULSE_STAGE_FOLDER, PULSE_STAGE_MAIN_STREAM, coreViewPage, inTheCoreView, libraryRow, showTheLibraryInTheViewerArea, outlinerRow, outlinerRowIds, AREAS_OF_THE_COMPOSITION_LAYOUT, theAreasShownAre, keepThePulseStageLayout, cleanUpTheWindowsOfEarlierTests, tagOfTheStudiosControl } from "./tatolab_window_view_test_support";
+import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState, type NodeUiElementHost } from "@tatolab/tato-app-view-sdk/node_ui";
+import type { AssetPinValue } from "@tatolab/tato-app-view-sdk/pin_types";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
 // Code's editor here says Monaco didn't load; the code pane's text and saves are tested beside it.
 vi.mock("@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_monaco", () => {
   throw new Error("Monaco is not loaded in the window's tests.");
 });
+
+/**
+ * An Asset control as a person drives one, standing in for the Studio's own, which its package's tests draw: it names the asset
+ * held by its path in the project, or None, shows the Studio's words where the project's assets aren't listed or the picker
+ * doesn't start, and asks the window's asset picker for an image when `choose` is called.
+ */
+class StandInAssetControl extends HTMLElement implements InputControlElement<"asset"> {
+  #studio: NodeUiElementHost | null = null;
+  #stopWatching: (() => void) | null = null;
+  #held: AssetPinValue | null = null;
+  #paths = new Map<string, string>();
+  #refusal: string | null = null;
+  // It watches from its pin on, since happy-dom calls no connectedCallback on an element put into a frame's page from outside it.
+  set pin(pin: ControlledPin<"asset">) {
+    this.#studio = pin.studio;
+    this.#stopWatching?.();
+    this.#stopWatching = pin.studio.watchProjectAssets((reading) => {
+      this.#paths = new Map(reading.kind === "listed" ? reading.listing.assets.map((asset) => [asset.asset, asset.path]) : []);
+      this.#refusal = reading.kind === "listed" ? null : reading.because;
+      this.#draw();
+    });
+  }
+  disconnectedCallback(): void {
+    this.#stopWatching?.();
+    this.#stopWatching = null;
+  }
+  set value(value: AssetPinValue) {
+    this.#held = value;
+    this.#draw();
+  }
+  set state(_state: InputControlState) {}
+  /** The words the control names the asset held by. */
+  get words(): string {
+    return this.#held === null ? "None" : (this.#paths.get(this.#held.asset) ?? this.#held.asset);
+  }
+  /** Whether a pick it asked for has not ended yet. */
+  isPicking = false;
+  async choose(): Promise<void> {
+    this.isPicking = true;
+    const ending = await (this.#studio ?? expect.unreachable("the control has no pin")).pickAProjectAsset({ media: ["image"], chosen_now: this.#held?.asset ?? null });
+    this.isPicking = false;
+    this.#refusal = ending.kind === "not_started" ? ending.because : null;
+    this.#draw();
+    if (ending.kind === "chosen" && ending.asset !== this.#held?.asset) fireInputControlEvent(this, "change", { asset: ending.asset });
+  }
+  #draw(): void {
+    this.textContent = this.#refusal === null ? this.words : `${this.words} ${this.#refusal}`;
+  }
+}
+customElements.define(tagOfTheStudiosControl("asset", null), StandInAssetControl);
 
 afterEach(cleanUpTheWindowsOfEarlierTests);
 
@@ -50,14 +102,14 @@ function nodeTypesListingImageFile(backend: Pick<TatolabBackend, "listNodeTypes"
           {
             name: "asset",
             documentation: "",
-            pin_type: { kind: "is", pin_type: { type: "string" } },
+            pin_type: { kind: "is", pin_type: { type: "asset", media: ["image"] } },
             flow: "value",
-            annotations: { project_asset: { media: ["image"] } },
+            annotations: {},
             mode: "setting_only",
             read: "at_setup",
-            default_value: "",
+            default_value: null,
             lifetime: "kept",
-            value_json_schema: { type: "string" },
+            value_json_schema: { type: ["object", "null"] },
           },
         ],
         outputs: [{ name: "image", documentation: "", pin_type: { kind: "is", pin_type: { type: "texture" } }, flow: "stream" }],
@@ -96,42 +148,6 @@ function nodeTypesListingImageFileWithACaptureDeviceSetting(backend: Pick<Tatola
     },
   };
 }
-
-const ALPHA_OVER_COMPOSITOR = "tatolab.compositor.alpha_over_compositor:AlphaOverCompositor";
-
-/** The JSON Schema of the compositor's `layers`, as its config class declares it: a list of records, each placing one layer. */
-const LAYERS_SCHEMA = {
-  type: "array",
-  items: {
-    type: "object",
-    properties: {
-      x: { type: "integer", description: "Canvas column of the layer's left edge; negative clips it.", default: 0 },
-      y: { type: "integer", description: "Canvas row of the layer's top edge; negative clips it.", default: 0 },
-      opacity: { type: "number", description: "0.0 hides the layer, 1.0 shows it as it arrives.", minimum: 0, maximum: 1, default: 1 },
-    },
-    additionalProperties: false,
-  },
-};
-
-/**
- * The mock `backend`'s descriptions, the compositor's `layers` setting with the JSON Schema its config class declares: the runtime
- * describes a setting whose type no pin type holds with no schema, so a test of a list of records gives it one.
- */
-function nodeTypesDescribingTheCompositorsLayers(backend: Pick<TatolabBackend, "describeNodeTypes">): Pick<TatolabBackend, "describeNodeTypes"> {
-  return {
-    describeNodeTypes: async (projectDirectory, nodeTypes) => {
-      const described = await backend.describeNodeTypes(projectDirectory, nodeTypes);
-      return {
-        node_types: described.node_types.map((nodeType) =>
-          nodeType.node_type !== ALPHA_OVER_COMPOSITOR || "not_described_because" in nodeType
-            ? nodeType
-            : { ...nodeType, inputs: nodeType.inputs.map((input) => (input.name === "layers" ? { ...input, value_json_schema: LAYERS_SCHEMA } : input)) },
-        ),
-      };
-    },
-  };
-}
-
 
 /** The fixture view shown in the viewer area on the stream's node of its type, and a panel connected over the port its frame is handed. */
 async function thePictureAndFaderPanelInTheViewer(): Promise<TatoAppViewConnection> {
@@ -188,7 +204,7 @@ describe("the studio", () => {
 
     const notReadyBar = await waitFor(() => coreViewPage("properties").querySelector<HTMLElement>('[data-properties-not-ready-because="posterimage"]') ?? expect.unreachable("no not-ready bar in Properties"));
     expect(notReadyBar.getAttribute("role")).toBe("status");
-    expect(notReadyBar.textContent).toBe("This node isn't ready: ImageFile names no image asset. To fix: set its `asset` config to the UUID of a PNG or JPEG imported into the project");
+    expect(notReadyBar.textContent).toBe("This node isn't ready: ImageFile names no image asset. To fix: set its `asset` input to a PNG or JPEG imported into the project");
     const playing = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>('[data-viewer-playing="posterimage/image"]') ?? expect.unreachable("the Node visualizer plays nothing"));
     expect(playing.hasAttribute("data-viewer-node-not-ready")).toBe(true);
 
@@ -450,48 +466,19 @@ describe("the studio", () => {
     await waitFor(() => expect(rowLabels().length).toBeGreaterThan(2));
   });
 
-  it("shows each entry of a setting holding a list of records as its own fields on its input row in Properties, and edits, adds and removes an entry as the setting's whole list", { timeout: 20_000 }, async () => {
-    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&compositor=layered")));
-    await mountedWindowOverTheMock("state=running&compositor=layered", { ...mockBackend, ...nodeTypesDescribingTheCompositorsLayers(mockBackend) });
-    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="alphaovercompositor"]') ?? expect.unreachable("no compositor card")));
-    const properties = () => coreViewPage("properties");
-    const entryLabels = () => [...properties().querySelectorAll("[data-config-list-entry]")].map((entry) => entry.getAttribute("data-config-list-entry"));
-    await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1"]));
-    expect(properties().querySelector('[data-properties-port="layers"] [data-properties-list-of-records="layers"] output')?.textContent).toBe("2 entries");
-    const secondX = () => properties().querySelector<HTMLInputElement>('[data-config-field="layers:1:x"] input') ?? expect.unreachable("no x field on the second entry");
-    expect(secondX().value).toBe("640");
-    expect(properties().querySelector('[data-config-field="layers:0:opacity"]')?.getAttribute("data-config-field-value-source")).toBe("default");
-
-    fireEvent.change(secondX(), { target: { value: "100" } });
-    secondX().focus();
-    fireEvent.keyDown(secondX(), { key: "Enter" });
-    await waitFor(() => expect(secondX().value).toBe("100"), { timeout: 5000 });
-    expect(properties().querySelector('[data-config-field="layers:1:y"] input')).toHaveProperty("value", "360");
-
-    fireEvent.click(properties().querySelector<HTMLElement>('[data-properties-port="layers"] [data-property-list-entry-add]') ?? expect.unreachable("no add"));
-    await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1", "layers:2"]), { timeout: 5000 });
-    expect(properties().querySelector('[data-config-field="layers:2:opacity"]')?.getAttribute("data-config-field-value-source")).toBe("default");
-
-    fireEvent.click(properties().querySelector<HTMLElement>('[data-config-list-entry="layers:0"] [data-property-list-entry-remove]') ?? expect.unreachable("no remove"));
-    await waitFor(() => expect(entryLabels()).toEqual(["layers:0", "layers:1"]), { timeout: 5000 });
-    expect(secondX().value).toBe("0");
-    expect(properties().querySelector<HTMLInputElement>('[data-config-field="layers:0:x"] input')?.value).toBe("100");
-  });
-
-  it("chooses an image for Image File's asset field in the asset picker over the window, sends its UUID, undoes it with one ⌘Z pressed before the runtime answers, imports one that is chosen at once, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
+  it("chooses an image for Image File's asset control in the asset picker over the window, sends its UUID, imports one that is chosen at once, undoes that with one ⌘Z pressed before the runtime answers, and shows a refusal in the runtime's words under the field", { timeout: 30_000 }, async () => {
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
     const assetsSent: unknown[] = [];
     const mediaTheImportOffered: (readonly string[] | null)[] = [];
     let refusesTheNextAssetSet = false;
-    // The first image chosen reaches the runtime only once ⌘Z has read who is editing, the step before the undo is sent, so the
+    // The image imported reaches the runtime only once ⌘Z has read who is editing, the step before the undo is sent, so the
     // undo is asked while that edit is unanswered.
     let readWhoIsEditing = (): void => undefined;
     const theUndoAsked = new Promise<void>((resolve) => {
       readWhoIsEditing = resolve;
     });
-    let isTheFirstPickAnswered = false;
-    const firstPickAnsweredAtEachUndo: boolean[] = [];
+    let isTheImportedPickAnswered = false;
+    const importedPickAnsweredAtEachUndo: boolean[] = [];
     await mountedWindowOverTheMock("state=node-not-ready", {
       ...mockBackend,
       ...nodeTypesListingImageFile(mockBackend),
@@ -505,19 +492,19 @@ describe("the studio", () => {
         return author;
       },
       undoInTheOpenProject: (author) => {
-        firstPickAnsweredAtEachUndo.push(isTheFirstPickAnswered);
+        importedPickAnsweredAtEachUndo.push(isTheImportedPickAnswered);
         return mockBackend.undoInTheOpenProject(author);
       },
       transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
         const assetSet = operations.find((operation) => operation.operation === "set_node_input_value" && operation.input === "asset");
         if (assetSet !== undefined && assetSet.operation === "set_node_input_value") {
-          assetsSent.push(assetSet.value ?? null);
+          assetsSent.push(jsonObjectMembersOf(assetSet.value ?? null)["asset"] ?? null);
           if (refusesTheNextAssetSet)
             return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: assetSet.node, refused_link: null, refused_field: "asset", refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "input `asset`: not an asset of the project" } };
-          if (assetsSent.length === 1) {
+          if (assetsSent.length === 2) {
             await theUndoAsked;
             const answered = await mockBackend.transactInTheOpenProject(operations, mode, idempotencyKey);
-            isTheFirstPickAnswered = true;
+            isTheImportedPickAnswered = true;
             return answered;
           }
         }
@@ -528,22 +515,21 @@ describe("the studio", () => {
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="posterimage"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
 
     const properties = () => coreViewPage("properties");
-    const assetWords = () => properties().querySelector<HTMLInputElement>('[data-properties-port="asset"] [data-property-asset-field] input') ?? expect.unreachable("no asset field");
+    const assetControl = () => {
+      const control = properties().querySelector('[data-properties-port="asset"] [data-input-control="asset"]')?.firstElementChild;
+      return control instanceof StandInAssetControl ? control : expect.unreachable("no asset control");
+    };
+    const assetWords = () => ({ value: assetControl().words });
     const openThePicker = async () => {
-      // Choose is pressable again only once the frame hears the last pick ended, which comes after the picker leaves the window.
-      const choose = await waitFor(() => {
-        const button = properties().querySelector<HTMLElement>('[data-properties-port="asset"] [data-property-asset-choose]') ?? expect.unreachable("no Choose an asset… button");
-        expect(button.getAttribute("aria-disabled")).toBeNull();
-        return button;
-      });
-      fireEvent.click(choose);
+      // Choose is pressable again only once the last pick ended, which comes after the picker leaves the window.
+      await waitFor(() => expect(assetControl().isPicking).toBe(false));
+      void assetControl().choose();
       await waitFor(() => screen.getByRole("dialog", { name: "Choose an image" }));
       const pickerFrame = await waitFor(() => document.querySelector<HTMLIFrameElement>('[data-project-asset-picker] iframe[data-tatolab-view="library"]') ?? expect.unreachable("no Library in the asset picker"));
       return pickerFrame.contentDocument ?? expect.unreachable("the picker's Library has no page");
     };
     const pickerCardPaths = (picker: Document) => [...picker.querySelectorAll<HTMLElement>("[data-library-asset]")].map((card) => card.dataset.libraryAsset);
-    await waitFor(() => expect(assetWords().value).toBe("None"));
-    expect(properties().querySelector('[data-properties-port="asset"] [data-property-asset-picture]')).toBeNull();
+    await waitFor(() => expect(assetWords().value).toBe("None"), { timeout: 5000 });
 
     const picker = await openThePicker();
     await waitFor(() => expect(pickerCardPaths(picker)).toEqual(["media/poster.png"]));
@@ -553,11 +539,6 @@ describe("the studio", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Choose an image" })).toBeNull());
     await waitFor(() => expect(assetWords().value).toBe("media/poster.png"), { timeout: 5000 });
     expect(assetsSent).toEqual(["baaf9e5a-0aff-45f7-a7ea-b83db51e5a3b"]);
-    await waitFor(() => expect(properties().querySelector('[data-properties-port="asset"] [data-property-asset-picture]')?.getAttribute("src")).toMatch(/^data:image\//));
-
-    fireEvent.keyDown(document, { key: "z", metaKey: true });
-    await waitFor(() => expect(assetWords().value).toBe("None"), { timeout: 5000 });
-    expect(firstPickAnsweredAtEachUndo).toEqual([true]);
 
     const pickerToImportFrom = await openThePicker();
     fireEvent.click(await waitFor(() => pickerToImportFrom.querySelector<HTMLElement>("[data-library-import-asset]") ?? expect.unreachable("no Import in the picker")));
@@ -566,22 +547,26 @@ describe("the studio", () => {
     expect(mediaTheImportOffered).toEqual([["image"]]);
     expect(assetsSent).toEqual(["baaf9e5a-0aff-45f7-a7ea-b83db51e5a3b", "5e0c6a1d-7f2b-4c93-8a1e-000000000001"]);
 
+    fireEvent.keyDown(document, { key: "z", metaKey: true });
+    await waitFor(() => expect(assetWords().value).toBe("media/poster.png"), { timeout: 5000 });
+    expect(importedPickAnsweredAtEachUndo).toEqual([true]);
+
     await openThePicker();
     fireEvent.click(within(screen.getByRole("dialog", { name: "Choose an image" })).getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Choose an image" })).toBeNull());
-    expect(assetWords().value).toBe("media/night-sky.jpg");
+    expect(assetWords().value).toBe("media/poster.png");
 
     const pickerToEscapeFrom = await openThePicker();
     await waitFor(() => expect(pickerCardPaths(pickerToEscapeFrom)).not.toEqual([]));
     fireEvent.keyDown(pickerToEscapeFrom.body, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Choose an image" })).toBeNull());
-    expect(assetWords().value).toBe("media/night-sky.jpg");
+    expect(assetWords().value).toBe("media/poster.png");
 
     refusesTheNextAssetSet = true;
     const pickerToBeRefused = await openThePicker();
-    fireEvent.click(await waitFor(() => pickerToBeRefused.querySelector<HTMLElement>('[data-library-asset="media/poster.png"]') ?? expect.unreachable("no poster card in the picker")));
+    fireEvent.click(await waitFor(() => pickerToBeRefused.querySelector<HTMLElement>('[data-library-asset="media/night-sky.jpg"]') ?? expect.unreachable("no night sky card in the picker")));
     await waitFor(() => expect(properties().querySelector('[data-properties-port="asset"]')?.textContent).toContain("input `asset`: not an asset of the project"), { timeout: 5000 });
-    expect(assetWords().value).toBe("media/night-sky.jpg");
+    expect(assetWords().value).toBe("media/poster.png");
   });
 
   it("offers the machine's audio inputs for a setting naming a capture device, sends the device picked, unsets it with Default input, and keeps a saved device the machine lacks as missing", { timeout: 30_000 }, async () => {
@@ -644,7 +629,7 @@ describe("the studio", () => {
     await waitFor(() => expect(screen.getAllByRole("menuitem").map((entry) => entry.textContent).at(-1)).toBe("alsa_input.usb-gone.mono (missing)"));
   });
 
-  it("shows under Image File's asset field the runtime's words when it refuses to list the project's assets", { timeout: 20_000 }, async () => {
+  it("shows under Image File's asset control the runtime's words when it refuses to list the project's assets", { timeout: 20_000 }, async () => {
     const refusal = "list_assets failed: the project's assets folder is unreadable";
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
     await mountedWindowOverTheMock("state=node-not-ready", {
@@ -657,22 +642,7 @@ describe("the studio", () => {
     const streamGraph = coreViewPage("stream_graph", "stream-graph");
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="posterimage"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
 
-    await waitFor(() => expect(coreViewPage("properties").querySelector('[data-properties-port="asset"] [data-property-asset-listing-refusal]')?.textContent).toContain(refusal), { timeout: 5000 });
-  });
-
-  it("exposes a number setting as a Graph Input from its row in Properties, the node taking it as an input fed by the new Graph Input", async () => {
-    await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind");
-    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="tally"]') ?? expect.unreachable("no Frame Tally card")));
-    const properties = () => coreViewPage("properties");
-
-    const exposeTheSetting = () => properties().querySelector<HTMLElement>('[data-properties-port="report_every_frames"] [data-properties-input-promote]');
-    fireEvent.click(await waitFor(() => exposeTheSetting() ?? expect.unreachable("no Expose as a Graph Input on report_every_frames")));
-
-    const reportInput = await waitFor(() => properties().querySelector<HTMLElement>('[data-properties-section="inputs"] [data-properties-port="report_every_frames"]') ?? expect.unreachable("no report_every_frames input"), { timeout: 5000 });
-    await waitFor(() => expect([...reportInput.querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"))).toEqual(["tally_report_every_frames › value"]));
-    await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-card="tally_report_every_frames"]')).not.toBeNull());
-    expect(exposeTheSetting()).toBeNull();
+    await waitFor(() => expect(coreViewPage("properties").querySelector('[data-properties-port="asset"]')?.textContent).toContain(refusal), { timeout: 5000 });
   });
 
   it("opens the Marketplace from the store button beside the node search's field, closing the search", async () => {

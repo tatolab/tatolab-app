@@ -1,8 +1,7 @@
 // Which inputs a surface draws a control for, and what that control is told of its input. An input
 // takes a control while it holds a value of its own, unwired, in a stream's graph, and its type is
-// exact; an untyped input takes none, and neither does a String holding a project asset's UUID, which
-// only Properties' own asset field picks, or one naming an audio capture device, which only its own
-// device menu picks. A setting its node reads as it is set up sends nothing
+// exact; an untyped input takes none, and neither does a String naming an audio capture device, which
+// only Properties' own device menu picks. A setting its node reads as it is set up sends nothing
 // while its control moves, since each value it takes rebuilds the node: it commits on release alone.
 // An input of a type only a wire carries, such as a Texture, holds no value: it takes a control only
 // where its node type's annotation names one, such as a preview, which shows what its wire carries.
@@ -59,8 +58,8 @@ function declarationOfTheInput(input: InputAControlMayDraw, pin: StreamGraphPort
 }
 
 /**
- * The input a control draws for `input`, or `null` where it takes none: one with no exact type, a String holding a project
- * asset's UUID or naming an audio capture device, an input a link feeds that holds a value, one of a type only a wire carries, which holds none whatever the
+ * The input a control draws for `input`, or `null` where it takes none: one with no exact type, a String naming an audio
+ * capture device, an input a link feeds that holds a value, one of a type only a wire carries, which holds none whatever the
  * runtime reads of it, that its node type's annotation names no control for, and one of a named type or a type only a wire
  * carries that Studio reads no wire into. The control reads the annotations its node type states; an input that may be unset
  * is not told apart.
@@ -74,7 +73,6 @@ export function takesAControl(input: InputAControlMayDraw): ControlledInput | nu
     return { address: input.wire.into, declaration: declarationOfTheInput(input, input.pin), rebuilds_its_node: false, driven_by: input.wire.wiring };
   }
   if (input.value_address === null) return null;
-  if (input.pin.pin_type.type === "string" && input.annotations.project_asset !== undefined && input.annotations.project_asset !== null) return null;
   if (isAnAudioCaptureDeviceInput(input.pin.pin_type, input.annotations)) return null;
   return { address: input.value_address, declaration: declarationOfTheInput(input, input.pin), rebuilds_its_node: doesAChangeRebuildTheNode(input), driven_by: null };
 }

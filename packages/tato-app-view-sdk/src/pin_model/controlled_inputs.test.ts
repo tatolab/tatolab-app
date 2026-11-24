@@ -11,12 +11,6 @@ test("a_settings_control_is_told_whether_a_change_rebuilds_its_node", () => {
   expect(takesAControl({ ...width, setting: null })?.rebuilds_its_node).toBe(false);
 });
 
-test("a_string_holding_a_project_assets_uuid_takes_no_control_so_the_panels_own_asset_field_picks_it", () => {
-  const asset = { name: "asset", pin: { pin_type: { type: "string" }, flow: "value" }, value_address: { ...WIDTH, input: "asset" }, setting: { read: "at_setup" }, wire: null } as const;
-  expect(takesAControl({ ...asset, annotations: { project_asset: { media: ["image"] } } })).toBeNull();
-  expect(takesAControl({ ...asset, annotations: {} })).not.toBeNull();
-});
-
 test("a_string_whose_annotation_names_the_audio_capture_device_control_takes_no_control_so_the_panels_own_device_menu_picks_it", () => {
   const deviceId = { name: "device_id", pin: { pin_type: { type: "string" }, flow: "value" }, value_address: { ...WIDTH, input: "device_id" }, setting: { read: "at_setup" }, wire: null } as const;
   expect(AUDIO_CAPTURE_DEVICE_CONTROL).toBe("audio_capture_device");

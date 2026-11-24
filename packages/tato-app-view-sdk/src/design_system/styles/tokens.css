@@ -36,7 +36,6 @@
   --color-studio-imports: var(--studio-imports);
   --color-studio-graph-tools: var(--studio-graph-tools);
   --color-studio-read-only-banner: var(--studio-read-only-banner);
-  --color-studio-property-fill: var(--studio-property-fill);
   --color-studio-port-band-first: var(--studio-port-band-first);
   --color-studio-port-band-first-line: var(--studio-port-band-first-line);
   --color-studio-port-band-second: var(--studio-port-band-second);
@@ -214,7 +213,6 @@
   --studio-pin-type-node-reference: #7fb3b3;
   --studio-pin-type-pin-type-choice: #b0b4d6;
   --studio-pin-type-untyped: var(--studio-graph-pin);
-  --studio-property-fill: #3d4f86;
   --studio-port-band-first: #27272b;
   --studio-port-band-first-line: #2e2e33;
   --studio-port-band-second: #1a1a1d;

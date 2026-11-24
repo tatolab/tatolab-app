@@ -2,15 +2,20 @@ import type { GraphAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inp
 import type { JsonValue, StreamGraph, StreamGraphInterfacePort, StreamGraphNode, StreamGraphPort } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { aGraphNode, aGraphPort, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 import { expect, test } from "vitest";
-import { LIFETIME_WORDS, graphInputsOfTheStream, whyNoControlWritesTheInput, whyNothingSetsTheInput } from "./graph_inputs_of_the_stream";
+import { LIFETIME_WORDS, graphInputsOfTheStream } from "./graph_inputs_of_the_stream";
 
-function node(id: string, name: string, type: string, config: StreamGraphNode["config"], graphInterface: StreamGraphInterfacePort | null = null, inputs: StreamGraphPort[] = []): StreamGraphNode {
-  return aGraphNode(name, { id, type, kind: "process", config, inputs, components: { state: "Running", ...(graphInterface === null ? {} : { graph_interface: graphInterface }) } });
+function node(id: string, name: string, type: string, graphInterface: StreamGraphInterfacePort | null = null, inputs: StreamGraphPort[] = []): StreamGraphNode {
+  return aGraphNode(name, { id, type, kind: "process", inputs, components: { state: "Running", ...(graphInterface === null ? {} : { graph_interface: graphInterface }) } });
 }
 
-/** The `value` input a running top-level `GraphInput` renders, reading `value` from where `comesFrom` says. */
-function valueInput(value: JsonValue, comesFrom: "default" | "saved" | "live" = "default"): StreamGraphPort {
-  return aGraphPort("value", null, { value, value_comes_from: comesFrom });
+/** The `value` input a running top-level `GraphInput` renders, of type `type`, reading `value` from where `comesFrom` says. */
+function valueInput(type: "float" | "string", value: JsonValue, comesFrom: "default" | "saved" | "live" = "default", annotations: StreamGraphPort["annotations"] = {}): StreamGraphPort {
+  return aGraphPort("value", null, { pin_type: { type }, flow: "value", annotations, value, value_comes_from: comesFrom });
+}
+
+/** The `lifetime` setting a `GraphInput` renders, reading `lifetime`. */
+function lifetimeInput(lifetime: "kept" | "reset"): StreamGraphPort {
+  return aGraphPort("lifetime", null, { pin_type: { type: "string" }, flow: "value", value: lifetime, value_comes_from: "saved" });
 }
 
 const STREAM_LEVEL: GraphAddress = { project_folder: "/projects/s06-perform", stream_asset: "0df4a7aa-1111-2222-3333-444444444444", level: [] };
@@ -19,93 +24,44 @@ function graphOf(nodes: StreamGraphNode[]): StreamGraph {
   return aStreamGraph(nodes, [], { stream: "s06-perform-main-0df4a7" });
 }
 
-test("each top-level GraphInput is listed by the port and family the graph renders it declaring, in the graph's order, its value addressed at its own value input", () => {
+test("each top-level GraphInput is listed by the port the graph renders it declaring, in the graph's order, its value read and addressed at its own value input, its lifetime from its lifetime setting", () => {
   const graph = graphOf([
-    node("a1", "graphinput", "tatolab.stream:GraphInput", { port: "brightness", family: "channels", default: 0.5, range: [0, 1] }, { direction: "input", port: "brightness", family: "channels", current_value: 0.8 }, [valueInput(0.8, "live")]),
-    node("b2", "multiply", "tatolab.ops:Multiply", {}),
-    node("c3", "graphinput-2", "tatolab.stream:GraphInput", { port: "cue", family: "records", default: { scene: "intro" }, lifetime: "reset" }, { direction: "input", port: "cue", family: "records", current_value: { scene: "finale" } }, [valueInput({ scene: "intro" })]),
-    node("d4", "out", "tatolab.stream:GraphOutput", { port: "video", family: "image" }, { direction: "output", port: "video", family: "image" }),
+    node("a1", "graphinput", "tatolab.stream:GraphInput", { direction: "input", port: "brightness", current_value: 0.8 }, [valueInput("float", 0.8, "live", { range: { minimum: 0, maximum: 1 } })]),
+    node("b2", "multiply", "tatolab.ops:Multiply"),
+    node("c3", "graphinput-2", "tatolab.stream:GraphInput", { direction: "input", port: "cue", current_value: "finale" }, [valueInput("string", "intro"), lifetimeInput("reset")]),
+    node("d4", "out", "tatolab.stream:GraphOutput", { direction: "output", port: "video" }),
   ]);
 
   expect(graphInputsOfTheStream(graph, STREAM_LEVEL)).toEqual([
-    { node_id: "a1", port_name: "brightness", family: "channels", value_address: { graph: STREAM_LEVEL, node_id: "a1", input: "value", member: null }, value_pin: null, value_annotations: {}, lifetime: "kept", range: { lowest: 0, highest: 1 }, control: "slider" },
-    { node_id: "c3", port_name: "cue", family: "records", value_address: { graph: STREAM_LEVEL, node_id: "c3", input: "value", member: null }, value_pin: null, value_annotations: {}, lifetime: "reset", range: null, control: "json" },
+    {
+      node_id: "a1",
+      port_name: "brightness",
+      value_address: { graph: STREAM_LEVEL, node_id: "a1", input: "value", member: null },
+      value_pin: { pin_type: { type: "float" }, flow: "value" },
+      value_annotations: { range: { minimum: 0, maximum: 1 } },
+      lifetime: "kept",
+    },
+    {
+      node_id: "c3",
+      port_name: "cue",
+      value_address: { graph: STREAM_LEVEL, node_id: "c3", input: "value", member: null },
+      value_pin: { pin_type: { type: "string" }, flow: "value" },
+      value_annotations: {},
+      lifetime: "reset",
+    },
   ]);
 });
 
-test("a GraphInput the graph renders no graph_interface or value input for is read from its config, and nothing sets it; with no stream level known nothing is addressed", () => {
-  const graph = graphOf([
-    node("e5", "graphinput-3", "tatolab.stream:GraphInput", { port: "tint", family: "array", default: [1, 0.5, 0.25], range: [0, 1] }),
-    node("f6", "settings", "tatolab.stream:GraphInput", { family: "records" }, null, [valueInput(null)]),
-  ]);
+test("a GraphInput the graph renders no graph_interface or value input for is named by its node and addresses nothing; with no stream level known nothing is addressed", () => {
+  const graph = graphOf([node("e5", "tint", "tatolab.stream:GraphInput"), node("f6", "settings", "tatolab.stream:GraphInput", null, [valueInput("string", "")])]);
 
-  expect(graphInputsOfTheStream(graph, STREAM_LEVEL)).toEqual([
-    { node_id: "e5", port_name: "tint", family: "array", value_address: null, value_pin: null, value_annotations: {}, lifetime: "kept", range: { lowest: 0, highest: 1 }, control: "json" },
-    { node_id: "f6", port_name: "settings", family: "records", value_address: { graph: STREAM_LEVEL, node_id: "f6", input: "value", member: null }, value_pin: null, value_annotations: {}, lifetime: "kept", range: null, control: "json" },
+  expect(graphInputsOfTheStream(graph, STREAM_LEVEL).map(({ port_name, value_address }) => ({ port_name, addressed: value_address !== null }))).toEqual([
+    { port_name: "tint", addressed: false },
+    { port_name: "settings", addressed: true },
   ]);
   expect(graphInputsOfTheStream(graph, null).map((graphInput) => graphInput.value_address)).toEqual([null, null]);
 });
 
-test("each Input's control follows what its config declares: a ranged number a slider, an unranged one a typed number, a Channels bool a switch, a list or a record JSON, an Image or Packets Input or one of no family none", () => {
-  const controlsOf = (configs: StreamGraphNode["config"][]) => graphInputsOfTheStream(graphOf(configs.map((config, index) => node(`n${index}`, `graphinput-${index}`, "tatolab.stream:GraphInput", config))), STREAM_LEVEL).map((graphInput) => graphInput.control);
-
-  expect(
-    controlsOf([
-      { port: "gain", family: "array", default: 2, range: [0, 10] },
-      { port: "gain_unranged", family: "array", default: 2 },
-      { port: "level", family: "channels", range: [0, 1] },
-      { port: "strobe", family: "channels", default: false },
-      { port: "samples", family: "channels", default: { samples: [[0]], sample_rate: 48000 } },
-      { port: "backwards", family: "channels", default: 0.5, range: [1, 0] },
-      { port: "video", family: "image" },
-      { port: "packets", family: "packets" },
-      { port: "loose" },
-      { port: "tint", family: "array", default: [1, 0.5, 0.25], range: [0, 1] },
-    ]),
-  ).toEqual(["slider", "number", "slider", "toggle", "json", "number", "not_written", "not_written", "not_written", "json"]);
-});
-
-test("a value set since never changes an Input's control: a ranged Channels Input reading a bool stays a slider, and one saved as `value` is guessed from it", () => {
-  const graph = graphOf([
-    node("a1", "graphinput", "tatolab.stream:GraphInput", { port: "brightness", family: "channels", default: 0.5, range: [0, 1] }, null, [valueInput(true, "live")]),
-    node("b2", "graphinput-2", "tatolab.stream:GraphInput", { port: "strobe", family: "channels", value: false }),
-  ]);
-
-  expect(graphInputsOfTheStream(graph, STREAM_LEVEL).map((graphInput) => graphInput.control)).toEqual(["slider", "toggle"]);
-});
-
-test("a Graph Input that chose a pin type takes its value's type and annotations as graph serves them, its range among them; one saved before it chose any keeps its config's range and its own field", () => {
-  const linesValue = aGraphPort("value", "channels", { pin_type: { type: "integer" }, flow: "value", annotations: { range: { minimum: 1, maximum: 8 }, control: "dial" }, value: 2, value_comes_from: "saved" });
-  const graph = graphOf([
-    node("a1", "caption_lines", "tatolab.stream:GraphInput", { port: "caption_lines", pin_type: { type: "integer" }, range: [1, 8], control: "dial", default: 2 }, { direction: "input", port: "caption_lines", family: "channels", current_value: 2 }, [linesValue]),
-    node("b2", "brightness", "tatolab.stream:GraphInput", { port: "brightness", family: "channels", default: 0.5, range: [0, 1] }, null, [{ ...valueInput(0.5), annotations: { range: { minimum: 0, maximum: 1 } } }]),
-  ]);
-
-  const [lines, brightness] = graphInputsOfTheStream(graph, STREAM_LEVEL);
-  expect(lines).toMatchObject({ port_name: "caption_lines", family: "channels", value_pin: { pin_type: { type: "integer" }, flow: "value" }, value_annotations: { range: { minimum: 1, maximum: 8 }, control: "dial" }, range: { lowest: 1, highest: 8 } });
-  expect(brightness).toMatchObject({ value_pin: null, range: { lowest: 0, highest: 1 }, control: "slider" });
-});
-
-test("the range graph serves on an Input's value wins over the range its config holds, and its saved `value` over its former `default`", () => {
-  const servedValue = aGraphPort("value", "channels", { pin_type: { type: "float" }, flow: "value", annotations: { range: { minimum: 0, maximum: 100 } }, value: 50, value_comes_from: "saved" });
-  const graph = graphOf([
-    node("a1", "volume", "tatolab.stream:GraphInput", { port: "volume", pin_type: { type: "float" }, family: "channels", range: [0, 1], value: 50 }, null, [servedValue]),
-    node("b2", "strobe", "tatolab.stream:GraphInput", { port: "strobe", family: "channels", value: false, default: 0.5 }),
-  ]);
-
-  const [volume, strobe] = graphInputsOfTheStream(graph, STREAM_LEVEL);
-  expect(volume?.range).toEqual({ lowest: 0, highest: 100 });
-  expect(strobe?.control).toBe("toggle");
-});
-
-test("an Input no control writes says why, by its family", () => {
-  expect(whyNoControlWritesTheInput("packets")).toBe("This packets Input carries only what the graph wires into it, so no control writes it.");
-  expect(whyNoControlWritesTheInput("image")).toBe("This image Input carries only what the graph wires into it, so no control writes it.");
-  expect(whyNoControlWritesTheInput(null)).toBe("This Input of no family carries only what the graph wires into it, so no control writes it.");
-});
-
-test("a lifetime reads as what happens to a live value at Stop, and an Input nothing sets says why, by whether a client writes its family", () => {
+test("a lifetime reads as what happens to a live value at Stop", () => {
   expect(LIFETIME_WORDS).toEqual({ kept: "Kept at Stop", reset: "Reset at Stop" });
-  expect(whyNothingSetsTheInput({ family: "image", control: "not_written" })).toBe("This image Input carries only what the graph wires into it, so no control writes it.");
-  expect(whyNothingSetsTheInput({ family: "channels", control: "slider" })).toBe("Nothing sets this Input until its stream's graph serves its value.");
 });

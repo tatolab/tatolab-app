@@ -8,7 +8,7 @@ import { listForEachOpenProject } from "./list_for_each_open_project";
 import type { OpenProjectReading, StopWatching } from "./studio_view_contract";
 import { WatchedStudioValue } from "./watched_studio_value";
 
-/** The listing a window holds while no project is open, or after one was refused: no elements, so each input draws its own field. */
+/** The listing a window holds while no project is open, or after one was refused: no elements, so each input shows its value in words. */
 const NO_NODE_UI_ELEMENTS: NodeUiElementsReading = { elements: [] };
 
 /** The window's listing of node UI elements: `null` until the first answer. */

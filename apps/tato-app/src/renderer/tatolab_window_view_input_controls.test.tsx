@@ -122,22 +122,22 @@ describe("a Float input's control", () => {
     await waitFor(() => expect(wordsOfTheControl(onTheCard)).toBe("0"));
   });
 
-  it("where the listing is refused, Properties draws its own field for the input, and the field follows each value, an Undo's too", async () => {
+  it("where the listing is refused, Properties shows the input's value in words, and the words follow each value set live and taken off", async () => {
     const { backend } = await mountedWindowOverTheMock("state=running&node_ui=refused");
     fireEvent.click(await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>('[data-node-graph-card="kaleidoscope"]') ?? expect.unreachable("no Kaleidoscope card")));
-    const field = await waitFor(() => coreViewPage("properties").querySelector<HTMLInputElement>('[data-properties-port="spin"] input[aria-label="Value of spin"]') ?? expect.unreachable("no field on Properties' spin row"), AS_LONG_AS_A_FRAME_BINDS);
+    const words = () => coreViewPage("properties").querySelector('[data-properties-port="spin"] [data-properties-input-value-words]')?.textContent;
+    await waitFor(() => expect(words()).toBe("0.0"), AS_LONG_AS_A_FRAME_BINDS);
     expect(coreViewPage("properties").querySelector('[data-properties-port="spin"] [data-input-control="spin"]')?.firstElementChild ?? null).toBeNull();
-    expect(field.value).toBe("");
 
-    field.focus();
-    fireEvent.change(field, { target: { value: "1.5" } });
-    fireEvent.keyDown(field, { key: "Enter" });
-    await waitFor(async () => expect(await spinTheGraphReads(backend)).toEqual({ value: 1.5, comes_from: "saved" }));
-    await waitFor(() => expect(field.value).toBe("1.5"));
+    const graph = await backend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM);
+    const kaleidoscope = graph.nodes.find((node) => node.name === "kaleidoscope") ?? expect.unreachable("no Kaleidoscope");
+    const setLive = (value: number | null) => backend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: graph.asset ?? expect.unreachable("the main stream has no asset"), node: kaleidoscope.id, input: "spin", value }], "live", null);
+    await setLive(1.5);
+    await waitFor(() => expect(words()).toBe("1.5"), AS_LONG_AS_A_FRAME_BINDS);
 
-    await backend.undoInTheOpenProject({ kind: "person", name: "Sam" });
-    await waitFor(async () => expect(await spinTheGraphReads(backend)).toEqual({ value: 0, comes_from: "default" }));
-    await waitFor(() => expect(field.value).toBe(""));
+    await setLive(null);
+    await waitFor(async () => expect(await spinTheGraphReads(backend)).toEqual({ value: 0, comes_from: "default" }), AS_LONG_AS_A_FRAME_BINDS);
+    await waitFor(() => expect(words()).toBe("0.0"), AS_LONG_AS_A_FRAME_BINDS);
   });
 
   it("shows the runtime's recorded refusal of a value under Properties' control, in its words, until a value is taken", async () => {

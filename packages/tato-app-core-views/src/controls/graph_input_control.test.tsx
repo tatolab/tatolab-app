@@ -7,7 +7,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, test } from "vitest";
 import { GraphInputControl } from "./graph_input_control";
-import type { GraphInputOfTheStream } from "./graph_inputs_of_the_stream";
+import { WHY_NOTHING_SETS_THE_INPUT, type GraphInputOfTheStream } from "./graph_inputs_of_the_stream";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -24,10 +24,10 @@ const STREAM_ASSET = "0df4a7aa-1111-2222-3333-444444444444";
 
 const valueOf = (nodeId: string): InputAddress => ({ graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: nodeId, input: "value", member: null });
 
-const BRIGHTNESS: GraphInputOfTheStream = { node_id: "3fd9fe1a", port_name: "brightness", family: "channels", value_address: valueOf("3fd9fe1a"), value_pin: null, value_annotations: {}, lifetime: "kept", range: { lowest: 0, highest: 1 }, control: "slider" };
-const CUE: GraphInputOfTheStream = { node_id: "3067457b", port_name: "cue", family: "records", value_address: valueOf("3067457b"), value_pin: null, value_annotations: {}, lifetime: "kept", range: null, control: "json" };
-const STROBE: GraphInputOfTheStream = { node_id: "5b1c0e2a", port_name: "strobe", family: "channels", value_address: valueOf("5b1c0e2a"), value_pin: null, value_annotations: {}, lifetime: "reset", range: null, control: "toggle" };
-const VIDEO: GraphInputOfTheStream = { node_id: "9a0b1c2d", port_name: "video_in", family: "image", value_address: null, value_pin: null, value_annotations: {}, lifetime: "kept", range: null, control: "not_written" };
+const FLOAT_VALUE = { pin_type: { type: "float" }, flow: "value" } as const;
+const BRIGHTNESS: GraphInputOfTheStream = { node_id: "3fd9fe1a", port_name: "brightness", value_address: valueOf("3fd9fe1a"), value_pin: FLOAT_VALUE, value_annotations: { range: { minimum: 0, maximum: 1 } }, lifetime: "kept" };
+const STROBE: GraphInputOfTheStream = { node_id: "5b1c0e2a", port_name: "strobe", value_address: valueOf("5b1c0e2a"), value_pin: { pin_type: { type: "boolean" }, flow: "value" }, value_annotations: {}, lifetime: "reset" };
+const VIDEO: GraphInputOfTheStream = { node_id: "9a0b1c2d", port_name: "video_in", value_address: null, value_pin: { pin_type: { type: "texture" }, flow: "stream" }, value_annotations: {}, lifetime: "kept" };
 
 const APPLIED = (mode: GraphEditMode): ProjectGraphTransactionApplying => ({ kind: "applied", transaction: { mode, transaction: null, commit: null, operations: [], added_nodes: [], connected_links: [], added_groups: [], added_notes: [] } });
 
@@ -59,59 +59,23 @@ function drawTheRow(graphInput: GraphInputOfTheStream, valueRead: StreamGraphInp
     ),
   );
   const field = (selector: string): HTMLElement => rowHolder.querySelector<HTMLElement>(selector) ?? expect.unreachable(`the row drew no ${selector}`);
-  const setTheFieldTo = (input: HTMLElement, value: string) => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  };
   return {
     rowHolder,
     sent,
+    setLive: (value: boolean | number) => act(async () => inputValues.beginGesture(graphInput.value_address ?? expect.unreachable("no address"), "live").release(value)),
     field,
     takeTheValue,
-    moveTheSliderTo: (value: number) => act(async () => setTheFieldTo(field('input[type="range"]'), String(value))),
-    letGo: () => act(async () => window.dispatchEvent(new Event("pointerup"))),
-    typeAndPressEnter: async (selector: string, words: string) => {
-      const input = field(selector);
-      await act(async () => {
-        input.focus();
-        setTheFieldTo(input, words);
-      });
-      await act(async () => {
-        input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-      });
-    },
     refusalWords: () => rowHolder.querySelector("[data-graph-input-refusal]")?.textContent ?? null,
   };
 }
 
-test("dragging a ranged Input's slider sets its Graph Input's value live while it moves and live on release, committing nothing", async () => {
+test("an Input is named by its port and its value's type, and where the control table draws no control its value shows in words", () => {
   const row = drawTheRow(BRIGHTNESS, { value: 0.5, comes_from: "default" });
 
-  expect(nameOfTheField(row.rowHolder, 'input[type="range"]')).toBe("brightness");
+  expect(row.rowHolder.querySelector("[data-graph-input]")?.textContent).toContain("brightness");
+  expect(row.rowHolder.querySelector("[data-graph-input]")?.textContent).toContain("Float");
+  expect(row.field("[data-graph-input-value-words]").textContent).toBe("0.5");
   expect(row.field("[data-graph-input-lifetime]").textContent).toBe("Kept at Stop");
-  await row.moveTheSliderTo(0.8);
-  expect(row.rowHolder.querySelector("[data-property-live-edit]")).not.toBeNull();
-  await row.letGo();
-
-  expect(row.sent).toEqual([
-    { node: "3fd9fe1a", input: "value", value: 0.8, mode: "live" },
-    { node: "3fd9fe1a", input: "value", value: 0.8, mode: "live" },
-  ]);
-  expect(row.refusalWords()).toBeNull();
-});
-
-test("Escape during a drag puts back the value it began at and sends nothing more", async () => {
-  const row = drawTheRow(BRIGHTNESS, { value: 0.5, comes_from: "default" });
-
-  await row.moveTheSliderTo(0.8);
-  await act(async () => row.field('input[type="range"]').dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-  await row.letGo();
-
-  expect(row.sent).toEqual([
-    { node: "3fd9fe1a", input: "value", value: 0.8, mode: "live" },
-    { node: "3fd9fe1a", input: "value", value: null, mode: "live" },
-  ]);
-  expect(row.rowHolder.querySelector<HTMLInputElement>('input[type="range"]')?.value).toBe("0.5");
 });
 
 test("a live value says so and offers Back to saved, which takes the live value off, live", async () => {
@@ -121,92 +85,29 @@ test("a live value says so and offers Back to saved, which takes the live value 
 
   await row.takeTheValue({ value: 0.9, comes_from: "live" });
   expect(row.field("[data-graph-input-live]").textContent).toBe("Live");
-  await act(async () => row.field("[data-graph-input-back-to-saved]").click());
+  const backToSaved = row.field("[data-graph-input-back-to-saved]");
+  expect(backToSaved.getAttribute("aria-label")).toBe("Back to saved: brightness");
+  await act(async () => backToSaved.click());
 
   expect(row.sent).toEqual([{ node: "3fd9fe1a", input: "value", value: null, mode: "live" }]);
   await row.takeTheValue({ value: 0.5, comes_from: "saved" });
   expect(row.rowHolder.querySelector("[data-graph-input-live]")).toBeNull();
 });
 
-test("the runtime's refusal of a move shows on its row in the runtime's own words, and the slider goes back to the value the stream reads", async () => {
+test("the runtime's refusal of a value set live shows on its row in the runtime's own words", async () => {
   const because = "the stream is stopped, and `strobe` is reset at Stop, so a value set on it now is refused";
-  const row = drawTheRow(BRIGHTNESS, { value: 0.5, comes_from: "default" }, () => ({ kind: "not_sent", because }));
-
-  await row.moveTheSliderTo(0.3);
-  await row.letGo();
-
-  expect(row.refusalWords()).toContain(because);
-  expect(row.rowHolder.querySelector<HTMLInputElement>('input[type="range"]')?.value).toBe("0.5");
-});
-
-test("a record typed as a JSON object is set live on Enter, and words that are not JSON or not an object are refused there, sending nothing", async () => {
-  const row = drawTheRow(CUE, { value: { scene: "intro" }, comes_from: "default" });
-
-  expect(row.rowHolder.querySelector("input")?.value).toBe('{"scene":"intro"}');
-  await row.typeAndPressEnter("input", "{scene: finale}");
-  expect(row.refusalWords()).toContain("“{scene: finale}” isn't JSON.");
-  await row.typeAndPressEnter("input", '"finale"');
-  expect(row.refusalWords()).toContain("“\"finale\"” isn't a JSON object.");
-  expect(row.sent).toEqual([]);
-
-  await row.typeAndPressEnter("input", '{"scene": "finale"}');
-  expect(row.sent).toEqual([{ node: "3067457b", input: "value", value: { scene: "finale" }, mode: "live" }]);
-  expect(row.refusalWords()).toBeNull();
-});
-
-test("a Channels bool is a switch, switching it sets the other bool live, and its lifetime reads as reset at Stop", async () => {
-  const row = drawTheRow(STROBE, { value: false, comes_from: "default" });
+  const row = drawTheRow(STROBE, { value: false, comes_from: "default" }, () => ({ kind: "not_sent", because }));
 
   expect(row.field("[data-graph-input-lifetime]").textContent).toBe("Reset at Stop");
-  await act(async () => row.field("[data-graph-input-toggle]").click());
+  await row.setLive(true);
 
   expect(row.sent).toEqual([{ node: "5b1c0e2a", input: "value", value: true, mode: "live" }]);
+  expect(row.refusalWords()).toContain(because);
 });
 
-test("a number typed beside the slider is set live, and words that aren't a number are refused there, sending nothing", async () => {
-  const row = drawTheRow(BRIGHTNESS, { value: 0.5, comes_from: "default" });
-
-  await row.typeAndPressEnter("[data-property-slider-value]", "bright");
-  expect(row.refusalWords()).toContain("“bright” isn't a number.");
-  expect(row.sent).toEqual([]);
-  await row.typeAndPressEnter("[data-property-slider-value]", "0.25");
-  expect(row.sent).toEqual([{ node: "3fd9fe1a", input: "value", value: 0.25, mode: "live" }]);
-});
-
-test("an Input no control sets keeps today's line", () => {
+test("an Input that holds no value says nothing sets it", () => {
   const row = drawTheRow(VIDEO, { value: null, comes_from: null });
 
-  expect(row.field("[data-graph-input-not-set]").textContent).toBe("This image Input carries only what the graph wires into it, so no control writes it.");
-});
-
-test("words refused there show over the refusal of the value last sent, and Back to saved, named by its words, clears them", async () => {
-  const row = drawTheRow(CUE, { value: { scene: "intro" }, comes_from: "default" }, () => ({ kind: "not_sent", because: "the stream is stopped" }));
-
-  await row.typeAndPressEnter("input", '{"scene": "finale"}');
-  expect(row.refusalWords()).toContain("the stream is stopped");
-  await row.typeAndPressEnter("input", "{scene: finale}");
-  expect(row.refusalWords()).toContain("“{scene: finale}” isn't JSON.");
-
-  await row.takeTheValue({ value: { scene: "drop" }, comes_from: "live" });
-  const backToSaved = row.field("[data-graph-input-back-to-saved]");
-  expect(backToSaved.getAttribute("aria-label")).toBe("Back to saved: cue");
-  await act(async () => backToSaved.click());
-  expect(row.refusalWords()).not.toContain("isn't JSON");
-});
-
-/** The accessible name of the field `selector` finds in `holder`, from the element its `aria-labelledby` names, else its `aria-label`. */
-function nameOfTheField(holder: HTMLElement, selector: string): string | null {
-  const field = holder.querySelector(selector) ?? expect.unreachable(`no ${selector}`);
-  const labelledBy = field.getAttribute("aria-labelledby");
-  return labelledBy === null ? field.getAttribute("aria-label") : (document.getElementById(labelledBy)?.textContent ?? null);
-}
-
-test("an Input whose value pin is exact but which the table cannot draw takes Perform's own field, and each field is named by the Input", () => {
-  const STRING_VALUE = { pin_type: { type: "string" }, flow: "value" } as const;
-  const sliderRow = drawTheRow({ ...BRIGHTNESS, value_pin: STRING_VALUE }, { value: 0.5, comes_from: "default" });
-  expect(nameOfTheField(sliderRow.rowHolder, 'input[type="range"]')).toBe("brightness");
-  const numberRow = drawTheRow({ ...BRIGHTNESS, node_id: "4aa0", value_address: valueOf("4aa0"), port_name: "gain", range: null, control: "number", value_pin: STRING_VALUE }, { value: 2, comes_from: "default" });
-  expect(nameOfTheField(numberRow.rowHolder, 'input[inputmode="decimal"]')).toBe("gain");
-  const jsonRow = drawTheRow({ ...CUE, value_pin: STRING_VALUE }, { value: { scene: "intro" }, comes_from: "default" });
-  expect(nameOfTheField(jsonRow.rowHolder, "input")).toBe("cue");
+  expect(row.field("[data-graph-input-not-set]").textContent).toBe(WHY_NOTHING_SETS_THE_INPUT);
+  expect(row.rowHolder.querySelector("[data-graph-input-value-words]")).toBeNull();
 });

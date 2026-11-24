@@ -84,15 +84,6 @@ async function historyLength(backend: TatolabBackend): Promise<number> {
   return reading.kind === "read" ? reading.project_transactions.transactions.length : -1;
 }
 
-/** Each operation the open project's history records, by name. */
-async function operationsRecorded(backend: TatolabBackend): Promise<string[]> {
-  const reading = await backend.readOpenProjectTransactions();
-  if (reading.kind !== "read") return [];
-  return reading.project_transactions.transactions.flatMap((transaction) =>
-    transaction.operations.flatMap((operation) => (typeof operation === "object" && operation !== null && !Array.isArray(operation) && typeof operation["operation"] === "string" ? [operation["operation"]] : [])),
-  );
-}
-
 /** What the main stream's node `nodeName` reads on its input `input`, as the mock's graph renders it. */
 async function valueTheGraphReads(backend: TatolabBackend, nodeName: string, input: string): Promise<unknown> {
   const graph = await backend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM);
@@ -179,20 +170,6 @@ describe("Properties' Inputs", () => {
     await waitFor(() => expect(inputRow("spin").querySelector("[data-properties-input-value-words]")?.textContent).toBe("0.0"), AS_LONG_AS_A_FRAME_BINDS);
     expect(inputRow("spin").querySelector('input[aria-label="Value of spin"]')).toBeNull();
     expect(controlOnTheRow("spin")).toBeNull();
-  });
-
-  it("draws its own field where the table has no control for an input, and the field sets the input's value, not its old pin value", { timeout: 20_000 }, async () => {
-    const { backend } = await mountedWindowOverTheMock("state=running&node_ui=refused");
-    await selectInTheStreamGraph("kaleidoscope");
-    const field = await waitFor(() => inputRow("spin").querySelector<HTMLInputElement>('input[aria-label="Value of spin"]') ?? expect.unreachable("no field on Properties' spin row"), AS_LONG_AS_A_FRAME_BINDS);
-
-    field.focus();
-    fireEvent.change(field, { target: { value: "0.5" } });
-    fireEvent.keyDown(field, { key: "Enter" });
-    await waitFor(async () => expect(await valueTheGraphReads(backend, "kaleidoscope", "spin")).toEqual({ value: 0.5, comes_from: "saved" }));
-    const operations = await operationsRecorded(backend);
-    expect(operations).toContain("set_node_input_value");
-    expect(operations).not.toContain("set_pin_value");
   });
 });
 

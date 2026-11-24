@@ -1,6 +1,6 @@
 import { cn } from "cn";
-import { Box, Check, ChevronDown, ChevronRight, FolderOpen, LocateFixed, LogIn, Minus, Plus, RotateCcw, Unlink, X } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Box, ChevronDown, ChevronRight, FolderOpen, LocateFixed, LogIn, RotateCcw, Unlink, X } from "lucide-react";
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { WithControlTooltip } from "./control_tooltip";
 import { RefusalLine } from "./refusal_line";
@@ -102,45 +102,6 @@ export function PropertyRow({
   );
 }
 
-/** One entry of a property that is a list of records: its label on a line of its own with a remove beside it, and its own property rows indented under it. */
-export function PropertyListEntry({
-  label,
-  removal,
-  children,
-  ...controlDataAttributes
-}: {
-  label: string;
-  /** Takes the entry out of the list; absent while the list can't be edited. */
-  removal?: { label: string; onRemoved: () => void };
-  children: ReactNode;
-} & ControlDataAttributes) {
-  const entryLabelId = useId();
-  return (
-    <div role="group" aria-labelledby={entryLabelId} className="flex min-w-0 flex-col gap-1" {...controlDataAttributes}>
-      <div className={cn("grid min-w-0 items-center gap-2", PROPERTY_ROW_GRID_CLASS_NAMES)}>
-        <span id={entryLabelId} className="truncate text-right text-xs font-medium text-fg-2">
-          {label}
-        </span>
-        <span />
-        {removal === undefined ? <span /> : <IconButton icon={Minus} label={removal.label} size="compact" onPressed={removal.onRemoved} data-property-list-entry-remove />}
-      </div>
-      <div className="ml-3 flex min-w-0 flex-col gap-1 border-l pl-1">{children}</div>
-    </div>
-  );
-}
-
-/** How many entries a list property holds, in words, with an add beside them while the list can be edited. */
-export function PropertyListEntryCount({ fieldId, entryCount, isTheTypesDefault = false, addition }: { fieldId: string; entryCount: number; isTheTypesDefault?: boolean; addition?: { label: string; onAdded: () => void } }) {
-  return (
-    <div className="flex h-6 min-w-0 items-center gap-1">
-      <output id={fieldId} className={cn("min-w-0 flex-1 truncate px-2 text-[11.5px]", valueToneClassName(isTheTypesDefault))}>
-        {entryCount === 0 ? "No entries" : entryCount === 1 ? "1 entry" : `${entryCount} entries`}
-      </output>
-      {addition !== undefined && <IconButton icon={Plus} label={addition.label} size="compact" onPressed={addition.onAdded} data-property-list-entry-add />}
-    </div>
-  );
-}
-
 const PROPERTY_FIELD_CLASS_NAMES = "h-6 w-full min-w-0 rounded-[4px] border-0 bg-studio-control px-2 text-[11.5px] outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /** A property field's look on a box holding its input, ringed while the input inside holds the keyboard's focus. */
@@ -173,144 +134,6 @@ function useWordsEditedInPlace(shownWords: string, onCommitted: ((words: string)
       }
     },
   };
-}
-
-/** A number in a field, centred as Blender draws one, filled from the left up to it where the property's range is known; typed, it commits on Enter or on leaving it. */
-export function PropertyNumberField({
-  fieldId,
-  value,
-  minimum,
-  maximum,
-  isTheTypesDefault = false,
-  labelledBy,
-  onCommitted,
-}: {
-  fieldId: string;
-  value: number | null;
-  minimum: number | null;
-  maximum: number | null;
-  isTheTypesDefault?: boolean;
-  /** The id of the element that names the field, where no label points at it. */
-  labelledBy?: string;
-  /** The words typed, which the caller reads as a number; absent for a value that is only shown. */
-  onCommitted?: (words: string) => void;
-}) {
-  const filledFraction = value !== null && minimum !== null && maximum !== null && maximum > minimum ? Math.min(1, Math.max(0, (value - minimum) / (maximum - minimum))) : null;
-  const editing = useWordsEditedInPlace(value === null ? "" : String(value), onCommitted);
-  return (
-    <div className="relative min-w-0 overflow-hidden rounded-[4px] bg-studio-control">
-      {filledFraction !== null && <span aria-hidden className="absolute inset-y-0 left-0 bg-studio-property-fill" style={{ width: `${filledFraction * 100}%` }} />}
-      <input
-        id={fieldId}
-        inputMode="decimal"
-        aria-labelledby={labelledBy}
-        {...editing}
-        className={cn(PROPERTY_FIELD_CLASS_NAMES, "relative bg-transparent text-center font-mono tabular-nums", valueToneClassName(isTheTypesDefault))}
-      />
-    </div>
-  );
-}
-
-/**
- * A number within a known range, dragged on a slider: each move is a live edit and the release commits it once, so
- * one drag is one undo. Its value shows beside it, where it can be typed, and LIVE while it is dragged.
- */
-export function PropertySliderField({
-  fieldId,
-  value,
-  minimum,
-  maximum,
-  isWholeNumber,
-  isTheTypesDefault = false,
-  onDragStarted,
-  onLiveEdit,
-  onCommitted,
-  onDragCancelled,
-  labelledBy,
-  valueTypedBesideTheSlider,
-}: {
-  fieldId: string;
-  value: number | null;
-  minimum: number;
-  maximum: number;
-  isWholeNumber: boolean;
-  isTheTypesDefault?: boolean;
-  onDragStarted: () => void;
-  onLiveEdit: (value: number) => void;
-  onCommitted: (value: number) => void;
-  /** Escape during a drag: the drag ends where it began, nothing is committed, and the slider moves nothing more until the press ends; without it Escape does nothing. */
-  onDragCancelled?: () => void;
-  /** The id of the element that names the slider, where no label points at it. */
-  labelledBy?: string;
-  /** The value beside the slider typed into: its accessible name, and the words typed, which the caller reads as a number. */
-  valueTypedBesideTheSlider: { label: string; onWordsTyped: (words: string) => void };
-}) {
-  const [draggedValue, setDraggedValue] = useState<number | null>(null);
-  const [isCancelledUntilThePressEnds, setIsCancelledUntilThePressEnds] = useState(false);
-  const shownValue = draggedValue ?? value ?? minimum;
-  const valueWords = isWholeNumber ? String(shownValue) : shownValue.toFixed(2);
-  const valueEditedInPlace = useWordsEditedInPlace(valueWords, valueTypedBesideTheSlider.onWordsTyped);
-  const step = isWholeNumber ? 1 : (maximum - minimum) / 100;
-  const release = useCallback(() => {
-    if (draggedValue !== null) onCommitted(draggedValue);
-    setDraggedValue(null);
-    setIsCancelledUntilThePressEnds(false);
-  }, [draggedValue, onCommitted]);
-  useEffect(() => {
-    if (draggedValue === null && !isCancelledUntilThePressEnds) return undefined;
-    window.addEventListener("pointerup", release);
-    window.addEventListener("pointercancel", release);
-    return () => {
-      window.removeEventListener("pointerup", release);
-      window.removeEventListener("pointercancel", release);
-    };
-  }, [draggedValue, isCancelledUntilThePressEnds, release]);
-  return (
-    <div className="flex min-w-0 items-center gap-2">
-      <input
-        id={fieldId}
-        type="range"
-        aria-labelledby={labelledBy}
-        min={minimum}
-        max={maximum}
-        step={step}
-        value={shownValue}
-        onChange={(changeEvent) => {
-          if (isCancelledUntilThePressEnds) return;
-          const moved = Number(changeEvent.target.value);
-          if (draggedValue === null) onDragStarted();
-          setDraggedValue(moved);
-          onLiveEdit(moved);
-        }}
-        onKeyDown={(keyEvent) => {
-          if (keyEvent.key !== "Escape" || draggedValue === null || onDragCancelled === undefined) return;
-          keyEvent.preventDefault();
-          keyEvent.stopPropagation();
-          setDraggedValue(null);
-          setIsCancelledUntilThePressEnds(true);
-          onDragCancelled();
-        }}
-        onKeyUp={(keyEvent) => {
-          // On a slider whose drag Escape cancels, Escape's key-up is part of the cancel, not a release.
-          if (keyEvent.key !== "Escape" || onDragCancelled === undefined) release();
-        }}
-        onBlur={release}
-        className="h-4 min-w-0 flex-1 accent-brand"
-      />
-      <input
-        aria-label={valueTypedBesideTheSlider.label}
-        inputMode="decimal"
-        {...valueEditedInPlace}
-        className={cn(PROPERTY_FIELD_CLASS_NAMES, "w-10 shrink-0 px-1 text-right font-mono tabular-nums", valueToneClassName(isTheTypesDefault && draggedValue === null))}
-        data-property-slider-value=""
-      />
-      {draggedValue !== null && (
-        <span className="shrink-0 rounded-[3px] bg-brand px-1 text-[10px] font-semibold text-primary-foreground" data-property-live-edit>
-          LIVE
-        </span>
-      )}
-    </div>
-  );
 }
 
 /** Words in a field: a machine word, as a path or an id, in Geist Mono; typed, they commit on Enter or on leaving it. */
@@ -458,35 +281,6 @@ export function PropertyAssetField({
       {clearing !== undefined && <IconButton icon={X} label={clearing.label} size="compact" onPressed={clearing.onCleared} data-property-asset-clear="" />}
       {choosing !== undefined && <IconButton icon={FolderOpen} label={choosing.label} disabledReason={choosing.disabledReason} size="compact" onPressed={choosing.onChooseAsked} data-property-asset-choose="" />}
     </div>
-  );
-}
-
-/** On or off, as a checkbox; toggled where `onToggled` is given. */
-export function PropertyCheckbox({ fieldId, isOn, isTheTypesDefault = false, onToggled }: { fieldId: string; isOn: boolean; isTheTypesDefault?: boolean; onToggled?: (isOn: boolean) => void }) {
-  return (
-    <span className="relative inline-flex size-4 items-center justify-center">
-      <input
-        id={fieldId}
-        type="checkbox"
-        checked={isOn}
-        readOnly={onToggled === undefined}
-        aria-readonly={onToggled === undefined || undefined}
-        className="peer absolute inset-0 m-0 cursor-default opacity-0"
-        onClick={(clickEvent) => {
-          if (onToggled === undefined) clickEvent.preventDefault();
-        }}
-        onChange={(changeEvent) => onToggled?.(changeEvent.target.checked)}
-      />
-      <span
-        aria-hidden
-        className={cn(
-          "flex size-4 items-center justify-center rounded-[3px] peer-focus-visible:ring-2 peer-focus-visible:ring-ring",
-          isOn ? (isTheTypesDefault ? "bg-fg-3" : "bg-brand") : "bg-studio-control",
-        )}
-      >
-        {isOn && <Check className="size-3 text-primary-foreground" strokeWidth={3} />}
-      </span>
-    </span>
   );
 }
 
