@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PropertyChoiceField, PropertyPortRow, PropertySliderField, PropertyTextField } from "./property_fields";
 
 afterEach(cleanup);
@@ -224,30 +224,59 @@ describe("a property port row", () => {
 });
 
 describe("a property choice field", () => {
-  it("shows a choice's tooltip while the pointer rests on it, and two choices of the same words stay two", async () => {
+  /** Two choices drawn with the same words, each with its own tooltip, recording which was chosen in `chosen`. */
+  const twoChoicesOfTheSameWords = (chosen: string[]) => [
+    { words: "Reading", tooltip: "level: Float", onChosen: () => chosen.push("first") },
+    { words: "Reading", tooltip: "level: String", onChosen: () => chosen.push("second") },
+  ];
+
+  /** Waits for a tooltip of `words` to show. */
+  const tooltipShows = (words: string) =>
+    waitFor(() => expect([...document.querySelectorAll<HTMLElement>("[data-slot=tooltip-content]")].map((tooltip) => tooltip.textContent)).toContain(words), { timeout: 2_000 });
+
+  /** The words `entry` is described by. */
+  const descriptionOf = (entry: Element) => document.getElementById(entry.getAttribute("aria-describedby") ?? "")?.textContent;
+
+  it("names each choice's tooltip as its description, and shows the tooltip while the pointer rests on it", async () => {
     const chosen: string[] = [];
-    render(
-      <PropertyChoiceField
-        fieldId="bundle-type-field"
-        label="bundle_type"
-        words=""
-        choices={[
-          { words: "Reading", tooltip: "level: Float", onChosen: () => chosen.push("first") },
-          { words: "Reading", tooltip: "level: String", onChosen: () => chosen.push("second") },
-        ]}
-      />,
-    );
+    render(<PropertyChoiceField fieldId="bundle-type-field" label="bundle_type" words="" choices={twoChoicesOfTheSameWords(chosen)} />);
     fireEvent.click(screen.getByRole("button", { name: "bundle_type" }));
-    const entries = await screen.findAllByRole("menuitem");
-    expect(entries.map((entry) => entry.textContent)).toEqual(["Reading", "Reading"]);
-    const second = entries[1] ?? expect.unreachable("no second entry");
+    const second = await screen.findByRole("menuitem", { description: "level: String" });
+    expect(screen.getByRole("menuitem", { description: "level: Float" }).textContent).toBe("Reading");
+    expect(second.textContent).toBe("Reading");
     fireEvent.pointerEnter(second, { pointerType: "mouse" });
     fireEvent.mouseEnter(second);
     fireEvent.mouseMove(second);
     fireEvent.pointerMove(second, { pointerType: "mouse" });
-    expect(await screen.findByText("level: String", {}, { timeout: 2_000 })).not.toBeNull();
+    await tooltipShows("level: String");
     fireEvent.click(second);
     expect(chosen).toEqual(["second"]);
+  });
+
+  it("shows a choice's tooltip when the keyboard moves onto it", async () => {
+    render(<PropertyChoiceField fieldId="bundle-type-field" label="bundle_type" words="" choices={twoChoicesOfTheSameWords([])} />);
+    const field = screen.getByRole("button", { name: "bundle_type" });
+    act(() => field.focus());
+    fireEvent.keyDown(field, { key: "ArrowDown" });
+    const menu = await screen.findByRole("menu");
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    const focused = await waitFor(() => (document.activeElement?.getAttribute("role") === "menuitem" ? document.activeElement : expect.unreachable("no entry holds the focus")));
+    await tooltipShows(descriptionOf(focused) ?? expect.unreachable("the focused entry is described by nothing"));
+  });
+
+  it("keeps two choices of the same words apart, each with its own tooltip, as they are reordered", async () => {
+    const reactWarnings = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const chosen: string[] = [];
+    const choices = twoChoicesOfTheSameWords(chosen);
+    const { rerender } = render(<PropertyChoiceField fieldId="bundle-type-field" label="bundle_type" words="" choices={choices} />);
+    rerender(<PropertyChoiceField fieldId="bundle-type-field" label="bundle_type" words="" choices={[...choices].reverse()} />);
+    fireEvent.click(screen.getByRole("button", { name: "bundle_type" }));
+    const entries = await screen.findAllByRole("menuitem");
+    expect(entries.map(descriptionOf)).toEqual(["level: String", "level: Float"]);
+    fireEvent.click(entries[0] ?? expect.unreachable("no first entry"));
+    expect(chosen).toEqual(["second"]);
+    expect(reactWarnings.mock.calls.filter((call) => String(call[0]).includes("same key"))).toEqual([]);
+    reactWarnings.mockRestore();
   });
 
   it("says why its menu offers nothing when it has no choice", async () => {

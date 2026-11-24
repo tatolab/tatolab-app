@@ -53,10 +53,7 @@ function bundlePortOf(name: string, pin: StreamGraphPortPin | null, readsItsMemb
   };
 }
 
-/**
- * `node`'s ports retyped to carry the bundle its `bundle_type` holds once `input` was set, as the runtime types a Make Bundle's
- * and a Break Bundle's bundle ports from that setting: untyped while it holds none. Any other node, or input, is left as it is.
- */
+/** Retypes a Make Bundle's or Break Bundle's bundle ports to the bundle its `bundle_type` holds once `input` was set, untyped while it holds none, as the runtime does; any other node or input is left as it is. */
 export function retypeThePortsTheBundleTypeChooses(node: MockGraphNode, input: string): void {
   if (input !== BUNDLE_TYPE_SETTING || !NODE_TYPES_TYPED_BY_THEIR_BUNDLE_TYPE.includes(node.type)) return;
   const held = node.input_ports.find((port) => port.name === BUNDLE_TYPE_SETTING)?.value_read?.value ?? null;

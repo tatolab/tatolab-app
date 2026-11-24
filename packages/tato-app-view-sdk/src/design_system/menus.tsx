@@ -164,7 +164,7 @@ type MenuItemPicture = { icon?: LucideIcon; leading?: never } | { icon?: never; 
 
 const MENU_NOTE_CLASS_NAMES = "px-2 py-1 text-xs text-fg-3";
 
-/** One choice of a menu, with its tooltip while the pointer rests on it when it has one; a destructive one reads red. */
+/** One choice of a menu, which a destructive one reads red. */
 export function MenuItem({
   icon: ItemIcon,
   leading,
@@ -178,7 +178,8 @@ export function MenuItem({
   ...controlDataAttributes
 }: {
   isDestructive?: boolean;
-  tooltip?: ReactNode;
+  /** Shown beside the choice while the pointer rests on it or it holds keyboard focus, and read as its description. */
+  tooltip?: string;
   /** The key cap of the shortcut that does the same, shown at the item's end, as ⌘N. */
   shortcutHint?: string;
   /** For a choice whose effect is shown in the menu itself. */
@@ -188,26 +189,35 @@ export function MenuItem({
   children: ReactNode;
 } & MenuItemPicture &
   ControlDataAttributes) {
+  const idOfTheTooltipWords = useId();
   return (
-    <WithControlTooltip
-      tooltip={tooltip}
-      isWide
-      control={
-        <DropdownMenuItem
-          variant={isDestructive ? "destructive" : "default"}
-          closeOnClick={!keepsTheMenuOpen}
-          disabled={isDisabled}
-          onClick={onChosen}
-          className={cn(MENU_ITEM_CLASS_NAMES, "data-[variant=destructive]:text-danger-text data-[variant=destructive]:focus:text-danger-text")}
-          {...controlDataAttributes}
-        >
-          {ItemIcon !== undefined && <ItemIcon className={cn(MENU_ITEM_ICON_CLASS_NAMES, isDestructive && "text-danger")} strokeWidth={1.75} aria-hidden />}
-          {leading}
-          {children}
-          {shortcutHint !== undefined && <DropdownMenuShortcut>{shortcutHint}</DropdownMenuShortcut>}
-        </DropdownMenuItem>
-      }
-    />
+    <>
+      <WithControlTooltip
+        tooltip={tooltip}
+        isWide
+        control={
+          <DropdownMenuItem
+            variant={isDestructive ? "destructive" : "default"}
+            closeOnClick={!keepsTheMenuOpen}
+            disabled={isDisabled}
+            onClick={onChosen}
+            aria-describedby={tooltip === undefined ? undefined : idOfTheTooltipWords}
+            className={cn(MENU_ITEM_CLASS_NAMES, "data-[variant=destructive]:text-danger-text data-[variant=destructive]:focus:text-danger-text")}
+            {...controlDataAttributes}
+          >
+            {ItemIcon !== undefined && <ItemIcon className={cn(MENU_ITEM_ICON_CLASS_NAMES, isDestructive && "text-danger")} strokeWidth={1.75} aria-hidden />}
+            {leading}
+            {children}
+            {shortcutHint !== undefined && <DropdownMenuShortcut>{shortcutHint}</DropdownMenuShortcut>}
+          </DropdownMenuItem>
+        }
+      />
+      {tooltip !== undefined && (
+        <span id={idOfTheTooltipWords} className="sr-only">
+          {tooltip}
+        </span>
+      )}
+    </>
   );
 }
 

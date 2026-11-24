@@ -11,7 +11,15 @@
 // The fields are the design system's React parts, drawn from a root in the control's own children
 // as the Menu control draws its menu.
 
-import { membersOfAnOfferedPinTypeInWords, pinTypesTheChoiceOffers, pinTypeTheChoiceTakes, wordsOfAnOfferedPinType, type PinTypesTheChoiceOffers } from "@tatolab/tato-app-view-sdk/built_in_pin_types";
+import {
+  entryTheChoiceHolds,
+  isTheEntryHeld,
+  isTheSamePinType,
+  membersOfAnOfferedPinTypeInWords,
+  pinTypesTheChoiceOffers,
+  wordsOfAnOfferedPinType,
+  type PinTypesTheChoiceOffers,
+} from "@tatolab/tato-app-view-sdk/built_in_pin_types";
 import { PropertyChoiceField, PropertyFieldsSideBySide, PropertyTextField } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
 import controlStyles from "@tatolab/tato-app-view-sdk/node_ui/input_control.css" with { type: "css" };
@@ -94,23 +102,23 @@ export default class TypeChoice extends HTMLElement implements InputControlEleme
     partRoot?.unmount();
   }
 
-  /** Writes `pinType` as the input's value, when it can be edited and `pinType` is not the type it holds. */
+  /** Writes `pinType` as the input's value, when it can be edited. */
   #write(pinType: PinType): void {
-    if (!this.#editable || (this.#chosen !== null && JSON.stringify(pinType) === JSON.stringify(this.#chosen))) return;
+    if (!this.#editable) return;
     this.#chosen = pinType;
     this.#drawThePart();
     fireInputControlEvent(this, "change", pinType);
   }
 
-  /** The type held, as the choice takes it: a bundle saved unnamed as the listed bundle of its members. */
-  #heldAsTaken(): PinType | null {
-    return this.#chosen === null ? null : (pinTypeTheChoiceTakes(this.#offered, this.#chosen) ?? this.#chosen);
+  /** Writes `entry`, one the menu offers, unless it is the entry held, whose narrowing a choice of any type keeps. */
+  #entryChosen(entry: PinType): void {
+    if (isTheEntryHeld(this.#offered, entry, this.#chosen)) return;
+    this.#write(entry);
   }
 
-  /** Writes `pinType` as offered, unless it is the type held: a bundle the same bundle, any other type the same tag, whose narrowing it keeps. */
-  #typeChosen(pinType: PinType): void {
-    const held = this.#heldAsTaken();
-    if (held !== null && (pinType.type === "bundle" ? JSON.stringify(pinType) === JSON.stringify(held) : pinType.type === held.type)) return;
+  /** Writes `pinType`, the held type narrowed in the field beside the menu, unless it is the type held. */
+  #narrowingChosen(pinType: PinType): void {
+    if (this.#chosen !== null && isTheSamePinType(pinType, this.#chosen)) return;
     this.#write(pinType);
   }
 
@@ -127,7 +135,7 @@ export default class TypeChoice extends HTMLElement implements InputControlEleme
           onCommitted: this.#editable
             ? (line: string) => {
                 const codecs = codecsOfTheLine(line);
-                this.#write(codecs.length === 0 ? { type } : { type, codecs });
+                this.#narrowingChosen(codecs.length === 0 ? { type } : { type, codecs });
               }
             : undefined,
         });
@@ -140,8 +148,8 @@ export default class TypeChoice extends HTMLElement implements InputControlEleme
           words: pixelFormats.length === 0 ? ANY_PIXEL_FORMAT_WORDS : pixelFormats.join(", "),
           choices: this.#editable
             ? [
-                { words: ANY_PIXEL_FORMAT_WORDS, onChosen: () => this.#write({ type: "texture" }) },
-                ...Object.values(EACH_PIXEL_FORMAT).map((pixelFormat) => ({ words: pixelFormat, onChosen: () => this.#write({ type: "texture", pixel_formats: [pixelFormat] }) })),
+                { words: ANY_PIXEL_FORMAT_WORDS, onChosen: () => this.#narrowingChosen({ type: "texture" }) },
+                ...Object.values(EACH_PIXEL_FORMAT).map((pixelFormat) => ({ words: pixelFormat, onChosen: () => this.#narrowingChosen({ type: "texture", pixel_formats: [pixelFormat] }) })),
               ]
             : undefined,
         });
@@ -152,14 +160,15 @@ export default class TypeChoice extends HTMLElement implements InputControlEleme
   }
 
   #drawThePart(): void {
-    const chosen = this.#heldAsTaken();
+    const chosen = this.#chosen;
+    const entryHeld = chosen === null ? undefined : entryTheChoiceHolds(this.#offered, chosen);
     const typeMenu = createElement(PropertyChoiceField, {
       fieldId: this.#fieldId,
       label: this.#label,
-      words: chosen === null ? "" : wordsOfAnOfferedPinType(chosen),
+      words: chosen === null ? "" : wordsOfAnOfferedPinType(entryHeld ?? chosen),
       pinType: chosen ?? undefined,
       choices: this.#editable
-        ? this.#offered.entries.map((pinType) => ({ words: wordsOfAnOfferedPinType(pinType), pinType, tooltip: membersOfAnOfferedPinTypeInWords(pinType), onChosen: () => this.#typeChosen(pinType) }))
+        ? this.#offered.entries.map((entry) => ({ words: wordsOfAnOfferedPinType(entry), pinType: entry, tooltip: membersOfAnOfferedPinTypeInWords(entry), onChosen: () => this.#entryChosen(entry) }))
         : undefined,
       whyItOffersNoChoice: this.#offered.offers === "the_bundles_its_stream_declares" ? NO_BUNDLE_OF_THE_STREAM_WORDS : undefined,
     });

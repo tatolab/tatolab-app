@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { PinType } from "../pin_type_readings.js";
 import { expect, test } from "vitest";
 import { exactPinOfTheDeclaredPort, nodePinRows, type NodePin } from "./node_pins.js";
-import { PIN_TYPE_KEYS, pinTypeKey, pinTypeWords, pinWords, wordsOfTheBundleMembers } from "./pin_type_words.js";
+import { membersOfAnOfferedPinTypeInWords, PIN_TYPE_KEYS, pinTypeKey, pinTypeWords, pinWords, wordsOfAnOfferedPinType, wordsOfTheBundleMembers } from "./pin_type_words.js";
 
 test("a_pin_with_no_exact_type_takes_the_untyped_key_and_names_no_family", () => {
   expect(pinTypeKey(null)).toBe("untyped");
@@ -44,6 +44,15 @@ test("a_bundle_reads_as_the_class_that_declares_it_and_its_members", () => {
 test("a_bundles_members_read_each_by_its_name_and_type", () => {
   expect(wordsOfTheBundleMembers({ type: "bundle", name: "Reading", members: [...READING_MEMBERS] })).toBe("level: Float · 32-bit, tags: List of String");
   expect(wordsOfTheBundleMembers({ type: "bundle", members: [] })).toBe("no members");
+});
+
+test("a type a choice offers is picked by its bundle's class, or in plain words with its narrowing, and only a bundle shows members on its tooltip", () => {
+  expect(wordsOfAnOfferedPinType({ type: "bundle", name: "Reading", members: [...READING_MEMBERS] })).toBe("Reading");
+  expect(membersOfAnOfferedPinTypeInWords({ type: "bundle", name: "Reading", members: [...READING_MEMBERS] })).toBe("level: Float · 32-bit, tags: List of String");
+  expect(wordsOfAnOfferedPinType({ type: "bundle", members: [...READING_MEMBERS] })).toBe("Bundle · level, tags");
+  expect(wordsOfAnOfferedPinType({ type: "encoded_video", codecs: ["h264"] })).toBe("Encoded video · H.264");
+  expect(wordsOfAnOfferedPinType({ type: "encoded_video" })).toBe("Encoded video");
+  expect(membersOfAnOfferedPinTypeInWords({ type: "encoded_video" })).toBeUndefined();
 });
 
 test("a_pins_words_name_its_type_and_how_its_messages_are_read", () => {

@@ -126,6 +126,16 @@ export function wordsOfTheBundleMembers(bundle: Extract<PinType, { type: "bundle
   return bundle.members.map((member) => `${member.name}: ${pinTypeWords(member.member_type)}`).join(", ");
 }
 
+/** The words a person picks `offered`, a type a Pin type choice offers, by: a named bundle by the class that declares it, any other type in plain words. */
+export function wordsOfAnOfferedPinType(offered: PinType): string {
+  return offered.type === "bundle" && offered.name !== null && offered.name !== undefined ? offered.name : pinTypeWords(offered);
+}
+
+/** The members of `offered`, a type a Pin type choice offers, in words, as its entry's tooltip shows them; `undefined` for a type that is no bundle. */
+export function membersOfAnOfferedPinTypeInWords(offered: PinType): string | undefined {
+  return offered.type === "bundle" ? wordsOfTheBundleMembers(offered) : undefined;
+}
+
 const PIN_FLOW_WORDS: Record<PinFlow, string> = { value: "one value at a time", stream: "a stream", trigger: "fires" };
 
 /** What a pin is in words: its type and how its messages are read, as "Float, one value at a time"; "No exact type" for a pin with none. */

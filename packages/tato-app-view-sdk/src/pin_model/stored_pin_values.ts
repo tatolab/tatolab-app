@@ -2,10 +2,10 @@
 // type generates. Each built-in type that stores a value and has a control is read each way; any
 // other type, a bundle among them, reads as no value, so no control is handed a value of a form it
 // does not declare. A Trigger stores none. A Pin type choice stores the pin type it chose, read as
-// the type the choice takes it as: an entry of its `among` list, a type its menu offers when the list
-// is empty, or the listed bundle of the stream an unnamed saved bundle has the members of.
+// the type the choice stores for it: an entry of its `among` list, a type its menu offers when the
+// list is empty, or the one listed bundle of the stream an unnamed saved bundle has the members of.
 
-import { pinTypesTheChoiceOffers, pinTypeTheChoiceTakes, type PinTypeChoice } from "../built_in_pin_types.js";
+import { pinTypesTheChoiceOffers, pinTypeTheChoiceTakes, type PinTypeChoice } from "./pin_type_choice.js";
 import type { AssetPinValue, BuiltInPinTypeName, ColorPinValue, PinType, RectanglePinValue, VectorComponentCount, VectorPinValue } from "../pin_types.js";
 import type { StoredPinValue } from "../node_ui/input_control_element.js";
 import { isAJsonValue, type JsonValue } from "../studio_readings.js";

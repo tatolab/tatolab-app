@@ -64,17 +64,10 @@ async function openedMenuNamed(control: TypeChoice, label: string): Promise<void
   (await fieldNamed<HTMLButtonElement>(control, `button[aria-label="${label}"]`)).click();
 }
 
-/** The words of the tooltip shown now; it shows once the pointer has rested on `entry`. */
-async function tooltipShownResting(entry: HTMLElement): Promise<string> {
+/** Rests the pointer on `entry` and waits for a tooltip of `words` to show. */
+async function tooltipShowsResting(entry: HTMLElement, words: string): Promise<void> {
   fireEventsOfAPointerComingToRest(entry);
-  return vi.waitFor(
-    () => {
-      const tooltip = document.querySelector<HTMLElement>("[data-slot=tooltip-content]");
-      if (tooltip === null) throw new Error("no tooltip shows");
-      return tooltip.textContent;
-    },
-    { timeout: 2_000 },
-  );
+  await vi.waitFor(() => expect([...document.querySelectorAll<HTMLElement>("[data-slot=tooltip-content]")].map((tooltip) => tooltip.textContent)).toContain(words), { timeout: 2_000 });
 }
 
 /** The events a mouse sends coming to rest on `element`. */
@@ -130,7 +123,7 @@ describe("the type choice", () => {
   });
 
   it("fires one change carrying the type chosen with no narrowing, and none for the type held, whose narrowing it keeps", async () => {
-    const control = mountedTypeChoice({ type: "encoded_video", codecs: ["h264"] }, [{ type: "encoded_video" }, { type: "texture" }]);
+    const control = mountedTypeChoice({ type: "encoded_video", codecs: ["h264"] });
     const fired = eventsFiredBy(control);
     await openedMenuNamed(control, "carries");
     (await entryNamed("Encoded video")).click();
@@ -138,6 +131,21 @@ describe("the type choice", () => {
     await openedMenuNamed(control, "carries");
     (await entryNamed("Texture")).click();
     expect(fired).toEqual([{ name: "change", value: { type: "texture" } }]);
+  });
+
+  it("names each narrowing its list offers in plain words, and fires the second of two narrowings of one type when it is picked", async () => {
+    const control = mountedTypeChoice({ type: "encoded_video", codecs: ["h264"] }, [
+      { type: "encoded_video", codecs: ["h264"] },
+      { type: "encoded_video", codecs: ["av1"] },
+    ]);
+    const fired = eventsFiredBy(control);
+    await openedMenuNamed(control, "carries");
+    expect((await entriesOfTheOpenMenu()).map((entry) => entry.words)).toEqual(["Encoded video · H.264", "Encoded video · AV1"]);
+    (await entryNamed("Encoded video · H.264")).click();
+    expect(fired).toEqual([]);
+    await openedMenuNamed(control, "carries");
+    (await entryNamed("Encoded video · AV1")).click();
+    expect(fired).toEqual([{ name: "change", value: { type: "encoded_video", codecs: ["av1"] } }]);
   });
 
   it("keeps an encoded type's codecs in one line of text beside its menu, and fires the type with the codecs typed", async () => {
@@ -203,7 +211,8 @@ describe("the type choice", () => {
         { words: "Reading", mark: "bundle" },
         { words: "Tone", mark: "bundle" },
       ]);
-      expect(await tooltipShownResting(await entryNamed("Reading"))).toBe("level: Float, pitch: Integer");
+      await tooltipShowsResting(await entryNamed("Reading"), "level: Float, pitch: Integer");
+      expect((await entryNamed("Tone")).getAttribute("aria-describedby")).not.toBeNull();
     });
 
     it("shows a bundle saved before bundles were named as the listed bundle of its members, and fires the named bundle picked", async () => {
@@ -216,6 +225,22 @@ describe("the type choice", () => {
       await openedMenuNamed(control, "carries");
       (await entryNamed("Tone")).click();
       expect(fired).toEqual([{ name: "change", value: TONE }]);
+    });
+
+    it("shows a bundle saved unnamed with the members of two listed bundles in plain words, holding neither, and fires whichever is picked", async () => {
+      const PITCH: PinType = { type: "bundle", name: "Pitch", members: [...READING_MEMBERS] };
+      const control = mountedTypeChoice(READING_SAVED_UNNAMED, [READING, PITCH], "editable", true);
+      const fired = eventsFiredBy(control);
+      expect((await fieldNamed<HTMLButtonElement>(control, "button[aria-label=carries]")).textContent).toBe("Bundle · level, pitch");
+      await openedMenuNamed(control, "carries");
+      (await entryNamed("Pitch")).click();
+      expect(fired).toEqual([{ name: "change", value: PITCH }]);
+      await openedMenuNamed(control, "carries");
+      (await entryNamed("Reading")).click();
+      expect(fired).toEqual([
+        { name: "change", value: PITCH },
+        { name: "change", value: READING },
+      ]);
     });
 
     it("says the stream declares no bundle, offering no type, while it declares none", async () => {
