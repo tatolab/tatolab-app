@@ -630,21 +630,6 @@ describe("the studio", () => {
     await waitFor(() => expect(coreViewPage("properties").querySelector('[data-properties-port="asset"] [data-property-asset-listing-refusal]')?.textContent).toContain(refusal), { timeout: 5000 });
   });
 
-  it("exposes a number setting as a Graph Input from its row in Properties, the node taking it as an input fed by the new Graph Input", async () => {
-    await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind");
-    const streamGraph = await waitFor(() => coreViewPage("stream_graph", "stream-graph").querySelector<HTMLElement>("[data-stream-graph]") ?? expect.unreachable("no stream graph drawn"));
-    fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="tally"]') ?? expect.unreachable("no Frame Tally card")));
-    const properties = () => coreViewPage("properties");
-
-    const exposeTheSetting = () => properties().querySelector<HTMLElement>('[data-properties-port="report_every_frames"] [data-properties-input-promote]');
-    fireEvent.click(await waitFor(() => exposeTheSetting() ?? expect.unreachable("no Expose as a Graph Input on report_every_frames")));
-
-    const reportInput = await waitFor(() => properties().querySelector<HTMLElement>('[data-properties-section="inputs"] [data-properties-port="report_every_frames"]') ?? expect.unreachable("no report_every_frames input"), { timeout: 5000 });
-    await waitFor(() => expect([...reportInput.querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"))).toEqual(["tally_report_every_frames › value"]));
-    await waitFor(() => expect(streamGraph.querySelector('[data-node-graph-card="tally_report_every_frames"]')).not.toBeNull());
-    expect(exposeTheSetting()).toBeNull();
-  });
-
   it("opens the Marketplace from the store button beside the node search's field, closing the search", async () => {
     const modulesAndMarketplaceSectionsOpened: string[] = [];
     await mountedWindowOverTheMock("state=running", {

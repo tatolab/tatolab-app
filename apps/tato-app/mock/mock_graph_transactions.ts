@@ -375,6 +375,11 @@ function fireTheTriggerInput(graph: MockGraphLevel, node: MockGraphNode, input: 
 }
 
 /** Whether `input` is a setting of `node` held in its config: one it names among its settings, or one its node type describes as a setting that is none of its ports. */
+/** Whether `input` is a setting of a Graph Input or Output the mock drew no port of, as for one a transaction added: any input of it but the `value` it carries. */
+function isASettingOfAGraphInputOrOutput(node: Pick<MockGraphNode, "type" | "input_ports">, input: string): boolean {
+  return (node.type === GRAPH_INPUT_NODE_TYPE || node.type === GRAPH_OUTPUT_NODE_TYPE) && input !== "value" && !node.input_ports.some((port) => port.name === input);
+}
+
 function isASettingOfTheNode(node: Pick<MockGraphNode, "type" | "settings" | "input_ports">, input: string, nodeTypesDescribed: readonly NodeTypeDescription[]): boolean {
   if (node.settings?.includes(input) === true) return true;
   const described = nodeTypesDescribed.find((nodeType) => nodeType.node_type === node.type);
@@ -471,6 +476,18 @@ export function applyMockGraphTransaction(
       }
       case "set_node_input_value": {
         const node = nodeNamed(operation.node);
+        if (isASettingOfAGraphInputOrOutput(node, operation.input)) {
+          const to = jsonTheActionCarries(operation.value ?? null, "value");
+          const from = node.config[operation.input] ?? null;
+          const { [operation.input]: _taken, ...configWithoutTheSetting } = node.config;
+          node.config = to === null ? configWithoutTheSetting : { ...node.config, [operation.input]: to };
+          // The Graph Input or Output's ports follow its settings, as its type and annotations are set on it.
+          const interfaceType = node.type === GRAPH_INPUT_NODE_TYPE ? GRAPH_INPUT_NODE_TYPE : GRAPH_OUTPUT_NODE_TYPE;
+          const familyHeld = (interfaceType === GRAPH_INPUT_NODE_TYPE ? node.output_ports[0]?.family : node.input_ports[0]?.family) ?? null;
+          Object.assign(node, portsOfTheInterfaceNode(interfaceType, familyHeld, node.config));
+          recordInHistory({ operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
+          break;
+        }
         if (isASettingOfTheNode(node, operation.input, nodeTypesDescribed)) {
           const to = jsonTheActionCarries(operation.value ?? null, "value");
           const from = node.config[operation.input] ?? null;

@@ -75,9 +75,7 @@ import { nodeInputs, nodeOutputs, wiresReadAtTheLevel } from "../shared/node_pin
 import { selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 import { inputRowStateOf, type InputRowState } from "./input_row_state";
 import {
-  configFieldsToExposeAsGraphInputs,
   configValueFromTheWordsTyped,
-  exposeTheConfigFieldAsAGraphInput,
   LIST_ENTRY_MOVED_ON_REFUSAL,
   linkDrivingTheInputTakenOut,
   linkedEndsOfThePort,
@@ -382,8 +380,6 @@ interface InputRowsOfTheNode {
   /** The frame's store, which a promotion reads the value an input shows from. */
   inputValues: InputValues;
   graphEdits: GraphEditsOfTheNode;
-  /** The settings of the node it can take as inputs and does not yet, each offered on its row to be exposed as a Graph Input. */
-  settingsToExpose: ReadonlySet<string>;
   searchWords: string;
 }
 
@@ -393,15 +389,11 @@ function whereTheInputReadsFrom(node: StreamGraphNode, port: StreamGraphPort | n
   return describedInput === undefined ? null : valueReadOfTheSetting(node, describedInput);
 }
 
-/** What a row offers to feed its input from a new Graph Input: a promotion of an input, or the exposing of a setting its node can take as an input; nothing where neither can be. */
+/** What a row offers to feed its input from a new Graph Input: a promotion of an input; nothing where it can't be. */
 function graphInputOfferedOnTheRow(pin: NodePin, port: StreamGraphPort | null, state: InputRowState, rows: InputRowsOfTheNode): { label: string; onPromoted: () => void } | undefined {
-  const { level, graph, node, streamAsset, inputValues, graphEdits, settingsToExpose } = rows;
+  const { level, graph, node, streamAsset, inputValues, graphEdits } = rows;
   if (streamAsset === null) return undefined;
   const place = placeOfTheInput(pin.name);
-  if (pin.setting !== null) {
-    if (!settingsToExpose.has(pin.name)) return undefined;
-    return { label: `Expose ${pin.name} as a Graph Input`, onPromoted: () => void graphEdits.commit(place, exposeTheConfigFieldAsAGraphInput(streamAsset, node, pin)) };
-  }
   const canBePromoted = (state.kind === "holds_a_value" || state.kind === "not_connected") && state.can_be_promoted;
   if (!canBePromoted || port === null) return undefined;
   return {
@@ -418,7 +410,7 @@ function graphInputOfferedOnTheRow(pin: NodePin, port: StreamGraphPort | null, s
  * One input of the node, its settings among them, as its card draws it, wider, in the state `inputRowStateOf` decides: a
  * wired input names each node and pin that drive it, with a way there and a disconnect; an unwired one draws the control its
  * card draws, or the panel's own field where the table has none, says where the store's value comes from, and offers Reset
- * to default and Promote to a Graph Input, or for a setting its node can take as an input, Expose as a Graph Input. `port`
+ * to default and Promote to a Graph Input. `port`
  * is `null` for a setting the graph lists among no port of the node.
  */
 function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin: NodePin; port: StreamGraphPort | null; describedInput: NodeTypeInputDescribed | undefined; bandShade: PropertyPortBandShade; rows: InputRowsOfTheNode }) {
@@ -691,8 +683,7 @@ function PropertiesOfTheSelectedNode({
     const port = node.ports.outputs.find((candidate) => candidate.name === pin.name);
     return port !== undefined && matching.outputs_listed.has(pin.name) ? [{ port, pin }] : [];
   });
-  const settingsToExpose = configFieldsToExposeAsGraphInputs(node, described);
-  const inputRows: InputRowsOfTheNode = { connection, stream, level, graph, node, streamAsset, inputValues, graphEdits, settingsToExpose, searchWords };
+  const inputRows: InputRowsOfTheNode = { connection, stream, level, graph, node, streamAsset, inputValues, graphEdits, searchWords };
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-properties-of-node={node.name}>
       <header className="flex min-w-0 flex-col gap-0.5 border-b px-3 py-2">

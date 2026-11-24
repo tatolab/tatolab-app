@@ -4,8 +4,7 @@
 import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import type { NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import type { InputValueComesFrom } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { isAFamilyAClientWrites } from "../controls/graph_inputs_of_the_stream";
-import type { LinkedEndOfAPort } from "./properties_graph_edits";
+import { canAGraphInputFeedThePin, type LinkedEndOfAPort } from "./properties_graph_edits";
 
 /**
  * An input row's state: fed by the links it names, each of which it offers a way to and a disconnect of; fed from a wire the
@@ -20,7 +19,7 @@ export type InputRowState =
 
 /** What an input row is decided from. */
 export interface InputOfARow {
-  readonly input: Pick<NodePin, "family" | "value_address" | "setting" | "takes_a_wire">;
+  readonly input: Pick<NodePin, "pin" | "annotations" | "value_address" | "setting" | "takes_a_wire">;
   /** Where the runtime reads the input's value from; `null` where it reads none. */
   readonly value_comes_from: InputValueComesFrom | null;
   /** The links at the input's level that feed it. */
@@ -30,13 +29,12 @@ export interface InputOfARow {
 
 /**
  * The state of the row of `input`. A link at its level wins, since the runtime's reading of a wired input can lag the link;
- * a promotion is offered on an input of a family a Graph Input written by a client carries, since one of any other family
- * runs nothing, never on a setting, which a Graph Input feeds once its node exposes it, and never on an input the runtime marks as
- * taking no wire, which no Graph Input's link can end at.
+ * a promotion is offered on an input of a type a Graph Input chooses, since a client sets no value of any other, never on a
+ * setting, which takes no wire, and never on an input the runtime marks as taking no wire, which no Graph Input's link can end at.
  */
 export function inputRowStateOf({ input, value_comes_from, driven_by, is_editable }: InputOfARow): InputRowState {
   if (driven_by.length > 0) return { kind: "wired", driven_by, can_be_disconnected: is_editable };
-  const canBePromoted = is_editable && input.setting === null && input.takes_a_wire && isAFamilyAClientWrites(input.family);
+  const canBePromoted = is_editable && input.setting === null && input.takes_a_wire && input.pin !== null && canAGraphInputFeedThePin({ pin_type: input.pin.pin_type, annotations: input.annotations });
   if (input.value_address !== null) return { kind: "holds_a_value", address: input.value_address, can_be_promoted: canBePromoted };
   if (value_comes_from === "wire") return { kind: "wired_from_outside_the_level" };
   return { kind: "not_connected", can_be_promoted: canBePromoted };
