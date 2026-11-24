@@ -246,7 +246,7 @@ function AudioCaptureDeviceFieldOfTheInput({ fieldId, row }: { fieldId: string; 
  */
 function OwnFieldOfTheRowsInput({ fieldId, nodePin, row }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations">; row: OwnFieldOfTheRow }) {
   if (nodePin.pin !== null && isAnAudioCaptureDeviceInput(nodePin.pin.pin_type, nodePin.annotations)) return <AudioCaptureDeviceFieldOfTheInput fieldId={fieldId} row={row} />;
-  return <InputValueWords address={row.address} pinType={nodePin.pin?.pin_type ?? null} data-properties-input-value-words={row.address.input} />;
+  return <InputValueWords id={fieldId} address={row.address} pinType={nodePin.pin?.pin_type ?? null} data-properties-input-value-words={row.address.input} />;
 }
 
 /**
@@ -263,7 +263,7 @@ function ValueOfTheUnwiredInput({ fieldId, nodePin, row }: { fieldId: string; no
       {controlled === null ? (
         ownField
       ) : (
-        <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={<InputValueWords address={address} pinType={nodePin.pin?.pin_type ?? null} data-properties-input-value-words={address.input} />} noControl={ownField} className="w-full" />
+        <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={<InputValueWords id={fieldId} address={address} pinType={nodePin.pin?.pin_type ?? null} data-properties-input-value-words={address.input} />} noControl={ownField} className="w-full" />
       )}
       <RefusalOfTheInputsValue address={address} />
     </div>

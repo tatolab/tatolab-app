@@ -476,23 +476,18 @@ export function applyMockGraphTransaction(
       }
       case "set_node_input_value": {
         const node = nodeNamed(operation.node);
-        if (isASettingOfAGraphInputOrOutput(node, operation.input)) {
+        const isAnInterfaceSetting = isASettingOfAGraphInputOrOutput(node, operation.input);
+        if (isAnInterfaceSetting || isASettingOfTheNode(node, operation.input, nodeTypesDescribed)) {
           const to = jsonTheActionCarries(operation.value ?? null, "value");
           const from = node.config[operation.input] ?? null;
           const { [operation.input]: _taken, ...configWithoutTheSetting } = node.config;
           node.config = to === null ? configWithoutTheSetting : { ...node.config, [operation.input]: to };
-          // The Graph Input or Output's ports follow its settings, as its type and annotations are set on it.
-          const interfaceType = node.type === GRAPH_INPUT_NODE_TYPE ? GRAPH_INPUT_NODE_TYPE : GRAPH_OUTPUT_NODE_TYPE;
-          const familyHeld = (interfaceType === GRAPH_INPUT_NODE_TYPE ? node.output_ports[0]?.family : node.input_ports[0]?.family) ?? null;
-          Object.assign(node, portsOfTheInterfaceNode(interfaceType, familyHeld, node.config));
-          recordInHistory({ operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
-          break;
-        }
-        if (isASettingOfTheNode(node, operation.input, nodeTypesDescribed)) {
-          const to = jsonTheActionCarries(operation.value ?? null, "value");
-          const from = node.config[operation.input] ?? null;
-          const { [operation.input]: _taken, ...configWithoutTheSetting } = node.config;
-          node.config = to === null ? configWithoutTheSetting : { ...node.config, [operation.input]: to };
+          if (isAnInterfaceSetting) {
+            // The Graph Input or Output's ports follow its settings, as its type and annotations are set on it.
+            const interfaceType = node.type === GRAPH_INPUT_NODE_TYPE ? GRAPH_INPUT_NODE_TYPE : GRAPH_OUTPUT_NODE_TYPE;
+            const familyHeld = (interfaceType === GRAPH_INPUT_NODE_TYPE ? node.output_ports[0]?.family : node.input_ports[0]?.family) ?? null;
+            Object.assign(node, portsOfTheInterfaceNode(interfaceType, familyHeld, node.config));
+          }
           recordInHistory({ operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
           break;
         }

@@ -200,10 +200,10 @@ export function useShownValueOfTheInput(address: InputAddress | null): ShownValu
  * The value the store shows for the input at `address` in words, as a card writes a value of `pinType`, else as JSON, while
  * its control loads; nothing while it shows no value.
  */
-export function InputValueWords({ address, pinType, className, ...controlDataAttributes }: { address: InputAddress; pinType: PinType | null; className?: string } & ControlDataAttributes) {
+export function InputValueWords({ id, address, pinType, className, ...controlDataAttributes }: { id?: string; address: InputAddress; pinType: PinType | null; className?: string } & ControlDataAttributes) {
   const { value } = useShownValueOfTheInput(address);
   return (
-    <span className={cn("truncate text-fg-3 tabular-nums", className)} {...controlDataAttributes}>
+    <span id={id} className={cn("truncate text-fg-3 tabular-nums", className)} {...controlDataAttributes}>
       {value === null ? "" : (valueWords(pinType, value) ?? jsonTextOf(value))}
     </span>
   );

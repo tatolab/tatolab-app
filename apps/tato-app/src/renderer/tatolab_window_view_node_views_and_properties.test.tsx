@@ -31,6 +31,7 @@ class StandInAssetControl extends HTMLElement implements InputControlElement<"as
   #held: AssetPinValue | null = null;
   #paths = new Map<string, string>();
   #refusal: string | null = null;
+  // It watches from its pin on, since happy-dom calls no connectedCallback on an element put into a frame's page from outside it.
   set pin(pin: ControlledPin<"asset">) {
     this.#studio = pin.studio;
     this.#stopWatching?.();
@@ -39,6 +40,10 @@ class StandInAssetControl extends HTMLElement implements InputControlElement<"as
       this.#refusal = reading.kind === "listed" ? null : reading.because;
       this.#draw();
     });
+  }
+  disconnectedCallback(): void {
+    this.#stopWatching?.();
+    this.#stopWatching = null;
   }
   set value(value: AssetPinValue) {
     this.#held = value;

@@ -4,7 +4,7 @@ import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_li
 import { StatusChip } from "@tatolab/tato-app-view-sdk/design_system/status_chip";
 import { takesAControl, type ControlledInput } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
 import type { InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
-import { pinTypeWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
+import { pinTypeWords, pinWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
 import { useMemo } from "react";
 import { GRAPH_INPUT_VALUE_INPUT, LIFETIME_WORDS, WHY_NOTHING_SETS_THE_INPUT, type GraphInputOfTheStream } from "./graph_inputs_of_the_stream";
 
@@ -30,7 +30,7 @@ export function GraphInputControl({ graphInput }: { graphInput: GraphInputOfTheS
         <span className="min-w-0 truncate text-fg">
           {portName}
         </span>
-        <span className="ml-auto shrink-0 font-mono text-2xs text-fg-3">{graphInput.value_pin === null ? "No exact type" : pinTypeWords(graphInput.value_pin.pin_type)}</span>
+        <span className="ml-auto shrink-0 font-mono text-2xs text-fg-3">{graphInput.value_pin === null ? pinWords(null) : pinTypeWords(graphInput.value_pin.pin_type)}</span>
       </div>
       {address === null ? (
         <p className="text-2xs text-fg-3" data-graph-input-not-set={portName}>
