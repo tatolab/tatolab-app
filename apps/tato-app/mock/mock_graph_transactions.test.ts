@@ -44,7 +44,6 @@ function apply(graph: MockStreamGraph, operations: readonly StreamGraphAction[],
 const CANVAS = mockNodeIdOf(STREAM_ID, "canvas");
 /** Pulse Stage's `GlowBlur`, which reads pictures on `image`: a node type the recording describes. */
 const GLOW_BLUR = "nodes.looks:GlowBlur";
-/** Pulse Stage's `ClickTrack`, whose `volume` is a setting: a node type the recording describes. */
 /** Pulse Stage's `ClickCue`, which reads an Integer `count` and a Boolean `downbeat`: a node type the recording describes. */
 const CLICK_CUE = "nodes.beat:ClickCue";
 
