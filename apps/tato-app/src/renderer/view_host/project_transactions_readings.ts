@@ -69,14 +69,17 @@ export class ProjectTransactionsReadings {
     idempotencyKey: string | null,
   ): Promise<ProjectGraphTransactionApplying> => {
     if (this.readTheOpenProjectFolder() !== projectFolder) return { kind: "not_sent", because: onlyTheOpenProjectsFeedRefusal(projectFolder) };
-    if (this.undoOrRedoUnanswered !== null) {
-      await this.undoOrRedoUnanswered;
-      if (this.readTheOpenProjectFolder() !== projectFolder) return { kind: "not_sent", because: onlyTheOpenProjectsFeedRefusal(projectFolder) };
-    }
-    const answering = this.backend.transactInTheOpenProject(operations, mode, idempotencyKey).then(
-      (applying): ProjectGraphTransactionApplying => applying,
-      (rejection: unknown): ProjectGraphTransactionApplying => ({ kind: "not_sent", because: describeBackendRejection(rejection) }),
-    );
+    const undoOrRedoBefore = this.undoOrRedoUnanswered;
+    const send = (): Promise<ProjectGraphTransactionApplying> =>
+      this.backend.transactInTheOpenProject(operations, mode, idempotencyKey).then(
+        (applying): ProjectGraphTransactionApplying => applying,
+        (rejection: unknown): ProjectGraphTransactionApplying => ({ kind: "not_sent", because: describeBackendRejection(rejection) }),
+      );
+    // Kept as unanswered from the moment it is asked, so an undo asked while it waits on an earlier one waits on it too.
+    const answering =
+      undoOrRedoBefore === null
+        ? send()
+        : undoOrRedoBefore.then(() => (this.readTheOpenProjectFolder() === projectFolder ? send() : { kind: "not_sent", because: onlyTheOpenProjectsFeedRefusal(projectFolder) }));
     this.transactionsUnanswered.add(answering);
     void answering.then(() => this.transactionsUnanswered.delete(answering));
     return answering;

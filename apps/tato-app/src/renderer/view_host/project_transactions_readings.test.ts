@@ -40,6 +40,8 @@ function readingsOverAFakeBackend(openProject: string | null | (() => string | n
       transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
         transactionsAsked.push({ operations, mode, idempotencyKey });
         await transactionsAnswered;
+        // The runtime takes a few turns to answer, as a round trip does.
+        for (let turn = 0; turn < 5; turn += 1) await Promise.resolve();
         transactionsAnsweredSoFar += 1;
         if (operations[0]?.operation === "remove_node") return Promise.reject(new Error("No runtime answers."));
         return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: "n", refused_link: null, refused_field: null, refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "no node n" } };
@@ -93,6 +95,26 @@ test("an undo asked while an edit is unanswered reaches the backend once that ed
   await editAfterTheUndo;
   expect(transactionsAnsweredBeforeEachUndo).toEqual([1]);
   expect(transactionsAsked).toHaveLength(2);
+});
+
+test("an undo asked while an edit waits on an earlier undo reaches the backend once that edit is answered", async () => {
+  let answerTheEdits = (): void => undefined;
+  const { readings, undosAsked, transactionsAsked, transactionsAnsweredBeforeEachUndo } = readingsOverAFakeBackend(
+    OPEN_PROJECT_FOLDER,
+    new Promise<void>((resolve) => {
+      answerTheEdits = resolve;
+    }),
+  );
+  const sam = { kind: "person", name: "Sam" } as const;
+  const firstEdit = readings.transactInTheProject(OPEN_PROJECT_FOLDER, [{ operation: "rename_node", stream: "s", node: "n", name: "camera" }], "commit", "k1");
+  const firstUndo = readings.undoInTheProject(OPEN_PROJECT_FOLDER, sam);
+  const editBetween = readings.transactInTheProject(OPEN_PROJECT_FOLDER, [{ operation: "rename_node", stream: "s", node: "n", name: "screen" }], "commit", "k2");
+  const secondUndo = readings.undoInTheProject(OPEN_PROJECT_FOLDER, sam);
+  answerTheEdits();
+  await Promise.all([firstEdit, firstUndo, editBetween, secondUndo]);
+  expect(transactionsAsked).toHaveLength(2);
+  expect(undosAsked).toEqual(["Sam", "Sam"]);
+  expect(transactionsAnsweredBeforeEachUndo).toEqual([1, 2]);
 });
 
 test("an undo or redo that waited on an edit is not sent once the window has another project open", async () => {
