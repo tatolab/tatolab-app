@@ -5,7 +5,7 @@ import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { WithControlTooltip } from "./control_tooltip";
 import { RefusalLine } from "./refusal_line";
 import { IconButton } from "./icon_button";
-import { MenuItem } from "./menus";
+import { MenuItem, MenuNote } from "./menus";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { MatchedWords } from "./matched_words";
 import type { PinType } from "../pin_type_readings";
@@ -372,6 +372,7 @@ export function PropertyChoiceField({
   label,
   isTheTypesDefault = false,
   choices,
+  whyItOffersNoChoice,
 }: {
   fieldId: string;
   words: string;
@@ -380,8 +381,10 @@ export function PropertyChoiceField({
   /** The field's accessible name where no label points at it, as "Value of blend". */
   label?: string;
   isTheTypesDefault?: boolean;
-  /** Each value the menu offers, in words, with the pin type it is when it is one, and what choosing it does. */
-  choices?: { words: string; pinType?: PinType; onChosen: () => void }[];
+  /** Each value the menu offers, in words, with the pin type it is when it is one, what its tooltip says of it, and what choosing it does. */
+  choices?: { words: string; pinType?: PinType; tooltip?: string; onChosen: () => void }[];
+  /** What the menu says while `choices` is empty. */
+  whyItOffersNoChoice?: string;
 }) {
   const chevron = <ChevronDown aria-hidden className="pointer-events-none absolute top-1/2 right-1.5 size-3.5 -translate-y-1/2 text-fg-3" strokeWidth={1.75} />;
   if (choices === undefined) {
@@ -401,8 +404,9 @@ export function PropertyChoiceField({
         {chevron}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-auto min-w-40">
-        {choices.map((choice) => (
-          <MenuItem key={choice.words} onChosen={choice.onChosen} leading={choice.pinType === undefined ? undefined : <PinTypeMark pinType={choice.pinType} />}>
+        {choices.length === 0 && whyItOffersNoChoice !== undefined && <MenuNote>{whyItOffersNoChoice}</MenuNote>}
+        {choices.map((choice, index) => (
+          <MenuItem key={`${index}-${choice.words}`} tooltip={choice.tooltip} onChosen={choice.onChosen} leading={choice.pinType === undefined ? undefined : <PinTypeMark pinType={choice.pinType} />}>
             <span className="font-mono text-xs">{choice.words}</span>
           </MenuItem>
         ))}

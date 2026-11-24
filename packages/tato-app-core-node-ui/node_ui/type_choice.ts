@@ -1,7 +1,9 @@
 // The default control of a Pin type choice input: the design system's menu of the types its
-// declaration allows, which is its `among` list, or every built-in type written by its name alone
-// when that list is empty. Each type is named as the generated list of built-in types names it and
-// marked with its socket's colour, so the control holds no list of types of its own.
+// declaration allows, which is its `among` list, every built-in type written by its name alone when
+// that list is empty, or the bundles its stream declares, which may be none. A bundle is named by the
+// class that declares it, with its members on its entry's tooltip, and any other type as the
+// generated list of built-in types names it; each is marked with its socket's colour, so the control
+// holds no list of types of its own.
 // Beside the menu, a type that can be narrowed keeps its narrowing in a second field: an encoded
 // type's codecs as one line of text, a Texture's pixel format as a menu of the format names.
 // Choosing another type writes that type with no narrowing. Every edit is one `change` carrying the
@@ -9,18 +11,21 @@
 // The fields are the design system's React parts, drawn from a root in the control's own children
 // as the Menu control draws its menu.
 
-import { BUILT_IN_PIN_TYPES, PIN_TYPES_A_CHOICE_OF_ANY_TYPE_OFFERS } from "@tatolab/tato-app-view-sdk/built_in_pin_types";
+import {
+  entryTheChoiceHolds,
+  isTheEntryHeld,
+  isTheSamePinType,
+  membersOfAnOfferedPinTypeInWords,
+  pinTypesTheChoiceOffers,
+  wordsOfAnOfferedPinType,
+  type PinTypesTheChoiceOffers,
+} from "@tatolab/tato-app-view-sdk/built_in_pin_types";
 import { PropertyChoiceField, PropertyFieldsSideBySide, PropertyTextField } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
 import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
 import controlStyles from "@tatolab/tato-app-view-sdk/node_ui/input_control.css" with { type: "css" };
 import type { PinType, TexturePixelFormat } from "@tatolab/tato-app-view-sdk/pin_types";
 import { createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-
-/** The words a person reads the type `pinType` as, from the generated list of built-in types. */
-function wordsOfTheType(pinType: PinType): string {
-  return BUILT_IN_PIN_TYPES.find((builtInPinType) => builtInPinType.name === pinType.type)?.label ?? pinType.type;
-}
 
 /** Each pixel format a Texture may be narrowed to, as the contract spells it. */
 const EACH_PIXEL_FORMAT: Readonly<Record<TexturePixelFormat, TexturePixelFormat>> = {
@@ -32,6 +37,9 @@ const EACH_PIXEL_FORMAT: Readonly<Record<TexturePixelFormat, TexturePixelFormat>
   rgba32_float: "rgba32_float",
   nv12: "nv12",
 };
+
+/** What the menu says while the stream declares no bundle for it to offer. */
+const NO_BUNDLE_OF_THE_STREAM_WORDS = "No node type in this stream declares a bundle.";
 
 /** The pixel format menu's words for a Texture that takes any format. */
 const ANY_PIXEL_FORMAT_WORDS = "any format";
@@ -52,7 +60,7 @@ export default class TypeChoice extends HTMLElement implements InputControlEleme
   #partRoot: Root | null = null;
   #fieldId = "";
   #label = "";
-  #offered: readonly PinType[] = [];
+  #offered: PinTypesTheChoiceOffers = pinTypesTheChoiceOffers({ type: "pin_type_choice" });
   #chosen: PinType | null = null;
   #editable = false;
 
@@ -68,9 +76,7 @@ export default class TypeChoice extends HTMLElement implements InputControlEleme
   set pin({ declaration }: ControlledPin<"pin_type_choice">) {
     this.#fieldId = `type-choice-${declaration.input_name}-${crypto.randomUUID()}`;
     this.#label = declaration.label;
-    const among = declaration.pin_type.among ?? [];
-    const offered = among.length === 0 ? PIN_TYPES_A_CHOICE_OF_ANY_TYPE_OFFERS : among;
-    this.#offered = offered.filter((pinType, index) => offered.findIndex((earlier) => earlier.type === pinType.type) === index);
+    this.#offered = pinTypesTheChoiceOffers(declaration.pin_type);
     this.#drawThePart();
   }
 
@@ -96,17 +102,23 @@ export default class TypeChoice extends HTMLElement implements InputControlEleme
     partRoot?.unmount();
   }
 
-  /** Writes `pinType` as the input's value, when it can be edited and `pinType` is not the type it holds. */
+  /** Writes `pinType` as the input's value, when it can be edited. */
   #write(pinType: PinType): void {
-    if (!this.#editable || (this.#chosen !== null && JSON.stringify(pinType) === JSON.stringify(this.#chosen))) return;
+    if (!this.#editable) return;
     this.#chosen = pinType;
     this.#drawThePart();
     fireInputControlEvent(this, "change", pinType);
   }
 
-  /** Writes `pinType` as offered, unless it is the type held, whose narrowing it keeps. */
-  #typeChosen(pinType: PinType): void {
-    if (pinType.type === this.#chosen?.type) return;
+  /** Writes `entry`, one the menu offers, unless it is the entry held, whose narrowing a choice of any type keeps. */
+  #entryChosen(entry: PinType): void {
+    if (isTheEntryHeld(this.#offered, entry, this.#chosen)) return;
+    this.#write(entry);
+  }
+
+  /** Writes `pinType`, the held type narrowed in the field beside the menu, unless it is the type held. */
+  #narrowingChosen(pinType: PinType): void {
+    if (this.#chosen !== null && isTheSamePinType(pinType, this.#chosen)) return;
     this.#write(pinType);
   }
 
@@ -123,7 +135,7 @@ export default class TypeChoice extends HTMLElement implements InputControlEleme
           onCommitted: this.#editable
             ? (line: string) => {
                 const codecs = codecsOfTheLine(line);
-                this.#write(codecs.length === 0 ? { type } : { type, codecs });
+                this.#narrowingChosen(codecs.length === 0 ? { type } : { type, codecs });
               }
             : undefined,
         });
@@ -136,8 +148,8 @@ export default class TypeChoice extends HTMLElement implements InputControlEleme
           words: pixelFormats.length === 0 ? ANY_PIXEL_FORMAT_WORDS : pixelFormats.join(", "),
           choices: this.#editable
             ? [
-                { words: ANY_PIXEL_FORMAT_WORDS, onChosen: () => this.#write({ type: "texture" }) },
-                ...Object.values(EACH_PIXEL_FORMAT).map((pixelFormat) => ({ words: pixelFormat, onChosen: () => this.#write({ type: "texture", pixel_formats: [pixelFormat] }) })),
+                { words: ANY_PIXEL_FORMAT_WORDS, onChosen: () => this.#narrowingChosen({ type: "texture" }) },
+                ...Object.values(EACH_PIXEL_FORMAT).map((pixelFormat) => ({ words: pixelFormat, onChosen: () => this.#narrowingChosen({ type: "texture", pixel_formats: [pixelFormat] }) })),
               ]
             : undefined,
         });
@@ -149,12 +161,16 @@ export default class TypeChoice extends HTMLElement implements InputControlEleme
 
   #drawThePart(): void {
     const chosen = this.#chosen;
+    const entryHeld = chosen === null ? undefined : entryTheChoiceHolds(this.#offered, chosen);
     const typeMenu = createElement(PropertyChoiceField, {
       fieldId: this.#fieldId,
       label: this.#label,
-      words: chosen === null ? "" : wordsOfTheType(chosen),
+      words: chosen === null ? "" : wordsOfAnOfferedPinType(entryHeld ?? chosen),
       pinType: chosen ?? undefined,
-      choices: this.#editable ? this.#offered.map((pinType) => ({ words: wordsOfTheType(pinType), pinType, onChosen: () => this.#typeChosen(pinType) })) : undefined,
+      choices: this.#editable
+        ? this.#offered.entries.map((entry) => ({ words: wordsOfAnOfferedPinType(entry), pinType: entry, tooltip: membersOfAnOfferedPinTypeInWords(entry), onChosen: () => this.#entryChosen(entry) }))
+        : undefined,
+      whyItOffersNoChoice: this.#offered.offers === "the_bundles_its_stream_declares" ? NO_BUNDLE_OF_THE_STREAM_WORDS : undefined,
     });
     const narrowingField = chosen === null ? null : this.#narrowingField(chosen);
     this.#partRoot?.render(narrowingField === null ? typeMenu : createElement(PropertyFieldsSideBySide, null, typeMenu, narrowingField));

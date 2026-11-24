@@ -2,9 +2,10 @@
 import { fireEvent, waitFor } from "@testing-library/react";
 import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PULSE_STAGE_MAIN_STREAM, tagOfTheStudiosFloatControl } from "./tatolab_window_view_test_support";
+import { mountedWindowOverTheMock, coreViewPage, cleanUpTheWindowsOfEarlierTests, PULSE_STAGE_MAIN_STREAM, tagOfTheStudiosControl, tagOfTheStudiosFloatControl } from "./tatolab_window_view_test_support";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import { inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
+import type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
 
 vi.mock("@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_monaco", () => {
   throw new Error("Monaco is not loaded in the window's tests.");
@@ -26,8 +27,26 @@ class StandInFloatControl extends HTMLElement implements InputControlElement<"fl
 /** The same stand-in under the tag of the Studio's Float slider, which draws a Float input whose range has both ends. */
 class StandInFloatSlider extends StandInFloatControl {}
 
+/** A Pin type choice control as a person picks a type on one, standing in for the Studio's own, which its package's tests open and hover. */
+class StandInTypeChoiceControl extends HTMLElement implements InputControlElement<"pin_type_choice"> {
+  offered: PinType | null = null;
+  held: PinType | null = null;
+  set pin({ declaration }: ControlledPin<"pin_type_choice">) {
+    this.offered = declaration.pin_type;
+  }
+  set value(value: PinType) {
+    this.held = value;
+  }
+  set state(_state: InputControlState) {}
+  pick(pinType: PinType): void {
+    this.held = pinType;
+    fireInputControlEvent(this, "change", pinType);
+  }
+}
+
 customElements.define(tagOfTheStudiosFloatControl(null), StandInFloatControl);
 customElements.define(tagOfTheStudiosFloatControl("slider"), StandInFloatSlider);
+customElements.define(tagOfTheStudiosControl("pin_type_choice", null), StandInTypeChoiceControl);
 
 afterEach(cleanUpTheWindowsOfEarlierTests);
 
@@ -174,5 +193,46 @@ describe("Properties' Inputs", () => {
     const operations = await operationsRecorded(backend);
     expect(operations).toContain("set_node_input_value");
     expect(operations).not.toContain("set_pin_value");
+  });
+});
+
+describe("Properties' bundle type of a Make Bundle", () => {
+  const READING: PinType = {
+    type: "bundle",
+    name: "Reading",
+    members: [
+      { name: "level", member_type: { type: "float" } },
+      { name: "pitch", member_type: { type: "integer" } },
+    ],
+  };
+  const TONE: PinType = { type: "bundle", name: "Tone", members: [{ name: "hertz", member_type: { type: "float" } }] };
+
+  /** The Pin type choice control Properties draws on the row of `input`, once it draws one. */
+  async function typeChoiceOnTheRow(input: string): Promise<StandInTypeChoiceControl> {
+    return waitFor(() => {
+      const control = properties().querySelector(`[data-properties-port="${input}"] [data-input-control="${input}"]`)?.firstElementChild;
+      return control instanceof StandInTypeChoiceControl ? control : expect.unreachable(`no type choice on the ${input} row`);
+    }, AS_LONG_AS_A_FRAME_BINDS);
+  }
+
+  /** The words Properties names the type of the selected node's port `port` by. */
+  const typeWordsOf = (port: string) => properties().querySelector(`[data-properties-port="${port}"] [data-properties-port-type-words]`)?.textContent;
+
+  it("hands its control the stream's bundles by name and the bundle saved unnamed as its named match, and a pick retypes the node as one Undo step", { timeout: 20_000 }, async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running&main_graph=every_pin_kind_with_a_make_bundle");
+    await selectInTheStreamGraph("make_reading");
+    const control = await typeChoiceOnTheRow("bundle_type");
+    expect(control.offered).toEqual({ type: "pin_type_choice", among: [READING, TONE], among_the_bundles_its_stream_declares: true });
+    await waitFor(() => expect(control.held).toEqual(READING));
+    expect(typeWordsOf("bundle")).toBe("Bundle · level, pitch, one value at a time");
+
+    const historyBefore = await historyLength(backend);
+    control.pick(TONE);
+    await waitFor(async () => expect(await valueTheGraphReads(backend, "make_reading", "bundle_type")).toEqual({ value: TONE, comes_from: "saved" }));
+    await waitFor(() => expect(typeWordsOf("bundle")).toBe("Bundle Tone · hertz, one value at a time"), AS_LONG_AS_A_FRAME_BINDS);
+    expect(await historyLength(backend)).toBe(historyBefore + 1);
+
+    await backend.undoInTheOpenProject({ kind: "person", name: "Sam" });
+    await waitFor(() => expect(typeWordsOf("bundle")).toBe("Bundle · level, pitch, one value at a time"), AS_LONG_AS_A_FRAME_BINDS);
   });
 });

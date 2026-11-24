@@ -116,3 +116,30 @@ test("a Pin type choice whose `among` list names narrowed types takes only an en
   expect(storedPinValueOfTheJson(AN_ENCODED_VIDEO_TYPE, { type: "encoded_video", codecs: ["hevc"] })).toBeUndefined();
   expect(jsonOfTheStoredPinValue(AN_ENCODED_VIDEO_TYPE, { type: "encoded_video" })).toBeUndefined();
 });
+
+const READING = { type: "bundle", name: "Reading", members: [{ name: "level", member_type: { type: "float" } }] } satisfies PinType & JsonValue;
+const TONE = { type: "bundle", name: "Tone", members: [{ name: "hertz", member_type: { type: "float" } }] } satisfies PinType & JsonValue;
+const A_BUNDLE_OF_THE_STREAM: PinType = { type: "pin_type_choice", among_the_bundles_its_stream_declares: true, among: [READING, TONE] };
+
+test("a choice among the bundles its stream declares reads a bundle saved unnamed as the listed bundle of its members, and sends that named bundle", () => {
+  expect(storedPinValueOfTheJson(A_BUNDLE_OF_THE_STREAM, { type: "bundle", members: [{ name: "level", member_type: { type: "float" } }] })).toEqual(READING);
+  expect(storedPinValueOfTheJson(A_BUNDLE_OF_THE_STREAM, TONE)).toEqual(TONE);
+  expect(jsonOfTheStoredPinValue(A_BUNDLE_OF_THE_STREAM, TONE)).toEqual(TONE);
+  expect(jsonOfTheStoredPinValue(A_BUNDLE_OF_THE_STREAM, { type: "bundle", members: [{ name: "level", member_type: { type: "float" } }] })).toEqual(READING);
+});
+
+test("a bundle saved unnamed with the members of two listed bundles reads as it was saved", () => {
+  const PITCH = { type: "bundle", name: "Pitch", members: [{ name: "level", member_type: { type: "float" } }] } satisfies PinType & JsonValue;
+  const TWO_OF_THE_SAME_MEMBERS: PinType = { type: "pin_type_choice", among_the_bundles_its_stream_declares: true, among: [READING, PITCH] };
+  const savedUnnamed = { type: "bundle", members: [{ name: "level", member_type: { type: "float" } }] } satisfies PinType & JsonValue;
+  expect(storedPinValueOfTheJson(TWO_OF_THE_SAME_MEMBERS, savedUnnamed)).toEqual(savedUnnamed);
+  expect(jsonOfTheStoredPinValue(TWO_OF_THE_SAME_MEMBERS, PITCH)).toEqual(PITCH);
+});
+
+test("a choice among the bundles of a stream that declares none takes no type, not any type", () => {
+  const NO_BUNDLE_OF_THE_STREAM: PinType = { type: "pin_type_choice", among_the_bundles_its_stream_declares: true, among: [] };
+  expect(storedPinValueOfTheJson(NO_BUNDLE_OF_THE_STREAM, { type: "float" })).toBeUndefined();
+  expect(storedPinValueOfTheJson(NO_BUNDLE_OF_THE_STREAM, READING)).toBeUndefined();
+  expect(jsonOfTheStoredPinValue(NO_BUNDLE_OF_THE_STREAM, { type: "float" })).toBeUndefined();
+  expect(storedPinValueOfTheJson(A_BUNDLE_OF_THE_STREAM, { type: "bundle", name: "Pitch", members: [{ name: "level", member_type: { type: "float" } }] })).toBeUndefined();
+});

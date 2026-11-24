@@ -214,6 +214,11 @@ export function keepThePulseStageLayout(saved: unknown): void {
  * loading the Studio's own control in a frame defines it.
  */
 export function tagOfTheStudiosFloatControl(control: string | null): string {
-  const listed = mockStudioNodeUiElements(window.location.origin, false).find(({ registration }) => registration.kind === "control" && registration.type === "float" && registration.control === control);
-  return nodeUiElementTag(listed ?? expect.unreachable(`the mock lists no Float control ${control ?? "default"}`));
+  return tagOfTheStudiosControl("float", control);
+}
+
+/** The tag the mock's listing mints for the Studio's control of the type `type` named `control`, `null` for the type's default, as `tagOfTheStudiosFloatControl` names a Float's. */
+export function tagOfTheStudiosControl(type: string, control: string | null): string {
+  const listed = mockStudioNodeUiElements(window.location.origin, false).find(({ registration }) => registration.kind === "control" && registration.type === type && registration.control === control);
+  return nodeUiElementTag(listed ?? expect.unreachable(`the mock lists no ${type} control ${control ?? "default"}`));
 }
