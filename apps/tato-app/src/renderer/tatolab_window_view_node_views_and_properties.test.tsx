@@ -591,18 +591,20 @@ describe("the studio", () => {
     await waitFor(() =>
       expect(screen.getAllByRole("menuitem").map((entry) => entry.textContent)).toEqual([
         "Default input",
-        "Stub Microphone",
-        "What the default output plays (now Monitor of Stub Speakers)",
-        "Monitor of Stub Speakers",
+        "Elgato Wave XLR Mono",
+        "Cam Link 4K Digital Stereo (IEC958)",
+        "What the default output plays (now Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI))",
+        "Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI)",
+        "Monitor of Elgato Wave XLR Analog Stereo",
       ]),
     );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Monitor of Stub Speakers" }));
-    await waitFor(() => expect(deviceMenu().textContent).toBe("Monitor of Stub Speakers"), { timeout: 5000 });
-    await waitFor(() => expect(deviceValuesSent).toEqual(["stub-speakers.monitor"]), { timeout: 5000 });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI)" }));
+    await waitFor(() => expect(deviceMenu().textContent).toBe("Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI)"), { timeout: 5000 });
+    await waitFor(() => expect(deviceValuesSent).toEqual(["alsa_output.pci-0000_0b_00.1.hdmi-stereo.monitor"]), { timeout: 5000 });
 
     await chooseInTheDeviceMenu("Default input");
     await waitFor(() => expect(deviceMenu().textContent).toBe("Default input"), { timeout: 5000 });
-    await waitFor(() => expect(deviceValuesSent).toEqual(["stub-speakers.monitor", null]), { timeout: 5000 });
+    await waitFor(() => expect(deviceValuesSent).toEqual(["alsa_output.pci-0000_0b_00.1.hdmi-stereo.monitor", null]), { timeout: 5000 });
 
     const graph = await mockBackend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM);
     const imageFile = graph.nodes.find((node) => node.name === "posterimage") ?? expect.unreachable("no Image File in the graph");

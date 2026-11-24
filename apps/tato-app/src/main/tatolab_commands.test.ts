@@ -137,17 +137,19 @@ test("each command answers the window in the contract's shape, a refusal in its 
 });
 
 test("the machine's audio capture devices reach the window key for key as the runtime listed them, and its refusal in its own words", async () => {
-  const recording = await readFile(new URL("../../mock/recordings/control-plane-stub-list-audio-capture-devices-result.json", import.meta.url), "utf8");
+  const recording = await readFile(new URL("../../mock/recordings/pipewire-machine-list-audio-capture-devices-result.json", import.meta.url), "utf8");
   const listingRefusal = "list_audio_capture_devices failed: the audio backend could not be probed";
   const sharedState = await sharedStateOverFakes([controlOperationResponseOfTheRecordedToolResponse(recording), controlOperationFailedResponse(listingRefusal)], "linux");
   const commandHandlers = commandHandlersOver(sharedState);
 
   const listed = await commandHandlers.list_audio_capture_devices(undefined, FROM_THE_PROJECTS_WINDOW);
   expect(JSON.stringify(listed)).toBe(
-    '{"ok":true,"value":{"audio_backend":"stub-audio","devices":[' +
-      '{"id":"stub-microphone","name":"Stub Microphone","kind":"input"},' +
-      '{"id":"@DEFAULT_MONITOR@","name":"What the default output plays (now Monitor of Stub Speakers)","kind":"output_monitor"},' +
-      '{"id":"stub-speakers.monitor","name":"Monitor of Stub Speakers","kind":"output_monitor"}]}}',
+    '{"ok":true,"value":{"audio_backend":"pipewire","devices":[' +
+      '{"id":"alsa_input.usb-Elgato_Systems_Elgato_Wave_XLR_REDACTED-00.mono-fallback","name":"Elgato Wave XLR Mono","kind":"input"},' +
+      '{"id":"alsa_input.usb-Elgato_Cam_Link_4K_REDACTED-02.iec958-stereo","name":"Cam Link 4K Digital Stereo (IEC958)","kind":"input"},' +
+      '{"id":"@DEFAULT_MONITOR@","name":"What the default output plays (now Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI))","kind":"output_monitor"},' +
+      '{"id":"alsa_output.pci-0000_0b_00.1.hdmi-stereo.monitor","name":"Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI)","kind":"output_monitor"},' +
+      '{"id":"alsa_output.usb-Elgato_Systems_Elgato_Wave_XLR_REDACTED-00.analog-stereo.monitor","name":"Monitor of Elgato Wave XLR Analog Stereo","kind":"output_monitor"}]}}',
   );
   expect(await commandHandlers.list_audio_capture_devices(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: listingRefusal });
   expect(await commandHandlers.list_audio_capture_devices({ device: "x" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: expect.stringMatching(/^list_audio_capture_devices: /) });

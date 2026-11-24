@@ -28,7 +28,7 @@ import transactRefusalForALinkOfAnotherType from "./recordings/every-pin-kind-tr
 import transactRefusalForAValueOfAnotherType from "./recordings/every-pin-kind-transact-refusal-for-words-as-a-float-value.json?raw";
 import transactRefusalForASweepIntoAFloat from "./recordings/every-pin-kind-transact-refusal-for-a-sweep-output-into-a-float-input.json?raw";
 import pulseStageGraphResultOfMain from "./recordings/pulse-stage-graph-result-of-main.json?raw";
-import controlPlaneStubListAudioCaptureDevicesResult from "./recordings/control-plane-stub-list-audio-capture-devices-result.json?raw";
+import pipewireMachineListAudioCaptureDevicesResult from "./recordings/pipewire-machine-list-audio-capture-devices-result.json?raw";
 import { projectActionRefusalOfTheContract } from "../src/main/project_transactions_on_the_wire";
 import { controlContractRefusalOf, describeTheContractIssues, readControlContractValue } from "../src/main/tatolab_runtime_control_operation_call";
 import { isAJsonValue } from "../src/main/json_on_the_wire";
@@ -231,10 +231,10 @@ function recordedRefusal(recording: string, responseText: string): ProjectAction
   return projectActionRefusalOfTheContract(readOrFail(recording, controlContractRefusalOf(partOfTheRecordedResponse(recording, responseText, "refusal"))));
 }
 
-/** The machine's audio inputs and output monitors as the control-plane stub lists them: a microphone, the default output's monitor and that output's own. */
+/** The audio inputs and output monitors a Linux machine's runtime listed over PipeWire: two inputs, the default output's monitor, then each output's own. */
 export const MOCK_RECORDED_AUDIO_CAPTURE_DEVICES: ListAudioCaptureDevicesToolResult = recordedResultOfTheContractType(
-  "control-plane-stub-list-audio-capture-devices-result",
-  controlPlaneStubListAudioCaptureDevicesResult,
+  "pipewire-machine-list-audio-capture-devices-result",
+  pipewireMachineListAudioCaptureDevicesResult,
   "ListAudioCaptureDevicesToolResult",
 );
 
