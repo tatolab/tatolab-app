@@ -15,6 +15,7 @@ import { mockRecordedMarksOfTheLink } from "./mock_replayed_link_candidates";
 import { mockGraphNodeIdOf, mockUuidOf, type MockGraphLink, type MockGraphNode, type MockGraphPort, type MockStreamGraph } from "./mock_stream_fixtures";
 import { studioAsTheRuntimeRendersIt } from "./mock_stream_graph_document";
 import { echoTheInputValueSet, echoTheMemberValueSet } from "./mock_value_echo";
+import { retypeThePortsTheBundleTypeChooses } from "./mock_make_bundle_stand_in";
 import { BUILT_IN_PIN_TYPES } from "@tatolab/tato-app-view-sdk/built_in_pin_types";
 import { exactPinOfTheDeclaredPort } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import type { PinType } from "@tatolab/tato-app-view-sdk/pin_type_readings";
@@ -497,6 +498,7 @@ export function applyMockGraphTransaction(
         }
         const to = jsonTheActionCarries(operation.value ?? null, "value");
         const from = echoTheInputValueSet(node, operation.input, to, applying);
+        retypeThePortsTheBundleTypeChooses(node, operation.input);
         if (applying === "a_live_transaction") break;
         recordInHistory({ operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_node_input_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
         break;

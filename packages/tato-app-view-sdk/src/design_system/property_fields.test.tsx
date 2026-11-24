@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { PropertyPortRow, PropertySliderField, PropertyTextField } from "./property_fields";
+import { PropertyChoiceField, PropertyPortRow, PropertySliderField, PropertyTextField } from "./property_fields";
 
 afterEach(cleanup);
 
@@ -220,5 +220,40 @@ describe("a property port row", () => {
   it("says Not connected for an output with no link", () => {
     render(<PropertyPortRow direction="output" portName="level" typeWords="Channels" pinMark={null} bandShade="second" linkedEnds={[]} />);
     expect(screen.getByText("Not connected")).toBeDefined();
+  });
+});
+
+describe("a property choice field", () => {
+  it("shows a choice's tooltip while the pointer rests on it, and two choices of the same words stay two", async () => {
+    const chosen: string[] = [];
+    render(
+      <PropertyChoiceField
+        fieldId="bundle-type-field"
+        label="bundle_type"
+        words=""
+        choices={[
+          { words: "Reading", tooltip: "level: Float", onChosen: () => chosen.push("first") },
+          { words: "Reading", tooltip: "level: String", onChosen: () => chosen.push("second") },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "bundle_type" }));
+    const entries = await screen.findAllByRole("menuitem");
+    expect(entries.map((entry) => entry.textContent)).toEqual(["Reading", "Reading"]);
+    const second = entries[1] ?? expect.unreachable("no second entry");
+    fireEvent.pointerEnter(second, { pointerType: "mouse" });
+    fireEvent.mouseEnter(second);
+    fireEvent.mouseMove(second);
+    fireEvent.pointerMove(second, { pointerType: "mouse" });
+    expect(await screen.findByText("level: String", {}, { timeout: 2_000 })).not.toBeNull();
+    fireEvent.click(second);
+    expect(chosen).toEqual(["second"]);
+  });
+
+  it("says why its menu offers nothing when it has no choice", async () => {
+    render(<PropertyChoiceField fieldId="bundle-type-field" label="bundle_type" words="" choices={[]} whyItOffersNoChoice="No node type in this stream declares a bundle." />);
+    fireEvent.click(screen.getByRole("button", { name: "bundle_type" }));
+    await waitFor(() => expect(screen.getByText("No node type in this stream declares a bundle.")).not.toBeNull());
+    expect(screen.queryAllByRole("menuitem")).toEqual([]);
   });
 });

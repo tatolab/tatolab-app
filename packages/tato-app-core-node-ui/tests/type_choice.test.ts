@@ -8,16 +8,17 @@ vi.mock("@tatolab/tato-app-view-sdk/node_ui/input_control.css", () => ({ default
 
 customElements.define("tato-studio-type_choice-test", TypeChoice);
 
-function mountedTypeChoice(value: PinType, among: PinType[] = [], state: InputControlState = "editable"): TypeChoice {
+function mountedTypeChoice(value: PinType | null, among: PinType[] = [], state: InputControlState = "editable", amongTheBundlesItsStreamDeclares = false): TypeChoice {
   const control = new TypeChoice();
+  const pinType: ControlledPin<"pin_type_choice">["declaration"]["pin_type"] = amongTheBundlesItsStreamDeclares ? { type: "pin_type_choice", among, among_the_bundles_its_stream_declares: true } : { type: "pin_type_choice", among };
   const pin: ControlledPin<"pin_type_choice"> = {
-    declaration: { input_name: "carries", label: "carries", pin_type: { type: "pin_type_choice", among }, annotations: {}, may_be_unset: false },
+    declaration: { input_name: "carries", label: "carries", pin_type: pinType, annotations: {}, may_be_unset: amongTheBundlesItsStreamDeclares },
     surface: "properties",
     studio: NO_STUDIO_CALLS,
   };
   control.pin = pin;
   control.state = state;
-  control.value = value;
+  if (value !== null) control.value = value;
   document.body.append(control);
   return control;
 }
@@ -61,6 +62,27 @@ async function entryNamed(words: string): Promise<HTMLElement> {
 /** Opens the menu of the button named `label`, as a click on it does. */
 async function openedMenuNamed(control: TypeChoice, label: string): Promise<void> {
   (await fieldNamed<HTMLButtonElement>(control, `button[aria-label="${label}"]`)).click();
+}
+
+/** The words of the tooltip shown now; it shows once the pointer has rested on `entry`. */
+async function tooltipShownResting(entry: HTMLElement): Promise<string> {
+  fireEventsOfAPointerComingToRest(entry);
+  return vi.waitFor(
+    () => {
+      const tooltip = document.querySelector<HTMLElement>("[data-slot=tooltip-content]");
+      if (tooltip === null) throw new Error("no tooltip shows");
+      return tooltip.textContent;
+    },
+    { timeout: 2_000 },
+  );
+}
+
+/** The events a mouse sends coming to rest on `element`. */
+function fireEventsOfAPointerComingToRest(element: HTMLElement): void {
+  element.dispatchEvent(new PointerEvent("pointerenter", { pointerType: "mouse" }));
+  element.dispatchEvent(new MouseEvent("mouseenter"));
+  element.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+  element.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerType: "mouse" }));
 }
 
 afterEach(() => {
@@ -163,5 +185,44 @@ describe("the type choice", () => {
     expect(control.querySelector("[data-property-pin-type-mark]")?.getAttribute("data-pin-type")).toBe("encoded_video");
     expect((await fieldNamed<HTMLInputElement>(control, 'input[aria-label="Codecs of carries"]')).readOnly).toBe(true);
     expect(control.querySelector("button")).toBeNull();
+  });
+
+  describe("among the bundles its stream declares", () => {
+    const READING_MEMBERS = [
+      { name: "level", member_type: { type: "float" } },
+      { name: "pitch", member_type: { type: "integer" } },
+    ] as const satisfies Extract<PinType, { type: "bundle" }>["members"];
+    const READING: PinType = { type: "bundle", name: "Reading", members: [...READING_MEMBERS] };
+    const TONE: PinType = { type: "bundle", name: "Tone", members: [{ name: "hertz", member_type: { type: "float" } }] };
+    const READING_SAVED_UNNAMED: PinType = { type: "bundle", members: [...READING_MEMBERS] };
+
+    it("names each bundle on offer by the class that declares it, marked as a bundle, with its members on the entry's tooltip", async () => {
+      const control = mountedTypeChoice(null, [READING, TONE], "editable", true);
+      await openedMenuNamed(control, "carries");
+      expect(await entriesOfTheOpenMenu()).toEqual([
+        { words: "Reading", mark: "bundle" },
+        { words: "Tone", mark: "bundle" },
+      ]);
+      expect(await tooltipShownResting(await entryNamed("Reading"))).toBe("level: Float, pitch: Integer");
+    });
+
+    it("shows a bundle saved before bundles were named as the listed bundle of its members, and fires the named bundle picked", async () => {
+      const control = mountedTypeChoice(READING_SAVED_UNNAMED, [READING, TONE], "editable", true);
+      const fired = eventsFiredBy(control);
+      expect((await fieldNamed<HTMLButtonElement>(control, "button[aria-label=carries]")).textContent).toBe("Reading");
+      await openedMenuNamed(control, "carries");
+      (await entryNamed("Reading")).click();
+      expect(fired).toEqual([]);
+      await openedMenuNamed(control, "carries");
+      (await entryNamed("Tone")).click();
+      expect(fired).toEqual([{ name: "change", value: TONE }]);
+    });
+
+    it("says the stream declares no bundle, offering no type, while it declares none", async () => {
+      const control = mountedTypeChoice(null, [], "editable", true);
+      await openedMenuNamed(control, "carries");
+      await vi.waitFor(() => expect(document.querySelector("[role=menu]")?.textContent).toBe("No node type in this stream declares a bundle."));
+      expect(document.querySelectorAll("[role=menuitem]")).toHaveLength(0);
+    });
   });
 });

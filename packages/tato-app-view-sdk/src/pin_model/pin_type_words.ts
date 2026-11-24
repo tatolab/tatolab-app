@@ -70,7 +70,7 @@ function codecWords(codecs: readonly string[] | undefined): string | null {
   return codecs.map((codec) => CODEC_WORDS[codec.toLowerCase()] ?? codec).join(" or ");
 }
 
-/** `pinType` in plain words, as a pin's tooltip names it: "Texture", "List of Rectangle", "Encoded video · H.264". */
+/** `pinType` in plain words, as a pin's tooltip names it: "Texture", "List of Rectangle", "Encoded video · H.264", "Bundle Reading · level, pitch". */
 export function pinTypeWords(pinType: PinType): string {
   switch (pinType.type) {
     case "boolean":
@@ -108,7 +108,7 @@ export function pinTypeWords(pinType: PinType): string {
     case "list_of":
       return `List of ${pinTypeWords(pinType.element_type)}`;
     case "bundle":
-      return qualified("Bundle", pinType.members.map((member) => member.name).join(", "));
+      return qualified(pinType.name === null || pinType.name === undefined ? "Bundle" : `Bundle ${pinType.name}`, pinType.members.map((member) => member.name).join(", "));
     case "named":
       return pinType.named_pin_type;
     case "connection":
@@ -118,6 +118,12 @@ export function pinTypeWords(pinType: PinType): string {
     case "pin_type_choice":
       return "Pin type";
   }
+}
+
+/** Each member of `bundle` by its name and type, in the order it declares them: "level: Float, pitch: Integer". */
+export function wordsOfTheBundleMembers(bundle: Extract<PinType, { type: "bundle" }>): string {
+  if (bundle.members.length === 0) return "no members";
+  return bundle.members.map((member) => `${member.name}: ${pinTypeWords(member.member_type)}`).join(", ");
 }
 
 const PIN_FLOW_WORDS: Record<PinFlow, string> = { value: "one value at a time", stream: "a stream", trigger: "fires" };

@@ -2,12 +2,13 @@
 // type generates. Each built-in type that stores a value and has a control is read each way; any
 // other type, a bundle among them, reads as no value, so no control is handed a value of a form it
 // does not declare. A Trigger stores none. A Pin type choice stores the pin type it chose, read as
-// one the choice offers: an entry of its `among` list, or a type its menu offers when the list is empty.
+// the type the choice takes it as: an entry of its `among` list, a type its menu offers when the list
+// is empty, or the listed bundle of the stream an unnamed saved bundle has the members of.
 
-import { PIN_TYPES_A_CHOICE_OF_ANY_TYPE_OFFERS } from "../built_in_pin_types.js";
+import { pinTypesTheChoiceOffers, pinTypeTheChoiceTakes, type PinTypeChoice } from "../built_in_pin_types.js";
 import type { AssetPinValue, BuiltInPinTypeName, ColorPinValue, PinType, RectanglePinValue, VectorComponentCount, VectorPinValue } from "../pin_types.js";
 import type { StoredPinValue } from "../node_ui/input_control_element.js";
-import { isAJsonValue, jsonTextOf, type JsonValue } from "../studio_readings.js";
+import { isAJsonValue, type JsonValue } from "../studio_readings.js";
 import { isAPinType } from "./pin_type_check.js";
 
 /** The keys a Color's value holds, in the order a control shows them. */
@@ -103,15 +104,11 @@ function listOf<Element>(value: unknown, readTheElement: (element: unknown) => E
   return elements;
 }
 
-/**
- * Whether `value` is a pin type a choice whose `among` list is `among` offers: a pin type by the contract's check that is, as the
- * runtime takes it, exactly one entry of `among`, narrowing and all, when it names any; else one of a type a choice of any type
- * offers, narrowed or not.
- */
-function isAPinTypeTheChoiceOffers(value: unknown, among: readonly PinType[]): value is PinType & JsonValue {
-  if (!isAJsonValue(value) || !isAPinType(value)) return false;
-  if (among.length > 0) return among.some((offered) => jsonTextOf(offered) === jsonTextOf(value));
-  return PIN_TYPES_A_CHOICE_OF_ANY_TYPE_OFFERS.some((offered) => offered.type === value.type);
+/** The pin type `choice` takes `value` as, as JSON; `undefined` for a value that is no pin type, or one the choice does not take. */
+function pinTypeTheChoiceTakesTheValueAs(choice: PinTypeChoice, value: unknown): (PinType & JsonValue) | undefined {
+  if (!isAJsonValue(value) || !isAPinType(value)) return undefined;
+  const taken = pinTypeTheChoiceTakes(pinTypesTheChoiceOffers(choice), value);
+  return taken !== undefined && isAJsonValue(taken) ? taken : undefined;
 }
 
 /** The value of a type made of numbers, as `pinType` declares its form, or `undefined` for another type or a value not of that form; the store's JSON and a control's value have the same form. */
@@ -150,7 +147,7 @@ export function storedPinValueOfTheJson(pinType: PinType, value: JsonValue | nul
       return listOf(value, (element) => (isAJsonValue(element) ? storedPinValueOfTheJson(elementType, element) : undefined));
     }
     case "pin_type_choice":
-      return isAPinTypeTheChoiceOffers(value, pinType.among ?? []) ? value : undefined;
+      return pinTypeTheChoiceTakesTheValueAs(pinType, value);
     case "color":
     case "vector":
     case "rectangle":
@@ -185,7 +182,7 @@ export function jsonOfTheStoredPinValue(pinType: PinType, stored: unknown): Json
       return listOf(stored, (element) => jsonOfTheStoredPinValue(elementType, element));
     }
     case "pin_type_choice":
-      return isAPinTypeTheChoiceOffers(stored, pinType.among ?? []) ? stored : undefined;
+      return pinTypeTheChoiceTakesTheValueAs(pinType, stored);
     case "color":
     case "vector":
     case "rectangle":
