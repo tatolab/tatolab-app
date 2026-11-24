@@ -10,3 +10,6 @@ export type TatolabAppUpdatePackaging =
 
 /** Why an unpackaged app offers no updates. */
 export const UNPACKAGED_APP_UPDATE_REFUSAL = "Only a packaged Tato Studio updates itself.";
+
+/** Why a local-proof build given no local feed offers no updates. */
+export const LOCAL_PROOF_APP_UPDATE_REFUSAL = "A local-proof build of Tato Studio checks for no update.";

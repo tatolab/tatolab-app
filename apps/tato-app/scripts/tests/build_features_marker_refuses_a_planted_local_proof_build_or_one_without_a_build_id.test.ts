@@ -124,11 +124,11 @@ test.each([
   });
 });
 
-test("a local-proof build writes the test root, keeps the shipping feed and is dev", async () => {
+test("a local-proof build writes the test root, no update feed, and is dev", async () => {
   const headCommit = await scratchCheckoutAtOneCommit();
   expect(await writtenBuildFeaturesFor(["--local-proof-test-root"])).toEqual({
     machineDirectoriesUnderATestRoot: true,
-    appUpdateFeedUrl: SHIPPING_BUILD_FEATURES.appUpdateFeedUrl,
+    appUpdateFeedUrl: null,
     tatolabAppBuildId: { tatolabAppCommit: headCommit, buildKind: "dev", builtWithUncommittedChanges: false },
   });
 });
@@ -196,6 +196,7 @@ test("read prints a shipping asar's features and --shipping passes it, a dev bui
 test.each([
   ["the test root", { ...PACKAGED_BUILD_FEATURES, machineDirectoriesUnderATestRoot: true }, ["machineDirectoriesUnderATestRoot"]],
   ["a local update feed", { ...PACKAGED_BUILD_FEATURES, appUpdateFeedUrl: LOCAL_APP_UPDATE_FEED_URL }, [LOCAL_APP_UPDATE_FEED_URL]],
+  ["no update feed", { ...PACKAGED_BUILD_FEATURES, appUpdateFeedUrl: null }, ["checks no feed for updates"]],
   [
     "the test root and a local update feed",
     { ...PACKAGED_BUILD_FEATURES, machineDirectoriesUnderATestRoot: true, appUpdateFeedUrl: LOCAL_APP_UPDATE_FEED_URL },

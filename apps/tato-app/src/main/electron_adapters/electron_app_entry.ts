@@ -36,6 +36,7 @@ import { watchFolderEntriesOnThisMachine } from "../folder_entries_watch_on_this
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
 import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_handlers.js";
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
+import { LOCAL_PROOF_APP_UPDATE_REFUSAL } from "../platform/tatolab_app_update_packaging.js";
 import { createElectronSystemNotifications } from "./electron_system_notifications.js";
 import { ELECTRON_APP_MEDIA_ACCESS_SETTINGS } from "./electron_app_media_access_settings.js";
 import { openAWebPageInTheBrowserThroughElectron } from "./electron_web_page_in_the_browser.js";
@@ -45,6 +46,8 @@ import { answerProjectViewFileRequestsWith, registerTheWindowPageSchemeBeforeRea
 
 const tatolabAppLog = createTatolabAppLogToStandardError();
 const tatolabPlatformItems = tatolabPlatformItemsForThisBuild();
+// The AppImage's AppRun passes it where the machine refuses Chromium's sandbox.
+if (app.commandLine.hasSwitch("no-sandbox")) tatolabAppLog.warn("the app runs without Chromium's sandbox, as --no-sandbox asks");
 process.on("unhandledRejection", (unhandledRejection) => {
   tatolabAppLog.error("a promise was rejected and nothing handled it", { failure: describeCaughtFailure(unhandledRejection) });
 });
@@ -173,7 +176,10 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   // On Linux Electron reads XDG_DOCUMENTS_DIR from user-dirs.dirs, falling back to ~/Documents.
   documentsDirectory: app.getPath("documents"),
   answerProjectViewFileRequestsWith,
-  createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
+  createTheAppUpdateFeed: (appUpdatePackaging) =>
+    TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl === null
+      ? { kind: "not_offered", reason: LOCAL_PROOF_APP_UPDATE_REFUSAL }
+      : createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
   openAWebPageInTheBrowser: openAWebPageInTheBrowserThroughElectron,
   systemNotifications: createElectronSystemNotifications(tatolabAppLog),
   repeatingTimer: (intervalMs, work) => {

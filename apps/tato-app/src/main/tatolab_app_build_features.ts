@@ -11,7 +11,8 @@ export interface TatolabAppBuildId {
 /** What `scripts/tatolab_app_build_features.mjs write` records for a build. */
 export interface TatolabAppBuildFeatures {
   readonly machineDirectoriesUnderATestRoot: boolean;
-  readonly appUpdateFeedUrl: string;
+  /** `null` for a local-proof build given no local feed: it checks for no update. */
+  readonly appUpdateFeedUrl: string | null;
   /** `null` only in the committed features `electron-vite dev` runs with; the bundle and package checks refuse a build without one. */
   readonly tatolabAppBuildId: TatolabAppBuildId | null;
 }
