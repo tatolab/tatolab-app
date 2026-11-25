@@ -392,14 +392,14 @@ const THE_FOLDED_LIGHTS = { node: "kaleidoscope", port: "result" } as const;
 /** What Core Nodes' `ImageFile` reports while its `asset` input is unset, in the runtime's words. */
 const IMAGE_FILE_NOT_READY_BECAUSE = "ImageFile names no image asset. To fix: set its `asset` input to a PNG or JPEG imported into the project";
 
-/** A Core Nodes `ImageFile` naming no asset, so it reports itself not ready and keeps running. */
+/** A Core Nodes `ImageFile` naming no asset, so it reports itself not ready and keeps running, holding a stand-in `device_id` setting a test lists it with. */
 const IMAGE_FILE_NOT_READY_NODE: MockGraphNode = {
   name: "posterimage",
   type: "core_nodes.image_file:ImageFile",
   state: "Running",
   not_ready_because: IMAGE_FILE_NOT_READY_BECAUSE,
   config: {},
-  settings: ["asset"],
+  settings: ["asset", "device_id"],
   input_ports: [],
   output_ports: portsStatingNoStreamFacts("image", "image"),
 };

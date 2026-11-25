@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { NodeTypeDescription, PoppedOutView, StreamGraphAction } from "../shared/tatolab_backend_contract";
+import type { NodeTypeDescription, PoppedOutView } from "../shared/tatolab_backend_contract";
 import { jsonObjectMembersOf } from "@tatolab/tato-app-view-sdk/studio_readings";
 import type { ModuleManagerSectionAsked } from "../shared/tatolab_electron_bridge_contract";
 import { connectToTatoAppOverPort, type TatoAppViewConnection, type ViewSettings } from "@tatolab/tato-app-view-sdk";
@@ -500,7 +500,7 @@ describe("the studio", () => {
         if (assetSet !== undefined && assetSet.operation === "set_node_input_value") {
           assetsSent.push(jsonObjectMembersOf(assetSet.value ?? null)["asset"] ?? null);
           if (refusesTheNextAssetSet)
-            return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: assetSet.node, refused_link: null, refused_field: "asset", refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "input `asset`: not an asset of the project" } };
+            return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: assetSet.node, refused_link: null, refused_input: "asset", refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "input `asset`: not an asset of the project" } };
           if (assetsSent.length === 2) {
             await theUndoAsked;
             const answered = await mockBackend.transactInTheOpenProject(operations, mode, idempotencyKey);
@@ -572,24 +572,14 @@ describe("the studio", () => {
   it("offers the machine's audio inputs for a setting naming a capture device, sends the device picked, unsets it with Default input, and keeps a saved device the machine lacks as missing", { timeout: 30_000 }, async () => {
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
     const deviceValuesSent: unknown[] = [];
-    /** The stand-in `device_id` set on Image File as the mock keeps a setting it holds no description of: in the node's config, taken out for anything but a device's id. */
-    const deviceIdSetInTheConfig = async (node: string, deviceId: unknown): Promise<StreamGraphAction> => {
-      const graph = await mockBackend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM);
-      const { device_id: _deviceHeld, ...config } = jsonObjectMembersOf(graph.nodes.find((graphNode) => graphNode.id === node)?.config);
-      return { operation: "set_node_config", stream: graph.asset ?? "", node, config: typeof deviceId === "string" ? { ...config, device_id: deviceId } : config };
-    };
     await mountedWindowOverTheMock("state=node-not-ready", {
       ...mockBackend,
       ...nodeTypesListingImageFileWithACaptureDeviceSetting(mockBackend),
       transactInTheOpenProject: async (operations, mode, idempotencyKey) => {
-        const operationsTheMockApplies = await Promise.all(
-          operations.map(async (operation) => {
-            if (operation.operation !== "set_node_input_value" || operation.input !== "device_id") return operation;
-            deviceValuesSent.push("value" in operation ? operation.value : "no value");
-            return deviceIdSetInTheConfig(operation.node, operation.value);
-          }),
-        );
-        return mockBackend.transactInTheOpenProject(operationsTheMockApplies, mode, idempotencyKey);
+        for (const operation of operations) {
+          if (operation.operation === "set_node_input_value" && operation.input === "device_id") deviceValuesSent.push("value" in operation ? operation.value : "no value");
+        }
+        return mockBackend.transactInTheOpenProject(operations, mode, idempotencyKey);
       },
     });
     const streamGraph = coreViewPage("stream_graph", "stream-graph");
@@ -623,7 +613,7 @@ describe("the studio", () => {
 
     const graph = await mockBackend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM);
     const imageFile = graph.nodes.find((node) => node.name === "posterimage") ?? expect.unreachable("no Image File in the graph");
-    await act(async () => mockBackend.transactInTheOpenProject([await deviceIdSetInTheConfig(imageFile.id, "alsa_input.usb-gone.mono")], "commit", null));
+    await act(async () => mockBackend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: graph.asset ?? "", node: imageFile.id, input: "device_id", value: "alsa_input.usb-gone.mono" }], "commit", null));
     await waitFor(() => expect(deviceMenu().textContent).toBe("alsa_input.usb-gone.mono (missing)"), { timeout: 5000 });
     pressAsAPointerDoes(deviceMenu());
     await waitFor(() => expect(screen.getAllByRole("menuitem").map((entry) => entry.textContent).at(-1)).toBe("alsa_input.usb-gone.mono (missing)"));

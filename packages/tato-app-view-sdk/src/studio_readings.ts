@@ -769,7 +769,7 @@ export type ProjectActionRefusal = {
   /** The link the refused operation names. */
   refused_link: { source: RefusedGraphLinkEnd; target: RefusedGraphLinkEnd } | null;
   /** The node's input or config field the refused operation names. */
-  refused_field: string | null;
+  refused_input: string | null;
   /** The JSON pointer, into the params the action sent, of the value refused; `null` when no one value inside them is. */
   refused_params_pointer: string | null;
   /** The place in a project file the refusal is about. */

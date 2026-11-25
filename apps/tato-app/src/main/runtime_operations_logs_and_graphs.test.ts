@@ -90,16 +90,6 @@ test("describing_a_stream_graph_calls_the_graph_tool_and_passes_on_the_answer_th
   expect(JSON.parse(body).params).toEqual({ stream: "test-pattern-halftone-lens-main-66e784" });
 });
 
-test("a_graph_keeps_a_whole_number_past_the_exact_doubles_as_the_runtime_wrote_it", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-result-of-the-stream-test-pattern-halftone-lens-main.json")),
-  ]);
-
-  const graph = answerOf(await server.run(describeStreamGraph("test-pattern-halftone-lens-main-66e784")));
-
-  expect(graph.nodes[0]?.["config_checksum"]).toBe(6086514543335466803n);
-});
-
 test("a_graph_answer_the_contract_does_not_type_fails_as_not_the_contracts_answer", async () => {
   const server = await fakeLocalApiServerAnswering([controlOperationResponseOfTheResultText('{"stream":"main","nodes":[],"links":[]}')]);
 

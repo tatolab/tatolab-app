@@ -186,7 +186,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     );
   /** Commit `operations`: applied to the saved graphs, which answer, then to the running ones. */
   const recordedNodeTypes = recordedNodeTypesOfTheMainGraph(mockTatolabOptions.mainGraph);
-  const graphEditGrounds: MockGraphEditGrounds = { nodeTypesDescribed: nodeTypesDescribedWhileMainHolds(mockTatolabOptions.mainGraph), portsOfTheNodesRemoved: new Map() };
+  const graphEditGrounds: MockGraphEditGrounds = { nodeTypesDescribed: nodeTypesDescribedWhileMainHolds(mockTatolabOptions.mainGraph), whatTheNodesRemovedHeld: new Map() };
   const nodeTypesTheProjectGains = new MockNodeTypesTheProjectGains(graphEditGrounds);
   const commitGraphActions = (operations: readonly StreamGraphAction[], applying: "a_transaction" | "undo_or_redo", historyOperationsReplayed: readonly JsonValue[] = []) => {
     const applied = applyMockGraphTransaction(savedGraphTargetsOfTheOpenProject(), graphEditGrounds, operations, applying, historyOperationsReplayed);
@@ -833,7 +833,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
 
   /** `fixture`'s graph as the runtime renders it `millisecondsSinceSettled` after its nodes settled, or with its nodes not started while that is `null`. */
   const graphOfTheFixture = (fixture: MockStreamFixture, millisecondsSinceSettled: number | null): StreamGraph =>
-    mockStreamGraphOf(fixture.listing, fixtures.machine.name, fixture.graph, { hasSettled: (millisecondsSinceSettled ?? -1) >= 0, secondsSinceSettled: Math.max(0, millisecondsSinceSettled ?? 0) / 1000 }, mockTatolabOptions.arePortFamiliesServed);
+    mockStreamGraphOf(fixture.listing, fixtures.machine.name, fixture.graph, { hasSettled: (millisecondsSinceSettled ?? -1) >= 0, secondsSinceSettled: Math.max(0, millisecondsSinceSettled ?? 0) / 1000 });
   const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraph => graphOfTheFixture(loadedStream.fixture, Date.now() - loadedStream.loadedAtMilliseconds - MOCK_STREAM_SETTLE_MILLISECONDS);
   /** The graph of the stream `streamId` as the runtime answers it: a loaded one's running graph, or the saved graph of one it holds not loaded. */
   const graphOfTheStream = (streamId: string): StreamGraph => {

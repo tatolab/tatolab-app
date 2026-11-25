@@ -28,8 +28,7 @@ function isTheOperationTheRecordingAnswered(operation: StreamGraphAction, refusa
       return link !== null && operation.source.node === link.source.node && operation.source.port === link.source.port && operation.target.node === link.target.node && operation.target.port === link.target.port;
     }
     case "set_node_input_value":
-    case "set_pin_value":
-      return refusal.refused_link === null && operation.node === refusal.refused_node && operation.input === refusal.refused_field;
+      return refusal.refused_link === null && operation.node === refusal.refused_node && operation.input === refusal.refused_input;
     default:
       return false;
   }

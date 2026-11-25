@@ -26,7 +26,7 @@ const RECORDED_REFUSALS_STREAM_ASSET = "dbc5bd2d-25c8-48f5-bbc7-f85390eed673";
 const IMAGE_TO_ARRAY = "7fc1b632-c0db-4d98-be98-70f6af6b0abc";
 const CHANNELS_TO_ARRAY = "37baed6c-0749-45e7-aa92-bcd8f7720d24";
 /** Every place a refusal may name, named by none. */
-const NAMING_NOTHING_MORE = { refused_node: null, refused_link: null, refused_field: null, refused_params_pointer: null, refused_file: null, suggested_call: null };
+const NAMING_NOTHING_MORE = { refused_node: null, refused_link: null, refused_input: null, refused_params_pointer: null, refused_file: null, suggested_call: null };
 
 /**
  * The window's `transact_in_the_open_project` on the live `RuntimeControl` over `server`, given up after `timeLimitMs`, Sam
@@ -76,7 +76,10 @@ test("a graph transaction in the open project reaches the runtime's transact hel
   const commandHandlers = commandHandlersOver(sharedState);
   const stream = "ab38b36d-ea2a-4948-bc01-f231ca4fa043";
   const testPattern = "ea646832-0f5f-45f4-bd5c-6b5b50a0b70a";
-  const setTheSize = { operation: "set_node_config", stream, node: testPattern, config: { width: 640, height: 360 } };
+  const setTheSize = [
+    { operation: "set_node_input_value", stream, node: testPattern, input: "width", value: 640 },
+    { operation: "set_node_input_value", stream, node: testPattern, input: "height", value: 360 },
+  ];
   const hallwaysMainListed: ListedStream = {
     stream: "hallways-main-3990b7",
     display_name: "main",
@@ -114,11 +117,11 @@ test("a graph transaction in the open project reaches the runtime's transact hel
 
   expect(await commandHandlers.read_the_person_editing_in_studio(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: { kind: "person", name: "sam" } });
   const anotherProjectsStream = "0c4e2f9a-7b13-4d58-a6e1-3f9b2c7d8e10";
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize, { ...setTheSize, stream: anotherProjectsStream }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [...setTheSize, ...setTheSize.map((setting) => ({ ...setting, stream: anotherProjectsStream }))], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
     refusal: `The stream ${anotherProjectsStream} is not one of the streams the runtime lists in ${projectFolder}, by its stream asset or its stream id.`,
   });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: "5a8e1c3f-2d47-4b6a-9f01-8c7d6e5b4a32" }, fromTheStudioWindow)).toEqual({
+  expect(await commandHandlers.transact_in_the_open_project({ operations: setTheSize, mode: "commit", idempotency_key: "5a8e1c3f-2d47-4b6a-9f01-8c7d6e5b4a32" }, fromTheStudioWindow)).toEqual({
     ok: true,
     value: {
       kind: "applied",
@@ -126,7 +129,10 @@ test("a graph transaction in the open project reaches the runtime's transact hel
         mode: "commit",
         transaction: "0e29a20a-60d9-4cf1-9fdc-6c66a4b5136d",
         commit: "5e2cdcdc1f1b5e5cfde4d4c870c83197dcc29b7c",
-        operations: [{ operation: "set_node_config", node: testPattern, from: {}, to: { width: 640, height: 360 }, stream: "hallways-main-3990b7" }],
+        operations: [
+          { operation: "set_node_input_value", node: testPattern, input: "width", from: null, to: 640, stream: "hallways-main-3990b7" },
+          { operation: "set_node_input_value", node: testPattern, input: "height", from: null, to: 360, stream: "hallways-main-3990b7" },
+        ],
         added_nodes: [],
         connected_links: [],
         added_groups: [],
@@ -149,7 +155,7 @@ test("a graph transaction in the open project reaches the runtime's transact hel
       },
     },
   });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [{ ...setTheSize, force: true }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [{ ...setTheSize[0], force: true }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
     refusal: 'transact_in_the_open_project: not a StreamGraphAction the runtime takes: the contract names no such field\n  at ["operations"][0]["force"]',
   });
@@ -157,11 +163,11 @@ test("a graph transaction in the open project reaches the runtime's transact hel
     ok: false,
     refusal: 'transact_in_the_open_project: Expected a value with a length of at least 1\n  at ["operations"]',
   });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "kept", idempotency_key: null }, fromTheStudioWindow)).toEqual({
+  expect(await commandHandlers.transact_in_the_open_project({ operations: setTheSize, mode: "kept", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
     refusal: 'transact_in_the_open_project: not a GraphEditMode the runtime takes: matches none of the 2 alternatives the contract allows here\n  at ["mode"]',
   });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+  expect(await commandHandlers.transact_in_the_open_project({ operations: setTheSize, mode: "commit", idempotency_key: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
 test("adding a node wired to the test pattern is sent as the runtime's transact by the person editing and answers what it applied, a retry under its key answering the first", async () => {
@@ -176,7 +182,10 @@ test("adding a node wired to the test pattern is sent as the runtime's transact 
     { operation: "connect", stream: STREAM_ASSET, source: { node: TEST_PATTERN, port: "video" }, target: { node: "hold", port: "frame" } },
   ];
   const gesture = "7d1f8c52-3b0e-4a39-9a51-2f6a0b9c4e11";
-  const addAConstantHoldingAHalf = [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.ops:Constant", pins: { value: 0.5 }, as: "c" }];
+  const addAConstantHoldingAHalf = [
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.ops:Constant", as: "c" },
+    { operation: "set_node_input_value", stream: STREAM_ASSET, node: "c", input: "value", value: 0.5 },
+  ];
 
   const first = await transact({ operations: addHoldFrameWiredToTheTestPattern, mode: "commit", idempotency_key: gesture }, FROM_HALLWAYS_STUDIO_WINDOW);
   const retry = await transact({ operations: addHoldFrameWiredToTheTestPattern, mode: "commit", idempotency_key: gesture }, FROM_HALLWAYS_STUDIO_WINDOW);
@@ -227,16 +236,16 @@ test("a drag's live edits answer no transaction and its commit under the same ke
   const { transact } = await transactCommandOver(
     await serverReplaying("local-api-transact-tool-result-of-a-live-pin-value-mid-drag.json", "local-api-transact-tool-result-of-the-drags-commit-from-the-saved-value.json"),
   );
-  const setTheValue = (value: number) => [{ operation: "set_pin_value", stream: STREAM_ASSET, node: "cbbe8192-d3a7-4208-9c4d-3ad78cd04910", input: "value", value }];
+  const setTheValue = (value: number) => [{ operation: "set_node_input_value", stream: STREAM_ASSET, node: "cbbe8192-d3a7-4208-9c4d-3ad78cd04910", input: "value", value }];
   const gesture = "9c0e5d2a-41b7-4f3e-8a6d-1b2c3d4e5f60";
 
   expect(await transact({ operations: setTheValue(0.1), mode: "live", idempotency_key: gesture }, FROM_HALLWAYS_STUDIO_WINDOW)).toMatchObject({
     ok: true,
-    value: { kind: "applied", transaction: { mode: "live", transaction: null, commit: null, operations: [{ operation: "set_pin_value", from: 0.5, to: 0.1 }] } },
+    value: { kind: "applied", transaction: { mode: "live", transaction: null, commit: null, operations: [{ operation: "set_node_input_value", from: 0.5, to: 0.1 }] } },
   });
   expect(await transact({ operations: setTheValue(0.3), mode: "commit", idempotency_key: gesture }, FROM_HALLWAYS_STUDIO_WINDOW)).toMatchObject({
     ok: true,
-    value: { kind: "applied", transaction: { mode: "commit", transaction: expect.any(String), operations: [{ operation: "set_pin_value", from: 0.5, to: 0.3 }] } },
+    value: { kind: "applied", transaction: { mode: "commit", transaction: expect.any(String), operations: [{ operation: "set_node_input_value", from: 0.5, to: 0.3 }] } },
   });
 });
 
@@ -253,7 +262,7 @@ test("a refused link, rename or pin value answers the runtime's structured refus
 
   const rename = await transact(sent({ operation: "rename_node", node: CHANNELS_TO_ARRAY, name: "imagetoarray" }), FROM_HALLWAYS_STUDIO_WINDOW);
   const connect = await transact(sent({ operation: "connect", ...link }), FROM_HALLWAYS_STUDIO_WINDOW);
-  const pin = await transact(sent({ operation: "set_pin_value", node: CHANNELS_TO_ARRAY, input: "no_such_input", value: 1 }), FROM_HALLWAYS_STUDIO_WINDOW);
+  const pin = await transact(sent({ operation: "set_node_input_value", node: CHANNELS_TO_ARRAY, input: "no_such_input", value: 1 }), FROM_HALLWAYS_STUDIO_WINDOW);
 
   expect(rename).toEqual({
     ok: true,
@@ -293,7 +302,7 @@ test("a refused link, rename or pin value answers the runtime's structured refus
         action: "transact",
         refused_operation_index: 0,
         refused_node: CHANNELS_TO_ARRAY,
-        refused_field: "no_such_input",
+        refused_input: "no_such_input",
         runtime_words: "Node 'channelstoarray' has no input port named 'no_such_input'",
       },
     },
@@ -323,11 +332,11 @@ test("a refusal code this app does not know reads as refused and keeps the place
   const { transact } = await transactCommandAt(server.localApiSocketPath, RECORDED_REFUSALS_STREAM_ASSET, 2_000);
 
   const pin = await transact(
-    { operations: [{ operation: "set_pin_value", stream: RECORDED_REFUSALS_STREAM_ASSET, node: CHANNELS_TO_ARRAY, input: "no_such_input", value: 1 }], mode: "commit", idempotency_key: null },
+    { operations: [{ operation: "set_node_input_value", stream: RECORDED_REFUSALS_STREAM_ASSET, node: CHANNELS_TO_ARRAY, input: "no_such_input", value: 1 }], mode: "commit", idempotency_key: null },
     FROM_HALLWAYS_STUDIO_WINDOW,
   );
 
-  expect(pin).toMatchObject({ ok: true, value: { kind: "refused", refusal: { refusal_code: "refused", refused_field: "no_such_input", runtime_words: "Node 'channelstoarray' has no input port named 'no_such_input'" } } });
+  expect(pin).toMatchObject({ ok: true, value: { kind: "refused", refusal: { refusal_code: "refused", refused_input: "no_such_input", runtime_words: "Node 'channelstoarray' has no input port named 'no_such_input'" } } });
 });
 
 test("a refusal with no structure answers the runtime's own words, and a runtime that does not answer, answers late or answers off the contract says so", async () => {
@@ -366,7 +375,7 @@ test("an edit naming another project's stream asset, or sent from the Projects w
   const server = await FakeLocalApiServer.answering([]);
   const { transact } = await transactCommandOver(server);
   const anotherProjectsStream = "0c4e2f9a-7b13-4d58-a6e1-3f9b2c7d8e10";
-  const setTheSize = (stream: string) => ({ operation: "set_node_config", stream, node: TEST_PATTERN, config: { width: 640, height: 360 } });
+  const setTheSize = (stream: string) => ({ operation: "set_node_input_value", stream, node: TEST_PATTERN, input: "width", value: 640 });
 
   expect(await transact({ operations: [setTheSize(STREAM_ASSET), setTheSize(anotherProjectsStream)], mode: "commit", idempotency_key: null }, FROM_HALLWAYS_STUDIO_WINDOW)).toEqual({
     ok: false,

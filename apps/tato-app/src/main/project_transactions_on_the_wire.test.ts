@@ -61,7 +61,7 @@ const A_REFUSAL_FROM_A_RUNTIME_THAT_SENDS_NO_CODE = {
   refused_operation_index: null,
   refused_node: null,
   refused_link: null,
-  refused_field: null,
+  refused_input: null,
   refused_params_pointer: null,
   refused_file: null,
   suggested_call: null,
@@ -103,7 +103,7 @@ test("the refused edits a recorded feed holds read with each code and place the 
       refused_operation_index: 0,
       refused_node: channelsToArray,
       refused_link: null,
-      refused_field: null,
+      refused_input: null,
       refused_params_pointer: null,
       refused_file: null,
       suggested_call: null,
@@ -115,7 +115,7 @@ test("the refused edits a recorded feed holds read with each code and place the 
       refused_operation_index: 0,
       refused_node: channelsToArray,
       refused_link: null,
-      refused_field: "no_such_input",
+      refused_input: "no_such_input",
       refused_params_pointer: null,
       refused_file: null,
       suggested_call: null,
@@ -127,7 +127,7 @@ test("the refused edits a recorded feed holds read with each code and place the 
       refused_operation_index: 0,
       refused_node: null,
       refused_link: { source: { node: "7fc1b632-c0db-4d98-be98-70f6af6b0abc", port: "array" }, target: { node: channelsToArray, port: "channels" } },
-      refused_field: null,
+      refused_input: null,
       refused_params_pointer: null,
       refused_file: null,
       suggested_call: null,
@@ -149,7 +149,7 @@ test("a recorded refusal that suggests a call reads its code, the pointer into t
       refused_operation_index: null,
       refused_node: null,
       refused_link: null,
-      refused_field: null,
+      refused_input: null,
       refused_params_pointer: "/operations/0",
       refused_file: null,
       suggested_call: { operation: "describe_operations", params: { operations: ["transact"] } },
@@ -201,7 +201,7 @@ test("a refused graph edit reads with the node, link and field it names", () => 
             mode: "live",
             operations: [{ operation: "connect", link }],
             idempotency_key: "k1",
-            refusal: { action: "transact", refused_operation_index: 0, refused_node: "n2", refused_link: link, refused_field: "video_from_upstream", runtime_words: "the words" },
+            refusal: { action: "transact", refused_operation_index: 0, refused_node: "n2", refused_link: link, refused_input: "video_from_upstream", runtime_words: "the words" },
             refused_at: "2026-11-10T18:00:00Z",
           },
         ],
@@ -209,7 +209,7 @@ test("a refused graph edit reads with the node, link and field it names", () => 
     ),
   );
   expect(feed.transactions).toEqual([]);
-  expect(feed.refused_actions[0]).toMatchObject({ mode: "live", idempotency_key: "k1", refusal: { refused_operation_index: 0, refused_node: "n2", refused_link: link, refused_field: "video_from_upstream" } });
+  expect(feed.refused_actions[0]).toMatchObject({ mode: "live", idempotency_key: "k1", refusal: { refused_operation_index: 0, refused_node: "n2", refused_link: link, refused_input: "video_from_upstream" } });
 });
 
 test("an entry or an undo state newer than this app leaves the rest of the feed readable", () => {

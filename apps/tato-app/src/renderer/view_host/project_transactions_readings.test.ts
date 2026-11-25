@@ -44,7 +44,7 @@ function readingsOverAFakeBackend(openProject: string | null | (() => string | n
         for (let turn = 0; turn < 5; turn += 1) await Promise.resolve();
         transactionsAnsweredSoFar += 1;
         if (operations[0]?.operation === "remove_node") return Promise.reject(new Error("No runtime answers."));
-        return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: "n", refused_link: null, refused_field: null, refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "no node n" } };
+        return { kind: "refused", refusal: { refusal_code: "refused", action: "transact", refused_operation_index: 0, refused_node: "n", refused_link: null, refused_input: null, refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "no node n" } };
       },
       checkLinkCandidatesInTheOpenProject: async (request) => {
         checksAsked.push(request);

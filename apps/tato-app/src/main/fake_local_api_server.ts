@@ -168,7 +168,7 @@ export function controlOperationResultResponse(result: unknown): Buffer {
   return controlResponse(JSON.stringify({ jsonrpc: "2.0", id: 1, result }));
 }
 
-/** The runtime's answer to an operation that refused, in `runtimeWords`, with the structured `refusal` (`ProjectActionRefusalOnTheWire`). */
+/** The runtime's answer to an operation that refused, in `runtimeWords`, with the structured `refusal` (`ControlOperationRefusalOnTheWire`). */
 export function controlOperationRefusedResponse(runtimeWords: string, refusal: unknown): Buffer {
   return controlResponse(JSON.stringify({ jsonrpc: "2.0", id: 1, error: { code: 1, message: runtimeWords, data: refusal } }));
 }

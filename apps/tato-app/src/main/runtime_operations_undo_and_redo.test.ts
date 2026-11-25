@@ -34,7 +34,7 @@ test("an_undo_of_the_persons_graph_edit_answers_each_operation_by_its_stream_ass
     author_kind: "person",
     author_name: "user",
     operations: [
-      { stream: "ab38b36d-ea2a-4948-bc01-f231ca4fa043", operation: "set_pin_value", input: "value", from: 0.25, to: 0.5 },
+      { stream: "ab38b36d-ea2a-4948-bc01-f231ca4fa043", operation: "set_node_input_value", input: "value", from: 0.25, to: 0.5 },
       { stream: "ab38b36d-ea2a-4948-bc01-f231ca4fa043", operation: "rename_node", from: "half", to: "constant" },
     ],
   });

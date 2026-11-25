@@ -61,7 +61,7 @@ const MOCK_HISTORY_REFUSAL_NAMING_NOTHING: Omit<ProjectActionRefusal, "action" |
   refusal_code: "refused",
   refused_node: null,
   refused_link: null,
-  refused_field: null,
+  refused_input: null,
   refused_params_pointer: null,
   refused_file: null,
   suggested_call: null,

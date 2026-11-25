@@ -8,7 +8,7 @@ import {
   fragmentKindOfTheNode,
   fragmentOfTheNode,
   isAJsonValue,
-  jsonObjectMembersOf,
+
   NODE_STUDIO_FIELDS_NONE_SET,
   studioFieldsOfTheNode,
   type JsonValue,
@@ -378,11 +378,11 @@ export function generatorSubgraphPlacedEdits(edited: EditedStreamGraph, generato
   ];
 }
 
-/** A graph generator's subgraph run again from its code with the settings it holds, which the runtime replaces in place under its name. */
+/** A graph generator's subgraph run again from its code, which the runtime runs with the settings the subgraph holds and replaces in place under its name. */
 export function subgraphRefreshedEdits(edited: EditedStreamGraph, subgraphName: string): StreamGraphAction[] {
   const subgraph = edited.graph.nodes.find((node) => node.name === subgraphName);
   if (subgraph === undefined || fragmentOfTheNode(subgraph) === null || fragmentKindOfTheNode(subgraph) !== "generated") return [];
-  return [{ operation: "import_graph_generator", stream: edited.streamAsset, generator: subgraph.type, name: subgraph.name, config: jsonObjectMembersOf(subgraph.input_values) }];
+  return [{ operation: "import_graph_generator", stream: edited.streamAsset, generator: subgraph.type, name: subgraph.name }];
 }
 
 /** `actions` sent inside the subgraph `level` names, the path of subgraph node UUIDs from the stream's own level inward; why not when one of them is an edit the runtime makes only on the stream's own level. */

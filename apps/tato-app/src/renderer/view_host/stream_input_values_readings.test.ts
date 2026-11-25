@@ -9,7 +9,6 @@ function graphNode(id: string, gain: StreamGraphInputValueRead | null, fragmentN
     id,
     type: fragmentNodes === null ? "nodes.mix:Mix" : "tatolab.project:StreamFragment",
     kind: fragmentNodes === null ? "function" : "fragment",
-    config: {},
     inputs: [
       aGraphPort("gain", { pin_type: { type: "float" }, flow: "value", ...(gain === null ? {} : { value: gain.value, value_comes_from: gain.comes_from }) }),
       aGraphPort("video", { pin_type: { type: "texture" }, flow: "stream" }),
@@ -112,7 +111,7 @@ test("each_member_of_a_bundle_input_is_kept_on_its_own_and_a_change_naming_one_m
     ],
   });
   readings.readStarting();
-  readings.readLanded(aStreamGraph([aGraphNode("mix", { id: "MIX-ID", type: "nodes.mix:Mix", kind: "function", config: {}, inputs: [levels], components: { state: "Running" } })], [], { asset: "STREAM-ASSET" }));
+  readings.readLanded(aStreamGraph([aGraphNode("mix", { id: "MIX-ID", type: "nodes.mix:Mix", kind: "function", inputs: [levels], components: { state: "Running" } })], [], { asset: "STREAM-ASSET" }));
   const told = watched(readings);
   readings.takeTheChange({ node: "MIX-ID", input: "levels", member: "left", value_read: live(0.75) });
   readings.takeTheChange({ node: "MIX-ID", input: "levels", member: "middle", value_read: live(0.5) });

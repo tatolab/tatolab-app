@@ -17,6 +17,7 @@ function aCanvasAlone(): MockStreamGraph {
         type: "imports/core-nodes/core_nodes.solid_color:SolidColor",
         state: "Running",
         config: {},
+        settings: ["width"],
         input_ports: [],
         output_ports: [{ name: "image", family: "image", stream_facts: null, values_checked: null, pin: null, value_read: null }],
       },
@@ -34,11 +35,11 @@ function targetsOf(graph: MockStreamGraph): ReadonlyMap<string, MockStreamGraphT
 const NODE_TYPES_DESCRIBED = [...nodeTypeDescriptionsByType(MOCK_RECORDED_NODE_TYPES.pulse_stage.described.node_types).values()];
 
 /** The ports of the nodes this file's edits removed, as one mock runtime keeps them. */
-const portsOfTheNodesRemoved = new Map<string, Pick<MockGraphNode, "input_ports" | "output_ports">>();
+const whatTheNodesRemovedHeld = new Map<string, Pick<MockGraphNode, "input_ports" | "output_ports" | "config" | "pins">>();
 
 /** `operations` applied to `graph`, each node added with the ports the recorded description gives its type. */
 function apply(graph: MockStreamGraph, operations: readonly StreamGraphAction[], ...rest: [applying?: "a_transaction" | "a_live_transaction" | "undo_or_redo", historyOperationsReplayed?: readonly JsonValue[]]) {
-  return applyMockGraphTransaction(targetsOf(graph), { nodeTypesDescribed: NODE_TYPES_DESCRIBED, portsOfTheNodesRemoved }, operations, ...rest);
+  return applyMockGraphTransaction(targetsOf(graph), { nodeTypesDescribed: NODE_TYPES_DESCRIBED, whatTheNodesRemovedHeld }, operations, ...rest);
 }
 
 const CANVAS = mockNodeIdOf(STREAM_ID, "canvas");
@@ -47,7 +48,7 @@ const GLOW_BLUR = "nodes.looks:GlowBlur";
 /** Pulse Stage's `ClickCue`, which reads an Integer `count` and a Boolean `downbeat`: a node type the recording describes. */
 const CLICK_CUE = "nodes.beat:ClickCue";
 
-test("a node added under `as` is wired by that label in the same transaction, and its config set by its id after", () => {
+test("a node added under `as` is wired by that label in the same transaction, and a setting set by its id after", () => {
   const graph = aCanvasAlone();
   const added = apply(graph, [
     { operation: "add_node", stream: STREAM_ASSET, type: GLOW_BLUR, as: "blur" },
@@ -63,20 +64,20 @@ test("a node added under `as` is wired by that label in the same transaction, an
     { stream: STREAM_ASSET, operation: "remove_node", node: blur },
   ]);
 
-  apply(graph, [{ operation: "set_node_config", stream: STREAM_ASSET, node: CANVAS, config: { width: 640 } }]);
-    expect(graph.nodes[0]?.config).toEqual({ width: 640 });
+  apply(graph, [{ operation: "set_node_input_value", stream: STREAM_ASSET, node: CANVAS, input: "width", value: 640 }]);
+  expect(graph.nodes[0]?.config).toEqual({ width: 640 });
 });
 
 test("an edit the mock cannot apply is the sender's defect, thrown by name, and leaves every graph as it was", () => {
   const graph = aCanvasAlone();
   expect(() =>
     apply(graph, [
-      { operation: "set_node_config", stream: STREAM_ASSET, node: CANVAS, config: { width: 640 } },
+      { operation: "set_node_input_value", stream: STREAM_ASSET, node: CANVAS, input: "width", value: 640 },
       { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:MicrophoneSource", as: "mic" },
     ]),
   ).toThrow(new MockGraphEditNotApplicable("the recorded node types describe no node type `tatolab.stream:MicrophoneSource`"));
   expect(graph).toEqual(aCanvasAlone());
-  expect(() => apply(graph, [{ operation: "set_pin_value", stream: STREAM_ASSET, node: CANVAS, input: "level", value: 1 }])).toThrow(MockGraphEditNotApplicable);
+  expect(() => apply(graph, [{ operation: "set_node_input_value", stream: STREAM_ASSET, node: CANVAS, input: "level", value: 1 }])).toThrow(MockGraphEditNotApplicable);
   expect(() => apply(graph, [{ operation: "use_dependency_stream", stream: STREAM_ASSET, project: "p", dependency_stream: "d" }])).toThrow("the mock does not apply `use_dependency_stream`");
 });
 
@@ -99,8 +100,8 @@ test("a renamed node keeps its id, and each change answers its `from` as the run
   expect(renamed.transaction.operations).toEqual([{ operation: "rename_node", node: CANVAS, from: "canvas", to: "backdrop", stream: STREAM_ID }]);
   expect(renamed.inverse_operations).toEqual([{ stream: STREAM_ASSET, operation: "rename_node", node: CANVAS, from: "backdrop", to: "canvas" }]);
 
-  const configured = apply(graph, [{ operation: "set_node_config", stream: STREAM_ASSET, node: CANVAS, config: { width: 640 } }]);
-  expect(configured.history_operations).toEqual([{ stream: STREAM_ASSET, operation: "set_node_config", node: CANVAS, from: {}, to: { width: 640 } }]);
+  const configured = apply(graph, [{ operation: "set_node_input_value", stream: STREAM_ASSET, node: CANVAS, input: "width", value: 640 }]);
+  expect(configured.history_operations).toEqual([{ stream: STREAM_ASSET, operation: "set_node_input_value", node: CANVAS, input: "width", from: null, to: 640 }]);
   expect(graph.nodes[0]).toMatchObject({ name: "backdrop", config: { width: 640 } });
 });
 
@@ -109,9 +110,9 @@ test("an operation history records is turned back into the graph action that app
   const removed = apply(graph, [{ operation: "remove_node", stream: STREAM_ASSET, node: CANVAS }]);
   expect(graph.nodes).toEqual([]);
   const restoring = removed.inverse_operations.map(graphActionApplyingTheHistoryOperation);
-  expect(restoring).toEqual([{ operation: "add_node", stream: STREAM_ASSET, type: "imports/core-nodes/core_nodes.solid_color:SolidColor", name: "canvas", as: CANVAS, config: {}, pins: {} }]);
+  expect(restoring).toEqual([{ operation: "add_node", stream: STREAM_ASSET, type: "imports/core-nodes/core_nodes.solid_color:SolidColor", name: "canvas", as: CANVAS }]);
   apply(graph, restoring.flatMap((action) => (action === null ? [] : [action])), "undo_or_redo");
-    expect(graph.nodes.map((node) => node.name)).toEqual(["canvas"]);
+  expect(graph.nodes.map((node) => node.name)).toEqual(["canvas"]);
   expect(graphActionApplyingTheHistoryOperation({ operation: "import_asset", asset: {} })).toBeNull();
 });
 
@@ -122,7 +123,7 @@ test("a node of a type the recording does not describe, removed and added back b
   const spotlight = mockNodeIdOf(STREAM_ID, "spotlight");
   const removed = apply(graph, [{ operation: "remove_node", stream: STREAM_ASSET, node: spotlight }]);
   const restoring = removed.inverse_operations.map(graphActionApplyingTheHistoryOperation).flatMap((action) => (action === null ? [] : [action]));
-  expect(() => applyMockGraphTransaction(targetsOf(graph), { nodeTypesDescribed: NODE_TYPES_DESCRIBED, portsOfTheNodesRemoved: new Map() }, restoring, "undo_or_redo")).toThrow(MockGraphEditNotApplicable);
+  expect(() => applyMockGraphTransaction(targetsOf(graph), { nodeTypesDescribed: NODE_TYPES_DESCRIBED, whatTheNodesRemovedHeld: new Map() }, restoring, "undo_or_redo")).toThrow(MockGraphEditNotApplicable);
   apply(graph, restoring, "undo_or_redo");
   expect(graph.nodes.find((node) => node.name === "spotlight")).toMatchObject({ type: "nodes.spotlight:Spotlight", ...spotlightPorts });
 });
@@ -195,9 +196,10 @@ test("a collapsed node is saved as a stream the subgraph places, wired through i
 test("a Graph Input, Graph Output or Set Variable added with no name takes the next free one, and a Get Variable reads the last setter's", () => {
   const graph = aCanvasAlone();
   apply(graph, [
-    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", config: { family: "channels" } },
-    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", config: { family: "records" } },
-    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", config: { port: "brightness", family: "channels" } },
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput" },
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput" },
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", as: "brightness" },
+    { operation: "set_node_input_value", stream: STREAM_ASSET, node: "brightness", input: "port", value: "brightness" },
   ]);
   expect(graph.nodes.filter((node) => node.type === "tatolab.stream:GraphInput").map((node) => node.config["port"])).toEqual(["input1", "input2", "brightness"]);
 
@@ -263,7 +265,7 @@ test("an edit at a placed stream's level reaches every placement, is recorded on
 test("renaming a placed stream's Graph Output port carries the links onto that port at every placement, and removing the node takes them out", () => {
   const { graph, placedStream, look } = aLookPlacedTwice();
   const graphOutput = mockNodeIdOf(STREAM_ID, "canvas-image");
-  const renamed = apply(graph, [{ operation: "set_node_config", stream: STREAM_ASSET, node: graphOutput, config: { port: "picture", family: "image" }, level: [look] }]);
+  const renamed = apply(graph, [{ operation: "set_node_input_value", stream: STREAM_ASSET, node: graphOutput, input: "port", value: "picture", level: [look] }]);
   expect(graph.nodes.find((node) => node.name === "look-again")?.output_ports.map((port) => port.name)).toEqual(["picture"]);
   expect(graph.links.map((link) => [link.source_node, link.source_port, link.target_node])).toEqual([
     ["look", "picture", "glowblur"],
@@ -289,7 +291,7 @@ test("an edit at the level of a generated subgraph, or of an import's placed str
   expect(() => apply(graph, [{ operation: "add_node", stream: STREAM_ASSET, type: GLOW_BLUR, level: [mockNodeIdOf(STREAM_ID, "grain")] }])).toThrow("places a stream of the import");
 });
 
-test("a value set by either operation is the value its input reads, live on the running node alone, saved on its pins too, a live value taken off back to the saved one, and the saved one taken off back to its default", () => {
+test("a value set is the value its input reads, live on the running node alone, saved on its pins too, a live value taken off back to the saved one, and the saved one taken off back to its default", () => {
   const graph = aCanvasAlone();
   graph.nodes[0] = {
     ...graph.nodes[0],
@@ -298,19 +300,19 @@ test("a value set by either operation is the value its input reads, live on the 
   };
   const level = () => graph.nodes[0]?.input_ports[0]?.value_read;
   const pins = () => graph.nodes[0]?.pins;
-  const setLevel = (action: "set_pin_value" | "set_node_input_value", value: number | null, applying: "a_transaction" | "a_live_transaction" = "a_transaction") =>
-    apply(graph, [{ operation: action, stream: STREAM_ASSET, node: CANVAS, input: "level", value }], applying);
+  const setLevel = (value: number | null, applying: "a_transaction" | "a_live_transaction" = "a_transaction") =>
+    apply(graph, [{ operation: "set_node_input_value", stream: STREAM_ASSET, node: CANVAS, input: "level", value }], applying);
 
-  setLevel("set_pin_value", 0.5);
+  setLevel(0.5);
   expect([level(), pins()]).toEqual([{ value: 0.5, comes_from: "saved" }, { level: 0.5 }]);
-  setLevel("set_node_input_value", 0.25, "a_live_transaction");
+  setLevel(0.25, "a_live_transaction");
   expect([level(), pins()]).toEqual([{ value: 0.25, comes_from: "live" }, { level: 0.5 }]);
-  setLevel("set_node_input_value", 0.75);
+  setLevel(0.75);
   expect([level(), pins()]).toEqual([{ value: 0.75, comes_from: "saved" }, { level: 0.75 }]);
-  setLevel("set_node_input_value", 0.25, "a_live_transaction");
-  setLevel("set_node_input_value", null, "a_live_transaction");
+  setLevel(0.25, "a_live_transaction");
+  setLevel(null, "a_live_transaction");
   expect([level(), pins()]).toEqual([{ value: 0.75, comes_from: "saved" }, { level: 0.75 }]);
-  setLevel("set_pin_value", null);
+  setLevel(null);
   expect([level(), pins()]).toEqual([{ value: 1, comes_from: "default" }, {}]);
 });
 
@@ -353,31 +355,35 @@ test("a Graph Input that chooses a pin type carries it on its value ports, servi
       stream: STREAM_ASSET,
       type: "tatolab.stream:GraphInput",
       name: "clickcue_count",
-      config: { port: "clickcue_count", pin_type: { type: "integer" }, family: "channels", range: [1, 8], step: 1, control: "dial", value: 4 },
       as: "graph_input",
     },
+    ...Object.entries({ port: "clickcue_count", pin_type: { type: "integer" }, range: [1, 8], step: 1, control: "dial", value: 4 }).map(
+      ([input, value]): StreamGraphAction => ({ operation: "set_node_input_value", stream: STREAM_ASSET, node: "graph_input", input, value }),
+    ),
     { operation: "connect", stream: STREAM_ASSET, source: { node: "graph_input", port: "value" }, target: { node: "cue", port: "count" } },
   ]);
-  const rendered = mockStreamGraphOf(LISTED, "mock-machine", graph, { hasSettled: true, secondsSinceSettled: 0 }, true);
+  const rendered = mockStreamGraphOf(LISTED, "mock-machine", graph, { hasSettled: true, secondsSinceSettled: 0 });
   const graphInput = rendered.nodes.find((node) => node.name === "clickcue_count") ?? expect.unreachable("no Graph Input");
 
   expect(graphInput.ports.inputs).toMatchObject([
     { name: "value", pin_type: { type: "integer" }, flow: "value", annotations: { range: { minimum: 1, maximum: 8 }, step: 1, control: "dial" }, value: 4, value_comes_from: "saved" },
   ]);
-  expect(graphInput.ports.outputs).toMatchObject([{ name: "value", pin_type: { type: "integer" }, flow: "value", family: { family: "channels" } }]);
+  expect(graphInput.ports.outputs).toMatchObject([{ name: "value", pin_type: { type: "integer" }, flow: "value" }]);
   expect(graphInput.ports.outputs[0]).not.toHaveProperty("annotations");
 });
 
 test("a running top-level Graph Input of no type declares the value its config saves as `value`, and none from a `default` in its config", () => {
   const graph = aCanvasAlone();
   apply(graph, [
-    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "brightness", config: { port: "brightness", family: "channels", value: 0.8, default: 0.2 } },
-    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "contrast", config: { port: "contrast", family: "channels", default: 0.2 } },
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "brightness", as: "brightness" },
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.stream:GraphInput", name: "contrast", as: "contrast" },
+    ...Object.entries({ port: "brightness", value: 0.8, default: 0.2 }).map(([input, value]): StreamGraphAction => ({ operation: "set_node_input_value", stream: STREAM_ASSET, node: "brightness", input, value })),
+    ...Object.entries({ port: "contrast", default: 0.2 }).map(([input, value]): StreamGraphAction => ({ operation: "set_node_input_value", stream: STREAM_ASSET, node: "contrast", input, value })),
   ]);
   for (const node of graph.nodes) node.state = "Running";
-  const rendered = mockStreamGraphOf(LISTED, "mock-machine", graph, { hasSettled: true, secondsSinceSettled: 0 }, true);
+  const rendered = mockStreamGraphOf(LISTED, "mock-machine", graph, { hasSettled: true, secondsSinceSettled: 0 });
   const interfaceOf = (name: string) => rendered.nodes.find((node) => node.name === name)?.components.graph_interface;
 
-  expect(interfaceOf("brightness")).toEqual({ direction: "input", port: "brightness", family: "channels", current_value: 0.8 });
-  expect(interfaceOf("contrast")).toEqual({ direction: "input", port: "contrast", family: "channels" });
+  expect(interfaceOf("brightness")).toEqual({ direction: "input", port: "brightness", current_value: 0.8 });
+  expect(interfaceOf("contrast")).toEqual({ direction: "input", port: "contrast" });
 });

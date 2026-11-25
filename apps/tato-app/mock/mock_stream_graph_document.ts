@@ -2,6 +2,7 @@
 // typed by the control contract — node ids, config, ports, components with state and metrics, link
 // ids and ends, `machine` — which the main process passes on unchanged.
 
+import { mockFamilyOfThePort } from "./mock_port_families";
 import { mockGraphNodeIdOf, type MockGraphLink, type MockGraphNode, type MockGraphPort, type MockStreamGraph } from "./mock_stream_fixtures";
 import type {
   JsonValue,
@@ -27,16 +28,15 @@ export interface MockStreamGraphMoment {
   secondsSinceSettled: number;
 }
 
-/** The keys of `PortStreamFacts` the runtime does not render as they are: what the facts are of and their type, rendered as `type` and `family`, and the configuration record's length, rendered as its hex. */
+/** The keys of `PortStreamFacts` the runtime does not render as they are: what the facts are of and their type, rendered as `type`, and the configuration record's length, rendered as its hex. */
 const KEYS_NAMING_THE_STREAM_FACTS: ReadonlySet<string> = new Set(["facts_of", "type", "codec_configuration_byte_length"]);
 
-/** `facts` as the runtime renders a port's `stream_facts`: the pin type they describe under `type`, left out on a port with none, beside their family, each fact the port does not state left out. */
+/** `facts` as the runtime renders a port's `stream_facts`: the pin type they describe under `type`, left out on a port with none, each fact the port does not state left out. */
 function streamFactsAsTheRuntimeRendersThem(facts: PortStreamFacts): Record<string, unknown> {
   const statedFacts = Object.fromEntries(Object.entries(facts).filter(([key, value]) => value !== null && !KEYS_NAMING_THE_STREAM_FACTS.has(key)));
   const codecConfigurationByteLength = facts.facts_of === "encoded_units" ? facts.codec_configuration_byte_length : null;
   return {
     ...(facts.type === null ? {} : { type: facts.type }),
-    family: facts.facts_of === "pictures" ? "image" : "packets",
     ...statedFacts,
     ...(codecConfigurationByteLength === null ? {} : { codec_configuration_hex: "00".repeat(codecConfigurationByteLength) }),
   };
@@ -77,7 +77,7 @@ function valueReadOfTheInput(node: Pick<MockGraphNode, "config" | "settings">, p
   return { ...port, value_read: { value: held, comes_from: "saved" } };
 }
 
-/** A port's pin type and flow as the runtime renders them: both beside its family on a typed port, neither on an untyped one. */
+/** A port's pin type and flow as the runtime renders them: both on a typed port, neither on an untyped one. */
 function pinAsTheRuntimeRendersIt(port: MockGraphPort): Pick<StreamGraphPort, "pin_type" | "flow"> {
   return port.pin === null ? {} : { pin_type: port.pin.pin_type, flow: port.pin.flow };
 }
@@ -101,27 +101,33 @@ export function studioAsTheRuntimeRendersIt(studio: StreamGraphNodeStudioFields)
 /** Whether a client writes `node`, a top-level `GraphInput` of a family that runs: Array, Channels or Records. */
 export function isAGraphInputAClientWrites(node: MockGraphNode): boolean {
   const family = familyTheInterfaceNodeCarries(node);
-  return node.type === "tatolab.stream:GraphInput" && typeof node.config["port"] === "string" && family !== null && ["array", "channels", "records"].includes(family);
+  return node.type === "tatolab.stream:GraphInput" && portTheInterfaceNodeNames(node) !== null && (family === null || ["array", "channels", "records"].includes(family));
 }
 
-/** The family an interface node carries as the runtime resolves it: its config's `family`, else the family the first link gave its port; `null` while it names none and nothing is linked. */
+/** The family an interface node's messages travel in, as the mock's runtime finds it: its config's or its pins' `family`, else the one its `value` port's pin type travels in; `null` while it names none. */
 function familyTheInterfaceNodeCarries(node: MockGraphNode): string | null {
-  const family = node.config["family"];
+  const family = node.config["family"] ?? node.pins?.["family"];
   if (typeof family === "string") return family;
-  return (node.type === "tatolab.stream:GraphInput" ? node.output_ports[0]?.family : node.input_ports[0]?.family) ?? null;
+  const valuePort = (node.type === "tatolab.stream:GraphInput" ? node.output_ports : node.input_ports).find((port) => port.name === "value");
+  return valuePort?.pin === null || valuePort?.pin === undefined ? (valuePort?.family ?? null) : mockFamilyOfThePort(valuePort.pin);
+}
+
+/** The port an interface node names in its graph's interface: its config's or its pins' `port`, else the value its `port` input reads. */
+function portTheInterfaceNodeNames(node: MockGraphNode): string | null {
+  const port = node.config["port"] ?? node.pins?.["port"] ?? node.input_ports.find((input) => input.name === "port")?.value_read?.value ?? null;
+  return typeof port === "string" ? port : null;
 }
 
 /** The port `node` declares as the runtime renders its `graph_interface`: a top-level Input a client writes, while it reads `nodeState` `Running`, carrying the pin type its `value` port carries, as its `pin_type` setting chose it, and what its `value` input reads, else the `value` the mock keeps in the config of an Input it added with no `value` input; `null` for a node that is no interface node. */
 function graphInterfacePortAsTheRuntimeRendersIt(node: MockGraphNode, nodeState: string | null, isTopLevel: boolean): StreamGraphInterfacePort | null {
   const direction = node.type === "tatolab.stream:GraphInput" ? "input" : node.type === "tatolab.stream:GraphOutput" ? "output" : null;
-  const { port } = node.config;
-  if (direction === null || typeof port !== "string") return null;
-  const family = familyTheInterfaceNodeCarries(node);
+  const port = portTheInterfaceNodeNames(node);
+  if (direction === null || port === null) return null;
   const carriesAValue = isTopLevel && nodeState === "Running" && isAGraphInputAClientWrites(node);
   const valueRead = node.input_ports.find((input) => input.name === "value")?.value_read?.value ?? null;
-  const currentValue = carriesAValue ? (valueRead ?? node.config["value"] ?? null) : null;
+  const currentValue = carriesAValue ? (valueRead ?? node.config["value"] ?? node.pins?.["value"] ?? null) : null;
   const pin = (direction === "input" ? node.output_ports : node.input_ports).find((valuePort) => valuePort.name === "value")?.pin ?? null;
-  return { direction, port, family, ...(pin === null ? {} : { pin_type: pin.pin_type }), ...(currentValue === null ? {} : { current_value: currentValue }) };
+  return { direction, port, ...(pin === null ? {} : { pin_type: pin.pin_type }), ...(currentValue === null ? {} : { current_value: currentValue }) };
 }
 
 /** How the mock node `node`'s code runs, as the runtime renders its `kind`. */
@@ -139,8 +145,8 @@ function nodeStateOf(state: string): NodeState {
   return nodeState;
 }
 
-/** The `graph {stream}` answer of `graph` for the stream `listing` lists, on `machineName` at `moment`, each top-level Input carrying what its `value` input reads; its ports name their families only when `arePortFamiliesServed`. */
-export function mockStreamGraphOf(listing: ListedStream, machineName: string, graph: MockStreamGraph, moment: MockStreamGraphMoment, arePortFamiliesServed: boolean): StreamGraph {
+/** The `graph {stream}` answer of `graph` for the stream `listing` lists, on `machineName` at `moment`, each top-level Input carrying what its `value` input reads. */
+export function mockStreamGraphOf(listing: ListedStream, machineName: string, graph: MockStreamGraph, moment: MockStreamGraphMoment): StreamGraph {
   const streamId = listing.stream;
   const streamAsset = listing.location?.stream_asset ?? null;
   const nodeState = (state: string | null): NodeState | null => (state === null ? null : moment.hasSettled ? nodeStateOf(state) : "Pending");
@@ -152,7 +158,6 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
     port_kind: "data",
     ...(port.stream_facts === null ? {} : { stream_facts: streamFactsAsTheRuntimeRendersThem(port.stream_facts) }),
     ...valuesCheckedAsTheRuntimeRendersIt(port),
-    ...(arePortFamiliesServed && port.family !== null ? { family: { family: port.family } } : {}),
     ...pinAsTheRuntimeRendersIt(port),
     ...(port.annotations === undefined ? {} : { annotations: port.annotations }),
   });
@@ -177,8 +182,6 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
         kind: mockGraphNodeKindOf(node),
         ...(node.language === undefined ? {} : { language: node.language }),
         name: node.name,
-        config: node.config,
-        pins: node.pins ?? {},
         input_values: { ...node.config, ...node.pins },
         ...(node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) }),
         ports: {

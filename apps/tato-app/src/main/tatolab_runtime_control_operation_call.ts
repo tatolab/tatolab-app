@@ -28,7 +28,7 @@ import {
   type ControlOperationMethodName,
   type ControlOperations,
   type DiscoverResult,
-  type ProjectActionRefusalOnTheWire,
+  type ControlOperationRefusalOnTheWire,
 } from "@tatolab/runtime-client";
 import { Context, Effect, type Scope, type Stream } from "effect";
 import { TATO_STUDIO_MCP_CLIENT_NAME, type ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
@@ -45,7 +45,7 @@ export type {
   GraphTransactionToolResult,
   NodeUiManifest,
   PinFlow,
-  ProjectActionRefusalOnTheWire,
+  ControlOperationRefusalOnTheWire,
   SuggestedOperationCall,
 } from "@tatolab/runtime-client";
 export { readControlContractValue } from "@tatolab/runtime-client";
@@ -65,8 +65,8 @@ export function describeTheContractIssues(issues: readonly ControlContractIssue[
 }
 
 /** `sent` read as the contract's refusal by the generated client, a refusal code it does not know read as `refused`; or where and why it is not one. */
-export function controlContractRefusalOf(sent: unknown): Result<ProjectActionRefusalOnTheWire, string> {
-  const refusal = readControlContractValue("ProjectActionRefusalOnTheWire", sent);
+export function controlContractRefusalOf(sent: unknown): Result<ControlOperationRefusalOnTheWire, string> {
+  const refusal = readControlContractValue("ControlOperationRefusalOnTheWire", sent);
   return refusal.read ? succeeded(refusal.value) : failedWith(describeTheContractIssues(refusal.issues, "the refusal"));
 }
 
