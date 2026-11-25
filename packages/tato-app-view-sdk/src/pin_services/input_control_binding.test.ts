@@ -8,7 +8,7 @@ import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node
 import { NO_PROJECT, listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
 import type { GraphEditMode, JsonValue, StreamInputValuesReading } from "../studio_readings.js";
 import type { PinType } from "../pin_types.js";
-import { createInputControlBinder, NEWER_VERSION_BLOCKED_ATTRIBUTE, releaseOfAGestureOn, type InputControlShown } from "./input_control_binding.js";
+import { createInputControlBinder, BLOCKED_REGISTRATION_ATTRIBUTE, releaseOfAGestureOn, type InputControlShown } from "./input_control_binding.js";
 import { createInputValues } from "./input_values.js";
 
 const PROJECT = "/projects/demo";
@@ -304,7 +304,7 @@ test("a drawn control whose newer version is blocked stays drawn and marked with
   await slot.settled();
   expect(slot.control()).toBe(drawn);
   expect(slot.loadsAsked).toHaveLength(1);
-  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(true);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(true);
   expect(slot.host.title).toBe(findings.join("\n"));
   drawn.commitTyped(0.3);
   await slot.settled();
@@ -313,7 +313,34 @@ test("a drawn control whose newer version is blocked stays drawn and marked with
   slot.list([{ ...knob, folder_version: "v3", script_serving: { kind: "served", script_url: "tatolab-app://app/node_ui/night-show/knob.js?v3" } }]);
   await slot.settled();
   expect(slot.control()).not.toBe(drawn);
-  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(false);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(false);
+});
+
+test("a project's default for a built-in type is passed over with the runtime's finding on the slot, the Studio's control still drawing; taking the entry out takes the mark off", async () => {
+  const finding = "`controls[0]` registers the default control of `float`, a built-in type: only the Studio's own module may register it.";
+  const nightShowsFloatDefault = listedElementOf("night-show", { kind: "control", type: "float", control: null }, { script: "fader.ts", script_serving: { kind: "blocked", findings: [finding] } });
+  const slot = binderUnderTest();
+  slot.list([FLOAT_DEFAULT, nightShowsFloatDefault]);
+  await slot.settled();
+  const drawn = slot.control();
+  expect(slot.loadsAsked).toEqual([FLOAT_DEFAULT]);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(true);
+  expect(slot.host.title).toBe(`night-show's fader.ts does not pass its checks: ${finding}`);
+
+  slot.list([FLOAT_DEFAULT]);
+  await slot.settled();
+  expect(slot.control()).toBe(drawn);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(false);
+  expect(slot.host.title).toBe("");
+});
+
+test("a control an annotation picks is not marked for its type's defaults passed over", async () => {
+  const nightShowsFloatDefault = listedElementOf("night-show", { kind: "control", type: "float", control: null }, { script_serving: { kind: "blocked", findings: ["default_control_not_the_modules_to_register"] } });
+  const slot = binderUnderTest({ input: KNOB_GAIN });
+  slot.list([FLOAT_DEFAULT, NIGHT_SHOWS_KNOB, nightShowsFloatDefault]);
+  await slot.settled();
+  expect(slot.loadsAsked).toEqual([NIGHT_SHOWS_KNOB]);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(false);
 });
 
 test("a slot with no control drawn yet whose element is blocked shows the read-only line, unmarked, and never another control", async () => {
@@ -323,7 +350,7 @@ test("a slot with no control drawn yet whose element is blocked shows the read-o
   await slot.settled();
 
   expect(slot.shown.at(-1)).toBe("read_only_line");
-  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(false);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(false);
 });
 
 test("unbinding the last slot takes its element off and stops watching the listing", async () => {

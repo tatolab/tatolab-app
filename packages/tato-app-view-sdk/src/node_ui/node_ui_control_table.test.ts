@@ -111,6 +111,20 @@ test("only the Studio sets a built-in type's default, and a node body is keyed b
     { listed: acmeFloatDefault, because: "Only Tato Studio sets the default control of a built-in type; acme registers one for float." },
     { listed: otherCrossfadeBody, because: "acme's crossfade_body.ts, which passed its checks, registers the body of nodes.crossfade:Crossfade." },
   ]);
+  expect(table.typeDefaultsPassedOverFor(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.float)).toEqual([
+    { listed: acmeFloatDefault, because: "Only Tato Studio sets the default control of a built-in type; acme registers one for float." },
+  ]);
+  expect(table.typeDefaultsPassedOverFor(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.string)).toEqual([]);
+});
+
+test("a named type's default from a module that does not declare it, displaced by the declaring module's, is kept under that type", () => {
+  const otherSpectrumDefault = listedElementOf("other", { kind: "control", type: "acme:Spectrum", control: null }, { script_serving: { kind: "blocked", findings: ["default_control_not_the_modules_to_register"] } });
+  const acmeSpectrumDefault = listedElementOf("acme", { kind: "control", type: "acme:Spectrum", control: null }, { script: "spectrum.ts" });
+  const table = new NodeUiControlTable({ elements: [otherSpectrumDefault, acmeSpectrumDefault] });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.named))).toMatchObject({ kind: "element", listed: acmeSpectrumDefault, chosen_by: "named_type" });
+  expect(table.typeDefaultsPassedOverFor(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.named)).toEqual([
+    { listed: otherSpectrumDefault, because: "acme's spectrum.ts, which passed its checks, registers the default control for acme:Spectrum." },
+  ]);
 });
 
 test("a node body that did not pass its checks is the node type's body while no other is listed, so the card draws its rows", () => {

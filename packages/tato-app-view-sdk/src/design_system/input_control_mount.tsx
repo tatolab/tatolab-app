@@ -68,8 +68,8 @@ interface InputControlMountProps {
   hostAttributes?: Readonly<Record<`data-${string}`, string>>;
 }
 
-/** The dashed amber outline round a slot that keeps its control drawn while the control's newer version is blocked; the binder sets the attribute, and the slot's `title` gives why. */
-export const NEWER_VERSION_BLOCKED_MARK = "data-[newer-version-blocked]:rounded-sm data-[newer-version-blocked]:outline data-[newer-version-blocked]:outline-1 data-[newer-version-blocked]:outline-offset-1 data-[newer-version-blocked]:outline-warn data-[newer-version-blocked]:outline-dashed";
+/** The dashed amber outline round a slot that draws its control while a registration bearing on it is blocked; the binder sets the attribute, and the slot's `title` gives why. */
+export const BLOCKED_REGISTRATION_MARK = "data-[blocked-registration]:rounded-sm data-[blocked-registration]:outline data-[blocked-registration]:outline-1 data-[blocked-registration]:outline-offset-1 data-[blocked-registration]:outline-warn data-[blocked-registration]:outline-dashed";
 
 /** Stops a key at the slot, so a focused control owns the keyboard and no shortcut of the panel around it acts on the key. */
 function keptByTheControl(keyEvent: KeyboardEvent): void {
@@ -133,7 +133,7 @@ const InputControlHost = memo(function InputControlHost({ binder, input, surface
   useLayoutEffect(() => {
     binding.current?.update(input, { surface, read_only: readOnly });
   }, [input, surface, readOnly]);
-  return <div ref={hostElement} {...hostAttributes} className={cn("nodrag nopan min-w-0", NEWER_VERSION_BLOCKED_MARK, isHidden && "hidden", className)} data-input-control={input.address.input} data-input-control-shows={shown} />;
+  return <div ref={hostElement} {...hostAttributes} className={cn("nodrag nopan min-w-0", BLOCKED_REGISTRATION_MARK, isHidden && "hidden", className)} data-input-control={input.address.input} data-input-control-shows={shown} />;
 }, haveTheSameInputAndPlace);
 
 /** Whether a host is told the same input at the same place, so a new reading's equal input draws it again for nothing. */
