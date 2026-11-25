@@ -73,17 +73,17 @@ test("describing_a_stream_graph_calls_the_graph_tool_and_passes_on_the_answer_th
   ]);
   const pinTypeNameOf = (port: { pin_type?: { type: string } }) => port.pin_type?.type ?? null;
   expect(graph.nodes.map((node) => [node.name, node.ports.inputs.map(pinTypeNameOf), node.ports.outputs.map(pinTypeNameOf)])).toEqual([
-    ["testpatternsource", [], ["texture"]],
+    ["testpatternsource", ["integer", "integer"], ["texture"]],
     ["halftonelenseffect", ["texture"], ["texture"]],
     ["brightnessmeter", ["texture"], []],
   ]);
   expect(graph.links.map((link) => [link.id, link.source, link.target, link.state])).toEqual([
-    ["Lftoljv5iob8nwq68jpemlbwg", { node: "testpatternsource", port: "video" }, { node: "halftonelenseffect", port: "video_from_upstream" }, "wired"],
-    ["Lxvoutn39b17g931qj9pzs6ui", { node: "halftonelenseffect", port: "video_to_downstream" }, { node: "brightnessmeter", port: "video_from_upstream" }, "wired"],
+    ["Lkkcuvv7fdbrxfldbt4aplias", { node: "testpatternsource", port: "video" }, { node: "halftonelenseffect", port: "video_from_upstream" }, "wired"],
+    ["Lyvkliv1xmn40t5aul4rwtr76", { node: "halftonelenseffect", port: "video_to_downstream" }, { node: "brightnessmeter", port: "video_from_upstream" }, "wired"],
   ]);
   const [source, halftone] = graph.nodes;
   if (source === undefined || halftone === undefined) return expect.unreachable("the stream holds its source and its halftone");
-  expect(bagsDroppedOnTheLink(halftone, "Lftoljv5iob8nwq68jpemlbwg")).toBe(0);
+  expect(bagsDroppedOnTheLink(halftone, "Lkkcuvv7fdbrxfldbt4aplias")).toBe(0);
   expect(bagsRefusedOnTheOutputPort(source, "video")).toBe(0);
   const [, body] = headAndBodyOf(server.receivedRequests()[0]);
   expect(JSON.parse(body).method).toBe("graph");

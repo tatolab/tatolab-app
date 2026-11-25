@@ -81,7 +81,7 @@ test("an edit the mock cannot apply is the sender's defect, thrown by name, and 
   expect(() => apply(graph, [{ operation: "use_dependency_stream", stream: STREAM_ASSET, project: "p", dependency_stream: "d" }])).toThrow("the mock does not apply `use_dependency_stream`");
 });
 
-test("a link is made as asked, the mock judging no family or pin of its ends, a typed port added with the pin type its description states and no family", () => {
+test("a link is made as asked, the mock judging no family or pin of its ends, a typed port added with the pin type its description states and the family that type travels in", () => {
   const graph = aCanvasAlone();
   apply(graph, [
     { operation: "add_node", stream: STREAM_ASSET, type: CLICK_CUE, as: "cue" },
@@ -89,8 +89,8 @@ test("a link is made as asked, the mock judging no family or pin of its ends, a 
   ]);
   expect(graph.links).toMatchObject([{ source_node: "canvas", source_port: "image", target_node: "clickcue", target_port: "count", state: "wired" }]);
   expect(graph.nodes[1]?.input_ports.map((port) => [port.name, port.family, port.pin])).toEqual([
-    ["count", null, { pin_type: { type: "integer" }, flow: "value" }],
-    ["downbeat", null, { pin_type: { type: "boolean" }, flow: "value" }],
+    ["count", "channels", { pin_type: { type: "integer" }, flow: "value" }],
+    ["downbeat", "channels", { pin_type: { type: "boolean" }, flow: "value" }],
   ]);
 });
 

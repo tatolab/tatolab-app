@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"`transact`'s params do not match its request: missing field `node`","data":{"refusal_code":"params_do_not_match_schema","action":"transact","refused_params_pointer":"/operations/0","runtime_words":"`transact`'s params do not match its request: missing field `node`"}}}

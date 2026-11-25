@@ -94,44 +94,37 @@ test("the refusals a recorded feed holds read apart from its transactions, newes
 
 test("the refused edits a recorded feed holds read with each code and place the runtime sent and its words unchanged", async () => {
   const feed = answerOf(projectTransactionsFromTheChangeFeed(await recordedControlResult("local-api-read-project-changes-of-harbour-after-three-refused-edits.json")));
-  const channelsToArray = "37baed6c-0749-45e7-aa92-bcd8f7720d24";
+  const testPattern = "777c0dab-ae92-4df3-9d8f-bb1c4d4e98b6";
+  const halftone = "02a2b427-bbc4-4d9f-a376-854af4fa8755";
+  const placingNothingMore = { refused_node: null, refused_link: null, refused_input: null, refused_params_pointer: null, refused_file: null, suggested_call: null };
 
   expect(feed.refused_actions.map((refused) => refused.refusal)).toEqual([
     {
-      refusal_code: "refused",
+      ...placingNothingMore,
+      refusal_code: "node_name_taken",
       action: "transact",
       refused_operation_index: 0,
-      refused_node: channelsToArray,
-      refused_link: null,
-      refused_input: null,
-      refused_params_pointer: null,
-      refused_file: null,
-      suggested_call: null,
-      runtime_words: expect.stringMatching(/^the node name `imagetoarray` casts to `imagetoarray`, which node `imagetoarray` in this graph already has/),
+      refused_node: halftone,
+      runtime_words: expect.stringMatching(/^the node name `brightnessmeter` casts to `brightnessmeter`, which node `brightnessmeter` in this graph already has/),
     },
     {
-      refusal_code: "refused",
+      ...placingNothingMore,
+      refusal_code: "port_not_found",
       action: "transact",
       refused_operation_index: 0,
-      refused_node: channelsToArray,
-      refused_link: null,
+      refused_node: testPattern,
       refused_input: "no_such_input",
-      refused_params_pointer: null,
-      refused_file: null,
-      suggested_call: null,
-      runtime_words: "Node 'channelstoarray' has no input port named 'no_such_input'",
+      refused_params_pointer: "/operations/0/value",
+      suggested_call: { operation: "describe_node_types", params: { project_directory: "/tmp/claude-0/proj/harbour", node_types: ["tatolab.testpattern:TestPatternSource"] } },
+      runtime_words: "node `testpatternsource` (`tatolab.testpattern:TestPatternSource`) has no input `no_such_input`; its inputs are `width`, `height`. To fix: name one of them",
     },
     {
-      refusal_code: "refused",
+      ...placingNothingMore,
+      refusal_code: "link_pin_types_do_not_connect",
       action: "transact",
       refused_operation_index: 0,
-      refused_node: null,
-      refused_link: { source: { node: "7fc1b632-c0db-4d98-be98-70f6af6b0abc", port: "array" }, target: { node: channelsToArray, port: "channels" } },
-      refused_input: null,
-      refused_params_pointer: null,
-      refused_file: null,
-      suggested_call: null,
-      runtime_words: "Invalid link: cannot link imagetoarray.array (Array) to channelstoarray.channels (Channels): a link joins two ports of one family; place an ArrayToChannels node between them",
+      refused_link: { source: { node: testPattern, port: "video" }, target: { node: testPattern, port: "width" } },
+      runtime_words: "cannot link `testpatternsource.video` (Texture (rgba8_unorm)) to `testpatternsource.width` (Integer): a Texture (rgba8_unorm) output does not connect to a Integer input; no node type converts between them",
     },
   ]);
 });
