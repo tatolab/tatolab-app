@@ -69,6 +69,25 @@ export function shiftedShortcutHint(platform: TatolabPlatform, key: string): str
   return presentPlatform(platform).windowShortcutModifier === "meta" ? `⇧⌘${key}` : `Ctrl Shift ${key}`;
 }
 
+/** The key cap of Back or Forward through the views the window showed: ⌘[ and ⌘] on macOS, Alt ← and Alt → on Linux. */
+export function viewHistoryShortcutHint(platform: TatolabPlatform, direction: "back" | "forward"): string {
+  if (presentPlatform(platform).windowShortcutModifier === "meta") return direction === "back" ? "⌘[" : "⌘]";
+  return direction === "back" ? "Alt ←" : "Alt →";
+}
+
+/** Whether `keyboardEvent` is the key that steps `direction` through the views the window showed: ⌘[ and ⌘] on macOS, Alt ← and Alt → on Linux, with no other modifier held. */
+export function isTheViewHistoryKey(
+  platform: TatolabPlatform,
+  keyboardEvent: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">,
+  direction: "back" | "forward",
+): boolean {
+  if (keyboardEvent.shiftKey) return false;
+  if (presentPlatform(platform).windowShortcutModifier === "meta") {
+    return keyboardEvent.metaKey && !keyboardEvent.ctrlKey && !keyboardEvent.altKey && keyboardEvent.key === (direction === "back" ? "[" : "]");
+  }
+  return keyboardEvent.altKey && !keyboardEvent.ctrlKey && !keyboardEvent.metaKey && keyboardEvent.key === (direction === "back" ? "ArrowLeft" : "ArrowRight");
+}
+
 /** A window shortcut as the window shows and announces it: its key cap, and its `aria-keyshortcuts` value. */
 export interface WindowShortcutPresentation {
   hint: string;

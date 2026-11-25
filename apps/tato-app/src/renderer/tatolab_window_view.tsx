@@ -4,7 +4,7 @@ import type { TatolabPlatform, TatolabStatus, ProjectFolderChosenFor } from "../
 import { describeBackendRejection, type TatolabBackend } from "./backend/tatolab_backend";
 import { ControlTooltipProvider } from "@tatolab/tato-app-view-sdk/design_system/control_tooltip";
 import { afterTheFirstContentfulPaintIsPresented } from "./first_contentful_paint_presented";
-import { holdsWindowShortcutModifier } from "./presentation/platform_presentation";
+import { holdsWindowShortcutModifier, isTheViewHistoryKey } from "./presentation/platform_presentation";
 import { RuntimeDescriptionReadings } from "./runtime_description_reading";
 import {
   TatolabWindowEnvironmentContext,
@@ -20,6 +20,7 @@ import { poppedOutViewOfTheArea } from "./studio_shell/popped_out_view_pin";
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
 import { projectPlaybackReadingOf, StudioWindowModel } from "./studio_shell/studio_window_model";
 import { STUDIO_LAYOUT_PRESETS_ON_A_DIGIT, StudioLayoutKeptInStorage } from "./studio_shell/studio_layout";
+import type { StudioViewHistoryDirection } from "./studio_shell/studio_view_history";
 
 import { studioViewHostServicesOf } from "./view_host/studio_view_host_services";
 import { useWatchedStudioValue } from "./view_host/watched_studio_value";
@@ -51,6 +52,12 @@ function isTextBeingEditedIn(keyTarget: EventTarget | null): boolean {
   if (keyTarget.tagName === "TEXTAREA") return true;
   return keyTarget.tagName === "INPUT" && "type" in keyTarget && typeof keyTarget.type === "string" && TEXT_ENTRY_INPUT_TYPES.has(keyTarget.type);
 }
+
+/** The `MouseEvent.button` of the mouse's back and forward buttons, the ones under the thumb, as Chromium numbers them on macOS and Linux. */
+const VIEW_HISTORY_MOUSE_BUTTONS = new Map<number, StudioViewHistoryDirection>([
+  [3, "back"],
+  [4, "forward"],
+]);
 
 /** The view types every studio area can show, in the view-type menu's order, Transactions only in Developer mode. */
 function studioViewTypeRegistry(): StudioViewTypeRegistry {
@@ -250,6 +257,9 @@ export function mountTatolabWindow(
     },
     reopenTheLastClosedStreamTab: () => studioWindowModel.reopenTheLastClosedStreamTab(),
     showTheStreamTabBeside: (direction) => studioWindowModel.showTheStreamTabBeside(direction),
+    stepThroughTheViewHistory: (direction) => {
+      studioWindowModel.stepThroughTheViewHistory(direction);
+    },
     openModuleManager: (shows) => {
       studioWindowModel.projectOpeningRefusal.publish(null);
       backend.openModuleManagerWindow({ shows, page: null }).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
@@ -410,6 +420,22 @@ export function mountTatolabWindow(
     }
   }
 
+  /** Whether the window is a studio window showing its project's layout, with no dialog of its own over it, where Back and Forward step through the views it showed. */
+  const isTheViewHistoryAtHand = () =>
+    statusStore !== null &&
+    studioWindowModel.poppedOutView.readLatest() === null &&
+    studioWindowModel.moduleManagerWorkspace.readLatest() === null &&
+    studioWindowModel.studioLayout.readLatest() !== null &&
+    !studioWindowModel.isADialogShownOverTheStreamTabs();
+
+  const stepThroughTheViewHistoryOnTheMouseButton = (mouseEvent: MouseEvent) => {
+    const direction = VIEW_HISTORY_MOUSE_BUTTONS.get(mouseEvent.button);
+    if (direction === undefined) return;
+    // The press is the window's own, so no page or view frame takes it as its own Back or Forward.
+    mouseEvent.preventDefault();
+    if (mouseEvent.type === "mouseup" && isTheViewHistoryAtHand()) studioWindowModel.stepThroughTheViewHistory(direction);
+  };
+
   const runTheStudioShortcutOfTheKey = (keyboardEvent: KeyboardEvent) => {
     // The asset picker's dialog hears Escape only in the window's document, never in the Library's frame it holds.
     if (keyboardEvent.key === "Escape" && !keyboardEvent.defaultPrevented && studioWindowModel.projectAssetPickHeld.projectAssetPick.readLatest() !== null) {
@@ -433,9 +459,16 @@ export function mountTatolabWindow(
       studioMenuBarCommands.showTheStreamTabBeside(keyboardEvent.shiftKey ? "previous" : "next");
       return;
     }
-    if (keyboardEvent.key === "Escape" && !keyboardEvent.defaultPrevented && studioWindowModel.expandedAreaId.readLatest() !== null && !studioWindowModel.isADialogShownOverTheStreamTabs()) {
+    const expandedAreaId = studioWindowModel.expandedAreaId.readLatest();
+    if (keyboardEvent.key === "Escape" && !keyboardEvent.defaultPrevented && expandedAreaId !== null && !studioWindowModel.isADialogShownOverTheStreamTabs()) {
       keyboardEvent.preventDefault();
-      studioWindowModel.expandedAreaId.publish(null);
+      studioWindowModel.expandArea(expandedAreaId, false);
+      return;
+    }
+    const viewHistoryDirection = (["back", "forward"] as const).find((direction) => isTheViewHistoryKey(platform, keyboardEvent, direction));
+    if (viewHistoryDirection !== undefined && !isTextBeingEditedIn(keyboardEvent.target) && isTheViewHistoryAtHand()) {
+      keyboardEvent.preventDefault();
+      studioWindowModel.stepThroughTheViewHistory(viewHistoryDirection);
       return;
     }
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;
@@ -457,14 +490,16 @@ export function mountTatolabWindow(
     if (runStudioShortcut(key)) keyboardEvent.preventDefault();
   };
   document.addEventListener("keydown", runTheStudioShortcutOfTheKey);
-  // A key pressed while a view's frame holds the focus reaches only the frame's own document; every
-  // view's frame is on the window's origin, so Studio listens there too, as each page loads.
+  for (const mouseEventType of ["mousedown", "mouseup"] as const) document.addEventListener(mouseEventType, stepThroughTheViewHistoryOnTheMouseButton);
+  // A key or button pressed while a view's frame holds the focus or the pointer reaches only the frame's own
+  // document; every view's frame is on the window's origin, so Studio listens there too, as each page loads.
   document.addEventListener(
     "load",
     (loadEvent) => {
       const viewFrame = loadEvent.target;
       if (!(viewFrame instanceof HTMLIFrameElement) || viewFrame.dataset.tatolabView === undefined) return;
       viewFrame.contentWindow?.addEventListener("keydown", runTheStudioShortcutOfTheKey);
+      for (const mouseEventType of ["mousedown", "mouseup"] as const) viewFrame.contentWindow?.addEventListener(mouseEventType, stepThroughTheViewHistoryOnTheMouseButton);
     },
     true,
   );

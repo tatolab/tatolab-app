@@ -1,6 +1,8 @@
 // What the studio window holds between renders: the open project and the runtime's streams it
-// serves its views, the selection, the open stream tabs, and the open project's layout.
+// serves its views, the selection, the open stream tabs, the open project's layout, and the views it
+// showed, which Back and Forward step through.
 
+import { Option } from "effect";
 import type { FailedProjectStreamAction, ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutView, ProjectArchiveChosenToImport, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type { ModuleManagerSectionAsked, ModulesShown } from "../../shared/tatolab_electron_bridge_contract";
 import type { RecentProjectChangeRefusal } from "../presentation/projects_presentation";
@@ -17,8 +19,28 @@ import type { JsonValue, ListedStreamsReading, StopWatching, StreamTabAddress, S
 import { layoutShowsTheViewType, layoutWithAreaClosed, layoutWithEachAreaUnderTheIdOfItsView, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithAreaShowingNode, layoutWithAreaSplit, layoutWithAreaSwappedWithItsNeighbour, unusedStudioAreaLayoutNodeId, type StudioAreaLayoutNode, type StudioAreaSplitDirection } from "./studio_area_layout";
 import { shippedStudioLayoutHomeOf, STUDIO_LAYOUTS_SHIPPED, type StudioLayoutKeptInStorage, type StudioLayoutOfAFolder, type StudioLayoutShipped } from "./studio_layout";
 import { poppedOutViewPinOf } from "./popped_out_view_pin";
-import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, studioLayoutShapedAs, viewTypeForANewAreaOf, studioLayoutWithEdgesHidden, studioLayoutWithShownSplitSizes, type StudioLayoutEdge, type StudioLayoutShape } from "./studio_layout_shapes";
+import {
+  NO_STUDIO_LAYOUT_EDGE_HIDDEN,
+  studioLayoutShapedAs,
+  viewTypeForANewAreaOf,
+  studioLayoutWithEdgesHidden,
+  studioLayoutWithShownSplitSizes,
+  type StudioLayoutEdge,
+  type StudioLayoutEdgesHidden,
+  type StudioLayoutShape,
+} from "./studio_layout_shapes";
 import { showViewTypeInAreaOf, watchAreasForTheViewType, type StudioViewTypeAreaSources } from "./studio_view_type_areas";
+import {
+  studioViewHistoryEachStepAs,
+  studioViewHistoryStartingAt,
+  studioViewHistoryStepped,
+  studioViewHistoryStepsOf,
+  studioViewHistoryWithAStepTo,
+  studioViewHistoryWithTheShownStepAs,
+  type StudioViewHistory,
+  type StudioViewHistoryDirection,
+  type StudioViewHistorySteps,
+} from "./studio_view_history";
 
 /** What the window's view types are named by, and when the ones it holds change. */
 export interface StudioViewTypeTitles {
@@ -92,6 +114,14 @@ export type NewProjectSheetOpening = { kind: "new_project"; defaults: NewProject
 /** What the Stream menu asks the person while its dialog shows: a new stream's name, the shown stream's new name, or whether to delete it. */
 export type StreamMenuQuestion = { kind: "name_a_new_stream" } | { kind: "rename_stream"; stream: string; display_name: string } | { kind: "delete_stream"; stream: string; display_name: string };
 
+/** What a studio window shows of the open project's views, one step of its view history: the layout's areas and the edges hidden, the area grown to fill the window, and what each view type was last opened on. */
+export interface StudioViewsShown {
+  layout: StudioAreaLayoutNode;
+  edges_hidden: StudioLayoutEdgesHidden;
+  expanded_area_id: string | null;
+  views_opened_on: Readonly<Record<string, ViewOpenedOnAsked>>;
+}
+
 /** The studio window's state, each part watched by the shell and served to the views through their bridges. */
 export class StudioWindowModel {
   readonly openProject = new WatchedStudioValue<OpenProjectReading>({ kind: "none_open" });
@@ -141,6 +171,11 @@ export class StudioWindowModel {
   readonly moduleManagerSectionAsked = new WatchedStudioValue<ModuleManagerSectionAskNumbered | null>(null);
   /** The view the window shows when it is popped out of a studio window; `null` in the Projects and studio windows. */
   readonly poppedOutView = new WatchedStudioValue<PoppedOutView | null>(null);
+  /** Which ways Back and Forward can step through the views the open project's studio window showed. */
+  readonly viewHistorySteps = new WatchedStudioValue<StudioViewHistorySteps>(studioViewHistoryStepsOf(null));
+
+  /** The views the open project's studio window showed as the person opened and closed them; `null` until the first is opened or closed, and again when another project opens. */
+  private viewHistory: StudioViewHistory<StudioViewsShown> | null = null;
 
   /** The tab a project opens on once it is open and the runtime lists the stream: the stream New project just made, or with `stream` `null` the first the runtime lists from the folder; cleared when any tab is opened. */
   private streamTabAwaitedByTheOpeningProject: { project_folder: string; stream: string | null } | null = null;
@@ -230,6 +265,10 @@ export class StudioWindowModel {
    * where none shows it, the window switches to the layout Studio ships that does.
    */
   openView(viewTypeAsked: string, on: ViewOpeningTarget, viewTypeTitles: StudioViewTypeTitles): ViewOpening {
+    return this.stepToTheViewsShownAfter(() => this.openViewOf(viewTypeAsked, on, viewTypeTitles));
+  }
+
+  private openViewOf(viewTypeAsked: string, on: ViewOpeningTarget, viewTypeTitles: StudioViewTypeTitles): ViewOpening {
     if (this.poppedOutView.readLatest() !== null) return { kind: "not_opened", because: "A popped-out view's window shows that view alone. Open it from the project's studio window." };
     const viewTypeIdOf = (viewTypeId: string) => viewTypeTitles.viewTypeIdOf(viewTypeId);
     const viewTypeId = viewTypeIdOf(viewTypeAsked);
@@ -237,7 +276,7 @@ export class StudioWindowModel {
     if (studioLayout !== null && !layoutShowsTheViewType(studioLayoutWithEdgesHidden(studioLayout.layout, studioLayout.edges_hidden), viewTypeId, viewTypeIdOf)) {
       const shippedLayout = shippedStudioLayoutHomeOf(viewTypeId, viewTypeIdOf);
       if (shippedLayout === null) return { kind: "not_opened", because: `No area shows ${viewTypeTitles.viewTitleOf(viewTypeId) ?? "that view"}. Choose it in an area's view menu, then open it again.` };
-      this.applyTheShippedLayout(shippedLayout.layout_id);
+      this.layOutAsTheShippedLayout(shippedLayout.layout_id);
     }
     const opening: ViewOpenedOnAsked = { on, opening_id: crypto.randomUUID() };
     this.viewsOpenedOn.publish({ ...this.viewsOpenedOn.readLatest(), [viewTypeId]: opening });
@@ -259,6 +298,7 @@ export class StudioWindowModel {
     this.closedStreamTabs.publish([]);
     this.studioLayout.publish(folderNow === null ? null : this.layoutKept.readLayoutOf(folderNow));
     this.expandedAreaId.publish(null);
+    this.publishTheViewHistory(null);
     if (folderNow !== null && this.streamTabAwaitedByTheOpeningProject?.project_folder !== folderNow) {
       this.streamTabAwaitedByTheOpeningProject = { project_folder: folderNow, stream: null };
     }
@@ -414,27 +454,37 @@ export class StudioWindowModel {
 
   /** Reshape the layout as `shape`, keeping the views it shows where they fit, every edge shown. */
   shapeTheLayout(shape: StudioLayoutShape): void {
-    this.expandedAreaId.publish(null);
-    this.changeTheLayout((studioLayout) => ({ ...studioLayout, layout: studioLayoutShapedAs(studioLayout.layout, shape), edges_hidden: NO_STUDIO_LAYOUT_EDGE_HIDDEN }));
+    this.stepToTheViewsShownAfter(() => {
+      this.expandedAreaId.publish(null);
+      this.changeTheLayout((studioLayout) => ({ ...studioLayout, layout: studioLayoutShapedAs(studioLayout.layout, shape), edges_hidden: NO_STUDIO_LAYOUT_EDGE_HIDDEN }));
+    });
   }
 
   /** Hide the layout's area at `edge`, or show it again. */
   toggleTheLayoutsEdge(edge: StudioLayoutEdge): void {
-    this.expandedAreaId.publish(null);
-    this.changeTheLayout((studioLayout) => ({ ...studioLayout, edges_hidden: { ...studioLayout.edges_hidden, [edge]: !studioLayout.edges_hidden[edge] } }));
+    this.stepToTheViewsShownAfter(() => {
+      this.expandedAreaId.publish(null);
+      this.changeTheLayout((studioLayout) => ({ ...studioLayout, edges_hidden: { ...studioLayout.edges_hidden, [edge]: !studioLayout.edges_hidden[edge] } }));
+    });
   }
 
   /** Lay the window out as the preset the person saved at `presetIndex`, every edge shown; false when there is none there. */
   applyTheSavedLayoutPreset(presetIndex: number): boolean {
     const preset = this.studioLayout.readLatest()?.presets_saved[presetIndex];
     if (preset === undefined) return false;
-    this.expandedAreaId.publish(null);
-    this.changeTheLayout((studioLayout) => ({ ...studioLayout, layout: preset.layout, edges_hidden: NO_STUDIO_LAYOUT_EDGE_HIDDEN }));
+    this.stepToTheViewsShownAfter(() => {
+      this.expandedAreaId.publish(null);
+      this.changeTheLayout((studioLayout) => ({ ...studioLayout, layout: preset.layout, edges_hidden: NO_STUDIO_LAYOUT_EDGE_HIDDEN }));
+    });
     return true;
   }
 
   /** Lay the window out as the layout Studio ships as `layoutId`, every edge shown. */
   applyTheShippedLayout(layoutId: StudioLayoutShipped["layout_id"]): void {
+    this.stepToTheViewsShownAfter(() => this.layOutAsTheShippedLayout(layoutId));
+  }
+
+  private layOutAsTheShippedLayout(layoutId: StudioLayoutShipped["layout_id"]): void {
     const shippedLayout = STUDIO_LAYOUTS_SHIPPED.find((shipped) => shipped.layout_id === layoutId);
     if (shippedLayout === undefined) return;
     this.expandedAreaId.publish(null);
@@ -456,10 +506,12 @@ export class StudioWindowModel {
 
   /** Halve area `areaId`, a new area beside it (`row`) or under it (`column`) showing a view the layout doesn't show yet. */
   splitArea(areaId: string, direction: StudioAreaSplitDirection): void {
-    this.expandedAreaId.publish(null);
-    this.changeTheLayoutTree((tree) =>
-      layoutWithAreaSplit(tree, areaId, direction, { kind: "area", area_id: unusedStudioAreaLayoutNodeId(tree, "area"), view_type_id: viewTypeForANewAreaOf(tree) }),
-    );
+    this.stepToTheViewsShownAfter(() => {
+      this.expandedAreaId.publish(null);
+      this.changeTheLayoutTree((tree) =>
+        layoutWithAreaSplit(tree, areaId, direction, { kind: "area", area_id: unusedStudioAreaLayoutNodeId(tree, "area"), view_type_id: viewTypeForANewAreaOf(tree) }),
+      );
+    });
   }
 
   /** Trade the places of area `areaId` and its neighbour in the split that holds it. */
@@ -469,24 +521,70 @@ export class StudioWindowModel {
 
   /** Close area `areaId`, its room given to the parts beside it; the layout's only area stays. */
   closeArea(areaId: string): void {
-    if (this.expandedAreaId.readLatest() === areaId) this.expandedAreaId.publish(null);
-    this.changeTheLayoutTree((tree) => layoutWithAreaClosed(tree, areaId) ?? tree);
+    this.stepToTheViewsShownAfter(() => {
+      if (this.expandedAreaId.readLatest() === areaId) this.expandedAreaId.publish(null);
+      this.changeTheLayoutTree((tree) => layoutWithAreaClosed(tree, areaId) ?? tree);
+    });
   }
 
   /** Grow area `areaId` of the layout to fill the window, or put the layout back. */
   expandArea(areaId: string, isExpanded: boolean): void {
-    if (isExpanded) this.expandedAreaId.publish(areaId);
-    else if (this.expandedAreaId.readLatest() === areaId) this.expandedAreaId.publish(null);
+    this.stepToTheViewsShownAfter(() => {
+      if (isExpanded) this.expandedAreaId.publish(areaId);
+      else if (this.expandedAreaId.readLatest() === areaId) this.expandedAreaId.publish(null);
+    });
   }
 
   /** Show `viewTypeId` in area `areaId` of the layout. */
   showViewTypeInArea(areaId: string, viewTypeId: string): void {
-    this.changeTheLayoutTree((tree) => layoutWithAreaShowing(tree, areaId, viewTypeId));
+    this.stepToTheViewsShownAfter(() => this.changeTheLayoutTree((tree) => layoutWithAreaShowing(tree, areaId, viewTypeId)));
   }
 
   /** Have area `areaId` of the layout show the node `nodeId` of the nodes of its `node` view's type. */
   showNodeInArea(areaId: string, nodeId: string): void {
-    this.changeTheLayoutTree((tree) => layoutWithAreaShowingNode(tree, areaId, nodeId));
+    this.stepToTheViewsShownAfter(() => this.changeTheLayoutTree((tree) => layoutWithAreaShowingNode(tree, areaId, nodeId)));
+  }
+
+  /**
+   * Show the views the window showed one step `direction` through its view history, as Back and Forward do: the layout's areas,
+   * the edges hidden, the area grown to fill the window and what each view was opened on, the presets saved left as they are;
+   * false when no step lies that way.
+   */
+  stepThroughTheViewHistory(direction: StudioViewHistoryDirection): boolean {
+    const viewsShownNow = this.viewsShown();
+    if (this.viewHistory === null || viewsShownNow === null) return false;
+    const stepped = studioViewHistoryStepped(studioViewHistoryWithTheShownStepAs(this.viewHistory, viewsShownNow), direction);
+    if (Option.isNone(stepped)) return false;
+    const { layout, edges_hidden: edgesHidden, expanded_area_id: expandedAreaId, views_opened_on: viewsOpenedOn } = stepped.value.shown;
+    this.changeTheLayout((studioLayout) => ({ ...studioLayout, layout, edges_hidden: edgesHidden }));
+    this.expandedAreaId.publish(expandedAreaId);
+    this.viewsOpenedOn.publish(viewsOpenedOn);
+    this.publishTheViewHistory(stepped.value);
+    return true;
+  }
+
+  /** What the window shows of the open project's views now; `null` in a window that shows no project's layout. */
+  private viewsShown(): StudioViewsShown | null {
+    const studioLayout = this.studioLayout.readLatest();
+    if (studioLayout === null || this.poppedOutView.readLatest() !== null) return null;
+    return { layout: studioLayout.layout, edges_hidden: studioLayout.edges_hidden, expanded_area_id: this.expandedAreaId.readLatest(), views_opened_on: this.viewsOpenedOn.readLatest() };
+  }
+
+  /** Run `change`, which opens or closes views, and keep what the window shows after it as the view history's newest step when it differs from before; what `change` gives back. */
+  private stepToTheViewsShownAfter<Changed>(change: () => Changed): Changed {
+    const viewsShownBefore = this.viewsShown();
+    const changed = change();
+    const viewsShownAfter = this.viewsShown();
+    if (viewsShownBefore !== null && viewsShownAfter !== null) {
+      const history = this.viewHistory === null ? studioViewHistoryStartingAt(viewsShownBefore) : studioViewHistoryWithTheShownStepAs(this.viewHistory, viewsShownBefore);
+      this.publishTheViewHistory(studioViewHistoryWithAStepTo(history, viewsShownAfter));
+    }
+    return changed;
+  }
+
+  private publishTheViewHistory(history: StudioViewHistory<StudioViewsShown> | null): void {
+    this.viewHistory = history;
+    this.viewHistorySteps.publish(studioViewHistoryStepsOf(history));
   }
 
   /** Keep `settings` with area `areaId` of the layout. */
@@ -552,9 +650,12 @@ export class StudioWindowModel {
   /**
    * Keep each area of the open project's layout, and of each preset, under the id its view goes by in the window, read through
    * `viewTypeIdOf` once the project's views are listed, so an area saved under the node type the runtime listed its view as before
-   * keeps showing that view whatever the runtime lists it as after.
+   * keeps showing that view whatever the runtime lists it as after; the steps of the view history are kept the same way.
    */
   keepEachAreaUnderTheIdOfItsView(viewTypeIdOf: (viewTypeId: string) => string): void {
+    if (this.viewHistory !== null) {
+      this.viewHistory = studioViewHistoryEachStepAs(this.viewHistory, (viewsShown) => ({ ...viewsShown, layout: layoutWithEachAreaUnderTheIdOfItsView(viewsShown.layout, viewTypeIdOf) }));
+    }
     const studioLayout = this.studioLayout.readLatest();
     if (studioLayout === null) return;
     const layout = layoutWithEachAreaUnderTheIdOfItsView(studioLayout.layout, viewTypeIdOf);

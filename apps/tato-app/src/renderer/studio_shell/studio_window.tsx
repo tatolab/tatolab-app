@@ -301,6 +301,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const openStreamTabs = useWatchedStudioValue(model.openStreamTabs);
   const activeStreamTab = useWatchedStudioValue(model.activeStreamTab);
   const closedStreamTabs = useWatchedStudioValue(model.closedStreamTabs);
+  const viewHistorySteps = useWatchedStudioValue(model.viewHistorySteps);
   const streamMenuQuestion = useWatchedStudioValue(model.streamMenuQuestion);
   const layoutPresetNameAsked = useWatchedStudioValue(model.layoutPresetNameAsked);
   const streamDeletionRefusal = useWatchedStudioValue(model.streamDeletionRefusal);
@@ -341,15 +342,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
     [playbackListed, aStreamOfThePlaybackHasFailed, playbackNotListedBecause],
   );
   useEffect(() => {
-    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(layoutInTheMenus, streamTabsInTheMenus, playbackControls, status.app_update, commands));
-  }, [menusLiveInTheSystemMenuBar, systemMenuBar, layoutInTheMenus, streamTabsInTheMenus, playbackControls, status.app_update, commands]);
+    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(layoutInTheMenus, streamTabsInTheMenus, viewHistorySteps, playbackControls, status.app_update, commands));
+  }, [menusLiveInTheSystemMenuBar, systemMenuBar, layoutInTheMenus, streamTabsInTheMenus, viewHistorySteps, playbackControls, status.app_update, commands]);
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
         <header className="flex shrink-0 flex-col bg-studio-menu-bar">
           {!menusLiveInTheSystemMenuBar && (
             <div className="flex h-8 items-center pr-2.5 pl-(--studio-menu-bar-leading-inset)" data-studio-menu-row="">
-              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, layoutInTheMenus, streamTabsInTheMenus, playbackControls, status.app_update, commands)} />
+              <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, layoutInTheMenus, streamTabsInTheMenus, viewHistorySteps, playbackControls, status.app_update, commands)} />
             </div>
           )}
           <div
