@@ -8,7 +8,7 @@ import { Cause, Effect } from "effect";
 import type { ListedStudioView, OpenProjectReading } from "../shared/tatolab_backend_contract.js";
 import { extensionFolderGated, type ExtensionFolderGated, type ExtensionFolderPassed } from "./extension_check_gate.js";
 import { projectViewFolderUrl } from "./extension_files_served_with_types_removed.js";
-import { studioViewOpeningOf } from "./project_views_on_the_wire.js";
+import { studioViewOpeningOf, viewFolderNameOf } from "./project_views_on_the_wire.js";
 import { listProjectViews } from "./runtime_operations.js";
 import { ProjectViewsListed, SystemMediaAccessAhead } from "./studio_runtime.js";
 import { CommandRefused } from "./window_command.js";
@@ -46,7 +46,9 @@ export const studioViewsOfTheOpenProject = Effect.fn("studioViewsOfTheOpenProjec
     if (served !== null) passedViewFolders.set(listedView.view_folder_in_the_project, served);
     return {
       view_type_id: listedView.view_type,
+      project: listedView.project,
       project_name: listedView.project_name,
+      view_folder: viewFolderNameOf(listedView),
       import_folder: listedView.import_folder,
       manifest_json: listedView.manifest,
       folder_url: served === null ? "" : projectViewFolderUrl(openProjectFolder, served.folder_version, listedView.view_folder_in_the_project),

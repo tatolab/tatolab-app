@@ -164,20 +164,20 @@ describe("the studio", () => {
 
     const library = coreViewPage("library");
     const viewRowIds = () => [...library.querySelectorAll<HTMLElement>("[data-library-view]")].map((row) => row.dataset.libraryView);
-    await waitFor(() => expect(viewRowIds().slice(0, 2)).toEqual(["Pulse Stage/Pulse Stage:picture_and_fader", "lobby-wall/lobby-wall:stage_rig"]));
+    await waitFor(() => expect(viewRowIds().slice(0, 2)).toEqual(["Pulse Stage/e4b19a6d-5c2f-4a87-93d0-1b6e8f2c7a35:picture_and_fader", "lobby-wall/7a2c9e41-5d8b-4f16-a3e0-2b6f9c4d1e85:stage_rig"]));
     expect(viewRowIds()).toContain("Tato Studio/outliner");
     expect(viewRowIds()).not.toContain("Tato Studio/transactions");
-    expect(library.querySelector('[data-library-view="Pulse Stage/Pulse Stage:picture_and_fader"]')?.textContent).toContain("Picture and fader · 1 in · 1 out");
+    expect(library.querySelector('[data-library-view="Pulse Stage/e4b19a6d-5c2f-4a87-93d0-1b6e8f2c7a35:picture_and_fader"]')?.textContent).toContain("Picture and fader · 1 in · 1 out");
     const details = () => library.querySelector<HTMLElement>("[data-library-view-details]") ?? expect.unreachable("no view details");
-    expect(details().dataset.libraryViewDetails).toBe("Pulse Stage/Pulse Stage:picture_and_fader");
+    expect(details().dataset.libraryViewDetails).toBe("Pulse Stage/e4b19a6d-5c2f-4a87-93d0-1b6e8f2c7a35:picture_and_fader");
     expect([...details().querySelectorAll<HTMLElement>("[data-library-view-port]")].map((port) => port.dataset.libraryViewPort)).toEqual(["picture", "fader"]);
 
-    fireEvent.click(library.querySelector<HTMLElement>('[data-library-view="lobby-wall/lobby-wall:stage_rig"]') ?? expect.unreachable("no Stage rig row"));
-    await waitFor(() => expect(details().dataset.libraryViewDetails).toBe("lobby-wall/lobby-wall:stage_rig"));
+    fireEvent.click(library.querySelector<HTMLElement>('[data-library-view="lobby-wall/7a2c9e41-5d8b-4f16-a3e0-2b6f9c4d1e85:stage_rig"]') ?? expect.unreachable("no Stage rig row"));
+    await waitFor(() => expect(details().dataset.libraryViewDetails).toBe("lobby-wall/7a2c9e41-5d8b-4f16-a3e0-2b6f9c4d1e85:stage_rig"));
     expect(details().textContent).toContain("`contract`: this runtime reads view contract 1.0.");
 
     fireEvent.change(library.querySelector<HTMLInputElement>("[data-library-view-search]") ?? expect.unreachable("no search field"), { target: { value: "fader" } });
-    await waitFor(() => expect(viewRowIds()).toEqual(["Pulse Stage/Pulse Stage:picture_and_fader"]));
+    await waitFor(() => expect(viewRowIds()).toEqual(["Pulse Stage/e4b19a6d-5c2f-4a87-93d0-1b6e8f2c7a35:picture_and_fader"]));
   });
 
   it("imports the file the person chooses, which the runtime places in its kind's folder, shows it at once and outlines its card", async () => {
@@ -265,7 +265,7 @@ describe("the studio", () => {
 
     expect((await screen.findByRole("menuitemradio", { name: /^Outliner/ })).textContent).toBe("OutlinerTato Studio");
     expect((await screen.findByRole("menuitemradio", { name: /^Picture and fader/ })).textContent).toBe("Picture and faderPulse Stage");
-    const stageRigRow = document.querySelector<HTMLElement>('[data-view-type-not-opened="lobby-wall:stage_rig"]') ?? expect.unreachable("no row for the view that does not open");
+    const stageRigRow = document.querySelector<HTMLElement>('[data-view-type-not-opened="7a2c9e41-5d8b-4f16-a3e0-2b6f9c4d1e85:stage_rig"]') ?? expect.unreachable("no row for the view that does not open");
     expect(stageRigRow.textContent).toBe("Stage riglobby-wall");
     expect(stageRigRow.getAttribute("aria-disabled")).toBe("true");
     expect(document.getElementById(stageRigRow.getAttribute("aria-describedby") ?? "")?.textContent).toBe("Stage rig doesn't open: `contract`: this runtime reads view contract 1.0.");

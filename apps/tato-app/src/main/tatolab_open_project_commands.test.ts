@@ -449,7 +449,9 @@ test("the open project's views are the runtime's list_project_views of its folde
   expect(listed.ok && listed.value.map(({ manifest_json, ...listedView }) => ({ ...listedView, has_its_manifest: manifest_json !== null }))).toEqual([
     {
       view_type_id: "night-show:broken",
+      project: "000719ff-93e9-43d1-ba64-975cf13f9a6a",
       project_name: "night-show",
+      view_folder: "broken",
       import_folder: null,
       opens: false,
       not_opened_because: "`contract`: this runtime reads view contract 1.0.",
@@ -457,10 +459,12 @@ test("the open project's views are the runtime's list_project_views of its folde
       newer_version_blocked_because: null,
       has_its_manifest: true,
     },
-    { view_type_id: "night-show:deck", project_name: "night-show", import_folder: null, opens: true, not_opened_because: null, folder_url: projectViewFolderUrl(recordedNightShowFolder, deckVersion, "views/deck"), newer_version_blocked_because: null, has_its_manifest: true },
+    { view_type_id: "night-show:deck", project: "000719ff-93e9-43d1-ba64-975cf13f9a6a", project_name: "night-show", view_folder: "deck", import_folder: null, opens: true, not_opened_because: null, folder_url: projectViewFolderUrl(recordedNightShowFolder, deckVersion, "views/deck"), newer_version_blocked_because: null, has_its_manifest: true },
     {
       view_type_id: "lobby-wall:meter",
+      project: "d3e1e5f3-dbe2-4741-af4a-f04744190635",
       project_name: "lobby-wall",
+      view_folder: "meter",
       import_folder: "lobby-wall",
       opens: true,
       not_opened_because: null,

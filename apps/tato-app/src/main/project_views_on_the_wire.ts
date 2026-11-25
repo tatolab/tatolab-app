@@ -15,10 +15,17 @@ export function studioViewOpeningOf(listedView: ProjectViewTheRuntimeListed): St
   return listedView.opens ? { opens: true, not_opened_because: null } : { opens: false, not_opened_because: listedView.not_opened_because };
 }
 
+/** The name of the folder in its project's `views/` that holds the view `listedView`, the last part of its folder in the project. */
+export function viewFolderNameOf(listedView: Pick<ProjectViewFactsTheRuntimeListed, "view_folder_in_the_project">): string {
+  return listedView.view_folder_in_the_project.slice(listedView.view_folder_in_the_project.lastIndexOf("/") + 1);
+}
+
 /** What `list_project_views` lists of one view, beside whether it opens. */
 export interface ProjectViewFactsTheRuntimeListed {
-  /** `<project name>:<view folder>`, the node type a node of the view is. */
+  /** The node type a node of the view is, which the window never reads the parts of. */
   view_type: string;
+  /** The UUID of the project whose `views/` holds it. */
+  project: string;
   /** The name of the project whose `views/` holds it. */
   project_name: string;
   /** That project's folder under `imports/`; `null` for the listed project's own view. */
@@ -45,6 +52,8 @@ function viewsFromTheParsedToolResult(operationResult: unknown): Result<ProjectV
     if (!viewFields.ok) return viewFields;
     const viewType = requiredText(viewFields.value, "view_type");
     if (!viewType.ok) return viewType;
+    const project = requiredText(viewFields.value, "project");
+    if (!project.ok) return project;
     const projectName = requiredText(viewFields.value, "project_name");
     if (!projectName.ok) return projectName;
     const importFolder = optionalText(viewFields.value, "import_folder");
@@ -65,6 +74,7 @@ function viewsFromTheParsedToolResult(operationResult: unknown): Result<ProjectV
     if (!opening.ok) return opening;
     return succeeded({
       view_type: viewType.value,
+      project: project.value,
       project_name: projectName.value,
       import_folder: importFolder.value,
       view_folder_in_the_project: viewFolder.value,

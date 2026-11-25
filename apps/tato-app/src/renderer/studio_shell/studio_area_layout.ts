@@ -111,10 +111,16 @@ export function layoutWithSplitSizes(layout: StudioAreaLayoutNode, splitId: stri
   );
 }
 
-/** Whether an area of `layout` shows `viewTypeId`. */
-export function layoutShowsTheViewType(layout: StudioAreaLayoutNode, viewTypeId: string): boolean {
-  if (layout.kind === "area") return layout.view_type_id === viewTypeId;
-  return layout.parts.some((part) => layoutShowsTheViewType(part.part, viewTypeId));
+/** Whether an area of `layout` shows `viewTypeId`, each area's view type read through `viewTypeIdOf`, which gives the id a view is registered under. */
+export function layoutShowsTheViewType(layout: StudioAreaLayoutNode, viewTypeId: string, viewTypeIdOf: (viewTypeId: string) => string): boolean {
+  if (layout.kind === "area") return layout.view_type_id !== null && viewTypeIdOf(layout.view_type_id) === viewTypeId;
+  return layout.parts.some((part) => layoutShowsTheViewType(part.part, viewTypeId, viewTypeIdOf));
+}
+
+/** `layout` with each area's view type read through `viewTypeIdOf`, which gives the id a view goes by in the window; `layout` itself when none reads differently. */
+export function layoutWithEachAreaUnderTheIdOfItsView(layout: StudioAreaLayoutNode, viewTypeIdOf: (viewTypeId: string) => string): StudioAreaLayoutNode {
+  if (areasOfTheLayout(layout).every((area) => area.view_type_id === null || viewTypeIdOf(area.view_type_id) === area.view_type_id)) return layout;
+  return rewrittenLayout(layout, (node) => (node.kind === "area" && node.view_type_id !== null ? { ...node, view_type_id: viewTypeIdOf(node.view_type_id) } : node));
 }
 
 /** Every area of `layout`, in the order its splits hold them. */

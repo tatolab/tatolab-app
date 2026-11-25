@@ -914,14 +914,24 @@ describe("the studio", () => {
 
     expect(await screen.findByText("Stage rig doesn't open")).toBeTruthy();
     expect(screen.getByText("`contract`: this runtime reads view contract 1.0.")).toBeTruthy();
-    expect(screen.queryByText("This area's view, lobby-wall:stage_rig, isn't in this build")).toBeNull();
+    expect(screen.queryByText("This area's view isn't in this build or the project")).toBeNull();
+  });
+
+  it("keeps an area saved under the node type the runtime lists its view as under its project's UUID and folder once the views are listed, still showing it", async () => {
+    keepThePulseStageLayout({ layout: { kind: "area", area_id: "deck", view_type_id: "Pulse Stage:picture_and_fader" } });
+    await mountedWindowOverTheMock("state=running&studio_views=fixture");
+    await theAreasShownAre(["deck"]);
+
+    await waitFor(() => expect(document.querySelector('[data-studio-area="deck"] iframe[data-tatolab-view]')).not.toBeNull());
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(studioLayoutStorageKey(PULSE_STAGE_FOLDER)) ?? "null")?.layout?.view_type_id).toBe("e4b19a6d-5c2f-4a87-93d0-1b6e8f2c7a35:picture_and_fader"));
   });
 
   it("opens a saved layout that does not parse on its default, and says when an area names a view this build lacks", async () => {
     keepThePulseStageLayout({ layout: { kind: "area", area_id: "venue", view_type_id: "venue-3d" } });
     await mountedWindowOverTheMock("state=running");
     await theAreasShownAre(["venue"]);
-    expect(await screen.findByText("This area's view, venue-3d, isn't in this build or the project")).toBeTruthy();
+    expect(await screen.findByText("This area's view isn't in this build or the project")).toBeTruthy();
+    expect(screen.queryByText(/venue-3d/)).toBeNull();
     document.body.replaceChildren();
 
     keepThePulseStageLayout({ layout: { kind: "split", parts: [] } });

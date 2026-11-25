@@ -14,7 +14,7 @@ export const BUILT_IN_VIEWS_GROUP_LABEL = "Built in";
 
 function viewMatchesTheSearch(studioView: StudioViewListed, searchText: string): boolean {
   const searchedFor = searchText.trim().toLowerCase();
-  return searchedFor === "" || [studioView.title, studioView.description, studioView.view_type_id, studioView.brought_by].some((text) => text.toLowerCase().includes(searchedFor));
+  return searchedFor === "" || [studioView.title, studioView.description, studioView.brought_by].some((text) => text.toLowerCase().includes(searchedFor));
 }
 
 /** Every view `reading` lists, matching `searchText`, grouped by who brought it in the listing's order, Studio's own last. */

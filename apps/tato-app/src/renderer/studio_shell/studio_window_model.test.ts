@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { ListedStream, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, ListedStudioView, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import { StudioViewTypeRegistry, studioViewTypeTitlesOf } from "../view_host/studio_view_type_registry";
+import { tatolabFrameViewType } from "../view_host/tatolab_frame_view_type";
 import type { StudioAreaLayoutNode } from "./studio_area_layout";
 import { codeStudioLayout, StudioLayoutKeptInStorage } from "./studio_layout";
-import { StudioWindowModel } from "./studio_window_model";
+import { StudioWindowModel, type StudioViewTypeTitles } from "./studio_window_model";
 
 const SHEET_CHECK_FOLDER = "/Users/someone/Documents/Tato Studio/Sheet Check";
 const LOBBY_FOLDER = "/Users/someone/Documents/Tato Studio/Lobby";
@@ -313,6 +315,13 @@ describe("a failure of the open project's latest stream action", () => {
   });
 });
 
+/** What the window's view types are named by in a studio whose only titled views are Code and the Node visualizer, and whose views never change. */
+const STUDIO_VIEW_TYPE_TITLES: StudioViewTypeTitles = {
+  viewTitleOf: (viewTypeId) => ({ code: "Code", viewer: "Node visualizer" })[viewTypeId] ?? null,
+  viewTypeIdOf: (viewTypeId) => viewTypeId,
+  watchChanges: () => () => {},
+};
+
 describe("opening a view on a file", () => {
   const nodeFile = { kind: "file" as const, file: `${SHEET_CHECK_FOLDER}/nodes/paint_ball.py`, line: 12 };
   const viewTypesShown = (studioWindowModel: StudioWindowModel) => {
@@ -323,7 +332,7 @@ describe("opening a view on a file", () => {
   it("switches a layout that shows no Code area to the Code layout Studio ships, and opens Code on the file at its line", () => {
     const studioWindowModel = studioWindowModelOpenOnSheetCheck();
     expect(viewTypesShown(studioWindowModel)).not.toContain("code");
-    expect(studioWindowModel.openView("code", nodeFile)).toEqual({ kind: "opened" });
+    expect(studioWindowModel.openView("code", nodeFile, STUDIO_VIEW_TYPE_TITLES)).toEqual({ kind: "opened" });
     expect(studioWindowModel.studioLayout.readLatest()?.layout).toEqual(codeStudioLayout());
     expect(viewTypesShown(studioWindowModel)).toEqual(["files", "code", "stream_graph", "viewer"]);
     expect(studioWindowModel.viewsOpenedOn.readLatest().code?.on).toEqual(nodeFile);
@@ -333,7 +342,7 @@ describe("opening a view on a file", () => {
     const studioWindowModel = studioWindowModelOpenOnSheetCheck();
     studioWindowModel.showViewTypeInArea("properties", "code");
     const layoutShowingCode = studioWindowModel.studioLayout.readLatest()?.layout;
-    expect(studioWindowModel.openView("code", nodeFile)).toEqual({ kind: "opened" });
+    expect(studioWindowModel.openView("code", nodeFile, STUDIO_VIEW_TYPE_TITLES)).toEqual({ kind: "opened" });
     expect(studioWindowModel.studioLayout.readLatest()?.layout).toEqual(layoutShowingCode);
   });
 
@@ -341,7 +350,7 @@ describe("opening a view on a file", () => {
     const studioWindowModel = studioWindowModelOpenOnSheetCheck();
     studioWindowModel.showViewTypeInArea("properties", "code");
     studioWindowModel.toggleTheLayoutsEdge("right");
-    expect(studioWindowModel.openView("code", nodeFile)).toEqual({ kind: "opened" });
+    expect(studioWindowModel.openView("code", nodeFile, STUDIO_VIEW_TYPE_TITLES)).toEqual({ kind: "opened" });
     expect(studioWindowModel.studioLayout.readLatest()).toMatchObject({ layout: codeStudioLayout(), edges_hidden: { left: false, bottom: false, right: false } });
   });
 
@@ -349,9 +358,9 @@ describe("opening a view on a file", () => {
     const studioWindowModel = studioWindowModelOpenOnSheetCheck();
     studioWindowModel.showViewTypeInArea("viewer", "properties");
     const layoutShowingNoViewer = studioWindowModel.studioLayout.readLatest()?.layout;
-    expect(studioWindowModel.openView("viewer", { kind: "port", target: { stream: "main", node_id: "glow", port: "video_out" } })).toEqual({
+    expect(studioWindowModel.openView("viewer", { kind: "port", target: { stream: "main", node_id: "glow", port: "video_out" } }, STUDIO_VIEW_TYPE_TITLES)).toEqual({
       kind: "not_opened",
-      because: "No area shows viewer. Choose it in an area's view menu, then open it again.",
+      because: "No area shows Node visualizer. Choose it in an area's view menu, then open it again.",
     });
     expect(studioWindowModel.studioLayout.readLatest()?.layout).toEqual(layoutShowingNoViewer);
     expect(studioWindowModel.viewsOpenedOn.readLatest().viewer).toBeUndefined();
@@ -359,7 +368,65 @@ describe("opening a view on a file", () => {
 
   it("refuses a view type no layout Studio ships is home to, naming how to show it", () => {
     const studioWindowModel = studioWindowModelOpenOnSheetCheck();
-    expect(studioWindowModel.openView("acme-dj:deck", nodeFile)).toEqual({ kind: "not_opened", because: "No area shows acme-dj:deck. Choose it in an area's view menu, then open it again." });
+    expect(studioWindowModel.openView("acme-dj:deck", nodeFile, STUDIO_VIEW_TYPE_TITLES)).toEqual({ kind: "not_opened", because: "No area shows that view. Choose it in an area's view menu, then open it again." });
     expect(studioWindowModel.viewsOpenedOn.readLatest()["acme-dj:deck"]).toBeUndefined();
+  });
+});
+
+describe("a project's view, found by its project's UUID and folder", () => {
+  const CORE_NODES = "ba5fc2b1-df25-4e86-bec3-aba1564d6233";
+  const PAINT_PULSE = "4f8a2d61-9c3e-4b75-a0d8-6e1f3b9c2a74";
+  const listedView = (viewTypeId: string, project: string, projectName: string, viewFolder: string, title: string): ListedStudioView => ({
+    view_type_id: viewTypeId,
+    project,
+    project_name: projectName,
+    view_folder: viewFolder,
+    import_folder: null,
+    opens: true,
+    not_opened_because: null,
+    manifest_json: { contract: "1.0", title, entry: "index.html", placement: "node" },
+    folder_url: `https://views.example/${viewFolder}/`,
+    newer_version_blocked_because: null,
+  });
+  const registryListing = (...studioViews: ListedStudioView[]) => {
+    const registry = new StudioViewTypeRegistry([], (listed, manifest) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: listed.project_name }));
+    registry.projectStudioViews.publish({ kind: "listed", studio_views: studioViews });
+    return registry;
+  };
+
+  it("opens the Audio Video Preview in the shipped preview area while the runtime lists it by its project's name, the layout left as it was", () => {
+    const registry = registryListing(listedView("Core Nodes:audio_video_preview", CORE_NODES, "Core Nodes", "audio_video_preview", "Audio Video Preview"));
+    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+    const layoutShown = studioWindowModel.studioLayout.readLatest()?.layout;
+
+    expect(studioWindowModel.openView("Core Nodes:audio_video_preview", { kind: "port", target: { stream: "main", node_id: "preview", port: "video_out" } }, studioViewTypeTitlesOf(registry))).toEqual({ kind: "opened" });
+    expect(studioWindowModel.studioLayout.readLatest()?.layout).toEqual(layoutShown);
+    expect(Object.keys(studioWindowModel.viewsOpenedOn.readLatest())).toEqual([`${CORE_NODES}:audio_video_preview`]);
+  });
+
+  it("keeps an area saved under the name the runtime listed its view by before under its project's UUID and folder, so it shows whatever the runtime lists it as after", () => {
+    const storage = new Map<string, string>();
+    const layoutKept = new StudioLayoutKeptInStorage({ getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => void storage.set(key, value) });
+    const studioWindowModel = new StudioWindowModel(layoutKept);
+    studioWindowModel.showOpenProject({ kind: "read", open_project: { project: { name: "sheet-check", folder: SHEET_CHECK_FOLDER, project: "5b2e8f14-7c3a-4d90-a6e1-0f9c3b7d2e58" }, imports: [], imports_not_listed_because: null } });
+    studioWindowModel.showViewTypeInArea("properties", "Paint Pulse:stage");
+
+    const listedByName = registryListing(listedView("Paint Pulse:stage", PAINT_PULSE, "Paint Pulse", "stage", "Stage"));
+    studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => listedByName.viewTypeIdOf(viewTypeId));
+    const layoutAfter = studioWindowModel.studioLayout.readLatest()?.layout;
+    expect(layoutAfter === undefined ? [] : areaViewTypesOf(layoutAfter)).toContain(`${PAINT_PULSE}:stage`);
+    expect(layoutAfter === undefined ? [] : areaViewTypesOf(layoutAfter)).not.toContain("Paint Pulse:stage");
+    expect(layoutKept.readLayoutOf(SHEET_CHECK_FOLDER).layout).toEqual(layoutAfter);
+
+    const presetSavedBefore = { title: "Pulse", layout: { kind: "area" as const, area_id: "stage", view_type_id: "Paint Pulse:stage" } };
+    studioWindowModel.studioLayout.publish({ ...(studioWindowModel.studioLayout.readLatest() ?? expect.unreachable("no layout")), presets_saved: [presetSavedBefore] });
+    studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => listedByName.viewTypeIdOf(viewTypeId));
+    expect(layoutKept.readLayoutOf(SHEET_CHECK_FOLDER).presets_saved).toEqual([{ title: "Pulse", layout: { kind: "area", area_id: "stage", view_type_id: `${PAINT_PULSE}:stage` } }]);
+    const layoutKeptOnce = studioWindowModel.studioLayout.readLatest();
+    studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => listedByName.viewTypeIdOf(viewTypeId));
+    expect(studioWindowModel.studioLayout.readLatest()).toBe(layoutKeptOnce);
+
+    const listedByUuid = registryListing(listedView(`${PAINT_PULSE}:stage`, PAINT_PULSE, "Paint Pulse renamed", "stage", "Stage"));
+    expect(listedByUuid.viewTypeWithId(`${PAINT_PULSE}:stage`)?.title).toBe("Stage");
   });
 });

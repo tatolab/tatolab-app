@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import nightShowsViewsDeclaringPinTypes from "../../main/test-fixtures/local-api-list-project-views-tool-result-of-night-show-importing-lobby-wall-its-deck-declaring-pin-types.json?raw";
-import { projectViewsFromTheListProjectViewsToolResult, studioViewOpeningOf } from "../../main/project_views_on_the_wire";
+import { projectViewsFromTheListProjectViewsToolResult, studioViewOpeningOf, viewFolderNameOf } from "../../main/project_views_on_the_wire";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import { coreViewTypesOf } from "./core_view_types";
-import { StudioViewTypeRegistry } from "./studio_view_type_registry";
+import { projectViewIdOfTheListedView, StudioViewTypeRegistry } from "./studio_view_type_registry";
 import { tatolabFrameViewType } from "./tatolab_frame_view_type";
 import type { StudioViewsReading } from "./studio_view_contract";
 import { studioViewsReadingOf, watchTheStudioViewsOfTheRegistry } from "./studio_views_listed_for_views";
@@ -46,7 +46,9 @@ function nightShowsViewsListedFromTheRecording(): ListedStudioView[] {
   if (!listed.ok) throw new Error(listed.failure);
   return listed.value.map((listedView) => ({
     view_type_id: listedView.view_type,
+    project: listedView.project,
     project_name: listedView.project_name,
+    view_folder: viewFolderNameOf(listedView),
     import_folder: listedView.import_folder,
     manifest_json: listedView.manifest,
     folder_url: `tatolab-app://app/project_views/${listedView.view_folder_in_the_project}/`,
@@ -64,20 +66,24 @@ describe("the views a view reads", () => {
     registry.projectStudioViews.publish({ kind: "listed", studio_views: listedViews });
 
     const reading = studioViewsReadingOf(registry);
-    const deckListed = reading.kind === "listed" ? reading.studio_views.find((studioView) => studioView.view_type_id === "night-show:deck") : undefined;
+    const deckListed = reading.kind === "listed" ? reading.studio_views.find((studioView) => deck !== undefined && studioView.view_type_id === projectViewIdOfTheListedView(deck)) : undefined;
 
     expect(deckListed?.inputs).toEqual([{ name: "level", family: "array", pin_type: { type: "tensor" }, description: "" }]);
     expect(deckListed?.outputs).toEqual([{ name: "cue", family: "records", pin_type: { type: "string" }, description: "" }]);
   });
 
-  it("lists what the registry offers and refuses, Studio's own first, a project view named like Studio's refused with the registry's words", () => {
+  it("lists what the registry offers and refuses, Studio's own first, each project view by its project's UUID and folder, one whose node type is Studio's beside it", () => {
+    const ACME_DJ = "3d1f6a2e-8b4c-4e7a-9f05-6c2d8e1b7a43";
+    const THE_OPEN_PROJECT = "9e4b7c15-2a6d-4f83-b0e9-1d5c3a8f6e27";
     const registry = registryAsTheWindowBuildsIt();
     registry.projectStudioViews.publish({
       kind: "listed",
       studio_views: [
         {
           view_type_id: "acme-dj:deck",
+          project: ACME_DJ,
           project_name: "Acme DJ",
+          view_folder: "deck",
           import_folder: "acme-dj",
           opens: true,
           not_opened_because: null,
@@ -85,17 +91,17 @@ describe("the views a view reads", () => {
           folder_url: "tatolab-app://app/project_views/acme-dj/deck/",
           newer_version_blocked_because: null,
         },
-        { view_type_id: "acme-dj:rig", project_name: "Acme DJ", import_folder: "acme-dj", opens: false, not_opened_because: "`contract`: this runtime reads view contract 1.0.", manifest_json: { title: "Rig" }, folder_url: "x", newer_version_blocked_because: null },
-        { view_type_id: "outliner", project_name: "Acme DJ", import_folder: null, opens: true, not_opened_because: null, manifest_json: { contract: "1.0", title: "My outliner", entry: "index.html", placement: "area" }, folder_url: "y", newer_version_blocked_because: null },
+        { view_type_id: "acme-dj:rig", project: ACME_DJ, project_name: "Acme DJ", view_folder: "rig", import_folder: "acme-dj", opens: false, not_opened_because: "`contract`: this runtime reads view contract 1.0.", manifest_json: { title: "Rig" }, folder_url: "x", newer_version_blocked_because: null },
+        { view_type_id: "outliner", project: THE_OPEN_PROJECT, project_name: "Acme DJ", view_folder: "outliner", import_folder: null, opens: true, not_opened_because: null, manifest_json: { contract: "1.0", title: "My outliner", entry: "index.html", placement: "area" }, folder_url: "y", newer_version_blocked_because: null },
       ],
     });
     const reading = studioViewsReadingOf(registry);
     expect(reading.kind === "listed" && reading.studio_views.map((studioView) => [studioView.view_type_id, studioView.title, studioView.brought_by, studioView.placement, studioView.not_opened_because])).toEqual([
       ["outliner", "Outliner", "Tato Studio", "area", null],
       ["broken", "broken", "Tato Studio", null, expect.stringContaining("`tatolab_view.json`")],
-      ["acme-dj:deck", "DJ Deck", "Acme DJ", "node", null],
-      ["acme-dj:rig", "Rig", "Acme DJ", null, "`contract`: this runtime reads view contract 1.0."],
-      ["outliner", "My outliner", "Acme DJ", null, "The studio already has a view named outliner."],
+      [`${ACME_DJ}:deck`, "DJ Deck", "Acme DJ", "node", null],
+      [`${THE_OPEN_PROJECT}:outliner`, "My outliner", "Acme DJ", "area", null],
+      [`${ACME_DJ}:rig`, "Rig", "Acme DJ", null, "`contract`: this runtime reads view contract 1.0."],
     ]);
     expect(reading.kind === "listed" && reading.studio_views[2]?.outputs).toEqual([{ name: "crossfader", family: "array", pin_type: { type: "tensor" }, description: "" }]);
   });
