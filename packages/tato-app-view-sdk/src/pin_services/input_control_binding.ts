@@ -28,7 +28,7 @@ import { ReadOnlyValueLineElement } from "../node_ui/read_only_value_line_elemen
 import type { StopWatching } from "../tato_app_view_connection.js";
 import type { ViewInputEvent } from "../view_wire_messages.js";
 import type { InputValueGesture, InputValues, ShownValue } from "./input_values.js";
-import { markTheBlockedRegistrations, newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, wordsOfTheRegistrationPassedOver, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
+import { markTheBlockedRegistrations, newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, linesOfTheRegistrationPassedOver, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
 import { NodeBodySlot, type NodeBodyBinding, type NodeBodyShown } from "./node_body_binding.js";
 import { readWhatTheWiringCarries } from "./wire_reading.js";
 import { watchTheAudioCaptureDevices } from "./audio_capture_devices_watched.js";
@@ -182,7 +182,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
     #place: InputControlPlace;
     #element: AnyInputControl | null = null;
     #elementKey: string | null = null;
-    #registrationsPassedOverWords: readonly string[] = [];
+    #registrationsPassedOverLines: readonly string[] = [];
     #shown: InputControlShown | null = null;
     #gesture: InputValueGesture | null = null;
     #isIgnoringTheElement = false;
@@ -245,7 +245,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
         this.#tell("no_control");
         return;
       }
-      this.#registrationsPassedOverWords = choice.chosen_by === "type_default" || choice.chosen_by === "named_type" ? table.typeDefaultsPassedOverFor(this.#input.declaration.pin_type).map(wordsOfTheRegistrationPassedOver) : [];
+      this.#registrationsPassedOverLines = choice.chosen_by === "type_default" || choice.chosen_by === "named_type" ? table.typeDefaultsPassedOverFor(this.#input.declaration.pin_type).flatMap(linesOfTheRegistrationPassedOver) : [];
       const key = keyOfTheElement(choice, this.#input, this.#place);
       if (key === this.#elementKey) {
         this.#markTheBlockedRegistrations(choice.listed);
@@ -310,7 +310,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       }
       const holdsAControl = !(element instanceof ReadOnlyValueLineElement);
       const newerVersionBlocked = holdsAControl && listed.script_serving.kind === "blocked" ? listed.script_serving.findings : [];
-      markTheBlockedRegistrations(this.#host, [...newerVersionBlocked, ...this.#registrationsPassedOverWords]);
+      markTheBlockedRegistrations(this.#host, [...newerVersionBlocked, ...this.#registrationsPassedOverLines]);
     }
 
     #takeTheElementOff(): void {

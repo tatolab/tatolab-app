@@ -37,7 +37,7 @@ test("a served script that default-exports a custom element class is defined und
 
 test("a blocked element is never imported, and answers the findings that block it", async () => {
   const scripts = importOfTheScripts({});
-  const blocked = listedElementOf("acme", { kind: "control", type: "float", control: "knob" }, { script_serving: { kind: "blocked", findings: ["knob.ts:12:5 TS2322 Type 'string' is not assignable to type 'number'."] } });
+  const blocked = listedElementOf("acme", { kind: "control", type: "float", control: "knob" }, { script_serving: { kind: "blocked", findings: ["knob.ts:12:5 TS2322 Type 'string' is not assignable to type 'number'."], runtime_findings: [] } });
   expect(await loadNodeUiElement(blocked, scripts.importScript)).toEqual({ kind: "blocked", findings: ["knob.ts:12:5 TS2322 Type 'string' is not assignable to type 'number'."] });
   expect(scripts.importedUrls).toEqual([]);
 });

@@ -59,10 +59,12 @@ export function markTheBlockedRegistrations(host: HTMLElement, lines: readonly s
   host.title = lines.join("\n");
 }
 
-/** The words a slot's mark gives for a registration the table passed over: the findings of its folder's check when they block it, otherwise the table's reason. */
-export function wordsOfTheRegistrationPassedOver({ listed, because }: NodeUiRegistrationPassedOver): string {
-  if (listed.script_serving.kind === "served") return because;
-  return `${listed.module}'s ${listed.script} does not pass its checks: ${listed.script_serving.findings.join("; ")}`;
+/**
+ * The lines a slot's mark gives for a registration the table passed over: the table's reason, then each finding of the runtime's
+ * check of its folder when that blocks it.
+ */
+export function linesOfTheRegistrationPassedOver({ listed, because }: NodeUiRegistrationPassedOver): readonly string[] {
+  return listed.script_serving.kind === "blocked" ? [because, ...listed.script_serving.runtime_findings] : [because];
 }
 
 /** The words a read-only line gives for an element that did not load. */

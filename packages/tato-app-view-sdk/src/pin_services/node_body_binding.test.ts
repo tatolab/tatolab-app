@@ -221,7 +221,7 @@ test("a node type with no body, and a body that did not pass its checks, show no
   await slot.settled();
   expect(slot.shown).toEqual(["pending", "no_body"]);
 
-  slot.list([listedElementOf("acme", { kind: "node_body", node_type: CROSSFADE }, { script_serving: { kind: "blocked", findings: ["crossfade_body.ts:3:1 TS2322"] } })]);
+  slot.list([listedElementOf("acme", { kind: "node_body", node_type: CROSSFADE }, { script_serving: { kind: "blocked", findings: ["crossfade_body.ts:3:1 TS2322"], runtime_findings: [] } })]);
   await slot.settled();
   expect(slot.loadsAsked).toEqual([]);
   expect(slot.host.childElementCount).toBe(0);
@@ -234,7 +234,7 @@ test("a drawn body whose newer version is blocked stays drawn and marked with wh
   await slot.settled();
   const drawn = slot.body();
 
-  slot.list([{ ...CROSSFADE_BODY, script_serving: { kind: "blocked", findings } }]);
+  slot.list([{ ...CROSSFADE_BODY, script_serving: { kind: "blocked", findings, runtime_findings: [] } }]);
   await slot.settled();
   expect(slot.body()).toBe(drawn);
   expect(slot.loadsAsked).toHaveLength(1);

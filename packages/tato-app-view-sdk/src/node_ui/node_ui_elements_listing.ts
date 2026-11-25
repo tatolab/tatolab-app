@@ -14,8 +14,13 @@ export type NodeUiElementRegistration =
   | { readonly kind: "control"; readonly type: BuiltInPinTypeName | NamedPinTypeImportPath; readonly control: string | null }
   | { readonly kind: "node_body"; readonly node_type: string };
 
-/** Whether the Studio serves an element's script: at `script_url`, or not, with each finding that blocks it, in the words it was given. */
-export type NodeUiElementScriptServing = { readonly kind: "served"; readonly script_url: string } | { readonly kind: "blocked"; readonly findings: readonly string[] };
+/**
+ * Whether the Studio serves an element's script: at `script_url`, or not, with each line of why, in the words it was given, among
+ * them `runtime_findings`, each finding of the runtime's check of its folder, naming its file and code.
+ */
+export type NodeUiElementScriptServing =
+  | { readonly kind: "served"; readonly script_url: string }
+  | { readonly kind: "blocked"; readonly findings: readonly string[]; readonly runtime_findings: readonly string[] };
 
 /** One element as its module's `node_ui/tatolab_node_ui.json` registers it. */
 export interface ListedNodeUiElement {

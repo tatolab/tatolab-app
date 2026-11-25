@@ -300,7 +300,7 @@ test("a drawn control whose newer version is blocked stays drawn and marked with
   await slot.settled();
   const drawn = slot.control();
 
-  slot.list([{ ...knob, script_serving: { kind: "blocked", findings } }]);
+  slot.list([{ ...knob, script_serving: { kind: "blocked", findings, runtime_findings: [] } }]);
   await slot.settled();
   expect(slot.control()).toBe(drawn);
   expect(slot.loadsAsked).toHaveLength(1);
@@ -317,15 +317,16 @@ test("a drawn control whose newer version is blocked stays drawn and marked with
 });
 
 test("a project's default for a built-in type is passed over with the runtime's finding on the slot, the Studio's control still drawing; taking the entry out takes the mark off", async () => {
-  const finding = "`controls[0]` registers the default control of `float`, a built-in type: only the Studio's own module may register it.";
-  const nightShowsFloatDefault = listedElementOf("night-show", { kind: "control", type: "float", control: null }, { script: "fader.ts", script_serving: { kind: "blocked", findings: [finding] } });
+  const finding = "node_ui/tatolab_node_ui.json: error: `controls[1]` registers the default control of `float`, a built-in type: only the Studio's own module may register it. (default_control_not_the_modules_to_register)";
+  const heldBecause = ["Tato Studio keeps showing the version that last passed.", "The newer version of this module's node UI code is blocked.", finding];
+  const nightShowsFloatDefault = listedElementOf("night-show", { kind: "control", type: "float", control: null }, { script: "fader.ts", script_serving: { kind: "blocked", findings: heldBecause, runtime_findings: [finding] } });
   const slot = binderUnderTest();
   slot.list([FLOAT_DEFAULT, nightShowsFloatDefault]);
   await slot.settled();
   const drawn = slot.control();
   expect(slot.loadsAsked).toEqual([FLOAT_DEFAULT]);
   expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(true);
-  expect(slot.host.title).toBe(`night-show's fader.ts does not pass its checks: ${finding}`);
+  expect(slot.host.title).toBe(`Only Tato Studio sets the default control of a built-in type; night-show registers one for float.\n${finding}`);
 
   slot.list([FLOAT_DEFAULT]);
   await slot.settled();
@@ -335,7 +336,7 @@ test("a project's default for a built-in type is passed over with the runtime's 
 });
 
 test("a control an annotation picks is not marked for its type's defaults passed over", async () => {
-  const nightShowsFloatDefault = listedElementOf("night-show", { kind: "control", type: "float", control: null }, { script_serving: { kind: "blocked", findings: ["default_control_not_the_modules_to_register"] } });
+  const nightShowsFloatDefault = listedElementOf("night-show", { kind: "control", type: "float", control: null }, { script_serving: { kind: "blocked", findings: ["default_control_not_the_modules_to_register"], runtime_findings: [] } });
   const slot = binderUnderTest({ input: KNOB_GAIN });
   slot.list([FLOAT_DEFAULT, NIGHT_SHOWS_KNOB, nightShowsFloatDefault]);
   await slot.settled();
@@ -344,7 +345,7 @@ test("a control an annotation picks is not marked for its type's defaults passed
 });
 
 test("a slot with no control drawn yet whose element is blocked shows the read-only line, unmarked, and never another control", async () => {
-  const knob: ListedNodeUiElement = { ...NIGHT_SHOWS_KNOB, script_serving: { kind: "blocked", findings: ["node_ui/knob.ts:1:50 TS2322"] } };
+  const knob: ListedNodeUiElement = { ...NIGHT_SHOWS_KNOB, script_serving: { kind: "blocked", findings: ["node_ui/knob.ts:1:50 TS2322"], runtime_findings: [] } };
   const slot = binderUnderTest({ loading: { kind: "blocked", findings: ["node_ui/knob.ts:1:50 TS2322"] }, input: KNOB_GAIN });
   slot.list([FLOAT_DEFAULT, knob]);
   await slot.settled();
