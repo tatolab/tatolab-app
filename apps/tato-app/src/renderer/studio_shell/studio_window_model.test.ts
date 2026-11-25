@@ -394,39 +394,44 @@ describe("a project's view, found by its project's UUID and folder", () => {
     return registry;
   };
 
-  it("opens the Audio Video Preview in the shipped preview area while the runtime lists it by its project's name, the layout left as it was", () => {
-    const registry = registryListing(listedView("Core Nodes:audio_video_preview", CORE_NODES, "Core Nodes", "audio_video_preview", "Audio Video Preview"));
-    const studioWindowModel = studioWindowModelOpenOnSheetCheck();
-    const layoutShown = studioWindowModel.studioLayout.readLatest()?.layout;
+  it("opens the Audio Video Preview in the shipped preview area under whatever type the runtime lists it as, the layout left as it was", () => {
+    for (const listedType of ["Core Nodes:audio_video_preview", `${CORE_NODES}:audio_video_preview`, "e7b2c940-1d6a-4f35-8c09-3a5e7f1b2d68"]) {
+      const registry = registryListing(listedView(listedType, CORE_NODES, "Core Nodes", "audio_video_preview", "Audio Video Preview"));
+      const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+      const layoutShown = studioWindowModel.studioLayout.readLatest()?.layout;
 
-    expect(studioWindowModel.openView("Core Nodes:audio_video_preview", { kind: "port", target: { stream: "main", node_id: "preview", port: "video_out" } }, studioViewTypeTitlesOf(registry))).toEqual({ kind: "opened" });
-    expect(studioWindowModel.studioLayout.readLatest()?.layout).toEqual(layoutShown);
-    expect(Object.keys(studioWindowModel.viewsOpenedOn.readLatest())).toEqual([`${CORE_NODES}:audio_video_preview`]);
+      expect(studioWindowModel.openView(listedType, { kind: "port", target: { stream: "main", node_id: "preview", port: "video_out" } }, studioViewTypeTitlesOf(registry))).toEqual({ kind: "opened" });
+      expect(studioWindowModel.studioLayout.readLatest()?.layout).toEqual(layoutShown);
+      expect(Object.keys(studioWindowModel.viewsOpenedOn.readLatest())).toEqual([listedType]);
+    }
   });
 
-  it("keeps an area saved under the name the runtime listed its view by before under its project's UUID and folder, so it shows whatever the runtime lists it as after", () => {
+  it("keeps an area saved under its view's project's name or UUID and folder under the type the runtime lists the view as, a preset too, and keeps it there once a rename leaves the type as it was", () => {
+    const stageView = "a4f1d8c2-6e39-4b07-9d5a-2c8e0b7f3a16";
     const storage = new Map<string, string>();
     const layoutKept = new StudioLayoutKeptInStorage({ getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => void storage.set(key, value) });
     const studioWindowModel = new StudioWindowModel(layoutKept);
     studioWindowModel.showOpenProject({ kind: "read", open_project: { project: { name: "sheet-check", folder: SHEET_CHECK_FOLDER, project: "5b2e8f14-7c3a-4d90-a6e1-0f9c3b7d2e58" }, imports: [], imports_not_listed_because: null } });
     studioWindowModel.showViewTypeInArea("properties", "Paint Pulse:stage");
+    studioWindowModel.showViewTypeInArea("outliner", `${PAINT_PULSE}:stage`);
 
-    const listedByName = registryListing(listedView("Paint Pulse:stage", PAINT_PULSE, "Paint Pulse", "stage", "Stage"));
-    studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => listedByName.viewTypeIdOf(viewTypeId));
+    const listed = registryListing(listedView(stageView, PAINT_PULSE, "Paint Pulse", "stage", "Stage"));
+    studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => listed.viewTypeIdOf(viewTypeId));
     const layoutAfter = studioWindowModel.studioLayout.readLatest()?.layout;
-    expect(layoutAfter === undefined ? [] : areaViewTypesOf(layoutAfter)).toContain(`${PAINT_PULSE}:stage`);
-    expect(layoutAfter === undefined ? [] : areaViewTypesOf(layoutAfter)).not.toContain("Paint Pulse:stage");
+    const areaViewTypesAfter = layoutAfter === undefined ? [] : areaViewTypesOf(layoutAfter);
+    expect(areaViewTypesAfter.filter((viewTypeId) => viewTypeId === stageView)).toHaveLength(2);
+    expect(areaViewTypesAfter).not.toContain("Paint Pulse:stage");
+    expect(areaViewTypesAfter).not.toContain(`${PAINT_PULSE}:stage`);
     expect(layoutKept.readLayoutOf(SHEET_CHECK_FOLDER).layout).toEqual(layoutAfter);
 
     const presetSavedBefore = { title: "Pulse", layout: { kind: "area" as const, area_id: "stage", view_type_id: "Paint Pulse:stage" } };
     studioWindowModel.studioLayout.publish({ ...(studioWindowModel.studioLayout.readLatest() ?? expect.unreachable("no layout")), presets_saved: [presetSavedBefore] });
-    studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => listedByName.viewTypeIdOf(viewTypeId));
-    expect(layoutKept.readLayoutOf(SHEET_CHECK_FOLDER).presets_saved).toEqual([{ title: "Pulse", layout: { kind: "area", area_id: "stage", view_type_id: `${PAINT_PULSE}:stage` } }]);
+    studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => listed.viewTypeIdOf(viewTypeId));
+    expect(layoutKept.readLayoutOf(SHEET_CHECK_FOLDER).presets_saved).toEqual([{ title: "Pulse", layout: { kind: "area", area_id: "stage", view_type_id: stageView } }]);
     const layoutKeptOnce = studioWindowModel.studioLayout.readLatest();
-    studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => listedByName.viewTypeIdOf(viewTypeId));
+    const listedAfterARename = registryListing(listedView(stageView, PAINT_PULSE, "Paint Pulse renamed", "stage renamed", "Stage"));
+    studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => listedAfterARename.viewTypeIdOf(viewTypeId));
     expect(studioWindowModel.studioLayout.readLatest()).toBe(layoutKeptOnce);
-
-    const listedByUuid = registryListing(listedView(`${PAINT_PULSE}:stage`, PAINT_PULSE, "Paint Pulse renamed", "stage", "Stage"));
-    expect(listedByUuid.viewTypeWithId(`${PAINT_PULSE}:stage`)?.title).toBe("Stage");
+    expect(listedAfterARename.viewTypeWithId(stageView)?.title).toBe("Stage");
   });
 });

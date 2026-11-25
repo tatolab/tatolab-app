@@ -57,7 +57,7 @@ describe("Module manager", () => {
     await shown('[data-module-manager-detail="import:lobby-wall"]');
     expect(textOf("[data-module-manager-technical-details]")).toContain("imports/lobby-wall");
     expect(textOf("[data-module-manager-technical-details]")).toContain("/Users/jonathanf/streams/lobby-wall");
-    expect(textOf('[data-module-manager-view="lobby-wall:stage_rig"]')).toBe("Stage rigDoesn't open: `contract`: this runtime reads view contract 1.0.");
+    expect(textOf('[data-module-manager-view="7a2c9e41-5d8b-4f16-a3e0-2b6f9c4d1e85:stage_rig"]')).toBe("Stage rigDoesn't open: `contract`: this runtime reads view contract 1.0.");
     expect(document.querySelector("[data-module-manager-views-reach]")).toBeNull();
     expect(document.body.textContent).not.toContain("Open to edit");
     expect(document.body.textContent).not.toContain("Place node");

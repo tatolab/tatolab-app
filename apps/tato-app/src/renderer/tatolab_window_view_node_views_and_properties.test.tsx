@@ -13,6 +13,7 @@ import { studioLayoutStorageKey } from "./studio_shell/studio_layout";
 import { mountedWindowOverTheMock, textOf, pressAsAPointerDoes, PULSE_STAGE_FOLDER, PULSE_STAGE_MAIN_STREAM, coreViewPage, inTheCoreView, libraryRow, showTheLibraryInTheViewerArea, outlinerRow, outlinerRowIds, AREAS_OF_THE_COMPOSITION_LAYOUT, theAreasShownAre, keepThePulseStageLayout, cleanUpTheWindowsOfEarlierTests, tagOfTheStudiosControl } from "./tatolab_window_view_test_support";
 import { fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState, type NodeUiElementHost } from "@tatolab/tato-app-view-sdk/node_ui";
 import type { AssetPinValue } from "@tatolab/tato-app-view-sdk/pin_types";
+import { MOCK_STUDIO_VIEW_TYPE_ID } from "../../mock/mock_studio_view/mock_studio_view_listing";
 
 // Monaco left in the page listens on the document's body and rejects on events of every later test, so
 // Code's editor here says Monaco didn't load; the code pane's text and saves are tested beside it.
@@ -740,7 +741,7 @@ describe("the studio", () => {
     expect(screen.queryByRole("menuitem", { name: "In place of Properties" })).toBeNull();
     fireEvent.click(viewerChoice);
 
-    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] iframe[data-tatolab-view]')?.getAttribute("data-tatolab-view")).toBe("Pulse Stage:picture_and_fader"));
+    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] iframe[data-tatolab-view]')?.getAttribute("data-tatolab-view")).toBe(MOCK_STUDIO_VIEW_TYPE_ID));
     await waitFor(() => expect(shownInWords()).toBe("1 area"));
   });
 
@@ -838,7 +839,7 @@ describe("the studio", () => {
     const viewFrame = await waitFor(
       () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-tatolab-view]') ?? expect.unreachable("no project view frame"),
     );
-    expect(viewFrame.getAttribute("data-tatolab-view")).toBe("Pulse Stage:picture_and_fader");
+    expect(viewFrame.getAttribute("data-tatolab-view")).toBe(MOCK_STUDIO_VIEW_TYPE_ID);
     expect(viewFrame.hasAttribute("sandbox")).toBe(false);
     expect(viewFrame.getAttribute("allow")).toBe("camera 'none'; microphone 'none'");
     expect(viewFrame.getAttribute("src")).toMatch(/\/mock_studio_view\/picture_and_fader\/index\.html$/);
@@ -917,13 +918,13 @@ describe("the studio", () => {
     expect(screen.queryByText("This area's view isn't in this build or the project")).toBeNull();
   });
 
-  it("keeps an area saved under the node type the runtime lists its view as under its project's UUID and folder once the views are listed, still showing it", async () => {
+  it("keeps an area saved under its view's project's name and folder under the type the runtime lists the view as once the views are listed, still showing it", async () => {
     keepThePulseStageLayout({ layout: { kind: "area", area_id: "deck", view_type_id: "Pulse Stage:picture_and_fader" } });
     await mountedWindowOverTheMock("state=running&studio_views=fixture");
     await theAreasShownAre(["deck"]);
 
     await waitFor(() => expect(document.querySelector('[data-studio-area="deck"] iframe[data-tatolab-view]')).not.toBeNull());
-    await waitFor(() => expect(JSON.parse(localStorage.getItem(studioLayoutStorageKey(PULSE_STAGE_FOLDER)) ?? "null")?.layout?.view_type_id).toBe("e4b19a6d-5c2f-4a87-93d0-1b6e8f2c7a35:picture_and_fader"));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(studioLayoutStorageKey(PULSE_STAGE_FOLDER)) ?? "null")?.layout?.view_type_id).toBe(MOCK_STUDIO_VIEW_TYPE_ID));
   });
 
   it("opens a saved layout that does not parse on its default, and says when an area names a view this build lacks", async () => {

@@ -18,7 +18,7 @@ import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_s
 import type { JsonValue, StopWatching, StreamGraph, StreamGraphNode, StreamGraphReading, StreamTabAddress, StudioViewHostServices, StudioViewNodeAddress, StudioViewTypeSource } from "./studio_view_contract";
 import type { InputWiring } from "@tatolab/tato-app-view-sdk/pin_model/input_wiring";
 import { nodeShownByTheArea, nodesOfTheStudioViewType, settingsTheViewNodeHolds, studioViewInputWiring, studioViewNodeAddressOf } from "./studio_view_node_wiring";
-import { projectViewIdOfTheListedView, type RegisteredStudioViewType, type StudioAreaNodeShown, type StudioAreaOfTheView } from "./studio_view_type_registry";
+import { type RegisteredStudioViewType, type StudioAreaNodeShown, type StudioAreaOfTheView } from "./studio_view_type_registry";
 import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 import { WatchedStudioValue } from "./watched_studio_value";
 
@@ -90,7 +90,7 @@ function TatolabViewFrame({
       expansion: area.expansion,
     };
     const channel = new MessageChannel();
-    const bridge = new TatolabViewBridge(channel.port1, projectViewIdOfTheListedView(listed), manifest, hostServices, areaServices, inputWiringRef.current, viewNodeRef.current);
+    const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServices, areaServices, inputWiringRef.current, viewNodeRef.current);
     bridge.start();
     bridgeRef.current = bridge;
     frameWindow.postMessage({ kind: VIEW_PORT_HANDOVER }, entryUrl.origin, [channel.port2]);
@@ -261,9 +261,8 @@ function TatolabViewOverItsNotice({ listed, children }: { listed: ListedStudioVi
 
 /** The view type `listed`, declared by `manifest` and brought by `broughtBy`: an `area` view's frame fills its area, and a `node` view's shows the active tab's node of its type. */
 export function tatolabFrameViewType(listed: ListedStudioView, manifest: TatolabViewManifest, broughtBy: StudioViewTypeSource): RegisteredStudioViewType {
-  const viewTypeId = projectViewIdOfTheListedView(listed);
   return {
-    view_type_id: viewTypeId,
+    view_type_id: listed.view_type_id,
     title: manifest.title,
     icon: manifest.icon === undefined ? "project_view" : { image_url: new URL(manifest.icon, listed.folder_url).href },
     brought_by: broughtBy,
