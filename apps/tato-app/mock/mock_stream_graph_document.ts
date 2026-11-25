@@ -180,7 +180,6 @@ export function mockStreamGraphOf(listing: ListedStream, machineName: string, gr
         config: node.config,
         pins: node.pins ?? {},
         input_values: { ...node.config, ...node.pins },
-        ...(node.exposed_config_fields === undefined || node.exposed_config_fields.length === 0 ? {} : { exposed_config_fields: node.exposed_config_fields }),
         ...(node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) }),
         ports: {
           // As the runtime renders it, a link reads `wire` on every input it feeds, one that takes no stored value too, and on each member of a bundle it feeds.

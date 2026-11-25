@@ -3,8 +3,8 @@ import type { StreamGraphFragment, StreamGraphNode, StreamGraph } from "@tatolab
 import { aGraphLink, aGraphNode, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 import { levelOfTheSubgraphsSteppedThrough, selectionOfTheSubgraphSteppedOutOf, streamGraphLevelAtTheSubgraphIds, streamGraphLevelReached, theSubgraphKeepingTheLevelReadOnly, whyTheInsideOfTheSubgraphIsReadOnly } from "./stream_graph_levels";
 
-function graphNode(name: string, type: string, fragment: StreamGraphFragment | null = null, config: StreamGraphNode["config"] = {}): StreamGraphNode {
-  return aGraphNode(name, { id: `uuid-${name}`, type, kind: fragment === null ? "process" : "fragment", config, ...(fragment === null ? {} : { fragment }) });
+function graphNode(name: string, type: string, fragment: StreamGraphFragment | null = null, inputValues: StreamGraphNode["input_values"] = {}): StreamGraphNode {
+  return aGraphNode(name, { id: `uuid-${name}`, type, kind: fragment === null ? "process" : "fragment", input_values: inputValues, ...(fragment === null ? {} : { fragment }) });
 }
 
 const BLUR = graphNode("blur", "nodes.blur:Blur");

@@ -65,7 +65,7 @@ test("changes_told_during_a_listing_are_read_in_one_more_listing_after_it", asyn
 
 test("a_refused_listing_is_told_in_the_runtimes_words_and_a_hidden_window_lists_nothing_until_it_is_shown", async () => {
   const { backend, served, foldersAsked } = listingBackend();
-  served.refusal = "list_project_node_types failed: the project's interpreter printed no listing";
+  served.refusal = "list_node_types failed: the project's interpreter printed no listing";
   const readings = new ProjectListingReadingsWhileWatched(backend.listTheProject);
   readings.setReadingAllowed(false);
   const seen: NamesReading[] = [];
@@ -77,7 +77,7 @@ test("a_refused_listing_is_told_in_the_runtimes_words_and_a_hidden_window_lists_
   await settle();
 
   expect(foldersAsked).toEqual([PROJECT_FOLDER]);
-  expect(seen).toEqual([{ kind: "not_listed", because: "list_project_node_types failed: the project's interpreter printed no listing" }]);
+  expect(seen).toEqual([{ kind: "not_listed", because: "list_node_types failed: the project's interpreter printed no listing" }]);
 });
 
 test("a_second_view_watching_the_same_project_is_told_the_latest_listing_at_once_and_shares_one_listing", async () => {

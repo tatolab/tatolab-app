@@ -307,8 +307,6 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
     }
     case "set_studio_fields":
       return typeof node === "string" && isAJsonObject(to) ? { operation, stream, node, studio: to } : null;
-    case "set_exposed_config_fields":
-      return typeof node === "string" && Array.isArray(to) ? { operation, stream, node, exposed_config_fields: to.flatMap((field) => (typeof field === "string" ? [field] : [])) } : null;
     case "set_group_fields": {
       const group = historyOperation["group"];
       if (typeof group !== "string" || !isAJsonObject(to)) return null;
@@ -567,21 +565,6 @@ export function applyMockGraphTransaction(
         applied.added_nodes.push({ stream: target.stream_id, node: nodeId, name, as: label });
         const studio: { studio?: JsonValue } = addedNode.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(addedNode.studio) };
         recordInHistory({ operation: "add_node", node: { id: nodeId, name, type: operation.type, config, pins, ...studio } }, { operation: "remove_node", node: nodeId });
-        break;
-      }
-      case "set_exposed_config_fields": {
-        const node = nodeNamed(operation.node);
-        const from = node.exposed_config_fields ?? [];
-        const describedInputs = nodeTypesDescribed.find((nodeType) => nodeType.node_type === node.type)?.inputs ?? [];
-        node.input_ports = [
-          ...node.input_ports.filter((port) => !from.includes(port.name)),
-          ...operation.exposed_config_fields.map((field) => graphPortOfTheDescribedPort(describedInputs.find((input) => input.name === field) ?? { name: field })),
-        ];
-        node.exposed_config_fields = [...operation.exposed_config_fields];
-        recordInHistory(
-          { operation: "set_exposed_config_fields", node: nodeIdOf(node), from, to: operation.exposed_config_fields },
-          { operation: "set_exposed_config_fields", node: nodeIdOf(node), from: operation.exposed_config_fields, to: from },
-        );
         break;
       }
       case "remove_node": {

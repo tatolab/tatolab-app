@@ -48,8 +48,8 @@ function drawTheGraphEdits(connection: Pick<TatoAppViewConnection, "transactInTh
   };
 }
 
-function exposing(setting: string): StreamGraphAction[] {
-  return [{ operation: "set_exposed_config_fields", stream: "stream-asset", node: "node-id", exposed_config_fields: [setting] }];
+function settingTheInput(input: string): StreamGraphAction[] {
+  return [{ operation: "set_node_input_value", stream: "stream-asset", node: "node-id", input, value: 30 }];
 }
 
 function anApplied(mode: GraphEditMode): ProjectGraphTransactionApplying {
@@ -71,13 +71,13 @@ test("a refusal is kept under its place in the runtime's words, and the next com
   const studio = aStudioThatAnswersEachTransactionLater();
   const drawn = drawTheGraphEdits(studio.connection, "/projects/hallways");
 
-  act(() => void drawn.edits.commit("input:fps", exposing("frames")));
+  act(() => void drawn.edits.commit("input:fps", settingTheInput("frames")));
   await letTheQueuedSendsRun();
   await studio.theTransactionAsked(0).answer(aRefusalInTheRuntimesWords("fps must be at least 1."));
   expect(drawn.edits.refusalsByPlace.get("input:fps")).toBe("fps must be at least 1.");
   expect(drawn.edits.refusalsByPlace.get("name")).toBeUndefined();
 
-  act(() => void drawn.edits.commit("input:fps", exposing("fps")));
+  act(() => void drawn.edits.commit("input:fps", settingTheInput("fps")));
   await letTheQueuedSendsRun();
   await studio.theTransactionAsked(1).answer(anApplied("commit"));
   expect(drawn.edits.refusalsByPlace.has("input:fps")).toBe(false);
@@ -100,7 +100,7 @@ test("edits are sent one after another, a later commit waiting for the earlier t
   const drawn = drawTheGraphEdits(studio.connection, "/projects/hallways");
 
   act(() => void drawn.edits.commit("name", [{ operation: "rename_node", stream: "stream-asset", node: "node-id", name: "Bars" }]));
-  act(() => void drawn.edits.commit("input:fps", exposing("fps")));
+  act(() => void drawn.edits.commit("input:fps", settingTheInput("fps")));
   await letTheQueuedSendsRun();
   expect(studio.asked).toHaveLength(1);
   expect(studio.theTransactionAsked(0).idempotencyKey).not.toBe("");
@@ -117,7 +117,7 @@ test("with no project open nothing is sent, and the place says why", async () =>
 
   let committing: Promise<boolean> = Promise.resolve(true);
   act(() => {
-    committing = drawn.edits.commit("input:fps", exposing("fps"));
+    committing = drawn.edits.commit("input:fps", settingTheInput("fps"));
   });
   expect(await act(async () => committing)).toBe(false);
   expect(studio.asked).toHaveLength(0);
@@ -128,7 +128,7 @@ test("a node's refusals stay with it, so another node's panel shows none of them
   const studio = aStudioThatAnswersEachTransactionLater();
   const drawn = drawTheGraphEdits(studio.connection, "/projects/hallways");
 
-  act(() => void drawn.editsOfTheNode("node-id").commit("input:fps", exposing("frames")));
+  act(() => void drawn.editsOfTheNode("node-id").commit("input:fps", settingTheInput("frames")));
   await letTheQueuedSendsRun();
   await studio.theTransactionAsked(0).answer(aRefusalInTheRuntimesWords("fps must be at least 1."));
 
@@ -141,11 +141,11 @@ test("a node's edits at a level inside a subgraph carry that level, each sent as
   const graphEdits = drawTheGraphEdits(studio.connection, "/projects/pattern");
   const editsInside = () => graphEdits.editsOfTheNode("node-id", ["subgraph-id"]);
 
-  const exposingInside = editsInside().commit("input:fps", exposing("fps"), "expose");
+  const settingInside = editsInside().commit("input:fps", settingTheInput("fps"), "set-fps");
   await letTheQueuedSendsRun();
-  expect(studio.asked.map((transaction) => [transaction.mode, transaction.operations, transaction.idempotencyKey])).toEqual([["commit", [{ ...exposing("fps")[0], level: ["subgraph-id"] }], "expose"]]);
+  expect(studio.asked.map((transaction) => [transaction.mode, transaction.operations, transaction.idempotencyKey])).toEqual([["commit", [{ ...settingTheInput("fps")[0], level: ["subgraph-id"] }], "set-fps"]]);
   await studio.theTransactionAsked(0).answer(anApplied("commit"));
-  expect(await act(async () => exposingInside)).toBe(true);
+  expect(await act(async () => settingInside)).toBe(true);
 
   const notedInside = await editsInside().commit("name", [{ operation: "add_note", stream: "stream-asset", text: "Note", position: [0, 0], size: [10, 10] }]);
   expect(notedInside).toBe(false);

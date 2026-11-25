@@ -382,7 +382,7 @@ export function generatorSubgraphPlacedEdits(edited: EditedStreamGraph, generato
 export function subgraphRefreshedEdits(edited: EditedStreamGraph, subgraphName: string): StreamGraphAction[] {
   const subgraph = edited.graph.nodes.find((node) => node.name === subgraphName);
   if (subgraph === undefined || fragmentOfTheNode(subgraph) === null || fragmentKindOfTheNode(subgraph) !== "generated") return [];
-  return [{ operation: "import_graph_generator", stream: edited.streamAsset, generator: subgraph.type, name: subgraph.name, config: jsonObjectMembersOf(subgraph.config) }];
+  return [{ operation: "import_graph_generator", stream: edited.streamAsset, generator: subgraph.type, name: subgraph.name, config: jsonObjectMembersOf(subgraph.input_values) }];
 }
 
 /** `actions` sent inside the subgraph `level` names, the path of subgraph node UUIDs from the stream's own level inward; why not when one of them is an edit the runtime makes only on the stream's own level. */

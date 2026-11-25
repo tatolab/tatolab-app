@@ -73,7 +73,6 @@ function standInMakeBundle(): MockGraphNode {
     config: {},
     pins: { [BUNDLE_TYPE_SETTING]: READING_SAVED_UNNAMED },
     input_defaults: {},
-    exposed_config_fields: [],
     input_ports: [
       {
         name: BUNDLE_TYPE_SETTING,
