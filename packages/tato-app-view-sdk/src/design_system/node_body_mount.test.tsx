@@ -22,8 +22,8 @@ function binderUnderTest() {
     bindInputControl: () => {
       throw new Error("the card binds no control here");
     },
-    bindOwnField: () => {
-      throw new Error("the card binds no own field");
+    bindInputValue: () => {
+      throw new Error("the card binds no input value");
     },
     bindNodeBody: (_host, _node, _readOnly, whenShown = () => undefined) => {
       tellers.push(whenShown);

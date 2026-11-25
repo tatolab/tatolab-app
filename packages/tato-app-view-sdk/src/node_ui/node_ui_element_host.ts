@@ -1,7 +1,7 @@
 // What a node UI element may ask the Studio. It grows only when a first-party element needs more.
 
 import type { BuiltInPinTypeName } from "../pin_types.js";
-import type { AssetPreviewReading, ProjectAssetsReading } from "../studio_readings.js";
+import type { AssetPreviewReading, AudioCaptureDevicesReading, ProjectAssetsReading } from "../studio_readings.js";
 import type { ProjectAssetPickEnding, StopWatching } from "../tato_app_view_connection.js";
 import type { ProjectAssetPick, ViewInputEvent } from "../view_wire_messages.js";
 import type { ControlledPin, InputControlElement } from "./input_control_element.js";
@@ -14,6 +14,8 @@ export interface NodeUiElementHost {
   readAssetPreview(asset: string): Promise<AssetPreviewReading>;
   /** The project's assets as the runtime lists them, at once and on each change. */
   watchProjectAssets(listener: (reading: ProjectAssetsReading) => void): StopWatching;
+  /** The machine's audio inputs and the monitors of its outputs, each by the id a String naming one takes, or why they were not listed: at once, and again each time the runtime starts after it was down. */
+  watchAudioCaptureDevices(listener: (reading: AudioCaptureDevicesReading) => void): StopWatching;
   /**
    * What the output wired into the input `input` carries, read through that output's port viewer, at once and as each frame or
    * message arrives; an Image frame arrives as a `VideoFrame` the element closes once drawn. When nothing is wired in, or the

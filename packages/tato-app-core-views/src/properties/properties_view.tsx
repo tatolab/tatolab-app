@@ -1,10 +1,10 @@
 import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SearchField } from "@tatolab/tato-app-view-sdk/design_system/search_field";
 import { StudioViewToolbarTools } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
 import { NodeGraphPinMark, NodeGraphPinMarkSlot, NodeGraphRebuildsTheNodeMark } from "@tatolab/tato-app-view-sdk/design_system/node_graph/node_card";
 import { pinWords } from "@tatolab/tato-app-view-sdk/pin_model/pin_type_words";
-import { isAnAudioCaptureDeviceInput, takesAControl } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
+import { takesAControl } from "@tatolab/tato-app-view-sdk/pin_model/controlled_inputs";
 import type { GraphAddress, InputAddress } from "@tatolab/tato-app-view-sdk/pin_model/node_inputs";
 import { settingValuesOfTheGraph, valueReadOfTheSetting } from "@tatolab/tato-app-view-sdk/pin_model/node_settings";
 import type { InputValues } from "@tatolab/tato-app-view-sdk/pin_services/input_values";
@@ -14,10 +14,8 @@ import {
   InputValueWords,
   useInputControlsOfTheFrame,
   useInputValuesOfTheStream,
-  useOwnFieldOfTheInput,
   useRefusalOfTheInput,
   useWhereTheInputsValueComesFrom,
-  type OwnFieldOfTheInput,
 } from "@tatolab/tato-app-view-sdk/design_system/input_control_mount";
 import { nodePinWordsBesideItsSlot, type NodePin } from "@tatolab/tato-app-view-sdk/pin_model/node_pins";
 import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
@@ -37,7 +35,6 @@ import { FieldMenu, MenuItem, MenuNote } from "@tatolab/tato-app-view-sdk/design
 import {
   inputValueReadOfThePort,
   type InputValueComesFrom,
-  type JsonValue,
   nodeTypeDescriptionsByType,
   type NodeTypeDescription,
   type NodeTypeInputDescribed,
@@ -49,7 +46,6 @@ import {
   mayCarryAPicture,
 } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { useNodeTypesOfTheProject } from "../shared/use_node_types_of_the_project";
-import { AudioCaptureDeviceFieldOfTheSetting } from "./audio_capture_device_field";
 import { CoreViewFrame } from "../shared/core_view_page";
 import { useRefusalOfTheLatestAsk } from "../shared/refusal_of_the_latest_ask";
 import { VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
@@ -71,33 +67,9 @@ import {
 /** The stream's own level, which a node selection with no `level` is at. */
 const NO_LEVEL: readonly string[] = [];
 
-/** The open project the audio device menu reads the machine's capture devices through; `null` while no project is open. */
-interface OpenProjectOfTheDeviceMenus {
-  connection: TatoAppViewConnection;
-  projectFolder: string;
-}
-
-const OpenProjectOfTheDeviceMenusContext = createContext<OpenProjectOfTheDeviceMenus | null>(null);
-
 /** The id of the field holding the value an unlinked input of the node takes. */
 function pinValueFieldId(nodeId: string, portName: string): string {
   return `${nodeId}:${portName}:pin`;
-}
-
-/** What a field of the panel's own sets through: the store's value of one input or setting. */
-interface OwnFieldOfTheRow {
-  address: InputAddress;
-}
-
-/** The value an input or setting holds of its own in the store, `null` while it reads its default or none. */
-function ownValueShown(ownField: OwnFieldOfTheInput | null): JsonValue | null {
-  const shown = ownField?.shown;
-  return shown !== undefined && (shown.comes_from === "saved" || shown.comes_from === "live") ? shown.value : null;
-}
-
-/** The value an input or setting shows in the store, its own or its default; `null` where it shows none. */
-function valueShown(ownField: OwnFieldOfTheInput | null): JsonValue | null {
-  return ownField?.shown.value ?? null;
 }
 
 /** What a port's name shows while the pointer rests on it: the stream facts it reads, and that a Records port's values are not checked. */
@@ -204,7 +176,7 @@ function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin
       wireReading={wireDriven === null ? undefined : <InputControlMount input={wireDriven} surface="properties" readOnly={streamAsset === null} fallback={null} className="w-full" />}
       unlinkedValue={
         state.kind === "holds_a_value" ? (
-          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} nodePin={pin} row={{ address: state.address }} />
+          <ValueOfTheUnwiredInput fieldId={pinValueFieldId(node.id, pin.name)} nodePin={pin} address={state.address} />
         ) : state.kind === "wired_from_outside_the_level" ? (
           <span className="text-fg-3" data-properties-input-wired-from-outside-the-level>
             Wired
@@ -215,48 +187,17 @@ function InputRowOfTheNode({ pin, port, describedInput, bandShade, rows }: { pin
   );
 }
 
-/** The menu of the machine's audio capture devices for a setting naming one, each choice set as one commit and Default input taking the value off. */
-function AudioCaptureDeviceFieldOfTheInput({ fieldId, row }: { fieldId: string; row: OwnFieldOfTheRow }) {
-  const ownField = useOwnFieldOfTheInput(row.address, "commit");
-  const openProject = useContext(OpenProjectOfTheDeviceMenusContext);
-  return (
-    <AudioCaptureDeviceFieldOfTheSetting
-      fieldId={fieldId}
-      name={row.address.input}
-      value={valueShown(ownField)}
-      isTheTypesDefault={ownValueShown(ownField) === null}
-      connection={openProject?.connection ?? null}
-      onDeviceChosen={ownField === null ? undefined : (deviceId) => ownField.releaseTheValue(deviceId)}
-      onDefaultChosen={ownField === null ? undefined : () => ownField.clearTheValue()}
-    />
-  );
-}
-
 /**
- * The panel's own field for an input no control of the table draws: the menu of the machine's audio capture devices for one
- * naming a device, and else its value in words, which no surface sets.
- */
-function OwnFieldOfTheRowsInput({ fieldId, nodePin, row }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations">; row: OwnFieldOfTheRow }) {
-  if (nodePin.pin !== null && isAnAudioCaptureDeviceInput(nodePin.pin.pin_type, nodePin.annotations)) return <AudioCaptureDeviceFieldOfTheInput fieldId={fieldId} row={row} />;
-  return <InputValueWords id={fieldId} address={row.address} pinType={nodePin.pin?.pin_type ?? null} data-properties-input-value-words={row.address.input} />;
-}
-
-/**
- * An unwired input's value: the control its card draws, through the frame's binder, where its type is exact, its value in
- * words while that control loads, and the panel's own field where the table has no control for it. Under it, the store's
+ * An unwired input's value: the control its card draws, through the frame's binder, where its type is exact, and its value
+ * in words while that control loads and where the table has no control for it, which no surface sets. Under it, the store's
  * refusal of the last value sent to it.
  */
-function ValueOfTheUnwiredInput({ fieldId, nodePin, row }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations" | "setting">; row: OwnFieldOfTheRow }) {
-  const { address } = row;
+function ValueOfTheUnwiredInput({ fieldId, nodePin, address }: { fieldId: string; nodePin: Pick<NodePin, "pin" | "annotations" | "setting">; address: InputAddress }) {
   const controlled = takesAControl({ name: address.input, pin: nodePin.pin, annotations: nodePin.annotations, value_address: address, setting: nodePin.setting, wire: null });
-  const ownField = <OwnFieldOfTheRowsInput fieldId={fieldId} nodePin={nodePin} row={row} />;
+  const valueWords = <InputValueWords id={fieldId} address={address} pinType={nodePin.pin?.pin_type ?? null} data-properties-input-value-words={address.input} />;
   return (
     <div className="flex w-full min-w-0 flex-col gap-1">
-      {controlled === null ? (
-        ownField
-      ) : (
-        <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={<InputValueWords id={fieldId} address={address} pinType={nodePin.pin?.pin_type ?? null} data-properties-input-value-words={address.input} />} noControl={ownField} className="w-full" />
-      )}
+      {controlled === null ? valueWords : <InputControlMount input={controlled} surface="properties" readOnly={false} fallback={valueWords} className="w-full" />}
       <RefusalOfTheInputsValue address={address} />
     </div>
   );
@@ -530,7 +471,6 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
   const openProject = useViewReading(connection.watchOpenProject);
   const projectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   const graphEditsInTheProject = useGraphEditsInTheOpenProject(connection, projectFolder);
-  const openProjectOfTheDeviceMenus = useMemo(() => (projectFolder === null ? null : { connection, projectFolder }), [connection, projectFolder]);
   const [searchWords, setSearchWords] = useState("");
   const { inputValues, inputControls } = useInputControlsOfTheFrame(connection);
   if (selection?.kind === "nodes" && activeStreamTab?.stream === selection.stream) {
@@ -544,7 +484,6 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
       <StudioViewToolbarTools label="Properties search">
         <SearchField label="Search properties" placeholder="Search properties" text={searchWords} onTextChanged={setSearchWords} width="fills_the_row" data-properties-search="" />
       </StudioViewToolbarTools>
-      <OpenProjectOfTheDeviceMenusContext.Provider value={openProjectOfTheDeviceMenus}>
         <InputControlBinderContext value={inputControls}>
           <PropertiesOfTheSelectedNode
             key={`${selection.stream}/${(selection.level ?? []).join("/")}`}
@@ -558,7 +497,6 @@ function PropertiesBody({ connection }: { connection: TatoAppViewConnection }) {
             searchWords={searchWords}
           />
         </InputControlBinderContext>
-      </OpenProjectOfTheDeviceMenusContext.Provider>
     </>
   );
 }

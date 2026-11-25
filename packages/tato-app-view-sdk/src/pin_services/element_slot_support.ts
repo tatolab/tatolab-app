@@ -23,7 +23,10 @@ export function releaseOfAGestureOn(surface: NodeUiSurface, input: Pick<Controll
 }
 
 /** What a control asks of the project an input's stream is in, through the frame's connection. */
-export type ProjectAControlReaches = Pick<TatoAppViewConnection, "pickAProjectAsset" | "readAssetPreviewInTheProject" | "watchProjectAssets" | "watchPortViewer">;
+export type ProjectAControlReaches = Pick<
+  TatoAppViewConnection,
+  "pickAProjectAsset" | "readAssetPreviewInTheProject" | "watchProjectAssets" | "watchPortViewer" | "listAudioCaptureDevices" | "watchListedStreams"
+>;
 
 /** The tag the read-only line is defined under in a frame. */
 const READ_ONLY_VALUE_LINE_TAG = "tato-studio-read-only-value-line";

@@ -335,7 +335,7 @@ test("unbinding the last slot takes its element off and stops watching the listi
   expect(slot.listingListeners.size).toBe(0);
 });
 
-test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and_a_clear_each_as_one_commit_through_the_one_sender", async () => {
+test("a_surfaces_reading_of_an_input_shows_the_stores_value_and_sends_its_clear_as_one_commit_through_the_one_sender", async () => {
   const sent: { value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
@@ -346,55 +346,36 @@ test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and
   });
   inputValues.takeTheInputValues(PROJECT, valuesRead(0.5));
   const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues, project: NO_PROJECT });
-  const field = binder.bindOwnField(GAIN, "commit");
+  const reading = binder.bindInputValue(GAIN, "commit");
   const valuesShown: JsonValue[] = [];
-  field.watchValue((shown) => valuesShown.push(shown.value));
-  expect(field.shownValue()).toEqual({ value: 0.5, comes_from: "saved" });
+  reading.watchValue((shown) => valuesShown.push(shown.value));
+  expect(reading.shownValue()).toEqual({ value: 0.5, comes_from: "saved" });
 
-  field.beginGesture().release({ gain: [1, 2] });
+  reading.clear();
   for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
-  field.clear();
-  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
-  expect(sent).toEqual([
-    { value: { gain: [1, 2] }, mode: "commit" },
-    { value: null, mode: "commit" },
-  ]);
-  expect(valuesShown).toEqual([0.5, { gain: [1, 2] }, null]);
+  expect(sent).toEqual([{ value: null, mode: "commit" }]);
+  expect(valuesShown).toEqual([0.5, null]);
 });
 
-test("a_surfaces_own_field_bound_live_sends_its_gesture_and_its_clear_live_and_shows_the_refusal_of_its_last_write", async () => {
+test("a_surfaces_reading_of_an_input_bound_live_sends_its_clear_live_and_shows_the_refusal_of_its_last_write", async () => {
   const sent: { value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
       for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ value: operation.value ?? null, mode: sending.mode });
-      return Promise.resolve(
-        sent.length === 2
-          ? { kind: "not_sent", because: "the stream is stopped" }
-          : { kind: "applied", transaction: { mode: sending.mode, transaction: null, commit: null, operations: [], added_nodes: [], connected_links: [], added_groups: [], added_notes: [] } },
-      );
+      return Promise.resolve({ kind: "not_sent", because: "the stream is stopped" });
     },
     newGestureIdempotencyKey: () => "gesture",
   });
-  inputValues.takeTheInputValues(PROJECT, valuesRead(0.5));
-  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues, project: NO_PROJECT });
-  const field = binder.bindOwnField(GAIN, "live");
-  const refusals: (string | null)[] = [];
-  field.watchRefusal((refusal) => refusals.push(refusal));
-
-  const gesture = field.beginGesture();
-  gesture.move(0.6);
-  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
-  gesture.release(0.7);
-  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
   inputValues.takeTheInputValues(PROJECT, valuesRead(0.6, "live"));
-  field.clear();
+  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues, project: NO_PROJECT });
+  const reading = binder.bindInputValue(GAIN, "live");
+  const refusals: (string | null)[] = [];
+  reading.watchRefusal((refusal) => refusals.push(refusal));
+
+  reading.clear();
   for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
-  expect(sent).toEqual([
-    { value: 0.6, mode: "live" },
-    { value: 0.7, mode: "live" },
-    { value: null, mode: "live" },
-  ]);
-  expect(refusals).toEqual([null, "the stream is stopped", null]);
+  expect(sent).toEqual([{ value: null, mode: "live" }]);
+  expect(refusals).toEqual([null, "the stream is stopped"]);
 });
 
 /** A Trigger control as the binder meets one: each press is a `change` carrying no value. */

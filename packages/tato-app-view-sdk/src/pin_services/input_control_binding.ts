@@ -29,6 +29,7 @@ import type { InputValueGesture, InputValues, ShownValue } from "./input_values.
 import { markTheNewerVersionBlocked, newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
 import { NodeBodySlot, type NodeBodyBinding, type NodeBodyShown } from "./node_body_binding.js";
 import { readWhatTheWiringCarries } from "./wire_reading.js";
+import { watchTheAudioCaptureDevices } from "./audio_capture_devices_watched.js";
 
 export { NEWER_VERSION_BLOCKED_ATTRIBUTE, releaseOfAGestureOn, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
 
@@ -40,7 +41,7 @@ export interface InputControlPlace {
 
 /**
  * What a slot shows: nothing yet, while the listing or the element loads; the element; the read-only line, for an element
- * that is blocked or does not load; or no control, because the table has none for the input, where the surface draws its own field.
+ * that is blocked or does not load; or no control, because the table has none for the input, where the surface draws what it has in its place.
  */
 export type InputControlShown = "pending" | "element" | "read_only_line" | "no_control";
 
@@ -51,15 +52,14 @@ export interface InputControlBinding {
 }
 
 /**
- * A surface's own field for one input, where the table has no control for it: the store's value for that input and its
- * refusal, a gesture that sends through the input's one sender and ends as the binding's release says, and a clear of the
- * value that release keeps: the saved value as one commit, back to the default, or the live value, back to the saved one.
+ * What a surface reads of one input's value beside its control: the store's value for that input and its refusal, and a
+ * clear of the value the binding's release keeps, through the input's one sender: the saved value as one commit, back to
+ * the default, or the live value, back to the saved one.
  */
-export interface OwnFieldBinding {
+export interface InputValueBinding {
   shownValue(): ShownValue;
   watchValue(listener: (shown: ShownValue) => void): StopWatching;
   watchRefusal(listener: (refusal: string | null) => void): StopWatching;
-  beginGesture(): InputValueGesture;
   clear(): void;
 }
 
@@ -67,8 +67,8 @@ export interface OwnFieldBinding {
 export interface InputControlBinder {
   /** Draws the control for `input` inside `host`, telling `whenShown` what the slot shows each time it changes. */
   bindInputControl(host: HTMLElement, input: ControlledInput, place: InputControlPlace, whenShown?: (shown: InputControlShown) => void): InputControlBinding;
-  /** Binds a surface's own field to the input at `address`, its gestures ending as `release` says. */
-  bindOwnField(address: InputAddress, release: InputValueRelease): OwnFieldBinding;
+  /** Binds a surface's reading of the input at `address`, its clear taking off the value `release` keeps. */
+  bindInputValue(address: InputAddress, release: InputValueRelease): InputValueBinding;
   /** Draws, inside `host`, the body `node`'s node type registers, telling `whenShown` what the slot shows each time it changes; `no_body` where it registers none. */
   bindNodeBody(host: HTMLElement, node: NodeOfABody, readOnly: boolean, whenShown?: (shown: NodeBodyShown) => void): NodeBodyBinding;
 }
@@ -167,6 +167,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
     pickAProjectAsset: (pick) => project.pickAProjectAsset(pick),
     readAssetPreview: (asset) => project.readAssetPreviewInTheProject(projectFolder, asset),
     watchProjectAssets: (listener) => project.watchProjectAssets(projectFolder, listener),
+    watchAudioCaptureDevices: (listener) => watchTheAudioCaptureDevices(project, listener),
     watchWhatIsWiredInto,
     inputControlFor,
   });
@@ -492,11 +493,10 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       binding.refresh();
       return binding;
     },
-    bindOwnField: (address, release) => ({
+    bindInputValue: (address, release) => ({
       shownValue: () => inputValues.shownValue(address),
       watchValue: (listener) => inputValues.watchValue(address, listener),
       watchRefusal: (listener) => inputValues.watchRefusal(address, listener),
-      beginGesture: () => inputValues.beginGesture(address, release),
       clear: () => inputValues.clear(address, release === "live" ? "live" : "commit"),
     }),
   };
