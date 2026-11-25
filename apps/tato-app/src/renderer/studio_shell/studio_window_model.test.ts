@@ -418,6 +418,14 @@ describe("a project's view, found by its project's UUID and folder", () => {
     expect(layoutAfter === undefined ? [] : areaViewTypesOf(layoutAfter)).not.toContain("Paint Pulse:stage");
     expect(layoutKept.readLayoutOf(SHEET_CHECK_FOLDER).layout).toEqual(layoutAfter);
 
+    const presetSavedBefore = { title: "Pulse", layout: { kind: "area" as const, area_id: "stage", view_type_id: "Paint Pulse:stage" } };
+    studioWindowModel.studioLayout.publish({ ...(studioWindowModel.studioLayout.readLatest() ?? expect.unreachable("no layout")), presets_saved: [presetSavedBefore] });
+    studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => listedByName.viewTypeIdOf(viewTypeId));
+    expect(layoutKept.readLayoutOf(SHEET_CHECK_FOLDER).presets_saved).toEqual([{ title: "Pulse", layout: { kind: "area", area_id: "stage", view_type_id: `${PAINT_PULSE}:stage` } }]);
+    const layoutKeptOnce = studioWindowModel.studioLayout.readLatest();
+    studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => listedByName.viewTypeIdOf(viewTypeId));
+    expect(studioWindowModel.studioLayout.readLatest()).toBe(layoutKeptOnce);
+
     const listedByUuid = registryListing(listedView(`${PAINT_PULSE}:stage`, PAINT_PULSE, "Paint Pulse renamed", "stage", "Stage"));
     expect(listedByUuid.viewTypeWithId(`${PAINT_PULSE}:stage`)?.title).toBe("Stage");
   });

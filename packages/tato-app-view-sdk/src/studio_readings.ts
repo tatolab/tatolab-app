@@ -694,6 +694,7 @@ export type StudioViewDeclaredPort = { name: string; family: PortFamily; pin_typ
 
 /** A view an area can show: its view type id, what its manifest says of it, who brought it, and why it does not open (`null` when it does). */
 export type StudioViewListed = {
+  /** The id the window holds the view under, which a view opens it or shows it in an area by: a project's view by its project's UUID and its folder, never the node type a node of it is. */
   view_type_id: string;
   title: string;
   description: string;

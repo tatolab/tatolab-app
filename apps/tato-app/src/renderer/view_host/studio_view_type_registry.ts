@@ -130,9 +130,21 @@ export class StudioViewTypeRegistry {
    */
   viewTypeIdOf(viewTypeId: string): string {
     const reading = this.projectStudioViews.readLatest();
-    if (reading.kind !== "listed") return viewTypeId;
+    if (reading.kind !== "listed" || this.viewTypesById.has(viewTypeId) || this.viewTypesOfferedInDeveloperModeById.has(viewTypeId)) return viewTypeId;
     const listed = reading.studio_views.find((view) => view.view_type_id === viewTypeId);
     return listed === undefined ? viewTypeId : projectViewIdOfTheListedView(listed);
+  }
+
+  /**
+   * The id an area saved as `viewTypeIdSaved` keeps from now on: `viewTypeIdOf`'s, or, for a `<project name>:<view folder>` saved while
+   * the runtime listed views by their project's name and matching no type it lists now, the id of the listed view it names that way.
+   */
+  viewTypeIdKeptForAnAreaSavedAs(viewTypeIdSaved: string): string {
+    const registeredId = this.viewTypeIdOf(viewTypeIdSaved);
+    const reading = this.projectStudioViews.readLatest();
+    if (registeredId !== viewTypeIdSaved || reading.kind !== "listed") return registeredId;
+    const listedByItsProjectsNameBefore = reading.studio_views.find((view) => view.project !== null && `${view.project_name}:${view.view_folder}` === viewTypeIdSaved);
+    return listedByItsProjectsNameBefore === undefined ? registeredId : projectViewIdOfTheListedView(listedByItsProjectsNameBefore);
   }
 
   /** The view type `viewTypeId` names when Developer mode offers it and is off now, or `null`. */

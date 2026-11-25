@@ -62,7 +62,7 @@ export function watchAreasForTheViewType(viewTypeId: string, sources: StudioView
 /** Area `areaId` of the layout showing `viewTypeId`, or why it can't. */
 export function showViewTypeInAreaOf(viewTypeId: string, areaId: string, sources: StudioViewTypeAreaSources): ViewOpening {
   const areas = areasForTheViewTypeOf(viewTypeId, sources);
-  if (areas.kind === "not_a_view_type") return { kind: "not_opened", because: `Tato Studio has no view named ${viewTypeId}.` };
+  if (areas.kind === "not_a_view_type") return { kind: "not_opened", because: "Tato Studio has no such view." };
   if (areas.kind === "no_areas") return { kind: "not_opened", because: areas.because };
   if (!areas.areas.some((area) => area.area_id === areaId)) return { kind: "not_opened", because: `The layout shown has no area ${areaId}.` };
   sources.showViewTypeInTheArea({ view_type_id: sources.viewTypeIdOf(viewTypeId), area_id: areaId });

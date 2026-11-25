@@ -97,7 +97,7 @@ describe("a view type's areas in the layout", () => {
     const { sources, shown } = areaSources(BUILD_LAYOUT);
     expect(showViewTypeInAreaOf("acme-dj:deck", "viewer", sources)).toEqual({ kind: "opened" });
     expect(showViewTypeInAreaOf("acme-dj:deck", "timeline", sources)).toEqual({ kind: "not_opened", because: "The layout shown has no area timeline." });
-    expect(showViewTypeInAreaOf("acme-lens:bokeh", "viewer", sources)).toEqual({ kind: "not_opened", because: "Tato Studio has no view named acme-lens:bokeh." });
+    expect(showViewTypeInAreaOf("acme-lens:bokeh", "viewer", sources)).toEqual({ kind: "not_opened", because: "Tato Studio has no such view." });
     expect(shown).toEqual([{ view_type_id: "acme-dj:deck", area_id: "viewer" }]);
   });
 });

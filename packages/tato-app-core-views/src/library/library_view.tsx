@@ -208,7 +208,6 @@ function PortsOfTheView({ direction, ports }: { direction: "In" | "Out"; ports: 
 function DetailsOfTheView({ studioView }: { studioView: StudioViewListed }) {
   const facts: KeyValueRow[] = [
     ["Brought by", studioView.brought_by],
-    ["View type", <span className="font-mono">{studioView.view_type_id}</span>],
     ["Shows", studioViewShownWhereWords(studioView)],
   ];
   return (

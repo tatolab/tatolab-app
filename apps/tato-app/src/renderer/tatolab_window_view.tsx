@@ -88,7 +88,7 @@ function listTheOpenProjectsStudioViews(backend: TatolabBackend, studioWindowMod
       list: () => backend.listStudioViewsOfTheOpenProject(),
       listed: (studioViews) => {
         viewTypeRegistry.projectStudioViews.publish({ kind: "listed", studio_views: studioViews });
-        studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => viewTypeRegistry.viewTypeIdOf(viewTypeId));
+        studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => viewTypeRegistry.viewTypeIdKeptForAnAreaSavedAs(viewTypeId));
       },
       notListed: (rejection) => viewTypeRegistry.projectStudioViews.publish({ kind: "not_listed", because: describeBackendRejection(rejection) }),
       noneOpen: () => viewTypeRegistry.projectStudioViews.publish({ kind: "none_open" }),
