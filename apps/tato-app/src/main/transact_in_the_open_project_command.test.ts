@@ -4,7 +4,7 @@ import path from "node:path";
 import { Effect, ManagedRuntime } from "effect";
 import { afterEach, expect, test, vi } from "vitest";
 import type { ListedStream } from "../shared/tatolab_backend_contract.js";
-import { controlOperationFailedResponse, controlOperationRefusedResponse, controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
+import { A_REFUSAL_NAMING_NOTHING_MORE, controlOperationFailedResponse, controlOperationRefusedResponse, controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { controlOperationCallsReceivedBy } from "./runtime_operations_test_support.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
@@ -25,9 +25,6 @@ const FROM_HALLWAYS_STUDIO_WINDOW = { windowContentsId: PROJECTS_WINDOW_CONTENTS
 const RECORDED_REFUSALS_STREAM_ASSET = "0eaf9ee2-0f73-4154-a3f6-a99c261b850d";
 const RECORDED_TEST_PATTERN = "777c0dab-ae92-4df3-9d8f-bb1c4d4e98b6";
 const RECORDED_HALFTONE = "02a2b427-bbc4-4d9f-a376-854af4fa8755";
-/** Every place a refusal may name, named by none. */
-const NAMING_NOTHING_MORE = { refused_node: null, refused_link: null, refused_input: null, refused_params_pointer: null, refused_file: null, suggested_call: null };
-
 /**
  * The window's `transact_in_the_open_project` on the live `RuntimeControl` over `server`, given up after `timeLimitMs`, Sam
  * editing in the studio window of hallways, whose one listed stream asset is `STREAM_ASSET`; with every line the app logged.
@@ -146,7 +143,7 @@ test("a graph transaction in the open project reaches the runtime's transact hel
     value: {
       kind: "refused",
       refusal: {
-        ...NAMING_NOTHING_MORE,
+        ...A_REFUSAL_NAMING_NOTHING_MORE,
         refusal_code: "link_pin_types_do_not_connect",
         action: "transact",
         refused_operation_index: 0,
@@ -249,7 +246,7 @@ test("a drag's live edits answer no transaction and its commit under the same ke
   });
 });
 
-test("a refused link, rename or pin value answers the runtime's structured refusal, its code, the place it names and its words unchanged", async () => {
+test("a refused link, rename or input value answers the runtime's structured refusal, its code, the place it names and its words unchanged", async () => {
   const server = await serverReplaying(
     "local-api-transact-refusal-for-a-rename-to-a-name-another-node-has.json",
     "local-api-transact-refusal-for-a-texture-output-into-an-integer-input.json",
@@ -262,14 +259,14 @@ test("a refused link, rename or pin value answers the runtime's structured refus
 
   const rename = await transact(sent({ operation: "rename_node", node: RECORDED_HALFTONE, name: "brightnessmeter" }), FROM_HALLWAYS_STUDIO_WINDOW);
   const connect = await transact(sent({ operation: "connect", ...link }), FROM_HALLWAYS_STUDIO_WINDOW);
-  const pin = await transact(sent({ operation: "set_node_input_value", node: RECORDED_TEST_PATTERN, input: "no_such_input", value: 1 }), FROM_HALLWAYS_STUDIO_WINDOW);
+  const inputValue = await transact(sent({ operation: "set_node_input_value", node: RECORDED_TEST_PATTERN, input: "no_such_input", value: 1 }), FROM_HALLWAYS_STUDIO_WINDOW);
 
   expect(rename).toEqual({
     ok: true,
     value: {
       kind: "refused",
       refusal: {
-        ...NAMING_NOTHING_MORE,
+        ...A_REFUSAL_NAMING_NOTHING_MORE,
         refusal_code: "node_name_taken",
         action: "transact",
         refused_operation_index: 0,
@@ -283,7 +280,7 @@ test("a refused link, rename or pin value answers the runtime's structured refus
     value: {
       kind: "refused",
       refusal: {
-        ...NAMING_NOTHING_MORE,
+        ...A_REFUSAL_NAMING_NOTHING_MORE,
         refusal_code: "link_pin_types_do_not_connect",
         action: "transact",
         refused_operation_index: 0,
@@ -292,12 +289,12 @@ test("a refused link, rename or pin value answers the runtime's structured refus
       },
     },
   });
-  expect(pin).toEqual({
+  expect(inputValue).toEqual({
     ok: true,
     value: {
       kind: "refused",
       refusal: {
-        ...NAMING_NOTHING_MORE,
+        ...A_REFUSAL_NAMING_NOTHING_MORE,
         refusal_code: "port_not_found",
         action: "transact",
         refused_operation_index: 0,
@@ -319,7 +316,7 @@ test("params the runtime does not read are refused with the code and the pointer
     ok: true,
     value: {
       kind: "refused",
-      refusal: { ...NAMING_NOTHING_MORE, refusal_code: "params_do_not_match_schema", action: "transact", refused_operation_index: null, refused_params_pointer: "/operations/0", runtime_words: runtimeWords },
+      refusal: { ...A_REFUSAL_NAMING_NOTHING_MORE, refusal_code: "params_do_not_match_schema", action: "transact", refused_operation_index: null, refused_params_pointer: "/operations/0", runtime_words: runtimeWords },
     },
   });
 });
@@ -332,12 +329,12 @@ test("a refusal code this app does not know reads as refused and keeps the place
   cleanUps.push(() => server.close());
   const { transact } = await transactCommandAt(server.localApiSocketPath, RECORDED_REFUSALS_STREAM_ASSET, 2_000);
 
-  const pin = await transact(
+  const inputValue = await transact(
     { operations: [{ operation: "set_node_input_value", stream: RECORDED_REFUSALS_STREAM_ASSET, node: RECORDED_TEST_PATTERN, input: "no_such_input", value: 1 }], mode: "commit", idempotency_key: null },
     FROM_HALLWAYS_STUDIO_WINDOW,
   );
 
-  expect(pin).toMatchObject({ ok: true, value: { kind: "refused", refusal: { refusal_code: "refused", refused_input: "no_such_input", runtime_words: "node `testpatternsource` (`tatolab.testpattern:TestPatternSource`) has no input `no_such_input`; its inputs are `width`, `height`. To fix: name one of them" } } });
+  expect(inputValue).toMatchObject({ ok: true, value: { kind: "refused", refusal: { refusal_code: "refused", refused_input: "no_such_input", runtime_words: "node `testpatternsource` (`tatolab.testpattern:TestPatternSource`) has no input `no_such_input`; its inputs are `width`, `height`. To fix: name one of them" } } });
 });
 
 test("a refusal with no structure answers the runtime's own words, and a runtime that does not answer, answers late or answers off the contract says so", async () => {
@@ -401,7 +398,7 @@ test.skipIf(liveLocalApiSocket === "" || liveLoadedStreamAsset === "")("a real r
     value: {
       kind: "refused",
       refusal: {
-        ...NAMING_NOTHING_MORE,
+        ...A_REFUSAL_NAMING_NOTHING_MORE,
         refusal_code: "node_not_found",
         action: "transact",
         refused_operation_index: 0,

@@ -163,7 +163,7 @@ export function refusedNamesRowsOf(refusedAction: RefusedProjectAction): (readon
   const refusedLink = refusal.refused_link;
   return [
     ...(refusal.refused_node === null ? [] : [["Node", refusal.refused_node] as const]),
-    ...(refusal.refused_input === null ? [] : [["Field", refusal.refused_input] as const]),
+    ...(refusal.refused_input === null ? [] : [["Input", refusal.refused_input] as const]),
     ...(refusedLink === null ? [] : [["Link", `${refusedLink.source.node}:${refusedLink.source.port} → ${refusedLink.target.node}:${refusedLink.target.port}`] as const]),
     ...(refusedAction.idempotency_key === null ? [] : [["Key", refusedAction.idempotency_key] as const]),
   ];

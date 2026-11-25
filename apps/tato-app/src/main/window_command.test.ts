@@ -1,5 +1,6 @@
 import { Effect, ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vitest";
+import { A_REFUSAL_NAMING_NOTHING_MORE } from "./fake_local_api_server.js";
 import { tatolabAppLogAsEffectsLogger } from "./studio_runtime.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import { TransactInTheOpenProjectArguments } from "../shared/transact_in_the_open_project_arguments.js";
@@ -25,7 +26,7 @@ test("a command answers its handler's value or the words of the failure it ended
   const { studioRuntime, loggedLines } = studioRuntimeLoggingEachLine();
   const transactInTheOpenProject = windowCommand(studioRuntime, "transact_in_the_open_project", TransactInTheOpenProjectArguments, (decoded) =>
     decoded.mode === "live"
-      ? Effect.succeed({ kind: "refused" as const, refusal: { refusal_code: "refused", action: "transact", refused_operation_index: null, refused_node: null, refused_link: null, refused_input: null, refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: decoded.operations[0]?.stream ?? "" } })
+      ? Effect.succeed({ kind: "refused" as const, refusal: { refusal_code: "refused", action: "transact", refused_operation_index: null, ...A_REFUSAL_NAMING_NOTHING_MORE, runtime_words: decoded.operations[0]?.stream ?? "" } })
       : Effect.fail(new CommandRefused({ words: "a commit is refused here" })),
   );
 

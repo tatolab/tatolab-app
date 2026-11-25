@@ -136,6 +136,9 @@ function controlOperationCallIn(request: string): { method: string; params: Reco
 }
 
 /** An HTTP/1.1 response carrying `body` as `contentType`. */
+/** Every place a refusal may name, named by none. */
+export const A_REFUSAL_NAMING_NOTHING_MORE = { refused_node: null, refused_link: null, refused_input: null, refused_params_pointer: null, refused_file: null, suggested_call: null };
+
 export function httpResponse(statusLine: string, contentType: string, body: string): Buffer {
   return Buffer.from(`HTTP/1.1 ${statusLine}\r\ncontent-type: ${contentType}\r\ncontent-length: ${Buffer.byteLength(body)}\r\n\r\n${body}`, "utf8");
 }

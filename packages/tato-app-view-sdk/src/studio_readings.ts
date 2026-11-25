@@ -457,7 +457,7 @@ export function bagsRefusedOnTheOutputPort(node: Pick<GraphNodeOnTheWire, "compo
 /** Each open JSON object already read, by the object the graph serves. */
 const JSON_OBJECT_MEMBERS_READ = new WeakMap<object, { readonly [key: string]: JsonValue }>();
 
-/** The values `value` holds as a JSON object, by key, a member no JSON value kept out; `{}` for anything else. A node's `config` and `pins` are served as open JSON; one object served gives the same members however often it is read. */
+/** The values `value` holds as a JSON object, by key, a member no JSON value kept out; `{}` for anything else. A node's `input_values` are served as open JSON; one object served gives the same members however often it is read. */
 export function jsonObjectMembersOf(value: unknown): { readonly [key: string]: JsonValue } {
   const object = jsonObjectOrNull(value);
   if (object === null) return {};
@@ -498,7 +498,7 @@ export type AssetPreviewPicture = {
 
 /** One asset of a project as the runtime's `list_assets` lists it. */
 export type ProjectAsset = {
-  /** The asset's UUID, which a node's config names it by as `{"asset": <uuid>}`. */
+  /** The asset's UUID, which a node's input value names it by as `{"asset": <uuid>}`. */
   asset: string;
   /** `media` (video, audio, an image), `scene`, `data` (a LUT, model weights, a font…) or `stream` (a graph document); a kind the runtime adds later reads as it spells it. */
   kind: string;
@@ -768,7 +768,7 @@ export type ProjectActionRefusal = {
   refused_node: string | null;
   /** The link the refused operation names. */
   refused_link: { source: RefusedGraphLinkEnd; target: RefusedGraphLinkEnd } | null;
-  /** The node's input or config field the refused operation names. */
+  /** The node's input the refused operation names. */
   refused_input: string | null;
   /** The JSON pointer, into the params the action sent, of the value refused; `null` when no one value inside them is. */
   refused_params_pointer: string | null;

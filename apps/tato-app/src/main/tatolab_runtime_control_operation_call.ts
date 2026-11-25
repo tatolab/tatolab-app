@@ -26,9 +26,9 @@ import {
   type ControlNotificationMethodName,
   type ControlNotifications,
   type ControlOperationMethodName,
+  type ControlOperationRefusalOnTheWire,
   type ControlOperations,
   type DiscoverResult,
-  type ControlOperationRefusalOnTheWire,
 } from "@tatolab/runtime-client";
 import { Context, Effect, type Scope, type Stream } from "effect";
 import { TATO_STUDIO_MCP_CLIENT_NAME, type ProjectTransactionAuthor } from "../shared/tatolab_backend_contract.js";
@@ -41,11 +41,11 @@ export type {
   ControlContractComponents,
   ControlContractIssue,
   ControlContractVersionMismatch,
+  ControlOperationRefusalOnTheWire,
   DiscoverResult,
   GraphTransactionToolResult,
   NodeUiManifest,
   PinFlow,
-  ControlOperationRefusalOnTheWire,
   SuggestedOperationCall,
 } from "@tatolab/runtime-client";
 export { readControlContractValue } from "@tatolab/runtime-client";

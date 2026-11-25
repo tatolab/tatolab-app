@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import { projectActionRefusalAt, projectTransactionFromTheUndoOrRedoToolResult, projectTransactionsFromTheChangeFeed } from "./project_transactions_on_the_wire.js";
+import { A_REFUSAL_NAMING_NOTHING_MORE } from "./fake_local_api_server.js";
 import { recordedResponseBody } from "./runtime_operations_test_support.js";
 import type { Result } from "./result.js";
 
@@ -59,12 +60,7 @@ test("a recorded change feed reads its applied transactions newest first, each n
 const A_REFUSAL_FROM_A_RUNTIME_THAT_SENDS_NO_CODE = {
   refusal_code: "refused",
   refused_operation_index: null,
-  refused_node: null,
-  refused_link: null,
-  refused_input: null,
-  refused_params_pointer: null,
-  refused_file: null,
-  suggested_call: null,
+  ...A_REFUSAL_NAMING_NOTHING_MORE,
 };
 
 test("the refusals a recorded feed holds read apart from its transactions, newest first, each in the runtime's own words, a refusal sent with no code read as refused", async () => {
@@ -96,11 +92,9 @@ test("the refused edits a recorded feed holds read with each code and place the 
   const feed = answerOf(projectTransactionsFromTheChangeFeed(await recordedControlResult("local-api-read-project-changes-of-harbour-after-three-refused-edits.json")));
   const testPattern = "777c0dab-ae92-4df3-9d8f-bb1c4d4e98b6";
   const halftone = "02a2b427-bbc4-4d9f-a376-854af4fa8755";
-  const placingNothingMore = { refused_node: null, refused_link: null, refused_input: null, refused_params_pointer: null, refused_file: null, suggested_call: null };
-
   expect(feed.refused_actions.map((refused) => refused.refusal)).toEqual([
     {
-      ...placingNothingMore,
+      ...A_REFUSAL_NAMING_NOTHING_MORE,
       refusal_code: "node_name_taken",
       action: "transact",
       refused_operation_index: 0,
@@ -108,7 +102,7 @@ test("the refused edits a recorded feed holds read with each code and place the 
       runtime_words: expect.stringMatching(/^the node name `brightnessmeter` casts to `brightnessmeter`, which node `brightnessmeter` in this graph already has/),
     },
     {
-      ...placingNothingMore,
+      ...A_REFUSAL_NAMING_NOTHING_MORE,
       refusal_code: "port_not_found",
       action: "transact",
       refused_operation_index: 0,
@@ -119,7 +113,7 @@ test("the refused edits a recorded feed holds read with each code and place the 
       runtime_words: "node `testpatternsource` (`tatolab.testpattern:TestPatternSource`) has no input `no_such_input`; its inputs are `width`, `height`. To fix: name one of them",
     },
     {
-      ...placingNothingMore,
+      ...A_REFUSAL_NAMING_NOTHING_MORE,
       refusal_code: "link_pin_types_do_not_connect",
       action: "transact",
       refused_operation_index: 0,
@@ -179,7 +173,7 @@ test("the transaction a recorded undo and redo answer is read with its lineage",
   expect(redone).toMatchObject({ redoes: SAMS_IMPORT, undoes: null, undo_state: "applied", operations: [{ operation: "import_asset" }] });
 });
 
-test("a refused graph edit reads with the node, link and field it names", () => {
+test("a refused graph edit reads with the node, link and input it names", () => {
   const link = { source: { node: "n1", port: "video_to_downstream" }, target: { node: "n2", port: "video_from_upstream" } };
   const feed = answerOf(
     projectTransactionsFromTheChangeFeed(

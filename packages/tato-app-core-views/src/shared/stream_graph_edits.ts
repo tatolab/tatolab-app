@@ -8,7 +8,6 @@ import {
   fragmentKindOfTheNode,
   fragmentOfTheNode,
   isAJsonValue,
-
   NODE_STUDIO_FIELDS_NONE_SET,
   studioFieldsOfTheNode,
   type JsonValue,
