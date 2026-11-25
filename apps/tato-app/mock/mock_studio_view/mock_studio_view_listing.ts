@@ -15,7 +15,7 @@ function mockStudioViewFolderUrl(viewFolder: string): string {
 }
 
 /** The fixture view's type as the runtime lists it, which is the node type a node of the view is. */
-export const MOCK_STUDIO_VIEW_TYPE_ID = `${PULSE_STAGE_PROJECT_NAME}:picture_and_fader`;
+export const MOCK_STUDIO_VIEW_TYPE_ID = "e4b19a6d-5c2f-4a87-93d0-1b6e8f2c7a35:picture_and_fader";
 
 /** The fixture view as the backend lists it, its folder served beside this module. */
 export function mockStudioViewListing(): ListedStudioView {
@@ -37,7 +37,7 @@ export function mockStudioViewListing(): ListedStudioView {
 /** A view the mock project's import `lobby-wall` brings that does not open, as the runtime lists one built for a view contract it does not read. */
 export function mockStudioViewListingThatDoesNotOpen(): ListedStudioView {
   return {
-    view_type_id: "lobby-wall:stage_rig",
+    view_type_id: "7a2c9e41-5d8b-4f16-a3e0-2b6f9c4d1e85:stage_rig",
     project: "7a2c9e41-5d8b-4f16-a3e0-2b6f9c4d1e85",
     project_name: "lobby-wall",
     view_folder: "stage_rig",
