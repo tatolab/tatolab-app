@@ -31,12 +31,12 @@ export interface MockStreamGraphMoment {
 /** The keys of `PortStreamFacts` the runtime does not render as they are: what the facts are of and their type, rendered as `type`, and the configuration record's length, rendered as its hex. */
 const KEYS_NAMING_THE_STREAM_FACTS: ReadonlySet<string> = new Set(["facts_of", "type", "codec_configuration_byte_length"]);
 
-/** `facts` as the runtime renders a port's `stream_facts`: the pin type they describe under `type`, left out on a port with none, each fact the port does not state left out. */
+/** `facts` as the runtime renders a port's `stream_facts`: the pin type they describe under `type`, each fact the port does not state left out. */
 function streamFactsAsTheRuntimeRendersThem(facts: PortStreamFacts): Record<string, unknown> {
   const statedFacts = Object.fromEntries(Object.entries(facts).filter(([key, value]) => value !== null && !KEYS_NAMING_THE_STREAM_FACTS.has(key)));
   const codecConfigurationByteLength = facts.facts_of === "encoded_units" ? facts.codec_configuration_byte_length : null;
   return {
-    ...(facts.type === null ? {} : { type: facts.type }),
+    type: facts.type,
     ...statedFacts,
     ...(codecConfigurationByteLength === null ? {} : { codec_configuration_hex: "00".repeat(codecConfigurationByteLength) }),
   };

@@ -3,7 +3,7 @@
 // the control fires nothing; with nothing wired in, or while the output wired in sends no picture, it
 // says why.
 
-import { LatestPortViewerPictureDrawnEachAnimationFrame, type ViewInputEvent } from "@tatolab/tato-app-view-sdk";
+import { LatestPortViewerPictureDrawnEachAnimationFrame, wordsOfTheMessageRead, type ViewInputEvent } from "@tatolab/tato-app-view-sdk";
 import type { ControlledPin, InputControlElement, InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
 import controlStyles from "@tatolab/tato-app-view-sdk/node_ui/input_control.css" with { type: "css" };
 import { WireReading } from "./wire_reading.ts";
@@ -59,7 +59,7 @@ export default class WirePreview extends HTMLElement implements InputControlElem
         this.#pictureDrawn.drawOnTheNextAnimationFrame(event);
         return;
       case "message":
-        this.#showWords(`What is wired in carries ${event.reading.family}, not pictures.`);
+        this.#showWords(`What is wired in carries ${wordsOfTheMessageRead(event.reading)}, not pictures.`);
         return;
       case "reopening":
       case "ended":

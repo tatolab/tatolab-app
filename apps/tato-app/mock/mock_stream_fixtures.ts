@@ -673,7 +673,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
               family: "packets",
               stream_facts: {
                 facts_of: "encoded_units",
-                type: null,
+                type: "encoded_video",
                 rfc6381_codec: "avc1.64001f",
                 coded_width: 1920,
                 coded_height: 1080,

@@ -48,7 +48,7 @@ export function mockPortViewerMessageReading(portFamily: PortFamily | null, mess
   if (portFamily === "channels") {
     const startSample = messagesRead * MOCK_CHANNELS_SAMPLES_PER_BLOCK;
     return {
-      family: "channels",
+      message: "channels_block",
       start_sample: startSample,
       sample_rate: MOCK_CHANNELS_SAMPLE_RATE,
       channel_count: 2,
@@ -60,18 +60,18 @@ export function mockPortViewerMessageReading(portFamily: PortFamily | null, mess
   }
   if (portFamily === "records") {
     return {
-      family: "records",
+      message: "records_message",
       record: { label: "face", score: Math.round((0.9 + 0.05 * Math.sin(messagesRead / 10)) * 1000) / 1000, frame: messagesRead, box: { x: 412 + (messagesRead % 40), y: 188, width: 160, height: 160 } },
     };
   }
   if (portFamily === "packets") {
     const startsGroup = messagesRead % MOCK_PACKETS_KEYFRAME_EVERY_UNITS === 0;
-    return { family: "packets", codec: "avc1.64001f", byte_length: startsGroup ? 48_000 : 3_000 + ((messagesRead * 977) % 4_000), starts_group: startsGroup, timestamp_ns: messagesRead * 33_333_333 };
+    return { message: "packets_unit", codec: "avc1.64001f", byte_length: startsGroup ? 48_000 : 3_000 + ((messagesRead * 977) % 4_000), starts_group: startsGroup, timestamp_ns: messagesRead * 33_333_333 };
   }
   if (portFamily === "array") {
     const sweep = Math.sin(messagesRead / 15);
     return {
-      family: "array",
+      message: "array_frame",
       attributes: [
         { name: "P", dtype: "float32", shape: [2048, 3], residency: "cpu", statistics: { element_count: 6144, minimum: -1 + 0.1 * sweep, maximum: 1 + 0.1 * sweep, mean: 0.02 * sweep } },
         { name: "Cd", dtype: "float32", shape: [2048, 3], residency: "cpu", statistics: { element_count: 6144, minimum: 0, maximum: 1, mean: 0.5 } },
@@ -79,7 +79,7 @@ export function mockPortViewerMessageReading(portFamily: PortFamily | null, mess
       ],
     };
   }
-  return { family: "bytes", byte_length: 64 };
+  return { message: "bytes", byte_length: 64 };
 }
 
 /** Every port viewer the mock's window opened, each playing until closed. */

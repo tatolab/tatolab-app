@@ -1,7 +1,7 @@
 import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
 import { valueWords } from "@tatolab/tato-app-view-sdk/pin_model/value_words";
 import type { PinType } from "@tatolab/tato-app-view-sdk/pin_types";
-import type { JsonValue, PortViewerArrayAttributeReading, PortViewerChannelWaveform, PortViewerMessageReading } from "@tatolab/tato-app-view-sdk";
+import { wordsOfTheMessageRead, type JsonValue, type PortViewerArrayAttributeReading, type PortViewerChannelWaveform, type PortViewerMessageReading } from "@tatolab/tato-app-view-sdk";
 import { VALUES_UNCHECKED_MEANING } from "../shared/port_stream_facts_words";
 
 /** One Packets unit the Node visualizer has read: when it was stamped, how many bytes it carried, and whether it was a keyframe. */
@@ -13,7 +13,7 @@ export const PACKETS_UNITS_KEPT_FOR_NS = 5_000_000_000;
 const NANOSECONDS_PER_SECOND = 1_000_000_000;
 
 /** `unitsSeen` with `reading`'s unit added, dropping units older than [`PACKETS_UNITS_KEPT_FOR_NS`] before it, and every unit after it when the stamps went back. */
-export function packetsUnitsSeenWith(unitsSeen: readonly PacketsUnitSeen[], reading: Extract<PortViewerMessageReading, { family: "packets" }>): PacketsUnitSeen[] {
+export function packetsUnitsSeenWith(unitsSeen: readonly PacketsUnitSeen[], reading: Extract<PortViewerMessageReading, { message: "packets_unit" }>): PacketsUnitSeen[] {
   const unit: PacketsUnitSeen = { timestamp_ns: reading.timestamp_ns, byte_length: reading.byte_length, starts_group: reading.starts_group };
   return [...unitsSeen.filter((unitSeen) => unitSeen.timestamp_ns < unit.timestamp_ns && unit.timestamp_ns - unitSeen.timestamp_ns <= PACKETS_UNITS_KEPT_FOR_NS), unit];
 }
@@ -81,7 +81,7 @@ function ChannelWaveformDrawing({ waveform, channel }: { waveform: PortViewerCha
   );
 }
 
-function ChannelsReading({ reading }: { reading: Extract<PortViewerMessageReading, { family: "channels" }> }) {
+function ChannelsReading({ reading }: { reading: Extract<PortViewerMessageReading, { message: "channels_block" }> }) {
   const blockMs = (reading.samples_per_channel / reading.sample_rate) * 1_000;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3" data-viewer-reading="channels">
@@ -105,7 +105,7 @@ function valueOfTheLatestSample(pinType: PinType, latestSample: number): JsonVal
  * A Channels message of a typed port that carries no sound, as the value it holds: a Float, an Integer or a Boolean in the words
  * its row writes it in, and a value of several numbers, such as a Vector or a Color, as the latest sample of each channel.
  */
-function ValueReading({ reading, pinType, messagesRead }: { reading: Extract<PortViewerMessageReading, { family: "channels" }>; pinType: PinType; messagesRead: number }) {
+function ValueReading({ reading, pinType, messagesRead }: { reading: Extract<PortViewerMessageReading, { message: "channels_block" }>; pinType: PinType; messagesRead: number }) {
   const latestSamples = reading.channel_samples.map((samples) => samples.at(-1) ?? null);
   const [onlySample] = latestSamples;
   const wordsOfTheOneValue = latestSamples.length === 1 && onlySample !== undefined && onlySample !== null ? valueWords(pinType, valueOfTheLatestSample(pinType, onlySample)) : null;
@@ -128,7 +128,7 @@ function arrayAttributeRow(attribute: PortViewerArrayAttributeReading): KeyValue
   return [attribute.name, `${shapeWords} · min ${numberWords(minimum)} · max ${numberWords(maximum)} · mean ${numberWords(mean)} · ${element_count} values`];
 }
 
-function PacketsReading({ reading, unitsSeen }: { reading: Extract<PortViewerMessageReading, { family: "packets" }>; unitsSeen: readonly PacketsUnitSeen[] }) {
+function PacketsReading({ reading, unitsSeen }: { reading: Extract<PortViewerMessageReading, { message: "packets_unit" }>; unitsSeen: readonly PacketsUnitSeen[] }) {
   const facts = packetsFactsOf(unitsSeen);
   const firstStampNs = unitsSeen[0]?.timestamp_ns ?? reading.timestamp_ns;
   const largestUnit = Math.max(1, ...unitsSeen.map((unit) => unit.byte_length));
@@ -184,9 +184,9 @@ export function PortViewerMessageReadingShown({
   /** The port's `values_checked` mark: `false` on a Records port, whose values no type checks. */
   valuesChecked: boolean | null;
 }) {
-  if (reading.family === "channels") return pinType === null || pinType.type === "audio" ? <ChannelsReading reading={reading} /> : <ValueReading reading={reading} pinType={pinType} messagesRead={messagesRead} />;
-  if (reading.family === "packets") return <PacketsReading reading={reading} unitsSeen={unitsSeen} />;
-  if (reading.family === "records") {
+  if (reading.message === "channels_block") return pinType === null || pinType.type === "audio" ? <ChannelsReading reading={reading} /> : <ValueReading reading={reading} pinType={pinType} messagesRead={messagesRead} />;
+  if (reading.message === "packets_unit") return <PacketsReading reading={reading} unitsSeen={unitsSeen} />;
+  if (reading.message === "records_message") {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-3" data-viewer-reading="records">
         <div className="text-2xs text-fg-3">
@@ -205,7 +205,7 @@ export function PortViewerMessageReadingShown({
       </div>
     );
   }
-  if (reading.family === "array") {
+  if (reading.message === "array_frame") {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-3" data-viewer-reading="array">
         <div className="text-2xs text-fg-3">
@@ -215,10 +215,10 @@ export function PortViewerMessageReadingShown({
       </div>
     );
   }
-  if (reading.family === "unreadable") {
+  if (reading.message === "unreadable") {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2 p-3" data-viewer-reading="unreadable">
-        <div className="text-sm text-danger-text">The latest {reading.port_family} message did not read</div>
+        <div className="text-sm text-danger-text">The latest message, {wordsOfTheMessageRead(reading)}, did not read</div>
         <div className="text-2xs text-fg-3">{reading.because}</div>
       </div>
     );
@@ -226,7 +226,7 @@ export function PortViewerMessageReadingShown({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 p-3" data-viewer-reading="bytes">
       <div className="text-2xs text-fg-3">
-        {messagesRead} messages read; the latest is {reading.byte_length} bytes that no family describes.
+        {messagesRead} messages read; the latest is {reading.byte_length} bytes that no descriptor describes.
       </div>
     </div>
   );

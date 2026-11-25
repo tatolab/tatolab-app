@@ -5,7 +5,7 @@
 import type { GraphLinkOnTheWire, GraphLinkStateOnTheWire, GraphNodeComponentsOnTheWire, GraphNodeOnTheWire, GraphNodePortOnTheWire, StreamGraphOnTheWire } from "@tatolab/runtime-client/contract";
 
 /** The port `name`, with the fields a test reads of it, such as its pin type. */
-export function aGraphPort(name: string, fields: Omit<Partial<GraphNodePortOnTheWire>, "name" | "family"> = {}): GraphNodePortOnTheWire {
+export function aGraphPort(name: string, fields: Omit<Partial<GraphNodePortOnTheWire>, "name"> = {}): GraphNodePortOnTheWire {
   return { name, ...fields };
 }
 

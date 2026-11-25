@@ -98,7 +98,7 @@ export function PortViewerPicture({
       pictureDrawn.dropTheWaitingPicture();
       if (event.kind === "message") {
         messagesRead += 1 + event.skipped_since_last_read;
-        if (event.reading.family === "packets") packetsUnitsSeen = packetsUnitsSeenWith(packetsUnitsSeen, event.reading);
+        if (event.reading.message === "packets_unit") packetsUnitsSeen = packetsUnitsSeenWith(packetsUnitsSeen, event.reading);
         const nowMs = performance.now();
         if (shownKind !== "messages" || nowMs - messageReadingShownAtMs >= MESSAGE_READING_REDRAWN_EVERY_MS) {
           messageReadingShownAtMs = nowMs;
@@ -142,7 +142,7 @@ export function PortViewerPicture({
         />
       )}
       {shown.kind === "messages" && (
-        <div className="flex min-h-0 flex-1 flex-col" data-viewer-messages={shown.reading.family}>
+        <div className="flex min-h-0 flex-1 flex-col" data-viewer-messages={shown.reading.message}>
           <div className="flex min-w-0 items-baseline gap-2 border-b border-line px-3 py-1.5 text-xs">
             <span className="min-w-0 shrink-0 truncate text-fg-2">{portWords}</span>
             {streamFactsWords !== "" && (

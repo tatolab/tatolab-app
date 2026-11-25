@@ -3,7 +3,7 @@
 // so the control fires nothing; with nothing wired in, or while the output wired in sends no audio,
 // it says why.
 
-import type { ViewInputEvent } from "@tatolab/tato-app-view-sdk";
+import { wordsOfTheMessageRead, type ViewInputEvent } from "@tatolab/tato-app-view-sdk";
 import type { ControlledPin, InputControlElement, InputControlState } from "@tatolab/tato-app-view-sdk/node_ui";
 import controlStyles from "@tatolab/tato-app-view-sdk/node_ui/input_control.css" with { type: "css" };
 import { WireReading } from "./wire_reading.ts";
@@ -71,8 +71,8 @@ export default class WireMeter extends HTMLElement implements InputControlElemen
   #show(event: ViewInputEvent): void {
     switch (event.kind) {
       case "message":
-        if (event.reading.family === "channels") this.#showTheLevel(peakLevelInDecibels(event.reading.channel_samples));
-        else this.#showWords(`What is wired in carries ${event.reading.family}, not audio.`);
+        if (event.reading.message === "channels_block") this.#showTheLevel(peakLevelInDecibels(event.reading.channel_samples));
+        else this.#showWords(`What is wired in carries ${wordsOfTheMessageRead(event.reading)}, not audio.`);
         return;
       case "image_frame":
         event.video_frame.close();
