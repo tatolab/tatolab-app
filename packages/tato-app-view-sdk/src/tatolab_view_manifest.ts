@@ -62,10 +62,12 @@ export type ViewSettingsDeclaration = {
   [keyword: string]: unknown;
 };
 
-/** What `tatolab_view.json` declares, for view contract 1.1, defaults filled in. A view's id is never written here: one Tato Studio ships with is its folder's name, a project's view's its project's name and its folder's. */
+/** What `tatolab_view.json` declares, for view contract 1.1, defaults filled in. */
 export type TatolabViewManifest = {
   /** The view contract the view was built for, as `"1.1"`. */
   contract: string;
+  /** A project's view's own UUID, which a node placing the view is typed by; the runtime writes it the first time the view's project opens. A view Tato Studio ships with goes by its folder's name and has none. */
+  view?: string | undefined;
   /** The name the view-type menu lists. */
   title: string;
   description?: string | undefined;

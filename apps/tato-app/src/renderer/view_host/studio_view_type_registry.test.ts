@@ -51,7 +51,7 @@ describe("the view-type registry", () => {
     const FRIDAY_SET = "6d3a8f2c-1b7e-4c95-8a04-3e9f5b2d7c61";
     const LOBBY_WALL = "b2e7c4a9-5f13-4d68-9e2b-7a1c6f3d8e05";
     const listedView = (project: string, projectName: string, viewFolder: string, importFolder: string | null, manifestJson: JsonValue): ListedStudioView => ({
-      view_type_id: `${projectName}:${viewFolder}`,
+      view_type_id: projectViewIdOf(project, viewFolder),
       project,
       project_name: projectName,
       view_folder: viewFolder,
@@ -90,9 +90,9 @@ describe("the view-type registry", () => {
     expect(registry.viewTypeWithId(projectViewIdOf(FRIDAY_SET, "deck"))).toBeNull();
   });
 
-  it("holds a project's view under its project's UUID and folder, found too by the node type the runtime lists it as, whichever form that takes", () => {
+  it("holds a project's view under the type the runtime lists it as, found too by its project's UUID and folder or name and folder an area was saved under", () => {
     const fridaySet = "0c7e5b1a-3f42-4d9e-8a61-5b2c9e7d4f10";
-    const deck = projectViewIdOf(fridaySet, "deck");
+    const deckView = "9b41e6d2-7a05-4c38-b1f9-2e6d8c4a7053";
     const registry = new StudioViewTypeRegistry([], (listed, manifest) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: listed.project_name }));
     const deckListedAs = (viewTypeId: string, opens: boolean): ListedStudioView => ({
       view_type_id: viewTypeId,
@@ -106,42 +106,44 @@ describe("the view-type registry", () => {
       newer_version_blocked_because: null,
     });
 
-    for (const listedType of ["Friday Set:deck", deck]) {
+    for (const listedType of [projectViewIdOf(fridaySet, "deck"), deckView]) {
       registry.projectStudioViews.publish({ kind: "listed", studio_views: [deckListedAs(listedType, true)] });
-      for (const savedType of [listedType, deck]) {
-        expect(registry.viewTypeWithId(savedType)?.view_type_id).toBe(deck);
-        expect(registry.viewTypeIdOf(savedType)).toBe(deck);
+      expect(registry.projectViewTypes().map((viewType) => viewType.view_type_id)).toEqual([listedType]);
+      for (const savedType of [listedType, projectViewIdOf(fridaySet, "deck"), "Friday Set:deck"]) {
+        expect(registry.viewTypeWithId(savedType)?.view_type_id).toBe(listedType);
+        expect(registry.viewTypeIdOf(savedType)).toBe(listedType);
       }
       expect(registry.viewTypeWithId("Friday Set:mixer")).toBeNull();
       expect(registry.viewTypeIdOf("Friday Set:mixer")).toBe("Friday Set:mixer");
 
       registry.projectStudioViews.publish({ kind: "listed", studio_views: [deckListedAs(listedType, false)] });
-      expect(registry.viewTypeIdOf(listedType)).toBe(deck);
-      expect(registry.projectViewTypesNotOpened()).toEqual([{ view_type_id: deck, title: "DJ Deck", brought_by: { kind: "project", project_name: "Friday Set" }, because: "`entry` names no file." }]);
+      expect(registry.viewTypeIdOf("Friday Set:deck")).toBe(listedType);
+      expect(registry.projectViewTypesNotOpened()).toEqual([{ view_type_id: listedType, title: "DJ Deck", brought_by: { kind: "project", project_name: "Friday Set" }, because: "`entry` names no file." }]);
     }
   });
 
-  it("keeps an area saved under its view's project's name and folder under its project's UUID and folder, once the runtime lists it either way, and Studio's own by its own id", () => {
+  it("keeps an area saved under Studio's own view by its own id, though a project brings a view in a folder of that name", () => {
     const paintPulse = "4f8a2d61-9c3e-4b75-a0d8-6e1f3b9c2a74";
     const registry = new StudioViewTypeRegistry([viewTypeFromItsManifest("outliner", { kind: "tato_studio" })], (listed, manifest) => tatolabFrameViewType(listed, manifest, { kind: "project", project_name: listed.project_name }));
-    const stageListedAs = (viewTypeId: string, viewFolder: string): ListedStudioView => ({
-      view_type_id: viewTypeId,
-      project: paintPulse,
-      project_name: "Paint Pulse",
-      view_folder: viewFolder,
-      import_folder: null,
-      opens: true,
-      not_opened_because: null,
-      manifest_json: { contract: "1.0", title: "Stage", entry: "index.html", placement: "area" },
-      folder_url: `https://views.example/${viewFolder}/`,
-      newer_version_blocked_because: null,
+    registry.projectStudioViews.publish({
+      kind: "listed",
+      studio_views: [
+        {
+          view_type_id: "c3d9a7e1-5b28-4f60-9e14-7a2b6d8f0c35",
+          project: paintPulse,
+          project_name: "Paint Pulse",
+          view_folder: "outliner",
+          import_folder: null,
+          opens: true,
+          not_opened_because: null,
+          manifest_json: { contract: "1.0", title: "Stage", entry: "index.html", placement: "area" },
+          folder_url: "https://views.example/outliner/",
+          newer_version_blocked_because: null,
+        },
+      ],
     });
-
-    registry.projectStudioViews.publish({ kind: "listed", studio_views: [stageListedAs(projectViewIdOf(paintPulse, "stage"), "stage"), stageListedAs("outliner", "outliner")] });
-    expect(registry.viewTypeIdKeptForAnAreaSavedAs("Paint Pulse:stage")).toBe(projectViewIdOf(paintPulse, "stage"));
-    expect(registry.viewTypeIdKeptForAnAreaSavedAs("Paint Pulse:mixer")).toBe("Paint Pulse:mixer");
-    expect(registry.viewTypeIdOf("Paint Pulse:stage")).toBe("Paint Pulse:stage");
     expect(registry.viewTypeIdOf("outliner")).toBe("outliner");
-    expect(registry.viewTypeIdKeptForAnAreaSavedAs("outliner")).toBe("outliner");
+    expect(registry.viewTypeWithId("outliner")?.title).toBe("outliner");
+    expect(registry.viewTypeIdOf("Paint Pulse:outliner")).toBe("c3d9a7e1-5b28-4f60-9e14-7a2b6d8f0c35");
   });
 });

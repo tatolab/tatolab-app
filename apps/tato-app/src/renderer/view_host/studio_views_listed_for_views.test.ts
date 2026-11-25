@@ -3,7 +3,7 @@ import nightShowsViewsDeclaringPinTypes from "../../main/test-fixtures/local-api
 import { projectViewsFromTheListProjectViewsToolResult, studioViewOpeningOf, viewFolderNameOf } from "../../main/project_views_on_the_wire";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
 import { coreViewTypesOf } from "./core_view_types";
-import { projectViewIdOfTheListedView, StudioViewTypeRegistry } from "./studio_view_type_registry";
+import { StudioViewTypeRegistry } from "./studio_view_type_registry";
 import { tatolabFrameViewType } from "./tatolab_frame_view_type";
 import type { StudioViewsReading } from "./studio_view_contract";
 import { studioViewsReadingOf, watchTheStudioViewsOfTheRegistry } from "./studio_views_listed_for_views";
@@ -66,13 +66,13 @@ describe("the views a view reads", () => {
     registry.projectStudioViews.publish({ kind: "listed", studio_views: listedViews });
 
     const reading = studioViewsReadingOf(registry);
-    const deckListed = reading.kind === "listed" ? reading.studio_views.find((studioView) => deck !== undefined && studioView.view_type_id === projectViewIdOfTheListedView(deck)) : undefined;
+    const deckListed = reading.kind === "listed" ? reading.studio_views.find((studioView) => deck !== undefined && studioView.view_type_id === deck.view_type_id) : undefined;
 
     expect(deckListed?.inputs).toEqual([{ name: "level", family: "array", pin_type: { type: "tensor" }, description: "" }]);
     expect(deckListed?.outputs).toEqual([{ name: "cue", family: "records", pin_type: { type: "string" }, description: "" }]);
   });
 
-  it("lists what the registry offers and refuses, Studio's own first, each project view by its project's UUID and folder, one whose node type is Studio's beside it", () => {
+  it("lists what the registry offers and refuses, Studio's own first, each project view by the type the runtime lists it as, and one listed by a type of Studio's own as not opened", () => {
     const ACME_DJ = "3d1f6a2e-8b4c-4e7a-9f05-6c2d8e1b7a43";
     const THE_OPEN_PROJECT = "9e4b7c15-2a6d-4f83-b0e9-1d5c3a8f6e27";
     const registry = registryAsTheWindowBuildsIt();
@@ -92,16 +92,18 @@ describe("the views a view reads", () => {
           newer_version_blocked_because: null,
         },
         { view_type_id: "acme-dj:rig", project: ACME_DJ, project_name: "Acme DJ", view_folder: "rig", import_folder: "acme-dj", opens: false, not_opened_because: "`contract`: this runtime reads view contract 1.0.", manifest_json: { title: "Rig" }, folder_url: "x", newer_version_blocked_because: null },
-        { view_type_id: "outliner", project: THE_OPEN_PROJECT, project_name: "Acme DJ", view_folder: "outliner", import_folder: null, opens: true, not_opened_because: null, manifest_json: { contract: "1.0", title: "My outliner", entry: "index.html", placement: "area" }, folder_url: "y", newer_version_blocked_because: null },
+        { view_type_id: "5a0c8e3b-7d14-4b96-a2f7-9e3d1c6b8f40", project: THE_OPEN_PROJECT, project_name: "Acme DJ", view_folder: "outliner", import_folder: null, opens: true, not_opened_because: null, manifest_json: { contract: "1.0", title: "My outliner", entry: "index.html", placement: "area" }, folder_url: "y", newer_version_blocked_because: null },
+        { view_type_id: "outliner", project: THE_OPEN_PROJECT, project_name: "Acme DJ", view_folder: "tree", import_folder: null, opens: true, not_opened_because: null, manifest_json: { contract: "1.0", title: "Tree", entry: "index.html", placement: "area" }, folder_url: "z", newer_version_blocked_because: null },
       ],
     });
     const reading = studioViewsReadingOf(registry);
     expect(reading.kind === "listed" && reading.studio_views.map((studioView) => [studioView.view_type_id, studioView.title, studioView.brought_by, studioView.placement, studioView.not_opened_because])).toEqual([
       ["outliner", "Outliner", "Tato Studio", "area", null],
       ["broken", "broken", "Tato Studio", null, expect.stringContaining("`tatolab_view.json`")],
-      [`${ACME_DJ}:deck`, "DJ Deck", "Acme DJ", "node", null],
-      [`${THE_OPEN_PROJECT}:outliner`, "My outliner", "Acme DJ", "area", null],
-      [`${ACME_DJ}:rig`, "Rig", "Acme DJ", null, "`contract`: this runtime reads view contract 1.0."],
+      ["acme-dj:deck", "DJ Deck", "Acme DJ", "node", null],
+      ["5a0c8e3b-7d14-4b96-a2f7-9e3d1c6b8f40", "My outliner", "Acme DJ", "area", null],
+      ["acme-dj:rig", "Rig", "Acme DJ", null, "`contract`: this runtime reads view contract 1.0."],
+      ["outliner", "Tree", "Acme DJ", null, "Studio's own view `outliner` has this type."],
     ]);
     expect(reading.kind === "listed" && reading.studio_views[2]?.outputs).toEqual([{ name: "crossfader", family: "array", pin_type: { type: "tensor" }, description: "" }]);
   });
