@@ -77,13 +77,19 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
   );
 }
 
-/** Keeps `viewTypeRegistry` listing the views of the project `studioWindowModel` has open, listed again each time another is read and each time its files change, so a view checked again after an edit opens or is blocked. */
+/**
+ * Keeps `viewTypeRegistry` listing the views of the project `studioWindowModel` has open, listed again each time another is read and each
+ * time its files change, so a view checked again after an edit opens or is blocked, and the layout's areas under the id each view goes by.
+ */
 function listTheOpenProjectsStudioViews(backend: TatolabBackend, studioWindowModel: StudioWindowModel, viewTypeRegistry: StudioViewTypeRegistry): void {
   listForEachOpenProject(
     studioWindowModel.openProject.watch,
     {
       list: () => backend.listStudioViewsOfTheOpenProject(),
-      listed: (studioViews) => viewTypeRegistry.projectStudioViews.publish({ kind: "listed", studio_views: studioViews }),
+      listed: (studioViews) => {
+        viewTypeRegistry.projectStudioViews.publish({ kind: "listed", studio_views: studioViews });
+        studioWindowModel.keepEachAreaUnderTheIdOfItsView((viewTypeId) => viewTypeRegistry.viewTypeIdOf(viewTypeId));
+      },
       notListed: (rejection) => viewTypeRegistry.projectStudioViews.publish({ kind: "not_listed", because: describeBackendRejection(rejection) }),
       noneOpen: () => viewTypeRegistry.projectStudioViews.publish({ kind: "none_open" }),
     },

@@ -573,8 +573,8 @@ export type StudioViewOpening = { opens: true; not_opened_because: null } | { op
 export interface ListedStudioViewFacts {
   /** The node type a node of the view is, as the runtime lists it; the window never reads its parts. */
   view_type_id: string;
-  /** The UUID of the project bringing it; empty for a view Studio brings itself. */
-  project: string;
+  /** The UUID of the project bringing it; `null` for a view Studio brings itself. */
+  project: string | null;
   /** The name of the project bringing it, which only shows. */
   project_name: string;
   /** The view's folder in that project's `views/`. */

@@ -28,9 +28,17 @@ export interface StudioAreaNodeShown {
 /** What an area that keeps no choice of node shows: the first of the view's type. */
 export const THE_FIRST_NODE_SHOWN: StudioAreaNodeShown = { node_id: null };
 
+/** What the window calls a view an area saved that this build does not hold and the open project does not bring, which it never names by its id. */
+export const A_VIEW_NOT_FOUND_TITLE = "View not found";
+
 /** The id of the view in the folder `viewFolder` of the `views/` of the project whose UUID is `project`. */
 export function projectViewIdOf(project: string, viewFolder: string): string {
   return `${project}:${viewFolder}`;
+}
+
+/** The id the window knows the view `listed` by: a project's by its project's UUID and its folder, Studio's own by its type. */
+export function projectViewIdOfTheListedView(listed: Pick<ListedStudioView, "view_type_id" | "project" | "view_folder">): string {
+  return listed.project === null ? listed.view_type_id : projectViewIdOf(listed.project, listed.view_folder);
 }
 
 /** A view type as the registry holds it, made from its manifest: what the view-type menu lists, and how an area draws its frame. */
@@ -109,24 +117,22 @@ export class StudioViewTypeRegistry {
     return [...this.viewTypesById.values(), ...(this.developerMode.readLatest() ? this.viewTypesOfferedInDeveloperModeById.values() : [])];
   }
 
-  /**
-   * The view type `viewTypeId` names, or `null` for one this build does not hold and the open project does not bring. A project's view is
-   * also found by its project's UUID and folder, as `projectViewIdOf` writes them, and by the `<project name>:<view folder>` a layout or a
-   * popped-out window saved before the runtime named views by their project's UUID.
-   */
+  /** The view type `viewTypeId` names, or `null` for one this build does not hold and the open project does not bring; a project's view is named by `viewTypeIdOf`'s id. */
   viewTypeWithId(viewTypeId: string): RegisteredStudioViewType | null {
-    const projectViewTypes = this.readProjectStudioViewTypes().viewTypes;
-    const exactly = this.viewTypesOfferedNow().find((viewType) => viewType.view_type_id === viewTypeId) ?? projectViewTypes.find((viewType) => viewType.view_type_id === viewTypeId);
-    if (exactly !== undefined) return exactly;
-    const reading = this.projectStudioViews.readLatest();
-    if (reading.kind !== "listed") return null;
-    const listed = reading.studio_views.find((view) => view.project !== "" && (projectViewIdOf(view.project, view.view_folder) === viewTypeId || projectViewIdOf(view.project_name, view.view_folder) === viewTypeId));
-    return listed === undefined ? null : (projectViewTypes.find((viewType) => viewType.view_type_id === listed.view_type_id) ?? null);
+    const registeredId = this.viewTypeIdOf(viewTypeId);
+    return this.viewTypesOfferedNow().find((viewType) => viewType.view_type_id === registeredId) ?? this.readProjectStudioViewTypes().viewTypes.find((viewType) => viewType.view_type_id === registeredId) ?? null;
   }
 
-  /** The id the view type `viewTypeId` names is registered under, or `viewTypeId` itself when it names none, so two ids of one view compare equal. */
+  /**
+   * The id a view `viewTypeId` names goes by in the window: a project's view, opening or not, by its project's UUID and its folder, as
+   * `projectViewIdOf` writes them, also when `viewTypeId` is the node type the runtime lists it as, which a layout saved before held;
+   * anything else by `viewTypeId` itself.
+   */
   viewTypeIdOf(viewTypeId: string): string {
-    return this.viewTypeWithId(viewTypeId)?.view_type_id ?? viewTypeId;
+    const reading = this.projectStudioViews.readLatest();
+    if (reading.kind !== "listed") return viewTypeId;
+    const listed = reading.studio_views.find((view) => view.view_type_id === viewTypeId);
+    return listed === undefined ? viewTypeId : projectViewIdOfTheListedView(listed);
   }
 
   /** The view type `viewTypeId` names when Developer mode offers it and is off now, or `null`. */
@@ -161,15 +167,15 @@ export class StudioViewTypeRegistry {
     const notOpened: StudioViewNotOpened[] = [];
     if (reading.kind === "listed" && this.projectStudioViewTypeOf !== null) {
       for (const listed of reading.studio_views) {
+        const viewTypeId = projectViewIdOfTheListedView(listed);
         const notOpenedBecause = (because: string): StudioViewNotOpened => ({
-          view_type_id: listed.view_type_id,
-          title: titleTheManifestNames(listed.manifest_json, listed.view_type_id),
+          view_type_id: viewTypeId,
+          title: titleTheManifestNames(listed.manifest_json, listed.view_folder),
           brought_by: { kind: "project", project_name: listed.project_name },
           because,
         });
         const manifestReading = manifestOfAListedView(listed);
         if (manifestReading.kind === "not_opened") notOpened.push(notOpenedBecause(manifestReading.because));
-        else if (this.viewTypesById.has(listed.view_type_id) || this.viewTypesOfferedInDeveloperModeById.has(listed.view_type_id)) notOpened.push(notOpenedBecause(`The studio already has a view named ${listed.view_type_id}.`));
         else viewTypes.push(this.projectStudioViewTypeOf(listed, manifestReading.manifest));
       }
     }

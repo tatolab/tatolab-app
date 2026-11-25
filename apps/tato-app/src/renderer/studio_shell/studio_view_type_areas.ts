@@ -2,6 +2,7 @@
 // type in one of them.
 
 import type { AreasForAViewTypeInTheWindow, StopWatching, ViewOpening } from "../view_host/studio_view_contract";
+import { A_VIEW_NOT_FOUND_TITLE } from "../view_host/studio_view_type_registry";
 import { areasOfTheLayout, type StudioAreaLayoutNode } from "./studio_area_layout";
 
 /** Why a popped-out view's window lists no areas to show a view in. */
@@ -31,13 +32,14 @@ export function areasForTheViewTypeOf(viewTypeId: string, sources: Omit<StudioVi
   if (sources.isAPoppedOutViewsWindow()) return { kind: "no_areas", because: A_POPPED_OUT_WINDOW_HAS_NO_AREAS };
   const layoutTree = sources.readChosenLayoutTree();
   if (layoutTree === null) return { kind: "no_areas", because: NO_LAYOUT_WHILE_NO_PROJECT_IS_OPEN };
+  const registeredId = sources.viewTypeIdOf(viewTypeId);
   return {
     kind: "areas_listed",
     view_title: viewTitle,
     areas: areasOfTheLayout(layoutTree).map((area) => ({
       area_id: area.area_id,
-      shows_view_title: area.view_type_id === null ? null : (sources.viewTitleOf(area.view_type_id) ?? area.view_type_id),
-      shows_the_view_type: area.view_type_id !== null && sources.viewTypeIdOf(area.view_type_id) === sources.viewTypeIdOf(viewTypeId),
+      shows_view_title: area.view_type_id === null ? null : (sources.viewTitleOf(area.view_type_id) ?? A_VIEW_NOT_FOUND_TITLE),
+      shows_the_view_type: area.view_type_id !== null && sources.viewTypeIdOf(area.view_type_id) === registeredId,
     })),
   };
 }
@@ -63,6 +65,6 @@ export function showViewTypeInAreaOf(viewTypeId: string, areaId: string, sources
   if (areas.kind === "not_a_view_type") return { kind: "not_opened", because: `Tato Studio has no view named ${viewTypeId}.` };
   if (areas.kind === "no_areas") return { kind: "not_opened", because: areas.because };
   if (!areas.areas.some((area) => area.area_id === areaId)) return { kind: "not_opened", because: `The layout shown has no area ${areaId}.` };
-  sources.showViewTypeInTheArea({ view_type_id: viewTypeId, area_id: areaId });
+  sources.showViewTypeInTheArea({ view_type_id: sources.viewTypeIdOf(viewTypeId), area_id: areaId });
   return { kind: "opened" };
 }

@@ -23,7 +23,7 @@ import { StudioViewFailureBoundary } from "../view_host/studio_view_failure_boun
 import { useWatchedStudioValue, WatchedStudioValue } from "../view_host/watched_studio_value";
 import type { ViewHeaderRow } from "../view_host/studio_view_contract";
 import type { StudioViewHostServices, StudioViewTypeSource } from "../view_host/studio_view_contract";
-import type { RegisteredStudioViewType, StudioAreaOfTheView, StudioViewNotOpened, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import { A_VIEW_NOT_FOUND_TITLE, type RegisteredStudioViewType, type StudioAreaOfTheView, type StudioViewNotOpened, type StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet_view";
 import { StudioStatusBar } from "./studio_status_bar";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
@@ -106,13 +106,14 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
     label: <ViewTypeMenuRowIconTitleAndWhoBroughtIt icon={viewType.icon} title={viewType.title} broughtBy={viewType.brought_by} />,
   });
   const onChosen = (viewTypeId: string) => sources.model.showViewTypeInArea(area.area_id, viewTypeId);
+  const chosenViewTypeId = area.view_type_id === null ? "" : sources.viewTypeRegistry.viewTypeIdOf(area.view_type_id);
   const iconOfTheArea = area.view_type_id === null ? "project_view" : (sources.viewTypeRegistry.viewTypeWithId(area.view_type_id)?.icon ?? "unreadable");
   return (
     <StudioAreaHeaderMenu icon={iconOfTheArea} words={words} label={`${words}: change this area's view`} data-area-view-type-menu={area.area_id}>
       <MenuGroup label="Studio views">
         <MenuSingleChoiceGroup closesTheMenuOnChoice
           choices={sources.viewTypeRegistry.studioViewTypes().map(viewTypeChoice)}
-          chosen={area.view_type_id ?? ""}
+          chosen={chosenViewTypeId}
           onChosen={onChosen}
           dataAttributeOfEachChoice="data-view-type-choice"
         />
@@ -124,7 +125,7 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
           <MenuNote>This project and its imports bring no views.</MenuNote>
         )}
         {projectViewTypes.length > 0 && (
-          <MenuSingleChoiceGroup closesTheMenuOnChoice choices={projectViewTypes.map(viewTypeChoice)} chosen={area.view_type_id ?? ""} onChosen={onChosen} dataAttributeOfEachChoice="data-view-type-choice" />
+          <MenuSingleChoiceGroup closesTheMenuOnChoice choices={projectViewTypes.map(viewTypeChoice)} chosen={chosenViewTypeId} onChosen={onChosen} dataAttributeOfEachChoice="data-view-type-choice" />
         )}
         <ViewTypesNotOpenedInTheMenu viewTypesNotOpened={projectViewTypesNotOpened} />
       </MenuGroup>
@@ -210,7 +211,8 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
       </StudioAreaFrame>
     );
   }
-  const viewTypeNotOpened = viewType === null ? [...sources.viewTypeRegistry.studioViewTypesNotOpened(), ...sources.viewTypeRegistry.projectViewTypesNotOpened()].find((notOpened) => notOpened.view_type_id === area.view_type_id) : undefined;
+  const registeredViewTypeId = sources.viewTypeRegistry.viewTypeIdOf(area.view_type_id);
+  const viewTypeNotOpened = viewType === null ? [...sources.viewTypeRegistry.studioViewTypesNotOpened(), ...sources.viewTypeRegistry.projectViewTypesNotOpened()].find((notOpened) => notOpened.view_type_id === registeredViewTypeId) : undefined;
   if (viewTypeNotOpened !== undefined) {
     return (
       <StudioAreaFrame label={viewTypeNotOpened.title} header={<AreaViewTypeMenu area={area} sources={sources} words={viewTypeNotOpened.title} />} data-studio-area={area.area_id}>
@@ -219,10 +221,11 @@ function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWi
     );
   }
   if (viewType === null) {
+    const areaLabel = projectStudioViews.kind === "listed" ? A_VIEW_NOT_FOUND_TITLE : "Project view";
     return (
-      <StudioAreaFrame label={area.view_type_id} header={<AreaViewTypeMenu area={area} sources={sources} words={area.view_type_id} />} data-studio-area={area.area_id}>
+      <StudioAreaFrame label={areaLabel} header={<AreaViewTypeMenu area={area} sources={sources} words={areaLabel} />} data-studio-area={area.area_id}>
         {projectStudioViews.kind === "listed" ? (
-          <WaitingState title={`This area's view, ${area.view_type_id}, isn't in this build or the project`} explanation="Choose another view from the menu above." />
+          <WaitingState title="This area's view isn't in this build or the project" explanation="Choose another view from the menu above." data-studio-area-view-not-found="" />
         ) : (
           <WaitingState title="Waiting for the project's views" explanation={projectStudioViews.kind === "not_listed" ? projectStudioViews.because : NO_LAYOUT_WHILE_NO_PROJECT_IS_OPEN} data-studio-area-waiting-for-project-views="" />
         )}

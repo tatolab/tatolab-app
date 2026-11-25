@@ -77,7 +77,7 @@ describe("a view type's areas in the layout", () => {
     const { sources } = areaSources({ kind: "area", area_id: "viewer", view_type_id: "Acme DJ:deck" });
     const reading: unknown[] = [];
     watchAreasForTheViewType("acme-dj:deck", { ...sources, viewTypeIdOf: (viewTypeId) => (viewTypeId === "Acme DJ:deck" ? "acme-dj:deck" : viewTypeId) }, (latest) => reading.push(latest));
-    expect(reading).toEqual([{ kind: "areas_listed", view_title: "DJ Deck", areas: [{ area_id: "viewer", shows_view_title: "Acme DJ:deck", shows_the_view_type: true }] }]);
+    expect(reading).toEqual([{ kind: "areas_listed", view_title: "DJ Deck", areas: [{ area_id: "viewer", shows_view_title: "View not found", shows_the_view_type: true }] }]);
   });
 
   it("names no areas for an id no view type has, in a popped-out view's window, or while no project is open", () => {

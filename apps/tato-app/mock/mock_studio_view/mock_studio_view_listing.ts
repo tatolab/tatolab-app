@@ -38,7 +38,7 @@ export function mockStudioViewListing(): ListedStudioView {
 export function mockStudioViewListingThatDoesNotOpen(): ListedStudioView {
   return {
     view_type_id: "lobby-wall:stage_rig",
-    project: "",
+    project: "7a2c9e41-5d8b-4f16-a3e0-2b6f9c4d1e85",
     project_name: "lobby-wall",
     view_folder: "stage_rig",
     import_folder: "lobby-wall",

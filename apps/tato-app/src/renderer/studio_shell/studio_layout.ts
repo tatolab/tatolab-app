@@ -96,7 +96,7 @@ export const STUDIO_LAYOUTS_SHIPPED: readonly StudioLayoutShipped[] = [
 ];
 
 /** The layout Studio ships as `viewTypeId`'s home, or `null` when none is, each home's view type read through `viewTypeIdOf`, which gives the id a view is registered under. */
-export function shippedStudioLayoutHomeOf(viewTypeId: string, viewTypeIdOf: (viewTypeId: string) => string = (id) => id): StudioLayoutShipped | null {
+export function shippedStudioLayoutHomeOf(viewTypeId: string, viewTypeIdOf: (viewTypeId: string) => string): StudioLayoutShipped | null {
   return STUDIO_LAYOUTS_SHIPPED.find(({ home_of_view_types: homeOfViewTypes }) => homeOfViewTypes.some((homeOf) => viewTypeIdOf(homeOf) === viewTypeId)) ?? null;
 }
 

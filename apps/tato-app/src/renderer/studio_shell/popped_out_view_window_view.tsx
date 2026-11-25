@@ -57,7 +57,7 @@ export function PoppedOutViewWindowView({
       {projectReadingRefusal !== null && <RefusalLine layout="bar" lead="The project wasn't read:" words={projectReadingRefusal} />}
       <main aria-label={target.window_title} className="relative flex min-h-0 flex-1 flex-col">
         {viewType === null ? (
-          <WaitingState title={`This build has no ${target.view_type_id} view`} explanation="Close this window and open the view in the studio." />
+          <WaitingState title="This build has no such view" explanation="Close this window and open the view in the studio." />
         ) : (
           <StudioViewFailureBoundary viewTitle={viewType.title}>
             {viewType.renderInAnArea({ area_id: null, saved_settings: settingsKept, rememberSettings: keepSettings, header_row: headerRow, expansion: EXPANSION_OF_A_POPPED_OUT_VIEW, node_shown: THE_FIRST_NODE_SHOWN }, viewHostServices)}
