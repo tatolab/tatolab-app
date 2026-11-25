@@ -8,7 +8,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { Clock, Effect, Result } from "effect";
 import { newProjectFolderNameRefusal, projectNameNumbered, UNTITLED_PROJECT_NAME } from "../shared/new_project_folder_name.js";
-import { streamsOfTheProjectIn, theStreamsListTheProjectOpen } from "../shared/project_playback.js";
+import { projectPlaybackAsListed, streamsOfTheProjectIn } from "../shared/project_playback.js";
 import type {
   ChosenProjectFolder,
   ImportedProject,
@@ -31,6 +31,8 @@ import {
   listStreams,
   openProject,
   readProjectFile,
+  reloadProject,
+  removeProject,
   renameProject,
   setProjectCover,
   setProjectDescription,
@@ -58,10 +60,10 @@ export const NEW_PROJECTS_FOLDER_INSIDE_DOCUMENTS = "Tato Studio";
 /** How many numbered names are tried for a new, imported or duplicated project's folder before the plain one is offered and the runtime or the sheet refuses it. */
 const NUMBERED_NAMES_TRIED = 1_000;
 
-/** How often a deletion the runtime queued is asked about while the Projects window waits for it. */
-export const PROJECT_DELETION_FOLLOW_INTERVAL_MS = 250;
-/** How long, on the monotonic clock, the Projects window waits at most for a deletion to end. */
-export const PROJECT_DELETION_LONGEST_WAIT_MS = 60_000;
+/** How often a removal or deletion the runtime queued is asked about while the Projects window waits for it. */
+export const PROJECT_REMOVAL_FOLLOW_INTERVAL_MS = 250;
+/** How long, on the monotonic clock, the Projects window waits at most for a removal or deletion to end. */
+export const PROJECT_REMOVAL_LONGEST_WAIT_MS = 60_000;
 
 /** The words a duplicate's folder name takes after the original's: `pattern copy`, then `pattern copy 2`, …. */
 const DUPLICATE_FOLDER_NAME_SUFFIX = "copy";
@@ -218,26 +220,32 @@ const newProjectDirectoryFor = Effect.fn("newProjectDirectoryFor")(function* (na
   return projectDirectory;
 });
 
-/** The project in `folder` opened on the runtime when it holds it closed, so its streams load and can play, then a status round; left as it is while open. */
-export const openTheProjectWhenTheRuntimeHoldsItClosed = Effect.fn("openTheProjectWhenTheRuntimeHoldsItClosed")(function* (folder: string) {
-  const listedStreams = yield* listStreams();
-  if (theStreamsListTheProjectOpen(streamsOfTheProjectIn(listedStreams, folder))) return;
-  yield* thenAStatusRound(openProject(folder));
+/**
+ * The project in `folder` brought up on the runtime from what is on disk, then a status round: opened when the runtime holds it closed, and reloaded when it
+ * holds it open with a failed stream, since the runtime retries a failed stream only on a reload or a play; one open with none failed is left as it plays.
+ */
+export const openTheProjectFromDiskOnTheRuntime = Effect.fn("openTheProjectFromDiskOnTheRuntime")(function* (folder: string) {
+  const { playback, a_stream_has_failed: aStreamHasFailed } = projectPlaybackAsListed(yield* listStreams(), folder);
+  if (playback === "closed") {
+    yield* thenAStatusRound(openProject(folder));
+    return;
+  }
+  if (aStreamHasFailed) yield* thenAStatusRound(reloadProject(folder));
 });
 
 /**
- * `folder` opened in its studio window and remembered among the recent projects; a project opened in a new window is opened on the runtime when it holds it
- * closed, one whose window was open already is left as the person left it. Refused, once its window shows it, saying what did not happen.
+ * `folder` opened in its studio window and remembered among the recent projects; a project opened in a new window is brought up on the runtime from disk as
+ * `openTheProjectFromDiskOnTheRuntime` does, one whose window was open already is left as the person left it. Refused, once its window shows it, saying what did not happen.
  */
 const openAndRememberTheFolder = Effect.fn("openAndRememberTheFolder")(function* (
   folder: string,
-  howTheRuntimeOpensTheProject: "open_it_when_the_runtime_holds_it_closed" | "the_runtime_opens_the_new_project_itself" = "open_it_when_the_runtime_holds_it_closed",
+  howTheRuntimeOpensTheProject: "open_it_from_disk" | "the_runtime_opens_the_new_project_itself" = "open_it_from_disk",
 ) {
   const studioWindowShown = yield* (yield* StudioWindows).openTheProjectInItsStudioWindow(folder);
   const remembered = yield* Effect.result(rememberAmongTheRecentProjects(folder));
   const opened =
-    howTheRuntimeOpensTheProject === "open_it_when_the_runtime_holds_it_closed" && studioWindowShown === "opened_its_studio_window"
-      ? yield* Effect.result(openTheProjectWhenTheRuntimeHoldsItClosed(folder))
+    howTheRuntimeOpensTheProject === "open_it_from_disk" && studioWindowShown === "opened_its_studio_window"
+      ? yield* Effect.result(openTheProjectFromDiskOnTheRuntime(folder))
       : Result.succeed(undefined);
   const failuresAfterTheWindowOpened = [
     ...(Result.isFailure(opened) ? [`the runtime did not open it: ${opened.failure.words}`] : []),
@@ -356,33 +364,71 @@ export const setRecentProjectCover = Effect.fn("setRecentProjectCover")(function
   yield* setProjectCover(folder, imported.asset);
 });
 
-/** The deletion `action` of the project in `folder`, asked about until it ends: done, or refused with why it failed, was cancelled, is no longer held, or is still running past the longest wait. */
-const followTheDeletionToItsEnd = Effect.fn("followTheDeletionToItsEnd")(function* (action: string, folder: string) {
+/** How a removal or a deletion of a project is told when it does not end done. */
+interface ProjectRemovalWords {
+  readonly failed: string;
+  readonly cancelled: string;
+  readonly stillRunning: string;
+}
+
+/**
+ * The removal or deletion `action` of a project, asked about until it ends: done, or refused with why it failed, was cancelled, is no longer held, or is still
+ * running past `PROJECT_REMOVAL_LONGEST_WAIT_MS`, as `words` tell each when the runtime gives no words of its own.
+ */
+const followTheRemovalToItsEnd = Effect.fn("followTheRemovalToItsEnd")(function* (action: string, words: ProjectRemovalWords) {
   const followedSinceNanos = yield* Clock.monotonicTimeNanos;
-  const longestWaitNanos = BigInt(PROJECT_DELETION_LONGEST_WAIT_MS) * 1_000_000n;
+  const longestWaitNanos = BigInt(PROJECT_REMOVAL_LONGEST_WAIT_MS) * 1_000_000n;
   while ((yield* Clock.monotonicTimeNanos) - followedSinceNanos <= longestWaitNanos) {
     const followed = yield* describeStreamAction(action);
     if (followed.kind === "not_held") return yield* new CommandRefused({ words: followed.words });
     const { state, failed_because: failedBecause } = followed.description;
     if (state === "done") return;
-    if (state === "failed") return yield* new CommandRefused({ words: failedBecause ?? `The runtime could not delete ${folder}.` });
-    if (state === "cancelled") return yield* new CommandRefused({ words: `Deleting ${folder} was cancelled; the project is where it was.` });
-    yield* Effect.sleep(PROJECT_DELETION_FOLLOW_INTERVAL_MS);
+    if (state === "failed") return yield* new CommandRefused({ words: failedBecause ?? words.failed });
+    if (state === "cancelled") return yield* new CommandRefused({ words: words.cancelled });
+    yield* Effect.sleep(PROJECT_REMOVAL_FOLLOW_INTERVAL_MS);
   }
-  return yield* new CommandRefused({ words: `The runtime is still deleting ${folder}. Its card stays here, and reads as gone from disk once the folder is in the Trash.` });
+  return yield* new CommandRefused({ words: words.stillRunning });
+});
+
+/** The project in `folder`'s studio window closed and the project forgotten among the recent projects, `whatHappened` leading the words when it cannot be. */
+const closeAndForgetTheProject = Effect.fn("closeAndForgetTheProject")(function* (folder: string, whatHappened: string) {
+  yield* (yield* StudioWindows).closeTheStudioWindowOf(folder);
+  yield* (yield* RecentProjects).forget(folder).pipe(Effect.mapError(({ words }) => new CommandRefused({ words: `${whatHappened}, but Tato Studio could not forget it: ${words}` })));
+});
+
+/**
+ * The project in `folder`, one of the recent projects, taken off them, its files left where they are: the runtime stops and forgets each of its streams it
+ * holds, deleting no file, so the next open or import of the folder loads it from disk afresh; answers once it has, its studio window closed and the project
+ * forgotten here. Refused for any other folder, in the runtime's words when it failed, and when the runtime has not finished within
+ * `PROJECT_REMOVAL_LONGEST_WAIT_MS`.
+ */
+export const removeRecentProject = Effect.fn("removeRecentProject")(function* (folder: string) {
+  yield* oneOfTheRecentFolders(folder);
+  if (streamsOfTheProjectIn(yield* listStreams(), folder).length > 0) {
+    const action = yield* removeProject(folder);
+    yield* followTheRemovalToItsEnd(action, {
+      failed: `The runtime could not remove ${folder}.`,
+      cancelled: `Removing ${folder} was cancelled; the project is still here.`,
+      stillRunning: `The runtime is still removing ${folder}. Its card stays here until it has.`,
+    });
+  }
+  yield* closeAndForgetTheProject(folder, "The runtime let go of the project");
 });
 
 /**
  * The project in `folder`, one of the recent projects, deleted through the runtime, which stops and forgets its streams and moves its folder to the Trash;
  * answers once it has, its studio window closed and the project forgotten here. Refused for any other folder, in the runtime's words when it failed, and
- * when the runtime has not finished within `PROJECT_DELETION_LONGEST_WAIT_MS`.
+ * when the runtime has not finished within `PROJECT_REMOVAL_LONGEST_WAIT_MS`.
  */
 export const deleteRecentProject = Effect.fn("deleteRecentProject")(function* (folder: string) {
   yield* oneOfTheRecentFolders(folder);
   const action = yield* deleteProject(folder);
-  yield* followTheDeletionToItsEnd(action, folder);
-  yield* (yield* StudioWindows).closeTheStudioWindowOf(folder);
-  yield* (yield* RecentProjects).forget(folder).pipe(Effect.mapError(({ words }) => new CommandRefused({ words: `The project is in the Trash, but Tato Studio could not forget it: ${words}` })));
+  yield* followTheRemovalToItsEnd(action, {
+    failed: `The runtime could not delete ${folder}.`,
+    cancelled: `Deleting ${folder} was cancelled; the project is where it was.`,
+    stillRunning: `The runtime is still deleting ${folder}. Its card stays here, and reads as gone from disk once the folder is in the Trash.`,
+  });
+  yield* closeAndForgetTheProject(folder, "The project is in the Trash");
 });
 
 /** The folder the person chooses for a new project, the dialog opened at `startingAt`, or at the default location when that is not absolute; `null` when they cancel. */

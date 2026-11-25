@@ -188,9 +188,10 @@ export function presentProjectsHomeChoices(projectsHomeChoices: ProjectsHomeChoi
 /** What the Projects window asks before it deletes the project `name`: the question, what deleting does, and the button that does it. */
 export function presentProjectDeletionQuestion(name: string): { title: string; explanation: string; confirmWords: string } {
   return {
-    title: `Delete “${name}”?`,
-    explanation: "Its streams stop, and Tato Studio moves its folder to the Trash, where you can put it back.",
-    confirmWords: "Move to Trash",
+    title: `Delete “${name}” and its files?`,
+    explanation:
+      "This removes the project from Tato Studio and deletes its folder, every file in it, from disk: the folder goes to the Trash, where you can still put it back. To only take it off this list and keep its files, choose Remove from list instead.",
+    confirmWords: "Delete files",
   };
 }
 
@@ -200,7 +201,7 @@ export function projectRenameRefusal(name: string): string | null {
 }
 
 /** A change the Projects window asked of a recent project. */
-export type RecentProjectChange = "rename" | "duplicate" | "delete";
+export type RecentProjectChange = "rename" | "duplicate" | "remove" | "delete";
 
 /** Why a change the Projects window asked of a recent project did not happen, in the words of whatever refused it. */
 export interface RecentProjectChangeRefusal {
@@ -208,9 +209,10 @@ export interface RecentProjectChangeRefusal {
   because: string;
 }
 
-/** What a card says is being done to its project while a duplicate or a deletion of it runs. */
+/** What a card says is being done to its project while a duplicate, a removal or a deletion of it runs. */
 export function presentRecentProjectChangePendingWords(change: Exclude<RecentProjectChange, "rename">): string {
-  return change === "duplicate" ? "Duplicating…" : "Moving to Trash…";
+  const pendingWords: Record<Exclude<RecentProjectChange, "rename">, string> = { duplicate: "Duplicating…", remove: "Removing…", delete: "Moving to Trash…" };
+  return pendingWords[change];
 }
 
 /** The words of the sheet that makes a project: New project's, or Import project's for the `.zip` at `archive`, which keeps the name it was saved with. */
@@ -260,7 +262,7 @@ export function projectDescriptionToSave(descriptionTyped: string, descriptionTh
 
 /** The title of the notice that says a change the Projects window asked of a project did not happen. */
 export function presentRecentProjectChangeRefusalTitle(askedTo: RecentProjectChange): string {
-  const titles: Record<RecentProjectChange, string> = { rename: "The project wasn't renamed", duplicate: "The project wasn't duplicated", delete: "The project wasn't deleted" };
+  const titles: Record<RecentProjectChange, string> = { rename: "The project wasn't renamed", duplicate: "The project wasn't duplicated", remove: "The project wasn't removed", delete: "The project wasn't deleted" };
   return titles[askedTo];
 }
 
