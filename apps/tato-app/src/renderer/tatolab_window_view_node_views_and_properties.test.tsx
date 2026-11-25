@@ -836,6 +836,24 @@ describe("the studio", () => {
     expect(viewerArea.querySelector("[data-node-view-whereabouts]")?.textContent).toBe("on the pictureandfader node in main");
   });
 
+  it("previews the open stream in the Composition layout's top area through the view node its graph holds, whatever view brings it", async () => {
+    await mountedWindowOverTheMock("state=running&studio_views=fixture", {}, undefined, true);
+    const previewArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="preview"]') ?? expect.unreachable("no preview area"));
+
+    const viewFrame = await waitFor(() => previewArea.querySelector<HTMLIFrameElement>("iframe[data-tatolab-view]") ?? expect.unreachable("no view frame in the preview"));
+    expect(viewFrame.getAttribute("data-tatolab-view")).toBe(MOCK_STUDIO_VIEW_TYPE_ID);
+    expect(previewArea.querySelector("[data-area-view-type-menu]")?.textContent).toContain("Preview");
+    expect(previewArea.querySelector("[data-stream-preview-shows]")?.textContent).toBe("Picture and fader on the pictureandfader node in main");
+  });
+
+  it("says in the top area that the open stream has no view node to preview, while its graph holds none", async () => {
+    await mountedWindowOverTheMock("state=running", {}, undefined, true);
+    const previewArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="preview"]') ?? expect.unreachable("no preview area"));
+
+    await waitFor(() => expect(previewArea.querySelector('[data-stream-preview-state="no_view_node"]')?.textContent).toContain("main has no view node to preview"));
+    expect(previewArea.querySelector("iframe")).toBeNull();
+  });
+
   it("sets what a node view's panel sends on its output, live, on its node's input of that name in the open project's stream", async () => {
     const { backend } = await mountedWindowOverTheMock("state=running&studio_views=fixture");
     const transactionsSent = vi.spyOn(backend, "transactInTheOpenProject");

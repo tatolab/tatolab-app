@@ -11,6 +11,7 @@ import {
   MonitorPlay,
   Network,
   Package,
+  Projector,
   Shapes,
   SquareDashed,
   SlidersHorizontal,
@@ -25,6 +26,7 @@ export type StudioIconName =
   | "stream_graph"
   | "properties"
   | "viewer"
+  | "preview"
   | "code"
   | "palette"
   | "project_view"
@@ -49,6 +51,7 @@ const STUDIO_ICONS: Record<StudioIconName, LucideIcon> = {
   stream_graph: Workflow,
   properties: SlidersHorizontal,
   viewer: MonitorPlay,
+  preview: Projector,
   code: Code,
   palette: Shapes,
   project_view: Box,

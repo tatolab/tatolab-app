@@ -6,7 +6,7 @@ import { Option, Schema } from "effect";
 import { studioAreaLayoutFromSaved, type StudioArea, type StudioAreaLayoutNode, type StudioAreaSplit } from "./studio_area_layout";
 import type { TatolabWindowLocalStorage } from "../tatolab_window_local_storage";
 import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, type StudioLayoutEdgesHidden } from "./studio_layout_shapes";
-import { projectViewIdOf } from "../view_host/studio_view_type_registry";
+import { STREAM_PREVIEW_VIEW_TYPE_ID } from "../view_host/stream_preview_view_type";
 
 /** How many saved presets the digits held with Ctrl or ⌘ apply, the first on 1. */
 export const STUDIO_LAYOUT_PRESETS_ON_A_DIGIT = 9;
@@ -32,17 +32,11 @@ function split(splitId: string, direction: "row" | "column", parts: [number, Stu
   return { kind: "split", split_id: splitId, direction, parts: parts.map(([sizePercent, part]) => ({ size_percent: sizePercent, part })) };
 }
 
-/** The UUID of the Core Nodes project, which every project imports. */
-const CORE_NODES_PROJECT = "ba5fc2b1-df25-4e86-bec3-aba1564d6233";
-
-/** The Audio Video Preview the Core Nodes project brings, found by that project's UUID and the view's folder. */
-export const AUDIO_VIDEO_PREVIEW_VIEW_TYPE = projectViewIdOf(CORE_NODES_PROJECT, "audio_video_preview");
-
-/** The Composition layout, the one a project first opens on: the outliner left, the Audio Video Preview over a big stream graph in the middle, and properties right. */
+/** The Composition layout, the one a project first opens on: the outliner left, the Preview over a big stream graph in the middle, and properties right. */
 export function compositionStudioLayout(): StudioAreaLayoutNode {
   return split("composition-columns", "row", [
     [17, area("outliner", "outliner")],
-    [61, split("composition-middle", "column", [[42, area("preview", AUDIO_VIDEO_PREVIEW_VIEW_TYPE)], [58, area("stream-graph", "stream_graph")]])],
+    [61, split("composition-middle", "column", [[42, area("preview", STREAM_PREVIEW_VIEW_TYPE_ID)], [58, area("stream-graph", "stream_graph")]])],
     [22, area("properties", "properties")],
   ]);
 }
@@ -65,10 +59,10 @@ export function codeStudioLayout(): StudioAreaLayoutNode {
   ]);
 }
 
-/** The Review layout: the Audio Video Preview large, over a thin strip of the stream graph, with properties right. */
+/** The Review layout: the Preview large, over a thin strip of the stream graph, with properties right. */
 export function reviewStudioLayout(): StudioAreaLayoutNode {
   return split("review-columns", "row", [
-    [80, split("review-middle", "column", [[78, area("preview", AUDIO_VIDEO_PREVIEW_VIEW_TYPE)], [22, area("stream-graph", "stream_graph")]])],
+    [80, split("review-middle", "column", [[78, area("preview", STREAM_PREVIEW_VIEW_TYPE_ID)], [22, area("stream-graph", "stream_graph")]])],
     [20, area("properties", "properties")],
   ]);
 }
@@ -89,7 +83,7 @@ export interface StudioLayoutShipped {
 
 /** The layouts Studio ships, in the layout menu's order. */
 export const STUDIO_LAYOUTS_SHIPPED: readonly StudioLayoutShipped[] = [
-  { layout_id: "composition", title: "Composition", layout: compositionStudioLayout(), home_of_view_types: [AUDIO_VIDEO_PREVIEW_VIEW_TYPE] },
+  { layout_id: "composition", title: "Composition", layout: compositionStudioLayout(), home_of_view_types: [STREAM_PREVIEW_VIEW_TYPE_ID] },
   { layout_id: "edit", title: "Edit", layout: editStudioLayout(), home_of_view_types: [] },
   { layout_id: "code", title: "Code", layout: codeStudioLayout(), home_of_view_types: ["code"] },
   { layout_id: "review", title: "Review", layout: reviewStudioLayout(), home_of_view_types: [] },
