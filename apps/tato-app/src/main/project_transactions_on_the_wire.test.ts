@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import { projectActionRefusalAt, projectTransactionFromTheUndoOrRedoToolResult, projectTransactionsFromTheChangeFeed } from "./project_transactions_on_the_wire.js";
+import { A_REFUSAL_NAMING_NOTHING_MORE } from "./fake_local_api_server.js";
 import { recordedResponseBody } from "./runtime_operations_test_support.js";
 import type { Result } from "./result.js";
 
@@ -59,12 +60,7 @@ test("a recorded change feed reads its applied transactions newest first, each n
 const A_REFUSAL_FROM_A_RUNTIME_THAT_SENDS_NO_CODE = {
   refusal_code: "refused",
   refused_operation_index: null,
-  refused_node: null,
-  refused_link: null,
-  refused_field: null,
-  refused_params_pointer: null,
-  refused_file: null,
-  suggested_call: null,
+  ...A_REFUSAL_NAMING_NOTHING_MORE,
 };
 
 test("the refusals a recorded feed holds read apart from its transactions, newest first, each in the runtime's own words, a refusal sent with no code read as refused", async () => {
@@ -94,66 +90,56 @@ test("the refusals a recorded feed holds read apart from its transactions, newes
 
 test("the refused edits a recorded feed holds read with each code and place the runtime sent and its words unchanged", async () => {
   const feed = answerOf(projectTransactionsFromTheChangeFeed(await recordedControlResult("local-api-read-project-changes-of-harbour-after-three-refused-edits.json")));
-  const channelsToArray = "37baed6c-0749-45e7-aa92-bcd8f7720d24";
-
+  const testPattern = "777c0dab-ae92-4df3-9d8f-bb1c4d4e98b6";
+  const halftone = "02a2b427-bbc4-4d9f-a376-854af4fa8755";
   expect(feed.refused_actions.map((refused) => refused.refusal)).toEqual([
     {
-      refusal_code: "refused",
+      ...A_REFUSAL_NAMING_NOTHING_MORE,
+      refusal_code: "node_name_taken",
       action: "transact",
       refused_operation_index: 0,
-      refused_node: channelsToArray,
-      refused_link: null,
-      refused_field: null,
-      refused_params_pointer: null,
-      refused_file: null,
-      suggested_call: null,
-      runtime_words: expect.stringMatching(/^the node name `imagetoarray` casts to `imagetoarray`, which node `imagetoarray` in this graph already has/),
+      refused_node: halftone,
+      runtime_words: expect.stringMatching(/^the node name `brightnessmeter` casts to `brightnessmeter`, which node `brightnessmeter` in this graph already has/),
     },
     {
-      refusal_code: "refused",
+      ...A_REFUSAL_NAMING_NOTHING_MORE,
+      refusal_code: "port_not_found",
       action: "transact",
       refused_operation_index: 0,
-      refused_node: channelsToArray,
-      refused_link: null,
-      refused_field: "no_such_input",
-      refused_params_pointer: null,
-      refused_file: null,
-      suggested_call: null,
-      runtime_words: "Node 'channelstoarray' has no input port named 'no_such_input'",
+      refused_node: testPattern,
+      refused_input: "no_such_input",
+      refused_params_pointer: "/operations/0/value",
+      suggested_call: { operation: "describe_node_types", params: { project_directory: "/tmp/claude-0/proj/harbour", node_types: ["tatolab.testpattern:TestPatternSource"] } },
+      runtime_words: "node `testpatternsource` (`tatolab.testpattern:TestPatternSource`) has no input `no_such_input`; its inputs are `width`, `height`. To fix: name one of them",
     },
     {
-      refusal_code: "refused",
+      ...A_REFUSAL_NAMING_NOTHING_MORE,
+      refusal_code: "link_pin_types_do_not_connect",
       action: "transact",
       refused_operation_index: 0,
-      refused_node: null,
-      refused_link: { source: { node: "7fc1b632-c0db-4d98-be98-70f6af6b0abc", port: "array" }, target: { node: channelsToArray, port: "channels" } },
-      refused_field: null,
-      refused_params_pointer: null,
-      refused_file: null,
-      suggested_call: null,
-      runtime_words: "Invalid link: cannot link imagetoarray.array (Array) to channelstoarray.channels (Channels): a link joins two ports of one family; place an ArrayToChannels node between them",
+      refused_link: { source: { node: testPattern, port: "video" }, target: { node: testPattern, port: "width" } },
+      runtime_words: "cannot link `testpatternsource.video` (Texture (rgba8_unorm)) to `testpatternsource.width` (Integer): a Texture (rgba8_unorm) output does not connect to a Integer input; no node type converts between them",
     },
   ]);
 });
 
 test("a recorded refusal that suggests a call reads its code, the pointer into the params and the call exactly as the runtime sent them", async () => {
-  const toolResult = await recordedControlResult("local-api-transact-tool-refusal-for-a-stream-named-by-its-stream-id-suggesting-describe-operations.json");
-  const structuredContent = typeof toolResult === "object" && toolResult !== null && "structuredContent" in toolResult ? toolResult.structuredContent : null;
-  const refusal = typeof structuredContent === "object" && structuredContent !== null && "refusal" in structuredContent ? structuredContent.refusal : expect.unreachable("the tool result carries its refusal");
+  const answer: unknown = JSON.parse(await recordedResponseBody("local-api-transact-refusal-for-a-value-on-an-input-the-test-pattern-lacks.json"));
+  const error = typeof answer === "object" && answer !== null && "error" in answer ? answer.error : null;
+  const refusal = typeof error === "object" && error !== null && "data" in error ? error.data : expect.unreachable("the answer carries its refusal");
 
   expect(projectActionRefusalAt({ refusal })).toEqual({
     ok: true,
     value: {
-      refusal_code: "params_do_not_match_schema",
+      ...A_REFUSAL_NAMING_NOTHING_MORE,
+      refusal_code: "port_not_found",
       action: "transact",
-      refused_operation_index: null,
-      refused_node: null,
-      refused_link: null,
-      refused_field: null,
-      refused_params_pointer: "/operations/0",
-      refused_file: null,
-      suggested_call: { operation: "describe_operations", params: { operations: ["transact"] } },
-      runtime_words: "`transact`'s params do not match its request: UUID parsing failed: invalid character: expected an optional prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `h` at 1",
+      refused_operation_index: 0,
+      refused_node: "777c0dab-ae92-4df3-9d8f-bb1c4d4e98b6",
+      refused_input: "no_such_input",
+      refused_params_pointer: "/operations/0/value",
+      suggested_call: { operation: "describe_node_types", params: { project_directory: "/tmp/claude-0/proj/harbour", node_types: ["tatolab.testpattern:TestPatternSource"] } },
+      runtime_words: "node `testpatternsource` (`tatolab.testpattern:TestPatternSource`) has no input `no_such_input`; its inputs are `width`, `height`. To fix: name one of them",
     },
   });
 });
@@ -186,7 +172,7 @@ test("the transaction a recorded undo and redo answer is read with its lineage",
   expect(redone).toMatchObject({ redoes: SAMS_IMPORT, undoes: null, undo_state: "applied", operations: [{ operation: "import_asset" }] });
 });
 
-test("a refused graph edit reads with the node, link and field it names", () => {
+test("a refused graph edit reads with the node, link and input it names", () => {
   const link = { source: { node: "n1", port: "video_to_downstream" }, target: { node: "n2", port: "video_from_upstream" } };
   const feed = answerOf(
     projectTransactionsFromTheChangeFeed(
@@ -201,7 +187,7 @@ test("a refused graph edit reads with the node, link and field it names", () => 
             mode: "live",
             operations: [{ operation: "connect", link }],
             idempotency_key: "k1",
-            refusal: { action: "transact", refused_operation_index: 0, refused_node: "n2", refused_link: link, refused_field: "video_from_upstream", runtime_words: "the words" },
+            refusal: { action: "transact", refused_operation_index: 0, refused_node: "n2", refused_link: link, refused_input: "video_from_upstream", runtime_words: "the words" },
             refused_at: "2026-11-10T18:00:00Z",
           },
         ],
@@ -209,7 +195,7 @@ test("a refused graph edit reads with the node, link and field it names", () => 
     ),
   );
   expect(feed.transactions).toEqual([]);
-  expect(feed.refused_actions[0]).toMatchObject({ mode: "live", idempotency_key: "k1", refusal: { refused_operation_index: 0, refused_node: "n2", refused_link: link, refused_field: "video_from_upstream" } });
+  expect(feed.refused_actions[0]).toMatchObject({ mode: "live", idempotency_key: "k1", refusal: { refused_operation_index: 0, refused_node: "n2", refused_link: link, refused_input: "video_from_upstream" } });
 });
 
 test("an entry or an undo state newer than this app leaves the rest of the feed readable", () => {

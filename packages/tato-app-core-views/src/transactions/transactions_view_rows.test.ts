@@ -60,7 +60,7 @@ function refusedActionWith(fields: Partial<RefusedProjectAction>): RefusedProjec
     author_kind: "agent",
     author_name: "claude-code",
     mode: "commit",
-    operations: [{ operation: "set_node_config", stream: MAIN_STREAM_ASSET, node: "9c41", to: { softness: 2 } }],
+    operations: [{ operation: "set_node_input_value", stream: MAIN_STREAM_ASSET, node: "9c41", input: "softness", value: 2 }],
     idempotency_key: null,
     refusal: {
       refusal_code: "refused",
@@ -68,7 +68,7 @@ function refusedActionWith(fields: Partial<RefusedProjectAction>): RefusedProjec
       refused_operation_index: 0,
       refused_node: "9c41",
       refused_link: null,
-      refused_field: "softness",
+      refused_input: "softness",
       refused_params_pointer: null,
       refused_file: null,
       suggested_call: null,
@@ -117,8 +117,8 @@ describe("a Transactions row", () => {
   });
 
   it("leads an undo and a redo with what it is", () => {
-    expect(transactionsViewRowOf(transactionWith({ undoes: "x", operations: [{ operation: "set_node_config" }] }), streamWordsOf).operations_words).toBe("undo · set_node_config");
-    expect(transactionsViewRowOf(transactionWith({ redoes: "x", operations: [{ operation: "set_node_config" }] }), streamWordsOf).operations_words).toBe("redo · set_node_config");
+    expect(transactionsViewRowOf(transactionWith({ undoes: "x", operations: [{ operation: "set_node_input_value" }] }), streamWordsOf).operations_words).toBe("undo · set_node_input_value");
+    expect(transactionsViewRowOf(transactionWith({ redoes: "x", operations: [{ operation: "set_node_input_value" }] }), streamWordsOf).operations_words).toBe("redo · set_node_input_value");
   });
 
   it("shows a time it cannot read as sent, and a time to the second without milliseconds it never had", () => {
@@ -127,7 +127,7 @@ describe("a Transactions row", () => {
   });
 
   it("copies the transaction as JSON exactly as the runtime sent it", () => {
-    const transaction = transactionWith({ operations: [{ operation: "set_pin_value", stream: MAIN_STREAM_ASSET, input: "dot_size", from: 1, to: 1.45 }] });
+    const transaction = transactionWith({ operations: [{ operation: "set_node_input_value", stream: MAIN_STREAM_ASSET, input: "dot_size", from: 1, to: 1.45 }] });
     expect(JSON.parse(changeFeedEntryAsJson({ kind: "applied", transaction }))).toEqual(transaction);
   });
 });
@@ -140,7 +140,7 @@ describe("a refused action's row", () => {
       result: "refused",
       author_words: "agent · claude-code",
       stream_cell_words: "Main",
-      operations_words: "set_node_config",
+      operations_words: "set_node_input_value",
       happened_at_words: "18:42:31",
       mode_words: "commit",
       commit_cell_words: "none",
@@ -191,7 +191,7 @@ describe("the feed as one list", () => {
   });
 
   it("names a refused undo or redo, which asks for no operations, by its action", () => {
-    const refusedRedo = refusedActionWith({ operations: [], refusal: { refusal_code: "refused", action: "redo", refused_operation_index: null, refused_node: null, refused_link: null, refused_field: null, refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "nothing left to redo" } });
+    const refusedRedo = refusedActionWith({ operations: [], refusal: { refusal_code: "refused", action: "redo", refused_operation_index: null, refused_node: null, refused_link: null, refused_input: null, refused_params_pointer: null, refused_file: null, suggested_call: null, runtime_words: "nothing left to redo" } });
     const row = transactionsViewRowsOf({ project: "p", project_directory: "/p", transactions: [], refused_actions: [refusedRedo] }, streamWordsOf)[0];
     expect(row).toMatchObject({ operations_words: "redo", operation_verbs: [], stream_cell_words: "project" });
   });
@@ -200,7 +200,7 @@ describe("the feed as one list", () => {
 describe("the Filter popover", () => {
   const rows = [
     transactionsViewRowOf(transactionWith({ transaction: "t1", operations: [{ operation: "add_node", stream: MAIN_STREAM_ASSET }] }), streamWordsOf),
-    transactionsViewRowOf(transactionWith({ transaction: "t2", author_kind: "agent", author_name: "claude-code", operations: [{ operation: "set_node_config", stream: MAIN_STREAM_ASSET, to: { softness: 0.64 } }] }), streamWordsOf),
+    transactionsViewRowOf(transactionWith({ transaction: "t2", author_kind: "agent", author_name: "claude-code", operations: [{ operation: "set_node_input_value", stream: MAIN_STREAM_ASSET, input: "softness", from: 0.5, to: 0.64 }] }), streamWordsOf),
     transactionsViewRowOf(transactionWith({ transaction: "t3", author_kind: "runtime", author_name: "tatolab", operations: [{ operation: "import_asset" }] }), streamWordsOf),
   ];
   const shownTransactions = (filter: Partial<typeof NO_TRANSACTIONS_FILTER>) => transactionsViewRowsShownBy(rows, { ...NO_TRANSACTIONS_FILTER, ...filter }).map((row) => row.row_id);
@@ -210,7 +210,7 @@ describe("the Filter popover", () => {
       results: ["applied"],
       author_words: ["person · Sam", "agent · claude-code", "runtime"],
       stream_words: ["Main"],
-      operation_verbs: ["add_node", "set_node_config", "import_asset"],
+      operation_verbs: ["add_node", "set_node_input_value", "import_asset"],
     });
   });
 
@@ -244,12 +244,13 @@ describe("a refused action's detail words", () => {
 
   it("lists only the names the refusal carries, a link as node:port → node:port", () => {
     const refusedAction = refusedActionWith({ idempotency_key: "k-1" });
-    const refusal = { ...refusedAction.refusal, refused_node: null, refused_field: null, refused_link: { source: { node: "camera", port: "video" }, target: { node: "display", port: "video" } } };
+    const refusal = { ...refusedAction.refusal, refused_node: null, refused_input: null, refused_link: { source: { node: "camera", port: "video" }, target: { node: "display", port: "video" } } };
     expect(refusedNamesRowsOf({ ...refusedAction, refusal })).toEqual([
       ["Link", "camera:video → display:video"],
       ["Key", "k-1"],
     ]);
     expect(refusedNamesRowsOf({ ...refusedAction, idempotency_key: null, refusal: { ...refusal, refused_link: null } })).toEqual([]);
+    expect(refusedNamesRowsOf({ ...refusedAction, idempotency_key: null, refusal: { ...refusal, refused_link: null, refused_input: "softness" } })).toEqual([["Input", "softness"]]);
   });
 });
 

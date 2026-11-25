@@ -17,7 +17,7 @@ function aPort(name: string, carries: "image" | "number" | null): StreamGraphPor
 }
 
 function aNode(name: string, inputs: StreamGraphPort[], outputs: StreamGraphPort[]): StreamGraphNode {
-  return aGraphNode(name, { id: `id-${name}`, type: `tatolab.ops:${name}`, kind: "function", config: {}, inputs, outputs, components: { state: "Running" } });
+  return aGraphNode(name, { id: `id-${name}`, type: `tatolab.ops:${name}`, kind: "function", inputs, outputs, components: { state: "Running" } });
 }
 
 function aLink(source: StreamGraphNode, sourcePort: string, target: StreamGraphNode, targetPort: string): StreamGraphLink {

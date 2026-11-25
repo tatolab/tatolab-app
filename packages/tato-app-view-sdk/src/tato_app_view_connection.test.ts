@@ -155,7 +155,7 @@ describe("connectToTatoAppOverPort", () => {
       refused_operation_index: 0,
       refused_node: "n-uuid",
       refused_link: null,
-      refused_field: "width",
+      refused_input: "width",
       refused_params_pointer: "/operations/0/config/width",
       refused_file: { path: "streams/main.graph.json", line: 7, column: 3 },
       suggested_call: { operation: "describe_operations", params: { operations: ["transact"] } },

@@ -1,7 +1,6 @@
 // The browser mock's `list_node_types` and `describe_node_types`: the runtime's answers for streamlib's
 // sample project Pulse Stage, replayed for the mock's open project, which is that sample, or for the
-// every-pin-kind sample while `?main_graph=` shows one of its graphs. With `?port_families=unserved` no described port names a family, as a
-// runtime from before strict-port-families serves none. With `?wire_controls=named` each described
+// every-pin-kind sample while `?main_graph=` shows one of its graphs. With `?wire_controls=named` each described
 // Texture input names the Studio's `preview` control, as a node type annotating it would.
 
 import { PULSE_STAGE_FOLDER_NAME } from "./mock_pulse_stage_sample";
@@ -212,12 +211,6 @@ export function mockSetTheNodeTypeGroup(
   return null;
 }
 
-function withoutPortFamilies(nodeType: NodeTypeDescribedOrWhyNot): NodeTypeDescribedOrWhyNot {
-  if ("not_described_because" in nodeType) return nodeType;
-  const withoutFamily = <Port extends { family?: unknown }>({ family: _family, ...port }: Port): Omit<Port, "family"> => port;
-  return { ...nodeType, inputs: nodeType.inputs.map(withoutFamily), outputs: nodeType.outputs.map(withoutFamily) };
-}
-
 /** `nodeType` with each Texture input naming the Studio's `preview` control, as its author's annotation would. */
 function withEachTextureInputPreviewed(nodeType: NodeTypeDescribedOrWhyNot): NodeTypeDescribedOrWhyNot {
   if ("not_described_because" in nodeType) return nodeType;
@@ -235,7 +228,7 @@ export function mockNodeTypesDescribed(
   projectDirectory: string,
   streamsFolder: string,
   nodeTypes: readonly string[],
-  served: Pick<MockTatolabOptions, "arePortFamiliesServed" | "areWireControlsNamed">,
+  served: Pick<MockTatolabOptions, "areWireControlsNamed">,
   recorded: MockRecordedNodeTypes,
   gained: MockNodeTypesTheProjectGains,
 ): DescribeNodeTypesToolResult | null {
@@ -250,8 +243,8 @@ export function mockNodeTypesDescribed(
       if (described === undefined) {
         throw `describe_node_types failed: neither the project \`${recorded.listed.project_name}\` nor the runtime offers a node type \`${nodeType}\`; \`list_node_types\` lists the ones they do`;
       }
-      const withTheFamiliesServed = served.arePortFamiliesServed ? structuredClone(described) : withoutPortFamilies(described);
-      return served.areWireControlsNamed ? withEachTextureInputPreviewed(withTheFamiliesServed) : withTheFamiliesServed;
+      const copied = structuredClone(described);
+      return served.areWireControlsNamed ? withEachTextureInputPreviewed(copied) : copied;
     }),
   };
 }

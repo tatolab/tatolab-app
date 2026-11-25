@@ -23,7 +23,7 @@ import { failedWith, succeeded, type Result } from "./result.js";
 import {
   controlContractRefusalOf,
   type ControlOperationResult,
-  type ProjectActionRefusalOnTheWire,
+  type ControlOperationRefusalOnTheWire,
   type SuggestedOperationCall,
 } from "./tatolab_runtime_control_operation_call.js";
 
@@ -95,14 +95,14 @@ function suggestedCallOfTheContract(call: SuggestedOperationCall): ProjectAction
  * Studio reads, `null` for each it leaves out. Each field is assigned from the contract's own type, so a Studio shape the contract's
  * values do not fit does not compile. `not_running_because` is not read yet.
  */
-export function projectActionRefusalOfTheContract(refusal: ProjectActionRefusalOnTheWire): ProjectActionRefusal {
+export function projectActionRefusalOfTheContract(refusal: ControlOperationRefusalOnTheWire): ProjectActionRefusal {
   return {
     refusal_code: refusal.refusal_code,
     action: refusal.action,
     refused_operation_index: refusal.refused_operation_index ?? null,
     refused_node: refusal.refused_node ?? null,
     refused_link: refusal.refused_link ?? null,
-    refused_field: refusal.refused_field ?? null,
+    refused_input: refusal.refused_input ?? null,
     refused_params_pointer: refusal.refused_params_pointer ?? null,
     refused_file: refusal.refused_file ?? null,
     suggested_call: refusal.suggested_call === undefined || refusal.suggested_call === null ? null : suggestedCallOfTheContract(refusal.suggested_call),

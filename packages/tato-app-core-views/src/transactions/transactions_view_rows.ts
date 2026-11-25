@@ -25,7 +25,7 @@ export interface TransactionsViewRow {
   stream_cell_words: string;
   /** Each operation's verb, once each, in order. */
   operation_verbs: readonly string[];
-  /** `undo · set_node_config`, or the verbs it ran or asked for. */
+  /** `undo · set_node_input_value`, or the verbs it ran or asked for. */
   operations_words: string;
   /** `commit` or `live`, as the change was made or asked: an applied transaction on the feed is always a commit, since the feed keeps no live edit. */
   mode_words: string;
@@ -163,7 +163,7 @@ export function refusedNamesRowsOf(refusedAction: RefusedProjectAction): (readon
   const refusedLink = refusal.refused_link;
   return [
     ...(refusal.refused_node === null ? [] : [["Node", refusal.refused_node] as const]),
-    ...(refusal.refused_field === null ? [] : [["Field", refusal.refused_field] as const]),
+    ...(refusal.refused_input === null ? [] : [["Input", refusal.refused_input] as const]),
     ...(refusedLink === null ? [] : [["Link", `${refusedLink.source.node}:${refusedLink.source.port} → ${refusedLink.target.node}:${refusedLink.target.port}`] as const]),
     ...(refusedAction.idempotency_key === null ? [] : [["Key", refusedAction.idempotency_key] as const]),
   ];

@@ -4,8 +4,7 @@ import { createMockTatolabBackend } from "./mock_tatolab_backend";
 import { readMockTatolabOptions } from "./mock_tatolab_options";
 import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, StreamActionFollowed, StreamGraph } from "../src/shared/tatolab_backend_contract";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
-import { inputValueReadOfThePort, jsonObjectMembersOf } from "@tatolab/tato-app-view-sdk/studio_readings";
-import { mockFamilyOfThePort } from "./mock_port_families";
+import { inputValueReadOfThePort } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { suggestedGraphEditOf } from "@tatolab/tato-app-view-sdk/suggested_graph_edit_of_a_refusal";
 
 afterEach(() => {
@@ -154,23 +153,24 @@ describe("the mock backend's stream actions", () => {
     const graphBefore = await settled(backend.describeStreamGraph(MAIN));
     const firstNode = graphBefore.nodes[0];
     if (firstNode === undefined) return expect.unreachable("the main stream holds a node");
-    const setSoftness = (softness: number) => ({ operation: "set_node_config" as const, stream: streamAsset, node: firstNode.id, config: { ...jsonObjectMembersOf(firstNode.config), softness } });
+    const setReset = (reset: boolean) => ({ operation: "set_node_input_value" as const, stream: streamAsset, node: firstNode.id, input: "reset", value: reset });
+    const resetRead = async () => inputValueReadOfThePort((await settled(backend.describeStreamGraph(MAIN))).nodes[0]?.ports.inputs.find((port) => port.name === "reset") ?? {});
     const gesture = "drag-1";
 
-    await settled(backend.transactInTheOpenProject([setSoftness(0.2)], "live", gesture));
-    const secondLiveEdit = await settled(backend.transactInTheOpenProject([setSoftness(0.4)], "live", gesture));
+    await settled(backend.transactInTheOpenProject([setReset(true)], "live", gesture));
+    const secondLiveEdit = await settled(backend.transactInTheOpenProject([setReset(false)], "live", gesture));
     expect(secondLiveEdit).toMatchObject({ kind: "applied", transaction: { mode: "live", transaction: null } });
-    expect((await settled(backend.describeStreamGraph(MAIN))).nodes[0]?.config).toMatchObject({ softness: 0.4 });
-    const committed = await settled(backend.transactInTheOpenProject([setSoftness(0.6)], "commit", gesture));
-    const retried = await settled(backend.transactInTheOpenProject([setSoftness(0.6)], "commit", gesture));
+    expect(await resetRead()).toEqual({ value: false, comes_from: "live" });
+    const committed = await settled(backend.transactInTheOpenProject([setReset(true)], "commit", gesture));
+    const retried = await settled(backend.transactInTheOpenProject([setReset(true)], "commit", gesture));
     if (committed.kind !== "applied" || retried.kind !== "applied") return expect.unreachable("the commit applied");
-    expect(committed.transaction.operations).toMatchObject([{ operation: "set_node_config", from: firstNode.config, to: { softness: 0.6 } }]);
+    expect(committed.transaction.operations).toMatchObject([{ operation: "set_node_input_value", input: "reset", to: true }]);
     expect(retried.transaction.transaction).toBe(committed.transaction.transaction);
     expect(await settled(backend.readThePersonEditingInStudio())).toEqual({ kind: "person", name: "Sam" });
 
     const undone = await settled(backend.undoInTheOpenProject({ kind: "person", name: "Sam" }));
     expect(undone).toMatchObject({ author_kind: "person", author_name: "Sam", undoes: committed.transaction.transaction });
-    expect((await settled(backend.describeStreamGraph(MAIN))).nodes[0]?.config).toEqual(firstNode.config);
+    expect(await resetRead()).toEqual({ value: false, comes_from: "default" });
   });
 
   it("gives a committed group the same id in the running graph as in the saved one, so a later edit of it applies", async () => {
@@ -242,7 +242,7 @@ describe("the mock backend's stream actions", () => {
         refused_operation_index: 1,
         refused_node: null,
         refused_link: { source: { node: idOf("tally"), port: "tally" }, target: { node: idOf("warmth"), port: "base" } },
-        refused_field: null,
+        refused_input: null,
         refused_params_pointer: null,
         refused_file: null,
         suggested_call: null,
@@ -347,7 +347,7 @@ describe("the mock backend's stream actions", () => {
     expect(choosingOf(graphBefore)?.ports.inputs.find((port) => port.name === "range")?.value).toEqual([0, 1]);
     expect(choosingOf(graphBefore)?.ports.inputs.find((port) => port.name === "value")?.annotations).toEqual({ range: { minimum: 0, maximum: 1 } });
     // Recorded with playback stopped, each node reads Pending, and an Input that is not running carries no current value.
-    expect(choosingOf(graphBefore)?.components.graph_interface).toEqual({ direction: "input", port: "warmth_base", family: "channels", pin_type: { type: "float" } });
+    expect(choosingOf(graphBefore)?.components.graph_interface).toEqual({ direction: "input", port: "warmth_base", pin_type: { type: "float" } });
     expect(graphBefore.links.filter((link) => link.target.node === "warmth" && link.target.port === "base").map((link) => `${link.source.node}.${link.source.port}`)).toEqual(["warmth_base.value"]);
 
     const streamAsset = listingWithTheId((await settled(backend.getTatolabStatus())).streams, MAIN)?.location?.stream_asset ?? "";
@@ -397,7 +397,7 @@ describe("the mock backend's stream actions", () => {
     const intoTheGraphInputsPort = { operation: "connect", stream: streamAsset, source: { node: idOf("caption"), port: "result" }, target: { node: idOf("warmth_base"), port: "port" } } as const;
     expect(await settled(backend.transactInTheOpenProject([intoTheGraphInputsPort], "commit", null))).toMatchObject({
       kind: "refused",
-      refusal: { refusal_code: "input_takes_no_wire", refused_operation_index: 0, refused_field: "port", refused_link: { source: intoTheGraphInputsPort.source, target: intoTheGraphInputsPort.target } },
+      refusal: { refusal_code: "input_takes_no_wire", refused_operation_index: 0, refused_input: "port", refused_link: { source: intoTheGraphInputsPort.source, target: intoTheGraphInputsPort.target } },
     });
   });
 
@@ -751,30 +751,6 @@ describe("the mock backend's node types", () => {
 });
 
 /** The node types of a stream's variables, whose ports the runtime serves no family on. */
-const VARIABLE_NODE_TYPES: readonly string[] = ["tatolab.stream:SetVariable", "tatolab.stream:GetVariable"];
-
-describe("the mock backend's port families", () => {
-  it("serves each port's family by default, as the runtime does, and none when asked", async () => {
-    const familiesOfMain = async (pageQuery: string) => {
-      const { backend } = await runningMockBackend(pageQuery);
-      const graph = backend.describeStreamGraph(MAIN);
-      const described = backend.describeNodeTypes(PULSE_STAGE_FOLDER, ["tatolab.stream:ChannelsToRecords", "nodes.stage_shaders:Kaleidoscope"]);
-      await vi.advanceTimersByTimeAsync(200);
-      const read = await graph;
-      return {
-        // A Set or Get Variable's `value` carries whatever is linked to it, so the runtime serves no family on it.
-        graph: read.nodes.filter((node) => !VARIABLE_NODE_TYPES.includes(node.type)).flatMap((node) => [...node.ports.inputs, ...node.ports.outputs].map(mockFamilyOfThePort)),
-        described: (await described).node_types.flatMap((nodeType) => ("not_described_because" in nodeType ? [] : [...nodeType.inputs, ...nodeType.outputs].map(mockFamilyOfThePort))),
-      };
-    };
-    const unservedWhenAsked = await familiesOfMain("port_families=unserved");
-    expect(new Set([...unservedWhenAsked.graph, ...unservedWhenAsked.described])).toEqual(new Set([null]));
-    const servedByDefault = await familiesOfMain("");
-    expect(servedByDefault.graph).not.toContain(null);
-    expect(new Set(servedByDefault.graph)).toEqual(new Set(["image", "channels", "records"]));
-    expect(servedByDefault.described).toEqual(["channels", null, "records", null, null, null, null, null]);
-  });
-});
 
 /** The mock's status, once its fake timers have run past its answer's delay. */
 async function statusAfterTheMockAnswers(backend: TatolabBackend) {

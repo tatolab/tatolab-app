@@ -158,8 +158,6 @@ export interface MockTatolabOptions {
   projectHistoryScenario: MockProjectHistoryScenario;
   /** `?recent=none`: no project opened before, as on first run; six recent ones by default. */
   recentProjectsInTheQuery: string | null;
-  /** Each port's family is served in the graph and in each node type described, as the runtime serves it; `?port_families=unserved` serves none, as a runtime from before strict-port-families. */
-  arePortFamiliesServed: boolean;
   /** `?wire_controls=named`: each Texture input a node type describes names the Studio's `preview` control, as a node type whose author annotates it so does; none by default, as streamlib's sample declares none. */
   areWireControlsNamed: boolean;
   /** `?asset_import=refuses_one`: Import asset… also refuses a graph document chosen beside the file it imports. */
@@ -310,7 +308,6 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     openProjectScenario: mockOpenProjectScenarioNamed(pageQuery.get("project")),
     projectHistoryScenario: mockProjectHistoryScenarioNamed(pageQuery.get("history")),
     recentProjectsInTheQuery: pageQuery.get("recent"),
-    arePortFamiliesServed: pageQuery.get("port_families") !== "unserved",
     areWireControlsNamed: pageQuery.get("wire_controls") === "named",
     assetImportScenario: pageQuery.get("asset_import") === "refuses_one" ? "refuses_one" : "imports_one",
     poppedOutView: mockPoppedOutViewFrom(pageQuery.get(POPPED_OUT_VIEW_QUERY_PARAMETER)),

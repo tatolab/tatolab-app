@@ -35,7 +35,7 @@ function aRefusalSuggesting(suggested: ProjectActionRefusal["suggested_call"]): 
       refused_operation_index: 0,
       refused_node: null,
       refused_link: { source: { node: SWEEP, port: "result" }, target: { node: BEAT, port: "beats_per_minute" } },
-      refused_field: null,
+      refused_input: null,
       refused_params_pointer: null,
       refused_file: null,
       suggested_call: suggested,

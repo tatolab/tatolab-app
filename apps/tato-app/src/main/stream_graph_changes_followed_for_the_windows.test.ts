@@ -156,9 +156,9 @@ test.skipIf(liveLocalApiSocket === "" || liveLoadedStream === "")("a_real_runtim
     const numberInput = nodes.flatMap((node: unknown) => {
       if (!isAJsonObject(node) || typeof node["id"] !== "string" || !isAJsonObject(node["ports"]) || !Array.isArray(node["ports"]["inputs"])) return [];
       const nodeId = node["id"];
-      return node["ports"]["inputs"].flatMap((port: unknown) => (isAJsonObject(port) && typeof port["name"] === "string" && typeof port["value"] === "number" && port["value_comes_from"] !== "wire" ? [{ node: nodeId, input: port["name"] }] : []));
+      return node["ports"]["inputs"].flatMap((port: unknown) => (isAJsonObject(port) && typeof port["name"] === "string" && typeof port["value"] === "number" && port["value_comes_from"] !== "wire" && isAJsonObject(port["pin_type"]) && port["pin_type"]["type"] === "float" ? [{ node: nodeId, input: port["name"] }] : []));
     })[0];
-    if (numberInput === undefined) return expect.unreachable(`no top-level node of ${liveLoadedStream} has an unlinked input reading a number`);
+    if (numberInput === undefined) return expect.unreachable(`no top-level node of ${liveLoadedStream} has an unlinked Float input`);
     const setTheInput = (value: number | null) =>
       liveRuntime.runPromiseExit(
         RuntimeControl.use((runtimeControl) =>

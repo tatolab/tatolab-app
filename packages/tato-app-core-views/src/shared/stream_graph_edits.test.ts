@@ -37,7 +37,7 @@ const studioOnTheWire = (fields: Partial<StreamGraphNodeStudioFields>): NonNulla
 function graphNode(name: string, id: string, ports: { inputs?: [string, "image" | "array" | null][]; outputs?: [string, "image" | "array" | null][] }, studio: Partial<StreamGraphNodeStudioFields> = {}): StreamGraphNode {
   const declared = (portsOfOneSide: [string, "image" | "array" | null][] = []) =>
     portsOfOneSide.map(([name, carries]) => aGraphPort(name, carries === "image" ? { pin_type: { type: "texture" }, flow: "stream" } : carries === "array" ? { pin_type: { type: "float" } } : {}));
-  return aGraphNode(name, { id, kind: "process", config: {}, inputs: declared(ports.inputs), outputs: declared(ports.outputs), studio: studioOnTheWire(studio), components: { state: "Running" } });
+  return aGraphNode(name, { id, kind: "process", inputs: declared(ports.inputs), outputs: declared(ports.outputs), studio: studioOnTheWire(studio), components: { state: "Running" } });
 }
 
 const PATTERN = graphNode("pattern", "uuid-pattern", { outputs: [["video", "image"]] }, { position: [0, 0], comment: "the source", metadata: { pinned: true } });
@@ -70,7 +70,7 @@ const A_SETTING = { mode: "setting_only", read: "at_setup" } as const;
 const BLUR_LISTING_ITS_SETTINGS: NodeTypeDescription = {
   ...describedNodeType("nodes.blur:GaussianBlur", [["video_in", "image"]], [["video_out", "image"]]),
   inputs: [
-    { name: "video_in", documentation: "the picture", family: { family: "image" }, mode: "wire_only" },
+    { name: "video_in", documentation: "the picture", mode: "wire_only" },
     { name: "gain", documentation: "How loud.", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", ...A_SETTING, takes_a_wire: true },
     { name: "layers", documentation: "", ...A_SETTING, takes_a_wire: false },
   ],
@@ -214,18 +214,18 @@ test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_ports_of_the_links_pi
 
 test("a_card_let_go_over_a_link_is_spliced_in_by_its_first_input_of_the_links_pin_type_that_takes_a_wire", () => {
   const setting = aGraphPort("source_frames", { pin_type: { type: "texture" }, flow: "stream", takes_a_wire: false });
-  const withASettingFirst = aGraphNode("lens", { id: "uuid-lens", kind: "process", config: {}, inputs: [setting, aGraphPort("frames", { takes_a_wire: true })], outputs: [aGraphPort("image", { pin_type: { type: "texture" }, flow: "stream" })], components: { state: "Running" } });
+  const withASettingFirst = aGraphNode("lens", { id: "uuid-lens", kind: "process", inputs: [setting, aGraphPort("frames", { takes_a_wire: true })], outputs: [aGraphPort("image", { pin_type: { type: "texture" }, flow: "stream" })], components: { state: "Running" } });
   expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, withASettingFirst] }), new Map(), "lens", "L1")[1]).toEqual({
     operation: "connect",
     stream: STREAM_ASSET,
     source: { node: "uuid-pattern", port: "video" },
     target: { node: "uuid-lens", port: "frames" },
   });
-  const takingNoWire = aGraphNode("still", { id: "uuid-still", kind: "process", config: {}, inputs: [setting], outputs: [aGraphPort("image", { pin_type: { type: "texture" }, flow: "stream" })], components: { state: "Running" } });
+  const takingNoWire = aGraphNode("still", { id: "uuid-still", kind: "process", inputs: [setting], outputs: [aGraphPort("image", { pin_type: { type: "texture" }, flow: "stream" })], components: { state: "Running" } });
   expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, takingNoWire] }), new Map(), "still", "L1")).toEqual([]);
 
-  const unmarked = aGraphNode("lens", { id: "uuid-lens", kind: "process", config: {}, inputs: [aGraphPort("source_frames", { pin_type: { type: "texture" }, flow: "stream" }), aGraphPort("frames", { pin_type: { type: "texture" }, flow: "stream" })], outputs: [aGraphPort("image", { pin_type: { type: "texture" }, flow: "stream" })], components: { state: "Running" } });
-  const lensDescribed: NodeTypeDescription = { ...describedNodeType("nodes.lens:Node", [], []), inputs: [{ name: "source_frames", documentation: "", family: { family: "image" }, ...A_SETTING, takes_a_wire: false }] };
+  const unmarked = aGraphNode("lens", { id: "uuid-lens", kind: "process", inputs: [aGraphPort("source_frames", { pin_type: { type: "texture" }, flow: "stream" }), aGraphPort("frames", { pin_type: { type: "texture" }, flow: "stream" })], outputs: [aGraphPort("image", { pin_type: { type: "texture" }, flow: "stream" })], components: { state: "Running" } });
+  const lensDescribed: NodeTypeDescription = { ...describedNodeType("nodes.lens:Node", [], []), inputs: [{ name: "source_frames", documentation: "", ...A_SETTING, takes_a_wire: false }] };
   expect(cardLetGoOverALinkEdits(edited({ ...GRAPH, nodes: [...GRAPH.nodes, unmarked] }), new Map([["nodes.lens:Node", lensDescribed]]), "lens", "L1")[1]).toMatchObject({ target: { node: "uuid-lens", port: "frames" } });
 });
 
@@ -323,7 +323,7 @@ describe("subgraphs", () => {
   test("unlock_names_the_subgraph_by_uuid_and_refresh_runs_its_generator_again_under_its_name_with_its_settings", () => {
     const graph = edited({ ...GRAPH, nodes: [...GRAPH.nodes, LEVELS, LOOK] });
     expect(subgraphUnlockedEdits(graph, "subgraph")).toEqual([{ operation: "unlock_subgraph", stream: STREAM_ASSET, fragment: "uuid-look" }]);
-    expect(subgraphRefreshedEdits(graph, "levels")).toEqual([{ operation: "import_graph_generator", stream: STREAM_ASSET, generator: "generators.mics:mic_levels", name: "levels", config: { mic_count: 2 } }]);
+    expect(subgraphRefreshedEdits(graph, "levels")).toEqual([{ operation: "import_graph_generator", stream: STREAM_ASSET, generator: "generators.mics:mic_levels", name: "levels" }]);
     expect(subgraphRefreshedEdits(graph, "subgraph")).toEqual([]);
   });
 });

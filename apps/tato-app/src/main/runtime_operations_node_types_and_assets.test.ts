@@ -47,9 +47,9 @@ test("describing_node_types_calls_describe_node_types_with_each_type_and_passes_
     { name: "glow", mode: "wire_or_value", pin_type: { kind: "is", pin_type: { type: "float", exact_size: "float32" } } },
     { name: "warmth", mode: "wire_or_value", pin_type: { kind: "is", pin_type: { type: "float", exact_size: "float32" } } },
   ]);
-  expect(channelsToRecords.inputs.map(({ name, mode, pin_type, family }) => ({ name, mode, pin_type, family }))).toEqual([
-    { name: "channels", mode: "wire_or_value", pin_type: undefined, family: { family: "channels" } },
-    { name: "channel_names", mode: "setting_only", pin_type: undefined, family: undefined },
+  expect(channelsToRecords.inputs.map(({ name, mode, pin_type }) => ({ name, mode, pin_type }))).toEqual([
+    { name: "channels", mode: "wire_or_value", pin_type: undefined },
+    { name: "channel_names", mode: "setting_only", pin_type: undefined },
   ]);
 });
 

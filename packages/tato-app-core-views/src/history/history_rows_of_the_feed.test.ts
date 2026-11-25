@@ -48,7 +48,7 @@ function anEditedProject() {
     { stream: STREAM, operation: "add_node", node: glowBlur, links: [] },
     { stream: STREAM, operation: "connect", link },
   ]);
-  const quieter = transaction(SAM, [{ stream: STREAM, operation: "set_node_config", node: CLICK, from: { volume: 0.8, pitch: 880 }, to: { volume: 0.4, pitch: 880 } }]);
+  const quieter = transaction(SAM, [{ stream: STREAM, operation: "set_node_input_value", node: CLICK, input: "volume", from: 0.8, to: 0.4 }]);
   return { imported, refreshed, renamed, added, quieter };
 }
 
@@ -68,13 +68,13 @@ test("each edit is a row, newest first, naming who made it and what it changed, 
   const rows = historyRowsOfTheFeed(feed, nodeNames);
 
   expect(rows.map((row) => [row.who, sentenceOf(row), row.is_undone])).toEqual([
-    ["Sam", "Set click volume to 0.4", false],
+    ["Sam", "Set click.volume to 0.4", false],
     ["claude-code (agent)", "Added glowblur and linked it to kaleidoscope.result", false],
     ["Sam", "Renamed fold to kaleidoscope", false],
     ["Runtime", "Refreshed MicLevels from its code", false],
     ["Sam", "Imported warm.cube", false],
   ]);
-  expect(rows[0]?.operation_lines).toEqual(["set_node_config volume 0.8 → 0.4"]);
+  expect(rows[0]?.operation_lines).toEqual(["set_node_input_value volume 0.8 → 0.4"]);
   expect(rows[1]?.operation_lines).toEqual(["add_node GlowBlur", "connect kaleidoscope.result → glowblur.image"]);
 });
 

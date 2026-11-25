@@ -3,8 +3,8 @@ import type { StreamGraphNode, StreamGraph } from "./studio_view_contract";
 import { nodeShownByTheArea, nodesOfTheStudioViewType, studioViewInputWiring, studioViewNodeAddressOf } from "./studio_view_node_wiring";
 import { aGraphLink, aGraphNode, aGraphPort, aStreamGraph } from "@tatolab/tato-app-view-sdk/stream_graph_builders";
 
-function graphNode(name: string, type: string, config: StreamGraphNode["config"], outputs: StreamGraphNode["ports"]["outputs"]): StreamGraphNode {
-  return aGraphNode(name, { id: `id-${name}`, type, kind: "process", config, outputs, components: { state: "Running" } });
+function graphNode(name: string, type: string, inputValues: StreamGraphNode["input_values"], outputs: StreamGraphNode["ports"]["outputs"]): StreamGraphNode {
+  return aGraphNode(name, { id: `id-${name}`, type, kind: "process", input_values: inputValues, outputs, components: { state: "Running" } });
 }
 
 const DECK = graphNode("djdeck", "acme-dj:deck", { level: 0.5 }, []);

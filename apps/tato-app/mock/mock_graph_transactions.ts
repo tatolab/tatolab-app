@@ -50,7 +50,7 @@ export interface MockGraphTransactionApplied {
 /** What one mock runtime adds a node from: the node types it describes, and the ports of each node an edit removed, by its id, so an undo or redo adding back a node of a type it does not describe gives it the ports it had, as the runtime's document keeps them. */
 export interface MockGraphEditGrounds {
   nodeTypesDescribed: readonly NodeTypeDescription[];
-  portsOfTheNodesRemoved: Map<string, Pick<MockGraphNode, "input_ports" | "output_ports">>;
+  whatTheNodesRemovedHeld: Map<string, Pick<MockGraphNode, "input_ports" | "output_ports" | "config" | "pins">>;
 }
 
 export class MockGraphEditNotApplicable extends Error {
@@ -256,8 +256,8 @@ export function isAHistoryOperationTheMockMakesAgainFromTheEditInside(historyOpe
   return isAJsonObject(historyOperation) && ["create_stream_document", "delete_stream_document", "carry_the_links_onto_the_ports_of_a_placed_stream"].includes(String(historyOperation["operation"]));
 }
 
-/** A port of a node added from `port`, as its node type's description describes it: its name, family and pin type as described, stating no stream facts and reading no value yet. */
-function graphPortOfTheDescribedPort(port: Pick<NodeTypePortDescribed, "name" | "family" | "pin_type" | "flow">): MockGraphPort {
+/** A port of a node added from `port`, as its node type's description describes it: its name and pin type as described, stating no stream facts and reading no value yet. */
+function graphPortOfTheDescribedPort(port: Pick<NodeTypePortDescribed, "name" | "pin_type" | "flow">): MockGraphPort {
   const family = mockFamilyOfThePort(port);
   return { name: port.name, family, stream_facts: null, values_checked: family === "records" ? false : null, pin: exactPinOfTheDeclaredPort(port), value_read: null };
 }
@@ -283,16 +283,10 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
   if (typeof stream !== "string") return null;
   const to = historyOperation["to"] ?? null;
   switch (operation) {
-    case "set_node_config":
-      return typeof node === "string" && typeof to === "object" && to !== null && !Array.isArray(to) ? { operation, stream, node, config: to } : null;
     case "set_node_input_value": {
       const input = historyOperation["input"];
       const member = historyOperation["member"];
       return typeof node === "string" && typeof input === "string" ? { operation, stream, node, input, value: to, ...(typeof member === "string" ? { member } : {}) } : null;
-    }
-    case "set_pin_value": {
-      const input = historyOperation["input"];
-      return typeof node === "string" && typeof input === "string" ? { operation, stream, node, input, value: to } : null;
     }
     case "rename_node":
       return typeof node === "string" && typeof to === "string" ? { operation, stream, node, name: to } : null;
@@ -301,9 +295,9 @@ export function graphActionApplyingTheHistoryOperation(historyOperation: JsonVal
     case "add_node": {
       const added = historyOperation["node"];
       if (typeof added !== "object" || added === null || Array.isArray(added)) return null;
-      const { type, name, config, pins, studio, id } = added;
+      const { type, name, studio, id } = added;
       if (typeof type !== "string" || typeof name !== "string" || typeof id !== "string") return null;
-      return { operation, stream, type, name, as: id, ...(isAJsonObject(config) ? { config } : {}), ...(isAJsonObject(pins) ? { pins } : {}), ...(isAJsonObject(studio) ? { studio } : {}) };
+      return { operation, stream, type, name, as: id, ...(isAJsonObject(studio) ? { studio } : {}) };
     }
     case "set_studio_fields":
       return typeof node === "string" && isAJsonObject(to) ? { operation, stream, node, studio: to } : null;
@@ -373,9 +367,9 @@ function fireTheTriggerInput(graph: MockGraphLevel, node: MockGraphNode, input: 
   }
 }
 
-/** Whether `input` is a setting of a Graph Input or Output the mock drew no port of, as for one a transaction added: any input of it but the `value` it carries. */
+/** Whether `input` is a setting of a Graph Input or Output the mock drew no port of, as for one a transaction added: any input of it the mock draws no port of. */
 function isASettingOfAGraphInputOrOutput(node: Pick<MockGraphNode, "type" | "input_ports">, input: string): boolean {
-  return (node.type === GRAPH_INPUT_NODE_TYPE || node.type === GRAPH_OUTPUT_NODE_TYPE) && input !== "value" && !node.input_ports.some((port) => port.name === input);
+  return (node.type === GRAPH_INPUT_NODE_TYPE || node.type === GRAPH_OUTPUT_NODE_TYPE) && !node.input_ports.some((port) => port.name === input);
 }
 
 /** Whether `input` is a setting of `node` held in its config: one it names among its settings, or one its node type describes as a setting that is none of its ports. */
@@ -395,7 +389,7 @@ function isASettingOfTheNode(node: Pick<MockGraphNode, "type" | "settings" | "in
  */
 export function applyMockGraphTransaction(
   targetsByStreamAsset: ReadonlyMap<string, MockStreamGraphTarget>,
-  { nodeTypesDescribed, portsOfTheNodesRemoved }: MockGraphEditGrounds,
+  { nodeTypesDescribed, whatTheNodesRemovedHeld }: MockGraphEditGrounds,
   operations: readonly StreamGraphAction[],
   applying: "a_transaction" | "a_live_transaction" | "undo_or_redo" = "a_transaction",
   historyOperationsReplayed: readonly JsonValue[] = [],
@@ -455,24 +449,6 @@ export function applyMockGraphTransaction(
       applied.operations.push({ ...historyOperation, stream: target.stream_id });
     };
     switch (operation.operation) {
-      case "set_node_config": {
-        const node = nodeNamed(operation.node);
-        const from = structuredClone(node.config);
-        const to = jsonObjectTheActionCarries(operation.config, "config");
-        node.config = structuredClone(to);
-        recordInHistory({ operation: "set_node_config", node: nodeIdOf(node), from, to }, { operation: "set_node_config", node: nodeIdOf(node), from: to, to: from });
-        break;
-      }
-      case "set_pin_value": {
-        const node = nodeNamed(operation.node);
-        if (!node.input_ports.some((port) => port.name === operation.input)) {
-          throw new MockGraphEditNotApplicable(`node ${operation.node} has no input \`${operation.input}\``);
-        }
-        const to = jsonTheActionCarries(operation.value ?? null, "value");
-        const from = echoTheInputValueSet(node, operation.input, to, applying);
-        recordInHistory({ operation: "set_pin_value", node: nodeIdOf(node), input: operation.input, from, to }, { operation: "set_pin_value", node: nodeIdOf(node), input: operation.input, from: to, to: from });
-        break;
-      }
       case "set_node_input_value": {
         const node = nodeNamed(operation.node);
         const isAnInterfaceSetting = isASettingOfAGraphInputOrOutput(node, operation.input);
@@ -535,15 +511,15 @@ export function applyMockGraphTransaction(
         const interfaceType = operation.type === GRAPH_INPUT_NODE_TYPE || operation.type === GRAPH_OUTPUT_NODE_TYPE ? operation.type : null;
         const described = nodeTypesDescribed.find((nodeType) => nodeType.node_type === operation.type);
         const label = operation.as ?? null;
-        const portsItHadBeforeItsRemoval = applying === "undo_or_redo" && label !== null ? portsOfTheNodesRemoved.get(label) : undefined;
-        if (interfaceType === null && described === undefined && portsItHadBeforeItsRemoval === undefined) throw new MockGraphEditNotApplicable(`the recorded node types describe no node type \`${operation.type}\``);
+        const heldBeforeItsRemoval = applying === "undo_or_redo" && label !== null ? whatTheNodesRemovedHeld.get(label) : undefined;
+        if (interfaceType === null && described === undefined && heldBeforeItsRemoval === undefined) throw new MockGraphEditNotApplicable(`the recorded node types describe no node type \`${operation.type}\``);
         const shortName = operation.name ?? shortNameOfTheType(operation.type);
         const takenNames = new Set(graph.nodes.map((node) => node.name));
         let name = shortName;
         for (let suffix = 2; (operation.name ?? null) === null && takenNames.has(name); suffix += 1) name = `${shortName}-${suffix}`;
         if (takenNames.has(name)) throw new MockGraphEditNotApplicable(`node \`${name}\` in this graph already has that name`);
-        const config = configHoldingTheDefaultNameOfAGraphPortOrVariable(operation.type, jsonObjectTheActionCarries(operation.config ?? {}, "config"), graph.nodes);
-        const pins = jsonObjectTheActionCarries(operation.pins ?? {}, "pins");
+        const config = heldBeforeItsRemoval?.config ?? configHoldingTheDefaultNameOfAGraphPortOrVariable(operation.type, {}, graph.nodes);
+        const pins = heldBeforeItsRemoval?.pins ?? {};
         const declaredFamily = config["family"];
         const addedNode: MockGraphNode = {
           name,
@@ -555,7 +531,7 @@ export function applyMockGraphTransaction(
             ? portsOfTheInterfaceNode(interfaceType, PORT_FAMILIES.find((family) => family === declaredFamily) ?? null, config)
             : described !== undefined
               ? { input_ports: described.inputs.filter((input) => input.mode !== "setting_only").map(graphPortOfTheDescribedPort), output_ports: described.outputs.map(graphPortOfTheDescribedPort) }
-              : structuredClone(portsItHadBeforeItsRemoval ?? { input_ports: [], output_ports: [] })),
+              : structuredClone({ input_ports: heldBeforeItsRemoval?.input_ports ?? [], output_ports: heldBeforeItsRemoval?.output_ports ?? [] })),
         };
         if (operation.studio !== undefined && operation.studio !== null) addedNode.studio = studioFieldsOfTheAction(jsonObjectTheActionCarries(operation.studio, "studio"), label ?? name);
         if (applying === "undo_or_redo" && label !== null) addedNode.id_kept_through_renames = label;
@@ -573,7 +549,7 @@ export function applyMockGraphTransaction(
         const linksOfTheNode = graph.links.filter((link) => link.source_node === node.name || link.target_node === node.name);
         graph.nodes.splice(graph.nodes.indexOf(node), 1);
         graph.links = graph.links.filter((link) => !linksOfTheNode.includes(link));
-        portsOfTheNodesRemoved.set(nodeId, structuredClone({ input_ports: node.input_ports, output_ports: node.output_ports }));
+        whatTheNodesRemovedHeld.set(nodeId, structuredClone({ input_ports: node.input_ports, output_ports: node.output_ports, config: node.config, pins: node.pins ?? {} }));
         const studio: { studio?: JsonValue } = node.studio === undefined ? {} : { studio: studioAsTheRuntimeRendersIt(node.studio) };
         recordInHistory({ operation: "remove_node", node: nodeId }, { operation: "add_node", node: { id: nodeId, name: node.name, type: node.type, config: node.config, pins: node.pins ?? {}, ...studio } });
         for (const link of linksOfTheNode) {
@@ -750,7 +726,6 @@ export function applyMockGraphTransaction(
         const subgraph = graph.nodes.find((node) => node.name === operation.name && node.type === operation.generator && node.fragment !== undefined && fragmentKindOfTheNode(node) === "generated");
         if (subgraph === undefined) throw new MockGraphEditNotApplicable(`the mock runs no graph generator; it refreshes only a fragment of \`${operation.generator}\` the graph holds`);
         const from = structuredClone(subgraph.config);
-        subgraph.config = operation.config === undefined || operation.config === null ? subgraph.config : jsonObjectTheActionCarries(operation.config, "config");
         const fragment = nodeIdOf(subgraph);
         recordInHistory({ operation: "refresh_fragment", node: fragment, from: { type: subgraph.type, config: from }, to: { type: subgraph.type, config: subgraph.config } }, { operation: "refresh_fragment", node: fragment, from: { type: subgraph.type, config: subgraph.config }, to: { type: subgraph.type, config: from } });
         break;

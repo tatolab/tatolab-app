@@ -105,8 +105,7 @@ function whatOneOperationChanged(operation: OperationFields, nodeNames: NodeName
         line: `set_node_config ${changeWords}`.trimEnd(),
       };
     }
-    case "set_node_input_value":
-    case "set_pin_value": {
+    case "set_node_input_value": {
       const input = textOf(operation["input"]) ?? "an input";
       return {
         sentence: { lead: "Set", subject: `${nodeName()}.${input}`, rest: `to ${wordsOfAValue(operation["to"])}` },
@@ -115,8 +114,6 @@ function whatOneOperationChanged(operation: OperationFields, nodeNames: NodeName
     }
     case "set_studio_fields":
       return { sentence: { lead: "Arranged", subject: nodeName(), rest: "" }, line: `set_studio_fields ${nodeName()}` };
-    case "set_exposed_config_fields":
-      return { sentence: { lead: "Changed the config fields", subject: nodeName(), rest: "takes as inputs" }, line: `set_exposed_config_fields ${nodeName()}` };
     case "refresh_fragment": {
       const fragmentType = textOf(fieldsOf(operation["to"])?.["type"]);
       const fragmentName = nodeNames.get(textOf(operation["node"]) ?? "") ?? (fragmentType === null ? "a fragment" : nodeTypeNameOf(fragmentType));

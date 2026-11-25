@@ -135,6 +135,9 @@ function controlOperationCallIn(request: string): { method: string; params: Reco
   }
 }
 
+/** Every place a refusal may name, named by none. */
+export const A_REFUSAL_NAMING_NOTHING_MORE = { refused_node: null, refused_link: null, refused_input: null, refused_params_pointer: null, refused_file: null, suggested_call: null };
+
 /** An HTTP/1.1 response carrying `body` as `contentType`. */
 export function httpResponse(statusLine: string, contentType: string, body: string): Buffer {
   return Buffer.from(`HTTP/1.1 ${statusLine}\r\ncontent-type: ${contentType}\r\ncontent-length: ${Buffer.byteLength(body)}\r\n\r\n${body}`, "utf8");
@@ -168,7 +171,7 @@ export function controlOperationResultResponse(result: unknown): Buffer {
   return controlResponse(JSON.stringify({ jsonrpc: "2.0", id: 1, result }));
 }
 
-/** The runtime's answer to an operation that refused, in `runtimeWords`, with the structured `refusal` (`ProjectActionRefusalOnTheWire`). */
+/** The runtime's answer to an operation that refused, in `runtimeWords`, with the structured `refusal` (`ControlOperationRefusalOnTheWire`). */
 export function controlOperationRefusedResponse(runtimeWords: string, refusal: unknown): Buffer {
   return controlResponse(JSON.stringify({ jsonrpc: "2.0", id: 1, error: { code: 1, message: runtimeWords, data: refusal } }));
 }

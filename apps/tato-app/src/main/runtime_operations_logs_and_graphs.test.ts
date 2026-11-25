@@ -73,31 +73,21 @@ test("describing_a_stream_graph_calls_the_graph_tool_and_passes_on_the_answer_th
   ]);
   const pinTypeNameOf = (port: { pin_type?: { type: string } }) => port.pin_type?.type ?? null;
   expect(graph.nodes.map((node) => [node.name, node.ports.inputs.map(pinTypeNameOf), node.ports.outputs.map(pinTypeNameOf)])).toEqual([
-    ["testpatternsource", [], ["texture"]],
+    ["testpatternsource", ["integer", "integer"], ["texture"]],
     ["halftonelenseffect", ["texture"], ["texture"]],
     ["brightnessmeter", ["texture"], []],
   ]);
   expect(graph.links.map((link) => [link.id, link.source, link.target, link.state])).toEqual([
-    ["Lftoljv5iob8nwq68jpemlbwg", { node: "testpatternsource", port: "video" }, { node: "halftonelenseffect", port: "video_from_upstream" }, "wired"],
-    ["Lxvoutn39b17g931qj9pzs6ui", { node: "halftonelenseffect", port: "video_to_downstream" }, { node: "brightnessmeter", port: "video_from_upstream" }, "wired"],
+    ["Lkkcuvv7fdbrxfldbt4aplias", { node: "testpatternsource", port: "video" }, { node: "halftonelenseffect", port: "video_from_upstream" }, "wired"],
+    ["Lyvkliv1xmn40t5aul4rwtr76", { node: "halftonelenseffect", port: "video_to_downstream" }, { node: "brightnessmeter", port: "video_from_upstream" }, "wired"],
   ]);
   const [source, halftone] = graph.nodes;
   if (source === undefined || halftone === undefined) return expect.unreachable("the stream holds its source and its halftone");
-  expect(bagsDroppedOnTheLink(halftone, "Lftoljv5iob8nwq68jpemlbwg")).toBe(0);
+  expect(bagsDroppedOnTheLink(halftone, "Lkkcuvv7fdbrxfldbt4aplias")).toBe(0);
   expect(bagsRefusedOnTheOutputPort(source, "video")).toBe(0);
   const [, body] = headAndBodyOf(server.receivedRequests()[0]);
   expect(JSON.parse(body).method).toBe("graph");
   expect(JSON.parse(body).params).toEqual({ stream: "test-pattern-halftone-lens-main-66e784" });
-});
-
-test("a_graph_keeps_a_whole_number_past_the_exact_doubles_as_the_runtime_wrote_it", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-graph-result-of-the-stream-test-pattern-halftone-lens-main.json")),
-  ]);
-
-  const graph = answerOf(await server.run(describeStreamGraph("test-pattern-halftone-lens-main-66e784")));
-
-  expect(graph.nodes[0]?.["config_checksum"]).toBe(6086514543335466803n);
 });
 
 test("a_graph_answer_the_contract_does_not_type_fails_as_not_the_contracts_answer", async () => {

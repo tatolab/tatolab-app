@@ -172,9 +172,9 @@ function mockGraphNodeOfTheRecordedNode(node: StreamGraphNode): MockGraphNode {
     ...(components.failed_because === null ? {} : { failed_because: components.failed_because }),
     ...(components.process_raising_because === null ? {} : { process_raising_because: components.process_raising_because }),
     ...(components.not_ready_because === null ? {} : { not_ready_because: components.not_ready_because }),
-    config: { ...jsonObjectMembersOf(node.config) },
-    // An input the runtime read as `saved` holds that value, whether its graph document keeps it among the node's pins or, as a Graph Input's `value`, among its input values.
-    pins: { ...Object.fromEntries(inputPorts.flatMap((port) => (port.value_read?.comes_from === "saved" ? [[port.name, port.value_read.value] as const] : []))), ...jsonObjectMembersOf(node.pins) },
+    config: {},
+    // An input the runtime read as `saved` holds that value, and so does each value the node's graph document holds for an input.
+    pins: { ...Object.fromEntries(inputPorts.flatMap((port) => (port.value_read?.comes_from === "saved" ? [[port.name, port.value_read.value] as const] : []))), ...jsonObjectMembersOf(node.input_values) },
     input_defaults: inputDefaults,
     // The mock reads `wire` on a linked input itself; unlinked, an input the runtime read from its wire reads its default, nothing while a value input has none, and takes no stored value as a stream or Trigger input.
     input_ports: inputPorts.map((port) => (port.value_read?.comes_from === "wire" ? { ...port, value_read: valueReadOfTheUnlinkedInput(port, inputDefaults) } : port)),

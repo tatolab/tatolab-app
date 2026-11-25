@@ -61,7 +61,7 @@ const MOCK_HISTORY_REFUSAL_NAMING_NOTHING: Omit<ProjectActionRefusal, "action" |
   refusal_code: "refused",
   refused_node: null,
   refused_link: null,
-  refused_field: null,
+  refused_input: null,
   refused_params_pointer: null,
   refused_file: null,
   suggested_call: null,
@@ -116,6 +116,7 @@ function mockTransactionsOldestFirst(projectDirectory: string): ProjectTransacti
   const glow = { id: nodeOf("glow"), name: "glow", type: "nodes.looks:glow_look", config: { passes: 3, strength: 0.9 } };
   const glowLinks = [{ source: { node: nodeOf("kaleidoscope"), port: "result" }, target: { node: glow.id, port: "video_in" } }];
   const added = mockTransaction(4, CLAUDE, [{ stream: mainStream, operation: "add_node", node: glow, links: glowLinks }], [{ stream: mainStream, operation: "remove_node", node: glow.id, links: glowLinks }]);
+  // An edit from before contract version 4: its history still serves it as `set_node_config`.
   const fitted = mockTransaction(
     5,
     YOU,

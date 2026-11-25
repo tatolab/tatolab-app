@@ -34,7 +34,7 @@ test("an asset and a graph edit read by the asset's file and the node's name now
   expect(
     sentenceAndLinesOf([
       { stream: STREAM, operation: "rename_node", node: KALEIDOSCOPE, from: "fold", to: "kaleidoscope" },
-      { stream: STREAM, operation: "set_pin_value", node: KALEIDOSCOPE, input: "spin", from: 0, to: 0.5 },
+      { stream: STREAM, operation: "set_node_input_value", node: KALEIDOSCOPE, input: "spin", from: 0, to: 0.5 },
       { stream: STREAM, operation: "remove_group", group: {} },
     ])[0],
   ).toBe("Renamed fold to kaleidoscope, and 2 more changes");

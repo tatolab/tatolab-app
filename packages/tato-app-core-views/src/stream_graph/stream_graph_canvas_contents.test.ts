@@ -148,8 +148,8 @@ test("a card and its pins carry their node type's descriptions, and a blank one 
     node_type: "nodes.invert:Effect",
     described_from: "interpreter",
     documentation: "Inverts each frame's colours.",
-    inputs: [{ name: "video_in", documentation: "The frames to invert.", family: { family: "image" }, mode: "wire_only" }],
-    outputs: [{ name: "video_out", documentation: "  ", family: { family: "image" } }],
+    inputs: [{ name: "video_in", documentation: "The frames to invert.", mode: "wire_only" }],
+    outputs: [{ name: "video_out", documentation: "  " }],
     source: "project",
   };
   const describedByType = new Map([[invertDescribed.node_type, invertDescribed]]);

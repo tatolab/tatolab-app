@@ -4,7 +4,7 @@ import path from "node:path";
 import { Effect, ManagedRuntime } from "effect";
 import { afterEach, expect, test, vi } from "vitest";
 import type { ListedStream } from "../shared/tatolab_backend_contract.js";
-import { controlOperationFailedResponse, controlOperationRefusedResponse, controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
+import { A_REFUSAL_NAMING_NOTHING_MORE, controlOperationFailedResponse, controlOperationRefusedResponse, controlOperationResponseOfTheRecordedToolResponse, controlOperationResultResponse, FakeLocalApiServer } from "./fake_local_api_server.js";
 import { PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { controlOperationCallsReceivedBy } from "./runtime_operations_test_support.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
@@ -22,12 +22,9 @@ const HOLD_FRAME = "d28273fd-8094-41f7-b832-a55f58d60f37";
 const SAM_EDITING_IN_STUDIO = { kind: "person", name: "sam" } as const;
 const FROM_HALLWAYS_STUDIO_WINDOW = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID + 1 };
 /** The stream asset the refusals were recorded on, and two of its nodes. */
-const RECORDED_REFUSALS_STREAM_ASSET = "dbc5bd2d-25c8-48f5-bbc7-f85390eed673";
-const IMAGE_TO_ARRAY = "7fc1b632-c0db-4d98-be98-70f6af6b0abc";
-const CHANNELS_TO_ARRAY = "37baed6c-0749-45e7-aa92-bcd8f7720d24";
-/** Every place a refusal may name, named by none. */
-const NAMING_NOTHING_MORE = { refused_node: null, refused_link: null, refused_field: null, refused_params_pointer: null, refused_file: null, suggested_call: null };
-
+const RECORDED_REFUSALS_STREAM_ASSET = "0eaf9ee2-0f73-4154-a3f6-a99c261b850d";
+const RECORDED_TEST_PATTERN = "777c0dab-ae92-4df3-9d8f-bb1c4d4e98b6";
+const RECORDED_HALFTONE = "02a2b427-bbc4-4d9f-a376-854af4fa8755";
 /**
  * The window's `transact_in_the_open_project` on the live `RuntimeControl` over `server`, given up after `timeLimitMs`, Sam
  * editing in the studio window of hallways, whose one listed stream asset is `STREAM_ASSET`; with every line the app logged.
@@ -65,7 +62,7 @@ test("a graph transaction in the open project reaches the runtime's transact hel
   const sharedState = await sharedStateOverFakes(
     [
       controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-transact-tool-result-of-setting-the-test-pattern-to-640-by-360.json")),
-      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-transact-refusal-for-an-array-output-into-a-channels-input.json")),
+      controlOperationResponseOfTheRecordedToolResponse(await recordedResponseBody("local-api-transact-refusal-for-a-texture-output-into-an-integer-input.json")),
     ],
     "linux",
   );
@@ -76,7 +73,10 @@ test("a graph transaction in the open project reaches the runtime's transact hel
   const commandHandlers = commandHandlersOver(sharedState);
   const stream = "ab38b36d-ea2a-4948-bc01-f231ca4fa043";
   const testPattern = "ea646832-0f5f-45f4-bd5c-6b5b50a0b70a";
-  const setTheSize = { operation: "set_node_config", stream, node: testPattern, config: { width: 640, height: 360 } };
+  const setTheSize = [
+    { operation: "set_node_input_value", stream, node: testPattern, input: "width", value: 640 },
+    { operation: "set_node_input_value", stream, node: testPattern, input: "height", value: 360 },
+  ];
   const hallwaysMainListed: ListedStream = {
     stream: "hallways-main-3990b7",
     display_name: "main",
@@ -114,11 +114,11 @@ test("a graph transaction in the open project reaches the runtime's transact hel
 
   expect(await commandHandlers.read_the_person_editing_in_studio(undefined, fromTheStudioWindow)).toEqual({ ok: true, value: { kind: "person", name: "sam" } });
   const anotherProjectsStream = "0c4e2f9a-7b13-4d58-a6e1-3f9b2c7d8e10";
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize, { ...setTheSize, stream: anotherProjectsStream }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [...setTheSize, ...setTheSize.map((setting) => ({ ...setting, stream: anotherProjectsStream }))], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
     refusal: `The stream ${anotherProjectsStream} is not one of the streams the runtime lists in ${projectFolder}, by its stream asset or its stream id.`,
   });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: "5a8e1c3f-2d47-4b6a-9f01-8c7d6e5b4a32" }, fromTheStudioWindow)).toEqual({
+  expect(await commandHandlers.transact_in_the_open_project({ operations: setTheSize, mode: "commit", idempotency_key: "5a8e1c3f-2d47-4b6a-9f01-8c7d6e5b4a32" }, fromTheStudioWindow)).toEqual({
     ok: true,
     value: {
       kind: "applied",
@@ -126,7 +126,10 @@ test("a graph transaction in the open project reaches the runtime's transact hel
         mode: "commit",
         transaction: "0e29a20a-60d9-4cf1-9fdc-6c66a4b5136d",
         commit: "5e2cdcdc1f1b5e5cfde4d4c870c83197dcc29b7c",
-        operations: [{ operation: "set_node_config", node: testPattern, from: {}, to: { width: 640, height: 360 }, stream: "hallways-main-3990b7" }],
+        operations: [
+          { operation: "set_node_input_value", node: testPattern, input: "width", from: null, to: 640, stream: "hallways-main-3990b7" },
+          { operation: "set_node_input_value", node: testPattern, input: "height", from: null, to: 360, stream: "hallways-main-3990b7" },
+        ],
         added_nodes: [],
         connected_links: [],
         added_groups: [],
@@ -134,22 +137,22 @@ test("a graph transaction in the open project reaches the runtime's transact hel
       },
     },
   });
-  const link = { source: { node: IMAGE_TO_ARRAY, port: "array" }, target: { node: CHANNELS_TO_ARRAY, port: "channels" } };
+  const link = { source: { node: RECORDED_TEST_PATTERN, port: "video" }, target: { node: RECORDED_TEST_PATTERN, port: "width" } };
   expect(await commandHandlers.transact_in_the_open_project({ operations: [{ operation: "connect", stream, ...link }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: true,
     value: {
       kind: "refused",
       refusal: {
-        ...NAMING_NOTHING_MORE,
-        refusal_code: "refused",
+        ...A_REFUSAL_NAMING_NOTHING_MORE,
+        refusal_code: "link_pin_types_do_not_connect",
         action: "transact",
         refused_operation_index: 0,
         refused_link: link,
-        runtime_words: "Invalid link: cannot link imagetoarray.array (Array) to channelstoarray.channels (Channels): a link joins two ports of one family; place an ArrayToChannels node between them",
+        runtime_words: "cannot link `testpatternsource.video` (Texture (rgba8_unorm)) to `testpatternsource.width` (Integer): a Texture (rgba8_unorm) output does not connect to a Integer input; no node type converts between them",
       },
     },
   });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [{ ...setTheSize, force: true }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
+  expect(await commandHandlers.transact_in_the_open_project({ operations: [{ ...setTheSize[0], force: true }], mode: "commit", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
     refusal: 'transact_in_the_open_project: not a StreamGraphAction the runtime takes: the contract names no such field\n  at ["operations"][0]["force"]',
   });
@@ -157,11 +160,11 @@ test("a graph transaction in the open project reaches the runtime's transact hel
     ok: false,
     refusal: 'transact_in_the_open_project: Expected a value with a length of at least 1\n  at ["operations"]',
   });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "kept", idempotency_key: null }, fromTheStudioWindow)).toEqual({
+  expect(await commandHandlers.transact_in_the_open_project({ operations: setTheSize, mode: "kept", idempotency_key: null }, fromTheStudioWindow)).toEqual({
     ok: false,
     refusal: 'transact_in_the_open_project: not a GraphEditMode the runtime takes: matches none of the 2 alternatives the contract allows here\n  at ["mode"]',
   });
-  expect(await commandHandlers.transact_in_the_open_project({ operations: [setTheSize], mode: "commit", idempotency_key: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
+  expect(await commandHandlers.transact_in_the_open_project({ operations: setTheSize, mode: "commit", idempotency_key: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
 });
 
 test("adding a node wired to the test pattern is sent as the runtime's transact by the person editing and answers what it applied, a retry under its key answering the first", async () => {
@@ -176,7 +179,10 @@ test("adding a node wired to the test pattern is sent as the runtime's transact 
     { operation: "connect", stream: STREAM_ASSET, source: { node: TEST_PATTERN, port: "video" }, target: { node: "hold", port: "frame" } },
   ];
   const gesture = "7d1f8c52-3b0e-4a39-9a51-2f6a0b9c4e11";
-  const addAConstantHoldingAHalf = [{ operation: "add_node", stream: STREAM_ASSET, type: "tatolab.ops:Constant", pins: { value: 0.5 }, as: "c" }];
+  const addAConstantHoldingAHalf = [
+    { operation: "add_node", stream: STREAM_ASSET, type: "tatolab.ops:Constant", as: "c" },
+    { operation: "set_node_input_value", stream: STREAM_ASSET, node: "c", input: "value", value: 0.5 },
+  ];
 
   const first = await transact({ operations: addHoldFrameWiredToTheTestPattern, mode: "commit", idempotency_key: gesture }, FROM_HALLWAYS_STUDIO_WINDOW);
   const retry = await transact({ operations: addHoldFrameWiredToTheTestPattern, mode: "commit", idempotency_key: gesture }, FROM_HALLWAYS_STUDIO_WINDOW);
@@ -227,45 +233,45 @@ test("a drag's live edits answer no transaction and its commit under the same ke
   const { transact } = await transactCommandOver(
     await serverReplaying("local-api-transact-tool-result-of-a-live-pin-value-mid-drag.json", "local-api-transact-tool-result-of-the-drags-commit-from-the-saved-value.json"),
   );
-  const setTheValue = (value: number) => [{ operation: "set_pin_value", stream: STREAM_ASSET, node: "cbbe8192-d3a7-4208-9c4d-3ad78cd04910", input: "value", value }];
+  const setTheValue = (value: number) => [{ operation: "set_node_input_value", stream: STREAM_ASSET, node: "cbbe8192-d3a7-4208-9c4d-3ad78cd04910", input: "value", value }];
   const gesture = "9c0e5d2a-41b7-4f3e-8a6d-1b2c3d4e5f60";
 
   expect(await transact({ operations: setTheValue(0.1), mode: "live", idempotency_key: gesture }, FROM_HALLWAYS_STUDIO_WINDOW)).toMatchObject({
     ok: true,
-    value: { kind: "applied", transaction: { mode: "live", transaction: null, commit: null, operations: [{ operation: "set_pin_value", from: 0.5, to: 0.1 }] } },
+    value: { kind: "applied", transaction: { mode: "live", transaction: null, commit: null, operations: [{ operation: "set_node_input_value", from: 0.5, to: 0.1 }] } },
   });
   expect(await transact({ operations: setTheValue(0.3), mode: "commit", idempotency_key: gesture }, FROM_HALLWAYS_STUDIO_WINDOW)).toMatchObject({
     ok: true,
-    value: { kind: "applied", transaction: { mode: "commit", transaction: expect.any(String), operations: [{ operation: "set_pin_value", from: 0.5, to: 0.3 }] } },
+    value: { kind: "applied", transaction: { mode: "commit", transaction: expect.any(String), operations: [{ operation: "set_node_input_value", from: 0.5, to: 0.3 }] } },
   });
 });
 
-test("a refused link, rename or pin value answers the runtime's structured refusal, its code, the place it names and its words unchanged", async () => {
+test("a refused link, rename or input value answers the runtime's structured refusal, its code, the place it names and its words unchanged", async () => {
   const server = await serverReplaying(
     "local-api-transact-refusal-for-a-rename-to-a-name-another-node-has.json",
-    "local-api-transact-refusal-for-an-array-output-into-a-channels-input.json",
-    "local-api-transact-refusal-for-a-pin-value-on-an-input-channelstoarray-lacks.json",
+    "local-api-transact-refusal-for-a-texture-output-into-an-integer-input.json",
+    "local-api-transact-refusal-for-a-value-on-an-input-the-test-pattern-lacks.json",
   );
   cleanUps.push(() => server.close());
   const { transact } = await transactCommandAt(server.localApiSocketPath, RECORDED_REFUSALS_STREAM_ASSET, 2_000);
-  const link = { source: { node: IMAGE_TO_ARRAY, port: "array" }, target: { node: CHANNELS_TO_ARRAY, port: "channels" } };
+  const link = { source: { node: RECORDED_TEST_PATTERN, port: "video" }, target: { node: RECORDED_TEST_PATTERN, port: "width" } };
   const sent = (operation: Record<string, unknown>) => ({ operations: [{ stream: RECORDED_REFUSALS_STREAM_ASSET, ...operation }], mode: "commit", idempotency_key: null });
 
-  const rename = await transact(sent({ operation: "rename_node", node: CHANNELS_TO_ARRAY, name: "imagetoarray" }), FROM_HALLWAYS_STUDIO_WINDOW);
+  const rename = await transact(sent({ operation: "rename_node", node: RECORDED_HALFTONE, name: "brightnessmeter" }), FROM_HALLWAYS_STUDIO_WINDOW);
   const connect = await transact(sent({ operation: "connect", ...link }), FROM_HALLWAYS_STUDIO_WINDOW);
-  const pin = await transact(sent({ operation: "set_pin_value", node: CHANNELS_TO_ARRAY, input: "no_such_input", value: 1 }), FROM_HALLWAYS_STUDIO_WINDOW);
+  const inputValue = await transact(sent({ operation: "set_node_input_value", node: RECORDED_TEST_PATTERN, input: "no_such_input", value: 1 }), FROM_HALLWAYS_STUDIO_WINDOW);
 
   expect(rename).toEqual({
     ok: true,
     value: {
       kind: "refused",
       refusal: {
-        ...NAMING_NOTHING_MORE,
-        refusal_code: "refused",
+        ...A_REFUSAL_NAMING_NOTHING_MORE,
+        refusal_code: "node_name_taken",
         action: "transact",
         refused_operation_index: 0,
-        refused_node: CHANNELS_TO_ARRAY,
-        runtime_words: expect.stringMatching(/^the node name `imagetoarray` casts to `imagetoarray`, which node `imagetoarray` in this graph already has/),
+        refused_node: RECORDED_HALFTONE,
+        runtime_words: expect.stringMatching(/^the node name `brightnessmeter` casts to `brightnessmeter`, which node `brightnessmeter` in this graph already has/),
       },
     },
   });
@@ -274,60 +280,61 @@ test("a refused link, rename or pin value answers the runtime's structured refus
     value: {
       kind: "refused",
       refusal: {
-        ...NAMING_NOTHING_MORE,
-        refusal_code: "refused",
+        ...A_REFUSAL_NAMING_NOTHING_MORE,
+        refusal_code: "link_pin_types_do_not_connect",
         action: "transact",
         refused_operation_index: 0,
         refused_link: link,
-        runtime_words: "Invalid link: cannot link imagetoarray.array (Array) to channelstoarray.channels (Channels): a link joins two ports of one family; place an ArrayToChannels node between them",
+        runtime_words: "cannot link `testpatternsource.video` (Texture (rgba8_unorm)) to `testpatternsource.width` (Integer): a Texture (rgba8_unorm) output does not connect to a Integer input; no node type converts between them",
       },
     },
   });
-  expect(pin).toEqual({
+  expect(inputValue).toEqual({
     ok: true,
     value: {
       kind: "refused",
       refusal: {
-        ...NAMING_NOTHING_MORE,
-        refusal_code: "refused",
+        ...A_REFUSAL_NAMING_NOTHING_MORE,
+        refusal_code: "port_not_found",
         action: "transact",
         refused_operation_index: 0,
-        refused_node: CHANNELS_TO_ARRAY,
-        refused_field: "no_such_input",
-        runtime_words: "Node 'channelstoarray' has no input port named 'no_such_input'",
+        refused_node: RECORDED_TEST_PATTERN,
+        refused_input: "no_such_input",
+        refused_params_pointer: "/operations/0/value",
+        suggested_call: { operation: "describe_node_types", params: { project_directory: "/tmp/claude-0/proj/harbour", node_types: ["tatolab.testpattern:TestPatternSource"] } },
+        runtime_words: "node `testpatternsource` (`tatolab.testpattern:TestPatternSource`) has no input `no_such_input`; its inputs are `width`, `height`. To fix: name one of them",
       },
     },
   });
 });
 
 test("params the runtime does not read are refused with the code and the pointer it sent, whatever JSON-RPC code carried them, its words unchanged", async () => {
-  const { transact } = await transactCommandOver(await serverReplaying("local-api-transact-refusal-for-a-stream-named-by-its-stream-id-not-its-asset-uuid.json"));
-  const runtimeWords =
-    "`transact`'s params do not match its request: UUID parsing failed: invalid character: expected an optional prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `h` at 1";
+  const { transact } = await transactCommandOver(await serverReplaying("local-api-transact-refusal-for-a-remove-node-naming-no-node.json"));
+  const runtimeWords = "`transact`'s params do not match its request: missing field `node`";
 
   expect(await transact({ operations: [{ operation: "remove_node", stream: STREAM_ASSET, node: "n" }], mode: "commit", idempotency_key: null }, FROM_HALLWAYS_STUDIO_WINDOW)).toEqual({
     ok: true,
     value: {
       kind: "refused",
-      refusal: { ...NAMING_NOTHING_MORE, refusal_code: "params_do_not_match_schema", action: "transact", refused_operation_index: null, refused_params_pointer: "/operations/0", runtime_words: runtimeWords },
+      refusal: { ...A_REFUSAL_NAMING_NOTHING_MORE, refusal_code: "params_do_not_match_schema", action: "transact", refused_operation_index: null, refused_params_pointer: "/operations/0", runtime_words: runtimeWords },
     },
   });
 });
 
 test("a refusal code this app does not know reads as refused and keeps the place it names and the runtime's words", async () => {
-  const recorded: unknown = JSON.parse(await recordedResponseBody("local-api-transact-refusal-for-a-pin-value-on-an-input-channelstoarray-lacks.json"));
+  const recorded: unknown = JSON.parse(await recordedResponseBody("local-api-transact-refusal-for-a-value-on-an-input-the-test-pattern-lacks.json"));
   const recordedError = typeof recorded === "object" && recorded !== null && "error" in recorded && typeof recorded.error === "object" && recorded.error !== null ? recorded.error : expect.unreachable("the recording is a refusal");
   const recordedRefusal = "data" in recordedError && typeof recordedError.data === "object" && recordedError.data !== null ? recordedError.data : expect.unreachable("the recording carries its refusal");
   const server = await FakeLocalApiServer.answering([controlOperationRefusedResponse("transact failed: a later runtime's refusal", { ...recordedRefusal, refusal_code: "input_value_not_valid_in_a_later_runtime" })]);
   cleanUps.push(() => server.close());
   const { transact } = await transactCommandAt(server.localApiSocketPath, RECORDED_REFUSALS_STREAM_ASSET, 2_000);
 
-  const pin = await transact(
-    { operations: [{ operation: "set_pin_value", stream: RECORDED_REFUSALS_STREAM_ASSET, node: CHANNELS_TO_ARRAY, input: "no_such_input", value: 1 }], mode: "commit", idempotency_key: null },
+  const inputValue = await transact(
+    { operations: [{ operation: "set_node_input_value", stream: RECORDED_REFUSALS_STREAM_ASSET, node: RECORDED_TEST_PATTERN, input: "no_such_input", value: 1 }], mode: "commit", idempotency_key: null },
     FROM_HALLWAYS_STUDIO_WINDOW,
   );
 
-  expect(pin).toMatchObject({ ok: true, value: { kind: "refused", refusal: { refusal_code: "refused", refused_field: "no_such_input", runtime_words: "Node 'channelstoarray' has no input port named 'no_such_input'" } } });
+  expect(inputValue).toMatchObject({ ok: true, value: { kind: "refused", refusal: { refusal_code: "refused", refused_input: "no_such_input", runtime_words: "node `testpatternsource` (`tatolab.testpattern:TestPatternSource`) has no input `no_such_input`; its inputs are `width`, `height`. To fix: name one of them" } } });
 });
 
 test("a refusal with no structure answers the runtime's own words, and a runtime that does not answer, answers late or answers off the contract says so", async () => {
@@ -366,7 +373,7 @@ test("an edit naming another project's stream asset, or sent from the Projects w
   const server = await FakeLocalApiServer.answering([]);
   const { transact } = await transactCommandOver(server);
   const anotherProjectsStream = "0c4e2f9a-7b13-4d58-a6e1-3f9b2c7d8e10";
-  const setTheSize = (stream: string) => ({ operation: "set_node_config", stream, node: TEST_PATTERN, config: { width: 640, height: 360 } });
+  const setTheSize = (stream: string) => ({ operation: "set_node_input_value", stream, node: TEST_PATTERN, input: "width", value: 640 });
 
   expect(await transact({ operations: [setTheSize(STREAM_ASSET), setTheSize(anotherProjectsStream)], mode: "commit", idempotency_key: null }, FROM_HALLWAYS_STUDIO_WINDOW)).toEqual({
     ok: false,
@@ -391,8 +398,8 @@ test.skipIf(liveLocalApiSocket === "" || liveLoadedStreamAsset === "")("a real r
     value: {
       kind: "refused",
       refusal: {
-        ...NAMING_NOTHING_MORE,
-        refusal_code: "refused",
+        ...A_REFUSAL_NAMING_NOTHING_MORE,
+        refusal_code: "node_not_found",
         action: "transact",
         refused_operation_index: 0,
         refused_node: nodeNoGraphHolds,
