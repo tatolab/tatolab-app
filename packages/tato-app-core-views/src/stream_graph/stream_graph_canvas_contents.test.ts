@@ -23,7 +23,7 @@ const GRAPH: StreamGraph = aStreamGraph(
     graphNode("camera", [], [], {
       outputs: [
         aGraphPort("video", {
-          stream_facts: { family: "image", frame_rate: { numerator: 30000, denominator: 1001 }, content_light_level: null, mastering_display_colour_volume: null },
+          stream_facts: { type: "texture", frame_rate: { numerator: 30000, denominator: 1001 }, content_light_level: null, mastering_display_colour_volume: null },
           pin_type: { type: "texture" },
           flow: "stream",
         }),

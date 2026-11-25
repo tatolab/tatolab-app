@@ -32,6 +32,7 @@ const LISTED: ProjectAssetsReading = {
 function studioOfTheDemoProject(ending: ProjectAssetPickEnding): { studio: NodeUiElementHost; picks: ProjectAssetPick[] } {
   const picks: ProjectAssetPick[] = [];
   const studio: NodeUiElementHost = {
+    watchAudioCaptureDevices: () => () => undefined,
     pickAProjectAsset: (pick) => {
       picks.push(pick);
       return Promise.resolve(ending);

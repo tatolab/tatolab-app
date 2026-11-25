@@ -19,6 +19,8 @@ const NO_PROJECT: ProjectAControlReaches = {
   readAssetPreviewInTheProject: () => Promise.resolve({ kind: "not_read", because: "no project in this test" }),
   watchProjectAssets: () => () => undefined,
   watchPortViewer: () => () => undefined,
+  listAudioCaptureDevices: () => Promise.resolve({ kind: "not_listed", because: "no project in this test" }),
+  watchListedStreams: () => () => undefined,
 };
 const STREAM_ASSET = "0df4a7aa-1111-2222-3333-444444444444";
 

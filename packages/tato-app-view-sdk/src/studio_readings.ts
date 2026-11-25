@@ -136,21 +136,20 @@ export type ImageStreamMasteringDisplayColourVolume = { max_display_mastering_lu
 
 /**
  * An output port's stream facts as the runtime renders them under `stream_facts`, read by the pin type they name under `type`:
- * a Texture's facts of its pictures, or an encoded type's facts of its codec, which both encoded types state alike. `type` is
- * `null` for the facts of a port with no pin type, which the runtime names by their family alone. A field the port does not
- * state is `null`.
+ * a Texture's facts of its pictures, or an encoded type's facts of its codec, which both encoded types state alike. A field
+ * the port does not state is `null`.
  */
 export type PortStreamFacts =
   | {
       facts_of: "pictures";
-      type: "texture" | null;
+      type: "texture";
       frame_rate: ImageStreamFrameRate | null;
       content_light_level: ImageStreamContentLightLevel | null;
       mastering_display_colour_volume: ImageStreamMasteringDisplayColourVolume | null;
     }
   | {
       facts_of: "encoded_units";
-      type: "encoded_video" | "encoded_audio" | null;
+      type: "encoded_video" | "encoded_audio";
       /** The codec with its profile and level, as an RFC 6381 `codecs` parameter spells it (`avc1.64001f`, `opus`). */
       rfc6381_codec: string | null;
       coded_width: number | null;
@@ -196,7 +195,7 @@ export type {
 /** The pin type a port of a running graph carries, resolved, and its flow, which the runtime serves together. */
 export type StreamGraphPortPin = { pin_type: PinType; flow: PinFlow };
 
-/** The pin type and flow `port` carries; `null` on a port the runtime serves neither for, because its code does not state its type exactly, which links by its family alone. */
+/** The pin type and flow `port` carries; `null` on a port the runtime serves neither for, because its code does not state its type exactly. */
 export function pinOfThePort(port: Pick<GraphNodePortOnTheWire, "pin_type" | "flow">): StreamGraphPortPin | null {
   return port.pin_type === undefined || port.flow === undefined ? null : { pin_type: port.pin_type, flow: port.flow };
 }
@@ -235,17 +234,11 @@ export function memberValueReadsOfThePort(port: { readonly member_values?: reado
 /** What each shape of `Facts` is of, and the pin type it names: one pair for each shape. */
 type WhatEachIsOf<Facts extends PortStreamFacts> = Facts extends PortStreamFacts ? Pick<Facts, "facts_of" | "type"> : never;
 
-/**
- * What a port's facts are of, by the pin type they name under `type`, else, on a port with no pin type, which names none or a
- * `null` one, by their family; `null` for a type or family whose stream no facts describe.
- */
+/** What a port's facts are of, by the pin type they name under `type`; `null` for a type whose stream no facts describe, or none named. */
 function whatTheStreamFactsAreOf(streamFacts: { readonly [key: string]: unknown }): WhatEachIsOf<PortStreamFacts> | null {
   const pinTypeName = streamFacts["type"];
   if (pinTypeName === "texture") return { facts_of: "pictures", type: pinTypeName };
   if (pinTypeName === "encoded_video" || pinTypeName === "encoded_audio") return { facts_of: "encoded_units", type: pinTypeName };
-  if (pinTypeName !== undefined && pinTypeName !== null) return null;
-  if (streamFacts["family"] === "image") return { facts_of: "pictures", type: null };
-  if (streamFacts["family"] === "packets") return { facts_of: "encoded_units", type: null };
   return null;
 }
 
@@ -638,10 +631,16 @@ export type PortViewerArrayAttributeReading = {
 /** How a port viewer that ended recovers: it shows again once the port's node runs, or the port is opened again, by the view or the person. */
 export type PortViewerRecovery = "shows_once_the_node_runs" | "open_the_port_again";
 
-/** What a port viewer read of one message of a family other than Image, from the family's descriptor and payload. */
+/**
+ * The layout of a message a port viewer reads other than an Image frame, as the runtime's payload descriptor names it: a Channels
+ * block, an Array frame, a Packets unit, a Records message, or bytes no descriptor describes.
+ */
+export type PortViewerMessageLayout = "channels_block" | "array_frame" | "packets_unit" | "records_message" | "bytes";
+
+/** What a port viewer read of one message other than an Image frame, by its layout, from its descriptor and payload. */
 export type PortViewerMessageReading =
   | {
-      family: "channels";
+      message: "channels_block";
       start_sample: number;
       sample_rate: number;
       channel_count: number;
@@ -651,11 +650,27 @@ export type PortViewerMessageReading =
       /** The block's samples, one array per channel, each `samples_per_channel` long. */
       channel_samples: Float32Array[];
     }
-  | { family: "array"; attributes: PortViewerArrayAttributeReading[] }
-  | { family: "packets"; codec: string; byte_length: number; starts_group: boolean; timestamp_ns: number }
-  | { family: "records"; record: JsonValue }
-  | { family: "bytes"; byte_length: number }
-  | { family: "unreadable"; port_family: string; because: string };
+  | { message: "array_frame"; attributes: PortViewerArrayAttributeReading[] }
+  | { message: "packets_unit"; codec: string; byte_length: number; starts_group: boolean; timestamp_ns: number }
+  | { message: "records_message"; record: JsonValue }
+  | { message: "bytes"; byte_length: number }
+  /** A message whose descriptor named `described_as`, the layout of the message it did not read as. */
+  | { message: "unreadable"; described_as: string; because: string };
+
+const WORDS_OF_A_MESSAGE_LAYOUT: Record<PortViewerMessageLayout, string> = {
+  channels_block: "a Channels block",
+  array_frame: "an Array frame",
+  packets_unit: "a Packets unit",
+  records_message: "a Records message",
+  bytes: "bytes",
+};
+
+/** How a person reads the layout of the message `reading` read, such as `a Packets unit`; an unreadable one by the layout its descriptor named. */
+export function wordsOfTheMessageRead(reading: PortViewerMessageReading): string {
+  if (reading.message !== "unreadable") return WORDS_OF_A_MESSAGE_LAYOUT[reading.message];
+  const layout = Object.keys(WORDS_OF_A_MESSAGE_LAYOUT).find((named): named is PortViewerMessageLayout => named === reading.described_as);
+  return layout === undefined ? `a ${reading.described_as} message` : WORDS_OF_A_MESSAGE_LAYOUT[layout];
+}
 
 /** What Studio has selected, which every view shows and any view may change. */
 export type StudioSelection =

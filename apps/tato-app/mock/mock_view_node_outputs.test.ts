@@ -38,7 +38,7 @@ it("a value set live on the fixture view node's input of its output's name is wh
   expect(await settled(backend.transactInTheOpenProject([setNodeInputValueAction(fader, 0.73)], "live", null))).toMatchObject({ kind: "applied" });
   expect(readingsOfTheFader.at(-1)).toMatchObject({
     kind: "message",
-    reading: { family: "array", attributes: [{ name: "values", dtype: "float64", shape: [1], residency: "cpu", statistics: { element_count: 1, minimum: 0.73, maximum: 0.73, mean: 0.73 } }] },
+    reading: { message: "array_frame", attributes: [{ name: "values", dtype: "float64", shape: [1], residency: "cpu", statistics: { element_count: 1, minimum: 0.73, maximum: 0.73, mean: 0.73 } }] },
   });
   const readingsAfterTheFirstSet = readingsOfTheFader.length;
   await vi.advanceTimersByTimeAsync(500);

@@ -5,7 +5,7 @@ import type { ControlledInput } from "../pin_model/controlled_inputs";
 import { createInputControlBinder, type InputControlBinder, type InputControlShown } from "../pin_services/input_control_binding";
 import { createInputValues } from "../pin_services/input_values";
 import type { GraphEditMode, StreamGraphInputValueRead, StreamInputValuesReading } from "../studio_readings";
-import { InputControlBinderContext, InputControlMount, useOwnFieldOfTheInput } from "./input_control_mount";
+import { InputControlBinderContext, InputControlMount, useShownValueOfTheInput, useWhereTheInputsValueComesFrom } from "./input_control_mount";
 import { NO_PROJECT } from "../node_ui/test_fixtures/node_ui_listing_fixtures";
 
 const COUNT: ControlledInput = {
@@ -24,8 +24,8 @@ function binderUnderTest() {
       whenShown("pending");
       return { update: () => undefined, unbind: () => undefined };
     },
-    bindOwnField: () => {
-      throw new Error("the slot binds no own field");
+    bindInputValue: () => {
+      throw new Error("the slot binds no input value");
     },
     bindNodeBody: () => {
       throw new Error("the slot binds no node body");
@@ -69,12 +69,14 @@ function valuesRead(count: StreamGraphInputValueRead): StreamInputValuesReading 
   return { kind: "values", stream_asset: COUNT.address.graph.stream_asset, values: [{ level: [], node_id: "LOOP-ID", input: "count", member: null, value_read: count }] };
 }
 
-function OwnFieldOfTheCount() {
-  const ownField = useOwnFieldOfTheInput(COUNT.address, "commit");
-  if (ownField === null) return <span data-testid="own-field">only shown</span>;
+function ValueOfTheCountWithItsReset() {
+  const shown = useShownValueOfTheInput(COUNT.address);
+  const valueSource = useWhereTheInputsValueComesFrom(COUNT.address, "commit");
+  const words = `${JSON.stringify(shown.value)} ${shown.comes_from}`;
+  if (valueSource === null) return <span data-testid="value">{words}</span>;
   return (
-    <button type="button" data-testid="own-field" onClick={() => ownField.releaseTheValue({ every: 2 })}>
-      {`${JSON.stringify(ownField.shown.value)} ${ownField.shown.comes_from}`}
+    <button type="button" data-testid="value" onClick={valueSource.clearTheValue}>
+      {words}
     </button>
   );
 }
@@ -102,7 +104,7 @@ test("the slot draws its fallback while the control is pending and its own field
   expect(screen.queryByRole("textbox", { name: "Value of count" })).toBeNull();
 });
 
-test("a surface's own field shows the store's value as each reading changes it, and sends an edit as one commit", async () => {
+test("a surface shows the store's value as each reading changes it, and sends its reset as one commit", async () => {
   const sent: { value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
@@ -115,23 +117,23 @@ test("a surface's own field shows the store's value as each reading changes it, 
   const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues, project: NO_PROJECT });
   render(
     <InputControlBinderContext value={binder}>
-      <OwnFieldOfTheCount />
+      <ValueOfTheCountWithItsReset />
     </InputControlBinderContext>,
   );
-  expect(screen.getByTestId("own-field").textContent).toBe('{"every":1} saved');
+  expect(screen.getByTestId("value").textContent).toBe('{"every":1} saved');
 
-  act(() => inputValues.takeTheInputValues(COUNT.address.graph.project_folder, valuesRead({ value: null, comes_from: "default" })));
-  expect(screen.getByTestId("own-field").textContent).toBe("null default");
+  act(() => inputValues.takeTheInputValues(COUNT.address.graph.project_folder, valuesRead({ value: { every: 2 }, comes_from: "saved" })));
+  expect(screen.getByTestId("value").textContent).toBe('{"every":2} saved');
 
-  fireEvent.click(screen.getByTestId("own-field"));
-  expect(screen.getByTestId("own-field").textContent).toBe('{"every":2} saved');
+  fireEvent.click(screen.getByTestId("value"));
   await act(async () => {
     for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
   });
-  expect(sent).toEqual([{ value: { every: 2 }, mode: "commit" }]);
+  expect(sent).toEqual([{ value: null, mode: "commit" }]);
 });
 
-test("a surface's own field with no binder is only shown", () => {
-  render(<OwnFieldOfTheCount />);
-  expect(screen.getByTestId("own-field").textContent).toBe("only shown");
+test("with no binder, a surface shows no value and offers no reset", () => {
+  render(<ValueOfTheCountWithItsReset />);
+  expect(screen.getByTestId("value").textContent).toBe("null null");
+  expect(screen.getByTestId("value").tagName).toBe("SPAN");
 });

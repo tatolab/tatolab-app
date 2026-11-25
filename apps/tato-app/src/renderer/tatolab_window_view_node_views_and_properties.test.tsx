@@ -71,6 +71,48 @@ class StandInAssetControl extends HTMLElement implements InputControlElement<"as
 }
 customElements.define(tagOfTheStudiosControl("asset", null), StandInAssetControl);
 
+/** An audio capture device menu as a person picks a device on one, standing in for the Studio's own, which its package's tests open and choose in. */
+class StandInAudioCaptureDeviceControl extends HTMLElement implements InputControlElement<"string"> {
+  #stopWatching: (() => void) | null = null;
+  #held = "";
+  #listed: { readonly id: string; readonly name: string }[] = [];
+  // It watches from its pin on, since happy-dom calls no connectedCallback on an element put into a frame's page from outside it.
+  set pin(pin: ControlledPin<"string">) {
+    this.#stopWatching?.();
+    this.#stopWatching = pin.studio.watchAudioCaptureDevices((reading) => {
+      this.#listed = reading.kind === "listed" ? reading.listing.devices.map(({ id, name }) => ({ id, name })) : [];
+      this.#draw();
+    });
+  }
+  disconnectedCallback(): void {
+    this.#stopWatching?.();
+    this.#stopWatching = null;
+  }
+  set value(deviceId: string) {
+    this.#held = deviceId;
+    this.#draw();
+  }
+  set state(_state: InputControlState) {}
+  /** The names of the machine's devices, as the Studio listed them. */
+  get deviceNames(): string[] {
+    return this.#listed.map((device) => device.name);
+  }
+  /** The id the control holds. */
+  get held(): string {
+    return this.#held;
+  }
+  choose(deviceId: string): void {
+    this.#held = deviceId;
+    this.#draw();
+    fireInputControlEvent(this, "change", deviceId);
+  }
+  #draw(): void {
+    this.textContent = this.#held;
+  }
+}
+
+customElements.define(tagOfTheStudiosControl("string", "audio_capture_device"), StandInAudioCaptureDeviceControl);
+
 afterEach(cleanUpTheWindowsOfEarlierTests);
 
 const IMAGE_FILE = "core_nodes.image_file:ImageFile";
@@ -570,7 +612,7 @@ describe("the studio", () => {
     expect(assetWords().value).toBe("media/poster.png");
   });
 
-  it("offers the machine's audio inputs for a setting naming a capture device, sends the device picked, unsets it with Default input, and keeps a saved device the machine lacks as missing", { timeout: 30_000 }, async () => {
+  it("draws the audio capture device control for a setting naming a capture device, lists it the machine's audio inputs, sends the device it picks, and shows it a value set elsewhere", { timeout: 30_000 }, async () => {
     const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=node-not-ready")));
     const deviceValuesSent: unknown[] = [];
     await mountedWindowOverTheMock("state=node-not-ready", {
@@ -587,37 +629,28 @@ describe("the studio", () => {
     fireEvent.click(await waitFor(() => streamGraph.querySelector<HTMLElement>('[data-node-graph-card="posterimage"]') ?? expect.unreachable("no Image File card"), { timeout: 5000 }));
 
     const properties = () => coreViewPage("properties");
-    const deviceMenu = () => properties().querySelector<HTMLElement>('[data-properties-port="device_id"] [data-property-audio-capture-device="device_id"] button') ?? expect.unreachable("no device menu");
-    const chooseInTheDeviceMenu = async (words: string) => {
-      pressAsAPointerDoes(deviceMenu());
-      fireEvent.click(await screen.findByRole("menuitem", { name: words }));
+    const deviceControl = () => {
+      const control = properties().querySelector('[data-properties-port="device_id"] [data-input-control="device_id"]')?.firstElementChild;
+      return control instanceof StandInAudioCaptureDeviceControl ? control : expect.unreachable("no audio capture device control");
     };
-    await waitFor(() => expect(deviceMenu().textContent).toBe("Default input"), { timeout: 5000 });
-    pressAsAPointerDoes(deviceMenu());
-    await waitFor(() =>
-      expect(screen.getAllByRole("menuitem").map((entry) => entry.textContent)).toEqual([
-        "Default input",
-        "Elgato Wave XLR Mono",
-        "Cam Link 4K Digital Stereo (IEC958)",
-        "What the default output plays (now Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI))",
-        "Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI)",
-        "Monitor of Elgato Wave XLR Analog Stereo",
-      ]),
+    await waitFor(
+      () =>
+        expect(deviceControl().deviceNames).toEqual([
+          "Elgato Wave XLR Mono",
+          "Cam Link 4K Digital Stereo (IEC958)",
+          "What the default output plays (now Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI))",
+          "Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI)",
+          "Monitor of Elgato Wave XLR Analog Stereo",
+        ]),
+      { timeout: 5000 },
     );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI)" }));
-    await waitFor(() => expect(deviceMenu().textContent).toBe("Monitor of GA102 High Definition Audio Controller Digital Stereo (HDMI)"), { timeout: 5000 });
+    deviceControl().choose("alsa_output.pci-0000_0b_00.1.hdmi-stereo.monitor");
     await waitFor(() => expect(deviceValuesSent).toEqual(["alsa_output.pci-0000_0b_00.1.hdmi-stereo.monitor"]), { timeout: 5000 });
-
-    await chooseInTheDeviceMenu("Default input");
-    await waitFor(() => expect(deviceMenu().textContent).toBe("Default input"), { timeout: 5000 });
-    await waitFor(() => expect(deviceValuesSent).toEqual(["alsa_output.pci-0000_0b_00.1.hdmi-stereo.monitor", null]), { timeout: 5000 });
 
     const graph = await mockBackend.describeStreamGraph(PULSE_STAGE_MAIN_STREAM);
     const imageFile = graph.nodes.find((node) => node.name === "posterimage") ?? expect.unreachable("no Image File in the graph");
     await act(async () => mockBackend.transactInTheOpenProject([{ operation: "set_node_input_value", stream: graph.asset ?? "", node: imageFile.id, input: "device_id", value: "alsa_input.usb-gone.mono" }], "commit", null));
-    await waitFor(() => expect(deviceMenu().textContent).toBe("alsa_input.usb-gone.mono (missing)"), { timeout: 5000 });
-    pressAsAPointerDoes(deviceMenu());
-    await waitFor(() => expect(screen.getAllByRole("menuitem").map((entry) => entry.textContent).at(-1)).toBe("alsa_input.usb-gone.mono (missing)"));
+    await waitFor(() => expect(deviceControl().held).toBe("alsa_input.usb-gone.mono"), { timeout: 5000 });
   });
 
   it("shows under Image File's asset control the runtime's words when it refuses to list the project's assets", { timeout: 20_000 }, async () => {

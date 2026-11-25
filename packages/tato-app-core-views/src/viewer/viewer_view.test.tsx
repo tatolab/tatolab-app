@@ -112,7 +112,7 @@ test("a_watch_that_ends_before_the_display_draws_closes_the_waiting_frame_and_dr
   expect(framesDrawn).toBe(0);
 });
 
-/** The Viewer of a port that is no Image port, its family absent, mounted on a connection that hands its port viewer's watch to the test. */
+/** The Viewer of a port that is no Image port, its pin type absent, mounted on a connection that hands its port viewer's watch to the test. */
 function theViewerMountedOnAPortWithNoFamily() {
   let onEvent: ((event: PortViewerEvent) => void) | null = null;
   const watchPortViewer: TatoAppViewConnection["watchPortViewer"] = (_target, listener) => {
@@ -142,7 +142,7 @@ function theViewerMountedOnAPortWithNoFamily() {
 /** A block of one sample on one channel, as a port viewer reads a number a node writes, at no sample rate. */
 function aBlockOfOneSample(sample: number): Extract<PortViewerEvent, { kind: "message" }>["reading"] {
   return {
-    family: "channels",
+    message: "channels_block",
     start_sample: 0,
     sample_rate: 0,
     channel_count: 1,

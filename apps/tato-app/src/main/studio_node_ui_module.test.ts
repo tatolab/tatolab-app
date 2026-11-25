@@ -206,6 +206,14 @@ test("the Studio lists its own controls, a default for each type that stores a v
     {
       module: "studio",
       brought_by: "studio",
+      script: "audio_capture_device_menu.ts",
+      folder_version: "0.45.0",
+      registration: { kind: "control", type: "string", control: "audio_capture_device" },
+      script_serving: { kind: "served", script_url: "tatolab-app://app/core_node_ui/audio_capture_device_menu.ts" },
+    },
+    {
+      module: "studio",
+      brought_by: "studio",
       script: "menu_segmented.ts",
       folder_version: "0.45.0",
       registration: { kind: "control", type: "menu", control: "segmented" },

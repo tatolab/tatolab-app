@@ -42,10 +42,10 @@ function listedStudioStream(state: string, action: string | null): ListedStream 
   };
 }
 
-const NO_FAMILY_READING = { startsGroup: true, channelsBlock: null, packetsCodec: null, arrayAttributes: null, recordsJson: null, unreadableBecause: null };
+const NO_DESCRIPTOR_READING = { startsGroup: true, channelsBlock: null, packetsCodec: null, arrayAttributes: null, recordsJson: null, unreadableBecause: null };
 
 function imageMessage(imageFrame: RuntimeViewerImageFrame): RuntimeViewerMessageRead {
-  return { portFamily: "image", timestampNs: 1_000_000, skippedSinceLastRead: 2, imageFrame, payload: null, ...NO_FAMILY_READING };
+  return { messageLayout: "image_frame", timestampNs: 1_000_000, skippedSinceLastRead: 2, imageFrame, payload: null, ...NO_DESCRIPTOR_READING };
 }
 
 class FakeChannelReader implements RuntimeViewerChannelReaderOfTheAddon {
@@ -380,12 +380,12 @@ test("a_message_of_another_kind_reaches_the_window_read_by_its_kind_with_the_pin
   const { runtimePortViewers, channelReaders, writeAndSettle } = harness();
   const windowShowingPortViewers = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
-  channelReaders[0]?.messagesToRead.push({ portFamily: "records", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(48), ...NO_FAMILY_READING, recordsJson: '{"label":"face"}' });
+  channelReaders[0]?.messagesToRead.push({ messageLayout: "records_message", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(48), ...NO_DESCRIPTOR_READING, recordsJson: '{"label":"face"}' });
 
   await writeAndSettle();
 
   expect(windowShowingPortViewers.portViewerEvents).toEqual([
-    { port_viewer: "port-viewer-1", kind: "message", reading: { family: "records", record: { label: "face" } }, pin_type: { type: "texture" }, skipped_since_last_read: 0 },
+    { port_viewer: "port-viewer-1", kind: "message", reading: { message: "records_message", record: { label: "face" } }, pin_type: { type: "texture" }, skipped_since_last_read: 0 },
   ]);
 });
 
@@ -395,14 +395,14 @@ test("a_typed_number_ports_latest_message_reaches_the_window_with_its_pin_type_a
   const windowShowingTheDetections = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, port: "level" }, windowShowingTheLevel);
   await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, port: "detections" }, windowShowingTheDetections);
-  channelReaders[0]?.messagesToRead.push({ portFamily: "records", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(8), ...NO_FAMILY_READING, recordsJson: "0.5" });
-  channelReaders[1]?.messagesToRead.push({ portFamily: "records", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(8), ...NO_FAMILY_READING, recordsJson: '{"label":"face"}' });
+  channelReaders[0]?.messagesToRead.push({ messageLayout: "records_message", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(8), ...NO_DESCRIPTOR_READING, recordsJson: "0.5" });
+  channelReaders[1]?.messagesToRead.push({ messageLayout: "records_message", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(8), ...NO_DESCRIPTOR_READING, recordsJson: '{"label":"face"}' });
 
   await writeAndSettle();
 
-  expect(windowShowingTheLevel.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "message", reading: { family: "records", record: 0.5 }, pin_type: { type: "float" }, skipped_since_last_read: 0 }]);
+  expect(windowShowingTheLevel.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "message", reading: { message: "records_message", record: 0.5 }, pin_type: { type: "float" }, skipped_since_last_read: 0 }]);
   expect(windowShowingTheDetections.portViewerEvents).toEqual([
-    { port_viewer: "port-viewer-2", kind: "message", reading: { family: "records", record: { label: "face" } }, pin_type: null, skipped_since_last_read: 0 },
+    { port_viewer: "port-viewer-2", kind: "message", reading: { message: "records_message", record: { label: "face" } }, pin_type: null, skipped_since_last_read: 0 },
   ]);
 });
 
@@ -410,15 +410,15 @@ test("a_viewer_the_runtime_says_reads_every_message_hands_each_message_of_a_read
   const { runtimePortViewers, channelReaders, writeAndSettle } = harness();
   const windowShowingPortViewers = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, port: "audio" }, windowShowingPortViewers);
-  const recordOf = (frame: number) => ({ portFamily: "records", timestampNs: frame, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(8), ...NO_FAMILY_READING, recordsJson: `{"frame":${frame}}` });
+  const recordOf = (frame: number) => ({ messageLayout: "records_message", timestampNs: frame, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(8), ...NO_DESCRIPTOR_READING, recordsJson: `{"frame":${frame}}` });
   channelReaders[0]?.messagesToRead.push(recordOf(1), recordOf(2), recordOf(3));
 
   await writeAndSettle();
 
   expect(windowShowingPortViewers.portViewerEvents.map((portViewerEvent) => portViewerEvent.kind === "message" && portViewerEvent.reading)).toEqual([
-    { family: "records", record: { frame: 1 } },
-    { family: "records", record: { frame: 2 } },
-    { family: "records", record: { frame: 3 } },
+    { message: "records_message", record: { frame: 1 } },
+    { message: "records_message", record: { frame: 2 } },
+    { message: "records_message", record: { frame: 3 } },
   ]);
 });
 

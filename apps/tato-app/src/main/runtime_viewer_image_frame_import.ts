@@ -57,13 +57,16 @@ export interface RuntimeViewerArrayAttribute {
 
 /** A message a viewer read from its port. */
 export interface RuntimeViewerMessageRead {
-  /** `image`, `channels`, `packets`, `records`, `array`, or `bytes` for a payload no family describes. */
-  portFamily: string;
+  /**
+   * The layout the message's payload descriptor names: `image_frame`, `channels_block`, `packets_unit`, `records_message`,
+   * `array_frame`, `bundle_frame`, or `bytes` for a payload no descriptor describes.
+   */
+  messageLayout: string;
   timestampNs: number;
   /** Messages lost ahead of this one: passed over by a viewer reading the latest, or overwritten on a ring it fell behind on. */
   skippedSinceLastRead: number;
   imageFrame: RuntimeViewerImageFrame | null;
-  /** The payload as the node wrote it, for every family but Image. */
+  /** The payload as the node wrote it, for every message but an Image frame. */
   payload: Buffer | null;
   /** Whether the message opens a group: a Packets unit's keyframe flag. */
   startsGroup: boolean;
@@ -73,7 +76,7 @@ export interface RuntimeViewerMessageRead {
   arrayAttributes: RuntimeViewerArrayAttribute[] | null;
   /** A Records message decoded from its msgpack, as JSON text. */
   recordsJson: string | null;
-  /** Why the message did not read as its family states, in the addon's words. */
+  /** Why the message did not read as its descriptor states, in the addon's words. */
   unreadableBecause: string | null;
 }
 

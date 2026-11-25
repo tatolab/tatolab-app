@@ -31,7 +31,7 @@ function aBlock(channelSamples: number[][]): ViewInputEvent {
   return {
     kind: "message",
     reading: {
-      family: "channels",
+      message: "channels_block",
       start_sample: 0,
       sample_rate: 48000,
       channel_count: channelSamples.length,

@@ -21,6 +21,7 @@
     { "type": "float", "control": "dial", "script": "float_dial.ts" },
     { "type": "string", "control": "multiline", "script": "string_multiline.ts" },
     { "type": "string", "control": "code", "script": "string_code.ts" },
+    { "type": "string", "control": "audio_capture_device", "script": "audio_capture_device_menu.ts" },
     { "type": "menu", "control": "segmented", "script": "menu_segmented.ts" },
     { "type": "vector", "control": "xy_pad", "script": "vector_xy_pad.ts" },
     { "type": "asset", "control": "file_picker", "script": "asset_file_picker.ts" },

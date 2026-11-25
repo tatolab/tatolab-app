@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { AUDIO_CAPTURE_DEVICE_CONTROL, isAnAudioCaptureDeviceInput, nodeOfABody, takesAControl } from "./controlled_inputs.js";
+import { nodeOfABody, takesAControl } from "./controlled_inputs.js";
 import { valueAddressOfTheInput, type InputAddress } from "./node_inputs.js";
 
 const WIDTH: InputAddress = { graph: { project_folder: "/projects/demo", stream_asset: "11111111-2222-3333-4444-555555555555", level: [] }, node_id: "PATTERN-ID", input: "width", member: null };
@@ -11,15 +11,9 @@ test("a_settings_control_is_told_whether_a_change_rebuilds_its_node", () => {
   expect(takesAControl({ ...width, setting: null })?.rebuilds_its_node).toBe(false);
 });
 
-test("a_string_whose_annotation_names_the_audio_capture_device_control_takes_no_control_so_the_panels_own_device_menu_picks_it", () => {
+test("a_string_whose_annotation_names_the_audio_capture_device_control_takes_the_control_the_table_registers_for_it", () => {
   const deviceId = { name: "device_id", pin: { pin_type: { type: "string" }, flow: "value" }, value_address: { ...WIDTH, input: "device_id" }, setting: { read: "at_setup" }, wire: null } as const;
-  expect(AUDIO_CAPTURE_DEVICE_CONTROL).toBe("audio_capture_device");
-  expect(takesAControl({ ...deviceId, annotations: { control: "audio_capture_device" } })).toBeNull();
-  expect(takesAControl({ ...deviceId, annotations: { control: "multiline" } })).not.toBeNull();
-  expect(takesAControl({ ...deviceId, annotations: {} })).not.toBeNull();
-  expect(isAnAudioCaptureDeviceInput({ type: "string" }, { control: "audio_capture_device" })).toBe(true);
-  expect(isAnAudioCaptureDeviceInput({ type: "integer" }, { control: "audio_capture_device" })).toBe(false);
-  expect(isAnAudioCaptureDeviceInput({ type: "string" }, { control: null })).toBe(false);
+  expect(takesAControl({ ...deviceId, annotations: { control: "audio_capture_device" } })?.declaration.annotations).toEqual({ control: "audio_capture_device" });
 });
 
 const VIDEO_IN: InputAddress = { ...WIDTH, input: "video_in" };
