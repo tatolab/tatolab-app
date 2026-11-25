@@ -259,6 +259,7 @@ const titleSchema = Schema.String.check(Schema.isMinLength(1, { message: TITLE_L
 function tatolabViewManifestSchemaOf(declaredPortSchema: typeof viewDeclaredPortSchema | typeof viewDeclaredPortAsAnEditorChecksItReadSchema) {
   return Schema.Struct({
     contract: contractSchema,
+    view: Schema.optionalKey(Schema.String.check(Schema.isUUID(undefined, { message: "it is the view's own UUID, which a node placing the view is typed by" }))),
     title: titleSchema,
     description: Schema.optionalKey(Schema.String),
     icon: Schema.optionalKey(pathInsideTheViewsFolderSchema),
