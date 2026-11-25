@@ -6,7 +6,7 @@ import { nodeVisualizerSubjectOf, stateKeepingThePlayedNodeFromWriting } from ".
 const STREAM = "show-main-0a1b2c";
 
 function nodeWithOutputs(name: string, outputs: StreamGraphPort[]): StreamGraphNode {
-  return aGraphNode(name, { id: `id-${name}`, type: "Processor", kind: "process", config: {}, outputs, components: { state: "Running" } });
+  return aGraphNode(name, { id: `id-${name}`, type: "Processor", kind: "process", outputs, components: { state: "Running" } });
 }
 
 const CAMERA = nodeWithOutputs("camera", [aGraphPort("video", { pin_type: { type: "texture" }, flow: "stream" })]);

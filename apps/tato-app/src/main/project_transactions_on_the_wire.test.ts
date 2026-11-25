@@ -124,23 +124,22 @@ test("the refused edits a recorded feed holds read with each code and place the 
 });
 
 test("a recorded refusal that suggests a call reads its code, the pointer into the params and the call exactly as the runtime sent them", async () => {
-  const toolResult = await recordedControlResult("local-api-transact-tool-refusal-for-a-stream-named-by-its-stream-id-suggesting-describe-operations.json");
-  const structuredContent = typeof toolResult === "object" && toolResult !== null && "structuredContent" in toolResult ? toolResult.structuredContent : null;
-  const refusal = typeof structuredContent === "object" && structuredContent !== null && "refusal" in structuredContent ? structuredContent.refusal : expect.unreachable("the tool result carries its refusal");
+  const answer: unknown = JSON.parse(await recordedResponseBody("local-api-transact-refusal-for-a-value-on-an-input-the-test-pattern-lacks.json"));
+  const error = typeof answer === "object" && answer !== null && "error" in answer ? answer.error : null;
+  const refusal = typeof error === "object" && error !== null && "data" in error ? error.data : expect.unreachable("the answer carries its refusal");
 
   expect(projectActionRefusalAt({ refusal })).toEqual({
     ok: true,
     value: {
-      refusal_code: "params_do_not_match_schema",
+      ...A_REFUSAL_NAMING_NOTHING_MORE,
+      refusal_code: "port_not_found",
       action: "transact",
-      refused_operation_index: null,
-      refused_node: null,
-      refused_link: null,
-      refused_input: null,
-      refused_params_pointer: "/operations/0",
-      refused_file: null,
-      suggested_call: { operation: "describe_operations", params: { operations: ["transact"] } },
-      runtime_words: "`transact`'s params do not match its request: UUID parsing failed: invalid character: expected an optional prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `h` at 1",
+      refused_operation_index: 0,
+      refused_node: "777c0dab-ae92-4df3-9d8f-bb1c4d4e98b6",
+      refused_input: "no_such_input",
+      refused_params_pointer: "/operations/0/value",
+      suggested_call: { operation: "describe_node_types", params: { project_directory: "/tmp/claude-0/proj/harbour", node_types: ["tatolab.testpattern:TestPatternSource"] } },
+      runtime_words: "node `testpatternsource` (`tatolab.testpattern:TestPatternSource`) has no input `no_such_input`; its inputs are `width`, `height`. To fix: name one of them",
     },
   });
 });

@@ -42,7 +42,7 @@ const A_SETTING = { mode: "setting_only", read: "at_setup" } as const;
 const BLUR_LISTING_ITS_SETTINGS: NodeTypeDescription = {
   ...BLUR,
   inputs: [
-    { name: "video_in", documentation: "", family: { family: "image" }, mode: "wire_only" },
+    { name: "video_in", documentation: "", mode: "wire_only" },
     { name: "gain", documentation: "How loud.", pin_type: { kind: "is", pin_type: { type: "float" } }, flow: "value", ...A_SETTING, takes_a_wire: true },
     { name: "layers", documentation: "", ...A_SETTING, takes_a_wire: false },
   ],

@@ -250,6 +250,7 @@ describe("a refused action's detail words", () => {
       ["Key", "k-1"],
     ]);
     expect(refusedNamesRowsOf({ ...refusedAction, idempotency_key: null, refusal: { ...refusal, refused_link: null } })).toEqual([]);
+    expect(refusedNamesRowsOf({ ...refusedAction, idempotency_key: null, refusal: { ...refusal, refused_link: null, refused_input: "softness" } })).toEqual([["Input", "softness"]]);
   });
 });
 
