@@ -1,10 +1,12 @@
 // What a control's slot and a node body's slot share: how a gesture on an input ends, what an element
 // reaches of the project, the read-only line a slot draws for an element that does not load, and the
-// mark on a slot that keeps its element drawn while that element's newer version is blocked.
+// mark on a slot that draws its element while a registration bearing on it is blocked: that element's
+// newer version, or another module's registration for the same key, which the table passed over.
 
 import type { ControlledInput } from "../pin_model/controlled_inputs.js";
 import type { NodeUiSurface } from "../node_ui/input_control_element.js";
 import type { NodeUiElementLoading } from "../node_ui/load_node_ui_element.js";
+import type { NodeUiRegistrationPassedOver } from "../node_ui/node_ui_control_table.js";
 import { ReadOnlyValueLineElement } from "../node_ui/read_only_value_line_element.js";
 import type { TatoAppViewConnection } from "../tato_app_view_connection.js";
 
@@ -40,18 +42,29 @@ export function newReadOnlyValueLine(because: string): ReadOnlyValueLineElement 
   return line;
 }
 
-/** The attribute a slot's host carries while it keeps its element drawn and that element's newer version is blocked; the host's `title` gives why. */
-export const NEWER_VERSION_BLOCKED_ATTRIBUTE = "data-newer-version-blocked";
+/**
+ * The attribute a slot's host carries while it draws its element and a registration bearing on it is blocked: the element's
+ * newer version, or another module's registration for the same key; the host's `title` gives why.
+ */
+export const BLOCKED_REGISTRATION_ATTRIBUTE = "data-blocked-registration";
 
-/** Marks `host` as keeping its element drawn while a newer version is blocked by `findings`, or takes the mark off for `null`. */
-export function markTheNewerVersionBlocked(host: HTMLElement, findings: readonly string[] | null): void {
-  if (findings === null) {
-    host.removeAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE);
+/** Marks `host` as drawing its element while the registrations `lines` give why of are blocked, or takes the mark off for none. */
+export function markTheBlockedRegistrations(host: HTMLElement, lines: readonly string[]): void {
+  if (lines.length === 0) {
+    host.removeAttribute(BLOCKED_REGISTRATION_ATTRIBUTE);
     host.removeAttribute("title");
     return;
   }
-  host.setAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE, "");
-  host.title = findings.join("\n");
+  host.setAttribute(BLOCKED_REGISTRATION_ATTRIBUTE, "");
+  host.title = lines.join("\n");
+}
+
+/**
+ * The lines a slot's mark gives for a registration the table passed over: the table's reason, then each finding of the runtime's
+ * check of its folder when that blocks it.
+ */
+export function linesOfTheRegistrationPassedOver({ listed, because }: NodeUiRegistrationPassedOver): readonly string[] {
+  return listed.script_serving.kind === "blocked" ? [because, ...listed.script_serving.runtime_findings] : [because];
 }
 
 /** The words a read-only line gives for an element that did not load. */

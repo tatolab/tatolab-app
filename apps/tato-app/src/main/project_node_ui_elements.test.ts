@@ -124,6 +124,7 @@ test("a project's control whose folder passes the check is listed served at its 
           "This module's node UI code did not pass the runtime's check, so the Studio does not load it.",
           "imports/lobby-wall/node_ui/fader.ts:1:50: error: Type 'string' is not assignable to type 'number'. (TS2322)",
         ],
+        runtime_findings: ["imports/lobby-wall/node_ui/fader.ts:1:50: error: Type 'string' is not assignable to type 'number'. (TS2322)"],
       },
     },
   ]);
@@ -153,6 +154,7 @@ test("a control whose folder is blocked after a version of it passed is listed b
       "The newer version of this module's node UI code is blocked.",
       "node_ui/knob.ts:1:50: error: Type 'string' is not assignable to type 'number'. (TS2322)",
     ],
+    runtime_findings: ["node_ui/knob.ts:1:50: error: Type 'string' is not assignable to type 'number'. (TS2322)"],
   });
   expect(listings.listedToTheWindows.passedExtensionFolder(NIGHT_SHOW, passedVersion, "node_ui")?.files.get("node_ui/knob.ts")).toEqual(Buffer.from(KNOB_SCRIPT));
 });

@@ -9,7 +9,8 @@
 // is an error of its folder's check, which leaves the element unserved. The table therefore keys a
 // named type's default by its import path and a body by its node type, and lets one the Studio serves
 // take the key from one it does not. A control registered for the bare built-in name `named` would
-// draw every named type; the table uses none.
+// draw every named type; the table uses none. Each default the table passes over is kept under the
+// type it registers for, so the slot of an input that type's default draws can say why.
 
 import type { BuiltInPinTypeName, NamedPinTypeImportPath, PinAnnotations, PinType } from "../pin_types.js";
 import type { InputPinDeclaration } from "./input_control_element.js";
@@ -81,11 +82,12 @@ export class NodeUiControlTable {
   readonly #typeDefaults = new Map<ControlledTypeKey, ListedNodeUiElement>();
   readonly #nodeBodies = new Map<string, ListedNodeUiElement>();
   readonly #registrationsPassedOver: NodeUiRegistrationPassedOver[] = [];
+  readonly #typeDefaultsPassedOver = new Map<ControlledTypeKey, NodeUiRegistrationPassedOver[]>();
 
   constructor(listing: NodeUiElementsReading) {
     for (const listed of listing.elements) {
       const because = this.#whyTheTableDoesNotUse(listed);
-      if (because !== null) this.#registrationsPassedOver.push({ listed, because });
+      if (because !== null) this.#passOver(listed, because);
     }
   }
 
@@ -117,6 +119,11 @@ export class NodeUiControlTable {
       };
     }
     return { kind: "read_only_line", because: missingControl === null ? `No control is registered for an input of type ${typeWords}.` : `${missingControl}.` };
+  }
+
+  /** Each default registered for the type of `pinType` that the table passed over, with why; none draws an input of it. */
+  typeDefaultsPassedOverFor(pinType: PinType): readonly NodeUiRegistrationPassedOver[] {
+    return this.#typeDefaultsPassedOver.get(controlledTypeKeyOf(pinType)) ?? [];
   }
 
   /** The body that draws every node of `nodeType`, or `null` when its module registers none. */
@@ -151,8 +158,19 @@ export class NodeUiControlTable {
     const holder = table.get(key);
     if (holder === undefined || holder.script_serving.kind !== "blocked" || listed.script_serving.kind !== "served") return this.#takeTheKey(table, key, listed, keyWords);
     table.set(key, listed);
-    this.#registrationsPassedOver.push({ listed: holder, because: `${listed.module}'s ${listed.script}, which passed its checks, registers ${keyWords}.` });
+    this.#passOver(holder, `${listed.module}'s ${listed.script}, which passed its checks, registers ${keyWords}.`);
     return null;
+  }
+
+  /** Keeps `listed` as a registration the table never uses, with why, and under its type when it registers a type's default. */
+  #passOver(listed: ListedNodeUiElement, because: string): void {
+    const passedOver = { listed, because };
+    this.#registrationsPassedOver.push(passedOver);
+    const registration = listed.registration;
+    if (registration.kind !== "control" || registration.control !== null || registration.type === "named") return;
+    const ofTheType = this.#typeDefaultsPassedOver.get(registration.type);
+    if (ofTheType === undefined) this.#typeDefaultsPassedOver.set(registration.type, [passedOver]);
+    else ofTheType.push(passedOver);
   }
 
   /** Puts `listed` under `key`, or answers why not when another element already holds it. */

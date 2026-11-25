@@ -7,7 +7,7 @@
 
 import studioNodeUiManifestText from "../../../packages/tato-app-core-node-ui/node_ui/tatolab_node_ui.json?raw";
 import projectNodeUiManifestText from "./mock_project_node_ui/tatolab_node_ui.json?raw";
-import type { ListedNodeUiElement, NodeUiElementRegistration } from "@tatolab/tato-app-view-sdk/node_ui_host";
+import type { ListedNodeUiElement, NodeUiElementRegistration, NodeUiElementScriptServing } from "@tatolab/tato-app-view-sdk/node_ui_host";
 import { describeTheContractIssues, readControlContractValue } from "../src/main/tatolab_runtime_control_operation_call";
 import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import { sleep } from "./mock_tatolab_simulation";
@@ -46,7 +46,7 @@ export function mockProjectNodeBodies(pageOrigin: string, bodies: Exclude<MockPr
     script_serving:
       bodies === "served"
         ? { kind: "served", script_url: new URL(`${MOCK_PROJECT_NODE_UI_FILES_PATH}${script}`, pageOrigin).href }
-        : { kind: "blocked", findings: ["This module's node UI code did not pass the runtime's check, so the Studio does not load it.", `node_ui/${script}:1:1: error: Type 'string' is not assignable to type 'number'. (TS2322)`] },
+        : blockedBy(`node_ui/${script}:1:1: error: Type 'string' is not assignable to type 'number'. (TS2322)`),
   }));
 }
 
@@ -72,4 +72,9 @@ export function mockNodeUiElementsBackendOf(listing: MockNodeUiElementsListing, 
       return projectNodeBodies === "none" ? studiosOwn : [...studiosOwn, ...mockProjectNodeBodies(window.location.origin, projectNodeBodies)];
     },
   };
+}
+
+/** How the gate blocks a mock folder the runtime finds `finding` in: the Studio's line, then that finding. */
+function blockedBy(finding: string): NodeUiElementScriptServing {
+  return { kind: "blocked", findings: ["This module's node UI code did not pass the runtime's check, so the Studio does not load it.", finding], runtime_findings: [finding] };
 }

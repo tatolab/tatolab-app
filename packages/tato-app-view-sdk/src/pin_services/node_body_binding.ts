@@ -19,7 +19,7 @@ import type { NodeUiControlTable } from "../node_ui/node_ui_control_table.js";
 import type { NodeUiElementHost } from "../node_ui/node_ui_element_host.js";
 import type { ListedNodeUiElement } from "../node_ui/node_ui_elements_listing.js";
 import type { StopWatching } from "../tato_app_view_connection.js";
-import { markTheNewerVersionBlocked, newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, type ProjectAControlReaches } from "./element_slot_support.js";
+import { markTheBlockedRegistrations, newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, type ProjectAControlReaches } from "./element_slot_support.js";
 import type { InputValueGesture, InputValues } from "./input_values.js";
 import { readWhatTheWiringCarries } from "./wire_reading.js";
 
@@ -131,7 +131,7 @@ export class NodeBodySlot implements NodeBodyBinding {
     const listed = table.nodeBodyForTheNodeType(this.#node.node_type);
     const key = listed === null ? null : JSON.stringify([listed.module, listed.script, listed.folder_version, this.#node.node_type, this.#node.inputs.map((input) => input.declaration)]);
     if (listed !== null && key === this.#elementKey && this.#element !== null) {
-      markTheNewerVersionBlocked(this.#host, listed.script_serving.kind === "blocked" ? listed.script_serving.findings : null);
+      markTheBlockedRegistrations(this.#host, listed.script_serving.kind === "blocked" ? listed.script_serving.findings : []);
       this.#watchTheValues();
       this.setTheShownValues();
       return;
@@ -226,7 +226,7 @@ export class NodeBodySlot implements NodeBodyBinding {
   }
 
   #takeTheBodyOff(): void {
-    markTheNewerVersionBlocked(this.#host, null);
+    markTheBlockedRegistrations(this.#host, []);
     this.#cancelEveryGesture();
     this.#stopWatchingTheValues();
     this.#stopWatchingTheValues = () => undefined;

@@ -65,13 +65,17 @@ function scriptServingOf(
           ),
         ).href,
       }
-    : {
-        kind: "blocked",
-        findings: (gated.kind === "held"
-          ? gated.newer_version_blocked_because
-          : gated.words
-        ).split("\n"),
-      };
+    : gated.kind === "held"
+      ? {
+          kind: "blocked",
+          findings: gated.newer_version_blocked_because.split("\n"),
+          runtime_findings: gated.newer_version_findings,
+        }
+      : {
+          kind: "blocked",
+          findings: gated.words.split("\n"),
+          runtime_findings: gated.findings,
+        };
 }
 
 /** The version of a folder the Studio serves: the one that passed, or the one that last passed while its newer one is blocked; `null` for a folder that is blocked. */

@@ -10,6 +10,8 @@
 // carries is driven by its wire: it holds no value, nothing it fires is acted on, and it reads what
 // the wire carries from the port viewer of the output wired in. A control already drawn whose newer
 // version is blocked stays drawn, marked, and the table never falls through to another control. A
+// slot its type's default draws is marked too while the table passes over another module's default
+// for that type, with the findings that block it, so a project's breaking entry is seen. A
 // card's node body binds through the same binder, reading the same table and store. DOM only, no React.
 
 import { inputAddressKey, type InputAddress } from "../pin_model/node_inputs.js";
@@ -26,12 +28,12 @@ import { ReadOnlyValueLineElement } from "../node_ui/read_only_value_line_elemen
 import type { StopWatching } from "../tato_app_view_connection.js";
 import type { ViewInputEvent } from "../view_wire_messages.js";
 import type { InputValueGesture, InputValues, ShownValue } from "./input_values.js";
-import { markTheNewerVersionBlocked, newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
+import { markTheBlockedRegistrations, newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, linesOfTheRegistrationPassedOver, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
 import { NodeBodySlot, type NodeBodyBinding, type NodeBodyShown } from "./node_body_binding.js";
 import { readWhatTheWiringCarries } from "./wire_reading.js";
 import { watchTheAudioCaptureDevices } from "./audio_capture_devices_watched.js";
 
-export { NEWER_VERSION_BLOCKED_ATTRIBUTE, releaseOfAGestureOn, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
+export { BLOCKED_REGISTRATION_ATTRIBUTE, releaseOfAGestureOn, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
 
 /** Where a control is drawn, and whether the graph there can be edited. */
 export interface InputControlPlace {
@@ -180,6 +182,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
     #place: InputControlPlace;
     #element: AnyInputControl | null = null;
     #elementKey: string | null = null;
+    #registrationsPassedOverLines: readonly string[] = [];
     #shown: InputControlShown | null = null;
     #gesture: InputValueGesture | null = null;
     #isIgnoringTheElement = false;
@@ -242,9 +245,10 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
         this.#tell("no_control");
         return;
       }
+      this.#registrationsPassedOverLines = choice.chosen_by === "type_default" || choice.chosen_by === "named_type" ? table.typeDefaultsPassedOverFor(this.#input.declaration.pin_type).flatMap(linesOfTheRegistrationPassedOver) : [];
       const key = keyOfTheElement(choice, this.#input, this.#place);
       if (key === this.#elementKey) {
-        this.#markWhetherTheNewerVersionIsBlocked(choice.listed);
+        this.#markTheBlockedRegistrations(choice.listed);
         this.#setTheState();
         return;
       }
@@ -254,6 +258,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       void loadElement(choice.listed).then((loading) => {
         if (this.#isUnbound || this.#elementKey !== key) return;
         this.#mount(loading.kind === "defined" ? newInputControl(loading.tag) : newReadOnlyValueLine(whyTheElementDidNotLoad(loading)));
+        this.#markTheBlockedRegistrations(choice.listed);
       });
     }
 
@@ -296,14 +301,20 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       this.#tell(element instanceof ReadOnlyValueLineElement ? "read_only_line" : "element");
     }
 
-    /** Marks the slot while the element it holds is a control and `listed`, the version it was loaded from, has a newer version blocked. */
-    #markWhetherTheNewerVersionIsBlocked(listed: ListedNodeUiElement): void {
-      const holdsAControl = this.#element !== null && !(this.#element instanceof ReadOnlyValueLineElement);
-      markTheNewerVersionBlocked(this.#host, holdsAControl && listed.script_serving.kind === "blocked" ? listed.script_serving.findings : null);
+    /** Marks the slot while it holds an element and a registration bearing on it is blocked: `listed`, the version its control was loaded from, or a default the table passed over for its type. */
+    #markTheBlockedRegistrations(listed: ListedNodeUiElement): void {
+      const element = this.#element;
+      if (element === null) {
+        markTheBlockedRegistrations(this.#host, []);
+        return;
+      }
+      const holdsAControl = !(element instanceof ReadOnlyValueLineElement);
+      const newerVersionBlocked = holdsAControl && listed.script_serving.kind === "blocked" ? listed.script_serving.findings : [];
+      markTheBlockedRegistrations(this.#host, [...newerVersionBlocked, ...this.#registrationsPassedOverLines]);
     }
 
     #takeTheElementOff(): void {
-      markTheNewerVersionBlocked(this.#host, null);
+      markTheBlockedRegistrations(this.#host, []);
       const element = this.#element;
       if (element === null) return;
       element.removeEventListener("input", this.#elementMoved);
