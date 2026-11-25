@@ -14,7 +14,7 @@ function mockStudioViewFolderUrl(viewFolder: string): string {
   return new URL(`${MOCK_STUDIO_VIEWS_PATH}${viewFolder}/`, window.location.origin).href;
 }
 
-/** The fixture view's type, `<project name>:<view folder>`, which is the node type a node of the view is. */
+/** The fixture view's type as the runtime lists it, which is the node type a node of the view is. */
 export const MOCK_STUDIO_VIEW_TYPE_ID = `${PULSE_STAGE_PROJECT_NAME}:picture_and_fader`;
 
 /** The fixture view as the backend lists it, its folder served beside this module. */
@@ -22,7 +22,9 @@ export function mockStudioViewListing(): ListedStudioView {
   const manifestJson: JsonValue = JSON.parse(pictureAndFaderManifestText);
   return {
     view_type_id: MOCK_STUDIO_VIEW_TYPE_ID,
+    project: "e4b19a6d-5c2f-4a87-93d0-1b6e8f2c7a35",
     project_name: PULSE_STAGE_PROJECT_NAME,
+    view_folder: "picture_and_fader",
     import_folder: null,
     opens: true,
     not_opened_because: null,
@@ -36,7 +38,9 @@ export function mockStudioViewListing(): ListedStudioView {
 export function mockStudioViewListingThatDoesNotOpen(): ListedStudioView {
   return {
     view_type_id: "lobby-wall:stage_rig",
+    project: "",
     project_name: "lobby-wall",
+    view_folder: "stage_rig",
     import_folder: "lobby-wall",
     opens: false,
     not_opened_because: "`contract`: this runtime reads view contract 1.0.",

@@ -23,6 +23,8 @@ import { showViewTypeInAreaOf, watchAreasForTheViewType, type StudioViewTypeArea
 /** What the window's view types are named by, and when the ones it holds change. */
 export interface StudioViewTypeTitles {
   viewTitleOf(viewTypeId: string): string | null;
+  /** The id the view `viewTypeId` names is registered under, or `viewTypeId` when it names none. */
+  viewTypeIdOf(viewTypeId: string): string;
   watchChanges(onChanged: () => void): StopWatching;
 }
 
@@ -178,7 +180,7 @@ export class StudioWindowModel {
       activeStreamTab: this.activeStreamTab,
       openStreamTab: (streamTab) => this.openStreamTab(streamTab),
       viewsOpenedOn: this.viewsOpenedOn,
-      openView: (viewTypeId, on) => this.openView(viewTypeId, on),
+      openView: (viewTypeId, on) => this.openView(viewTypeTitles.viewTypeIdOf(viewTypeId), on, (id) => viewTypeTitles.viewTypeIdOf(id)),
       pickAProjectAsset: (pick) => this.projectAssetPickHeld.start(pick, this.openProject.readLatest().kind === "read" ? null : "No project is open to choose an asset of."),
       answerTheProjectAssetPick: (asset) => this.projectAssetPickHeld.answer(asset),
       endTheProjectAssetPick: (because) => this.projectAssetPickHeld.end(because),
@@ -192,6 +194,7 @@ export class StudioWindowModel {
       },
       isAPoppedOutViewsWindow: () => this.poppedOutView.readLatest() !== null,
       viewTitleOf: (viewTypeId) => viewTypeTitles.viewTitleOf(viewTypeId),
+      viewTypeIdOf: (viewTypeId) => viewTypeTitles.viewTypeIdOf(viewTypeId),
       watchChanges: (onChanged) => {
         const stopWatchingEach = [this.studioLayout.watch(onChanged), this.poppedOutView.watch(onChanged), viewTypeTitles.watchChanges(onChanged)];
         return () => {
@@ -223,11 +226,11 @@ export class StudioWindowModel {
   }
 
   /** Open views of `viewTypeId` on `on`, in each area of the layout that shows that type; where none shows it, the window switches to the layout Studio ships that does. */
-  openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening {
+  openView(viewTypeId: string, on: ViewOpeningTarget, viewTypeIdOf: (viewTypeId: string) => string = (id) => id): ViewOpening {
     if (this.poppedOutView.readLatest() !== null) return { kind: "not_opened", because: "A popped-out view's window shows that view alone. Open it from the project's studio window." };
     const studioLayout = this.studioLayout.readLatest();
-    if (studioLayout !== null && !layoutShowsTheViewType(studioLayoutWithEdgesHidden(studioLayout.layout, studioLayout.edges_hidden), viewTypeId)) {
-      const shippedLayout = shippedStudioLayoutHomeOf(viewTypeId);
+    if (studioLayout !== null && !layoutShowsTheViewType(studioLayoutWithEdgesHidden(studioLayout.layout, studioLayout.edges_hidden), viewTypeId, viewTypeIdOf)) {
+      const shippedLayout = shippedStudioLayoutHomeOf(viewTypeId, viewTypeIdOf);
       if (shippedLayout === null) return { kind: "not_opened", because: `No area shows ${viewTypeId}. Choose it in an area's view menu, then open it again.` };
       this.applyTheShippedLayout(shippedLayout.layout_id);
     }

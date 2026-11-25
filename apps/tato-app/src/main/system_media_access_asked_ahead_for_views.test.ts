@@ -13,6 +13,7 @@ function listedView(viewType: string, manifest: ProjectViewTheRuntimeListed["man
   const viewFolder = viewType.split(":")[1] ?? viewType;
   return {
     view_type: viewType,
+    project: "6f1c2a4e-0b7d-4e3a-9c58-2d4f7a1e9b30",
     project_name: "night-show",
     import_folder: null,
     view_folder_in_the_project: `views/${viewFolder}`,

@@ -6,6 +6,7 @@ import { Option, Schema } from "effect";
 import { studioAreaLayoutFromSaved, type StudioArea, type StudioAreaLayoutNode, type StudioAreaSplit } from "./studio_area_layout";
 import type { TatolabWindowLocalStorage } from "../tatolab_window_local_storage";
 import { NO_STUDIO_LAYOUT_EDGE_HIDDEN, type StudioLayoutEdgesHidden } from "./studio_layout_shapes";
+import { projectViewIdOf } from "../view_host/studio_view_type_registry";
 
 /** How many saved presets the digits held with Ctrl or ⌘ apply, the first on 1. */
 export const STUDIO_LAYOUT_PRESETS_ON_A_DIGIT = 9;
@@ -31,8 +32,11 @@ function split(splitId: string, direction: "row" | "column", parts: [number, Stu
   return { kind: "split", split_id: splitId, direction, parts: parts.map(([sizePercent, part]) => ({ size_percent: sizePercent, part })) };
 }
 
-/** The view type of the Audio Video Preview the Core Nodes project brings, which every project imports. */
-export const AUDIO_VIDEO_PREVIEW_VIEW_TYPE = "Core Nodes:audio_video_preview";
+/** The UUID of the Core Nodes project, which every project imports. */
+const CORE_NODES_PROJECT = "ba5fc2b1-df25-4e86-bec3-aba1564d6233";
+
+/** The Audio Video Preview the Core Nodes project brings, found by that project's UUID and the view's folder. */
+export const AUDIO_VIDEO_PREVIEW_VIEW_TYPE = projectViewIdOf(CORE_NODES_PROJECT, "audio_video_preview");
 
 /** The Composition layout, the one a project first opens on: the outliner left, the Audio Video Preview over a big stream graph in the middle, and properties right. */
 export function compositionStudioLayout(): StudioAreaLayoutNode {
@@ -91,9 +95,9 @@ export const STUDIO_LAYOUTS_SHIPPED: readonly StudioLayoutShipped[] = [
   { layout_id: "review", title: "Review", layout: reviewStudioLayout(), home_of_view_types: [] },
 ];
 
-/** The layout Studio ships as `viewTypeId`'s home, or `null` when none is. */
-export function shippedStudioLayoutHomeOf(viewTypeId: string): StudioLayoutShipped | null {
-  return STUDIO_LAYOUTS_SHIPPED.find(({ home_of_view_types: homeOfViewTypes }) => homeOfViewTypes.includes(viewTypeId)) ?? null;
+/** The layout Studio ships as `viewTypeId`'s home, or `null` when none is, each home's view type read through `viewTypeIdOf`, which gives the id a view is registered under. */
+export function shippedStudioLayoutHomeOf(viewTypeId: string, viewTypeIdOf: (viewTypeId: string) => string = (id) => id): StudioLayoutShipped | null {
+  return STUDIO_LAYOUTS_SHIPPED.find(({ home_of_view_types: homeOfViewTypes }) => homeOfViewTypes.some((homeOf) => viewTypeIdOf(homeOf) === viewTypeId)) ?? null;
 }
 
 /** `saved`'s field `fieldName`, or `undefined` when `saved` is not an object or has none. */

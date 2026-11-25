@@ -46,7 +46,9 @@ export const studioViewsOfTheOpenProject = Effect.fn("studioViewsOfTheOpenProjec
     if (served !== null) passedViewFolders.set(listedView.view_folder_in_the_project, served);
     return {
       view_type_id: listedView.view_type,
+      project: listedView.project,
       project_name: listedView.project_name,
+      view_folder: listedView.view_folder_in_the_project.split("/").at(-1) ?? "",
       import_folder: listedView.import_folder,
       manifest_json: listedView.manifest,
       folder_url: served === null ? "" : projectViewFolderUrl(openProjectFolder, served.folder_version, listedView.view_folder_in_the_project),

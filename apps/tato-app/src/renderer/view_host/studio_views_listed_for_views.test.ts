@@ -46,7 +46,9 @@ function nightShowsViewsListedFromTheRecording(): ListedStudioView[] {
   if (!listed.ok) throw new Error(listed.failure);
   return listed.value.map((listedView) => ({
     view_type_id: listedView.view_type,
+    project: listedView.project,
     project_name: listedView.project_name,
+    view_folder: listedView.view_folder_in_the_project.split("/").at(-1) ?? "",
     import_folder: listedView.import_folder,
     manifest_json: listedView.manifest,
     folder_url: `tatolab-app://app/project_views/${listedView.view_folder_in_the_project}/`,
@@ -77,7 +79,9 @@ describe("the views a view reads", () => {
       studio_views: [
         {
           view_type_id: "acme-dj:deck",
+          project: "",
           project_name: "Acme DJ",
+          view_folder: "deck",
           import_folder: "acme-dj",
           opens: true,
           not_opened_because: null,
@@ -85,8 +89,8 @@ describe("the views a view reads", () => {
           folder_url: "tatolab-app://app/project_views/acme-dj/deck/",
           newer_version_blocked_because: null,
         },
-        { view_type_id: "acme-dj:rig", project_name: "Acme DJ", import_folder: "acme-dj", opens: false, not_opened_because: "`contract`: this runtime reads view contract 1.0.", manifest_json: { title: "Rig" }, folder_url: "x", newer_version_blocked_because: null },
-        { view_type_id: "outliner", project_name: "Acme DJ", import_folder: null, opens: true, not_opened_because: null, manifest_json: { contract: "1.0", title: "My outliner", entry: "index.html", placement: "area" }, folder_url: "y", newer_version_blocked_because: null },
+        { view_type_id: "acme-dj:rig", project: "", project_name: "Acme DJ", view_folder: "rig", import_folder: "acme-dj", opens: false, not_opened_because: "`contract`: this runtime reads view contract 1.0.", manifest_json: { title: "Rig" }, folder_url: "x", newer_version_blocked_because: null },
+        { view_type_id: "outliner", project: "", project_name: "Acme DJ", view_folder: "outliner", import_folder: null, opens: true, not_opened_because: null, manifest_json: { contract: "1.0", title: "My outliner", entry: "index.html", placement: "area" }, folder_url: "y", newer_version_blocked_because: null },
       ],
     });
     const reading = studioViewsReadingOf(registry);

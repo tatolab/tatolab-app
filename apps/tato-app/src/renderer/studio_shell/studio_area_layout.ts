@@ -111,10 +111,10 @@ export function layoutWithSplitSizes(layout: StudioAreaLayoutNode, splitId: stri
   );
 }
 
-/** Whether an area of `layout` shows `viewTypeId`. */
-export function layoutShowsTheViewType(layout: StudioAreaLayoutNode, viewTypeId: string): boolean {
-  if (layout.kind === "area") return layout.view_type_id === viewTypeId;
-  return layout.parts.some((part) => layoutShowsTheViewType(part.part, viewTypeId));
+/** Whether an area of `layout` shows `viewTypeId`, each area's view type read through `viewTypeIdOf`, which gives the id a view is registered under. */
+export function layoutShowsTheViewType(layout: StudioAreaLayoutNode, viewTypeId: string, viewTypeIdOf: (viewTypeId: string) => string = (id) => id): boolean {
+  if (layout.kind === "area") return layout.view_type_id !== null && viewTypeIdOf(layout.view_type_id) === viewTypeId;
+  return layout.parts.some((part) => layoutShowsTheViewType(part.part, viewTypeId, viewTypeIdOf));
 }
 
 /** Every area of `layout`, in the order its splits hold them. */

@@ -36,6 +36,7 @@ function areaSources(layoutTree: StudioAreaLayoutNode | null, isPoppedOut = fals
     readChosenLayoutTree: () => tree,
     isAPoppedOutViewsWindow: () => isPoppedOut,
     viewTitleOf: (viewTypeId) => VIEW_TITLES[viewTypeId] ?? null,
+    viewTypeIdOf: (viewTypeId) => viewTypeId,
     watchChanges: (onChanged) => {
       watchers.add(onChanged);
       return () => watchers.delete(onChanged);
@@ -70,6 +71,13 @@ describe("a view type's areas in the layout", () => {
       },
       { kind: "areas_listed", view_title: "DJ Deck", areas: [{ area_id: "viewer", shows_view_title: "DJ Deck", shows_the_view_type: true }] },
     ]);
+  });
+
+  it("counts an area saved under another id of the same view as showing it", () => {
+    const { sources } = areaSources({ kind: "area", area_id: "viewer", view_type_id: "Acme DJ:deck" });
+    const reading: unknown[] = [];
+    watchAreasForTheViewType("acme-dj:deck", { ...sources, viewTypeIdOf: (viewTypeId) => (viewTypeId === "Acme DJ:deck" ? "acme-dj:deck" : viewTypeId) }, (latest) => reading.push(latest));
+    expect(reading).toEqual([{ kind: "areas_listed", view_title: "DJ Deck", areas: [{ area_id: "viewer", shows_view_title: "Acme DJ:deck", shows_the_view_type: true }] }]);
   });
 
   it("names no areas for an id no view type has, in a popped-out view's window, or while no project is open", () => {

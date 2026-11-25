@@ -17,6 +17,8 @@ export interface StudioViewTypeAreaSources {
   isAPoppedOutViewsWindow(): boolean;
   /** The title of the view type `viewTypeId` names; `null` when no view type has that id. */
   viewTitleOf(viewTypeId: string): string | null;
+  /** The id the view `viewTypeId` names is registered under, or `viewTypeId` when it names none. */
+  viewTypeIdOf(viewTypeId: string): string;
   /** Each change to what the areas are read from. */
   watchChanges(onChanged: () => void): StopWatching;
   showViewTypeInTheArea(showing: { view_type_id: string; area_id: string }): void;
@@ -35,7 +37,7 @@ export function areasForTheViewTypeOf(viewTypeId: string, sources: Omit<StudioVi
     areas: areasOfTheLayout(layoutTree).map((area) => ({
       area_id: area.area_id,
       shows_view_title: area.view_type_id === null ? null : (sources.viewTitleOf(area.view_type_id) ?? area.view_type_id),
-      shows_the_view_type: area.view_type_id === viewTypeId,
+      shows_the_view_type: area.view_type_id !== null && sources.viewTypeIdOf(area.view_type_id) === sources.viewTypeIdOf(viewTypeId),
     })),
   };
 }

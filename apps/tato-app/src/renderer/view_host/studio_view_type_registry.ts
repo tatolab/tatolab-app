@@ -28,6 +28,11 @@ export interface StudioAreaNodeShown {
 /** What an area that keeps no choice of node shows: the first of the view's type. */
 export const THE_FIRST_NODE_SHOWN: StudioAreaNodeShown = { node_id: null };
 
+/** The id of the view in the folder `viewFolder` of the `views/` of the project whose UUID is `project`. */
+export function projectViewIdOf(project: string, viewFolder: string): string {
+  return `${project}:${viewFolder}`;
+}
+
 /** A view type as the registry holds it, made from its manifest: what the view-type menu lists, and how an area draws its frame. */
 export interface RegisteredStudioViewType {
   view_type_id: string;
@@ -104,9 +109,24 @@ export class StudioViewTypeRegistry {
     return [...this.viewTypesById.values(), ...(this.developerMode.readLatest() ? this.viewTypesOfferedInDeveloperModeById.values() : [])];
   }
 
-  /** The view type `viewTypeId` names, or `null` for one this build does not hold and the open project does not bring. */
+  /**
+   * The view type `viewTypeId` names, or `null` for one this build does not hold and the open project does not bring. A project's view is
+   * also found by its project's UUID and folder, as `projectViewIdOf` writes them, and by the `<project name>:<view folder>` a layout or a
+   * popped-out window saved before the runtime named views by their project's UUID.
+   */
   viewTypeWithId(viewTypeId: string): RegisteredStudioViewType | null {
-    return this.viewTypesOfferedNow().find((viewType) => viewType.view_type_id === viewTypeId) ?? this.readProjectStudioViewTypes().viewTypes.find((viewType) => viewType.view_type_id === viewTypeId) ?? null;
+    const projectViewTypes = this.readProjectStudioViewTypes().viewTypes;
+    const exactly = this.viewTypesOfferedNow().find((viewType) => viewType.view_type_id === viewTypeId) ?? projectViewTypes.find((viewType) => viewType.view_type_id === viewTypeId);
+    if (exactly !== undefined) return exactly;
+    const reading = this.projectStudioViews.readLatest();
+    if (reading.kind !== "listed") return null;
+    const listed = reading.studio_views.find((view) => view.project !== "" && (projectViewIdOf(view.project, view.view_folder) === viewTypeId || projectViewIdOf(view.project_name, view.view_folder) === viewTypeId));
+    return listed === undefined ? null : (projectViewTypes.find((viewType) => viewType.view_type_id === listed.view_type_id) ?? null);
+  }
+
+  /** The id the view type `viewTypeId` names is registered under, or `viewTypeId` itself when it names none, so two ids of one view compare equal. */
+  viewTypeIdOf(viewTypeId: string): string {
+    return this.viewTypeWithId(viewTypeId)?.view_type_id ?? viewTypeId;
   }
 
   /** The view type `viewTypeId` names when Developer mode offers it and is off now, or `null`. */
@@ -159,9 +179,10 @@ export class StudioViewTypeRegistry {
 }
 
 /** The titles `registry`'s view types go by, which change as the open project's views are listed again or Developer mode turns on or off. */
-export function studioViewTypeTitlesOf(registry: StudioViewTypeRegistry): { viewTitleOf(viewTypeId: string): string | null; watchChanges(onChanged: () => void): StopWatching } {
+export function studioViewTypeTitlesOf(registry: StudioViewTypeRegistry): { viewTitleOf(viewTypeId: string): string | null; viewTypeIdOf(viewTypeId: string): string; watchChanges(onChanged: () => void): StopWatching } {
   return {
     viewTitleOf: (viewTypeId) => registry.viewTypeWithId(viewTypeId)?.title ?? null,
+    viewTypeIdOf: (viewTypeId) => registry.viewTypeIdOf(viewTypeId),
     watchChanges: (onChanged) => {
       const stopWatchingEach = [registry.projectStudioViews.watch(onChanged), registry.developerMode.watch(onChanged)];
       return () => {

@@ -571,10 +571,14 @@ export type StudioViewOpening = { opens: true; not_opened_because: null } | { op
 
 /** What the window draws a listed view from, beside whether it opens. */
 export interface ListedStudioViewFacts {
-  /** `<project name>:<view folder>`, the node type a node of the view is. */
+  /** The node type a node of the view is, as the runtime lists it; the window never reads its parts. */
   view_type_id: string;
-  /** The name of the project bringing it. */
+  /** The UUID of the project bringing it; empty for a view Studio brings itself. */
+  project: string;
+  /** The name of the project bringing it, which only shows. */
   project_name: string;
+  /** The view's folder in that project's `views/`. */
+  view_folder: string;
   /** That project's folder under `imports/`; `null` for the open project's own view. */
   import_folder: string | null;
   /** Its `tatolab_view.json` as written, `null` when it is not JSON. */

@@ -71,7 +71,7 @@ describe("a saved layout", () => {
   it("keeps the node an area shows, and forgets it when the area shows another view", () => {
     const showingANode = layoutWithAreaShowingNode(defaultStudioLayout(), "preview", "node-2");
     expect(studioAreaLayoutFromSaved(JSON.parse(JSON.stringify(showingANode)))).toEqual(showingANode);
-    expect(JSON.stringify(showingANode)).toContain('"area_id":"preview","view_type_id":"Core Nodes:audio_video_preview","shown_node_id":"node-2"');
+    expect(JSON.stringify(showingANode)).toContain(`"area_id":"preview","view_type_id":"${AUDIO_VIDEO_PREVIEW_VIEW_TYPE}","shown_node_id":"node-2"`);
     expect(JSON.stringify(layoutWithAreaShowing(showingANode, "preview", "viewer"))).not.toContain("shown_node_id");
     expect(studioAreaLayoutFromSaved({ kind: "area", area_id: "a", view_type_id: "viewer", shown_node_id: 3 })).toBeNull();
   });
