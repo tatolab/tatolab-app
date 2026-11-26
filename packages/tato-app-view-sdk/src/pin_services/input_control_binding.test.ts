@@ -8,7 +8,7 @@ import type { ListedNodeUiElement, NodeUiElementsReading } from "../node_ui/node
 import { NO_PROJECT, listedElementOf } from "../node_ui/test_fixtures/node_ui_listing_fixtures.js";
 import type { GraphEditMode, JsonValue, StreamInputValuesReading } from "../studio_readings.js";
 import type { PinType } from "../pin_types.js";
-import { createInputControlBinder, NEWER_VERSION_BLOCKED_ATTRIBUTE, releaseOfAGestureOn, type InputControlShown } from "./input_control_binding.js";
+import { createInputControlBinder, BLOCKED_REGISTRATION_ATTRIBUTE, releaseOfAGestureOn, type InputControlShown } from "./input_control_binding.js";
 import { createInputValues } from "./input_values.js";
 
 const PROJECT = "/projects/demo";
@@ -300,11 +300,11 @@ test("a drawn control whose newer version is blocked stays drawn and marked with
   await slot.settled();
   const drawn = slot.control();
 
-  slot.list([{ ...knob, script_serving: { kind: "blocked", findings } }]);
+  slot.list([{ ...knob, script_serving: { kind: "blocked", findings, runtime_findings: [] } }]);
   await slot.settled();
   expect(slot.control()).toBe(drawn);
   expect(slot.loadsAsked).toHaveLength(1);
-  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(true);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(true);
   expect(slot.host.title).toBe(findings.join("\n"));
   drawn.commitTyped(0.3);
   await slot.settled();
@@ -313,17 +313,45 @@ test("a drawn control whose newer version is blocked stays drawn and marked with
   slot.list([{ ...knob, folder_version: "v3", script_serving: { kind: "served", script_url: "tatolab-app://app/node_ui/night-show/knob.js?v3" } }]);
   await slot.settled();
   expect(slot.control()).not.toBe(drawn);
-  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(false);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(false);
+});
+
+test("a project's default for a built-in type is passed over with the runtime's finding on the slot, the Studio's control still drawing; taking the entry out takes the mark off", async () => {
+  const finding = "node_ui/tatolab_node_ui.json: error: `controls[1]` registers the default control of `float`, a built-in type: only the Studio's own module may register it. (default_control_not_the_modules_to_register)";
+  const heldBecause = ["Tato Studio keeps showing the version that last passed.", "The newer version of this module's node UI code is blocked.", finding];
+  const nightShowsFloatDefault = listedElementOf("night-show", { kind: "control", type: "float", control: null }, { script: "fader.ts", script_serving: { kind: "blocked", findings: heldBecause, runtime_findings: [finding] } });
+  const slot = binderUnderTest();
+  slot.list([FLOAT_DEFAULT, nightShowsFloatDefault]);
+  await slot.settled();
+  const drawn = slot.control();
+  expect(slot.loadsAsked).toEqual([FLOAT_DEFAULT]);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(true);
+  expect(slot.host.title).toBe(`Only Tato Studio sets the default control of a built-in type; night-show registers one for float.\n${finding}`);
+
+  slot.list([FLOAT_DEFAULT]);
+  await slot.settled();
+  expect(slot.control()).toBe(drawn);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(false);
+  expect(slot.host.title).toBe("");
+});
+
+test("a control an annotation picks is not marked for its type's defaults passed over", async () => {
+  const nightShowsFloatDefault = listedElementOf("night-show", { kind: "control", type: "float", control: null }, { script_serving: { kind: "blocked", findings: ["default_control_not_the_modules_to_register"], runtime_findings: [] } });
+  const slot = binderUnderTest({ input: KNOB_GAIN });
+  slot.list([FLOAT_DEFAULT, NIGHT_SHOWS_KNOB, nightShowsFloatDefault]);
+  await slot.settled();
+  expect(slot.loadsAsked).toEqual([NIGHT_SHOWS_KNOB]);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(false);
 });
 
 test("a slot with no control drawn yet whose element is blocked shows the read-only line, unmarked, and never another control", async () => {
-  const knob: ListedNodeUiElement = { ...NIGHT_SHOWS_KNOB, script_serving: { kind: "blocked", findings: ["node_ui/knob.ts:1:50 TS2322"] } };
+  const knob: ListedNodeUiElement = { ...NIGHT_SHOWS_KNOB, script_serving: { kind: "blocked", findings: ["node_ui/knob.ts:1:50 TS2322"], runtime_findings: [] } };
   const slot = binderUnderTest({ loading: { kind: "blocked", findings: ["node_ui/knob.ts:1:50 TS2322"] }, input: KNOB_GAIN });
   slot.list([FLOAT_DEFAULT, knob]);
   await slot.settled();
 
   expect(slot.shown.at(-1)).toBe("read_only_line");
-  expect(slot.host.hasAttribute(NEWER_VERSION_BLOCKED_ATTRIBUTE)).toBe(false);
+  expect(slot.host.hasAttribute(BLOCKED_REGISTRATION_ATTRIBUTE)).toBe(false);
 });
 
 test("unbinding the last slot takes its element off and stops watching the listing", async () => {
@@ -335,7 +363,7 @@ test("unbinding the last slot takes its element off and stops watching the listi
   expect(slot.listingListeners.size).toBe(0);
 });
 
-test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and_a_clear_each_as_one_commit_through_the_one_sender", async () => {
+test("a_surfaces_reading_of_an_input_shows_the_stores_value_and_sends_its_clear_as_one_commit_through_the_one_sender", async () => {
   const sent: { value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
@@ -346,55 +374,36 @@ test("a_surfaces_own_field_shows_the_stores_value_and_writes_a_whole_gesture_and
   });
   inputValues.takeTheInputValues(PROJECT, valuesRead(0.5));
   const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues, project: NO_PROJECT });
-  const field = binder.bindOwnField(GAIN, "commit");
+  const reading = binder.bindInputValue(GAIN, "commit");
   const valuesShown: JsonValue[] = [];
-  field.watchValue((shown) => valuesShown.push(shown.value));
-  expect(field.shownValue()).toEqual({ value: 0.5, comes_from: "saved" });
+  reading.watchValue((shown) => valuesShown.push(shown.value));
+  expect(reading.shownValue()).toEqual({ value: 0.5, comes_from: "saved" });
 
-  field.beginGesture().release({ gain: [1, 2] });
+  reading.clear();
   for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
-  field.clear();
-  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
-  expect(sent).toEqual([
-    { value: { gain: [1, 2] }, mode: "commit" },
-    { value: null, mode: "commit" },
-  ]);
-  expect(valuesShown).toEqual([0.5, { gain: [1, 2] }, null]);
+  expect(sent).toEqual([{ value: null, mode: "commit" }]);
+  expect(valuesShown).toEqual([0.5, null]);
 });
 
-test("a_surfaces_own_field_bound_live_sends_its_gesture_and_its_clear_live_and_shows_the_refusal_of_its_last_write", async () => {
+test("a_surfaces_reading_of_an_input_bound_live_sends_its_clear_live_and_shows_the_refusal_of_its_last_write", async () => {
   const sent: { value: unknown; mode: GraphEditMode }[] = [];
   const inputValues = createInputValues({
     transactInTheProject: (_projectFolder, operations, sending) => {
       for (const operation of operations) if (operation.operation === "set_node_input_value") sent.push({ value: operation.value ?? null, mode: sending.mode });
-      return Promise.resolve(
-        sent.length === 2
-          ? { kind: "not_sent", because: "the stream is stopped" }
-          : { kind: "applied", transaction: { mode: sending.mode, transaction: null, commit: null, operations: [], added_nodes: [], connected_links: [], added_groups: [], added_notes: [] } },
-      );
+      return Promise.resolve({ kind: "not_sent", because: "the stream is stopped" });
     },
     newGestureIdempotencyKey: () => "gesture",
   });
-  inputValues.takeTheInputValues(PROJECT, valuesRead(0.5));
-  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues, project: NO_PROJECT });
-  const field = binder.bindOwnField(GAIN, "live");
-  const refusals: (string | null)[] = [];
-  field.watchRefusal((refusal) => refusals.push(refusal));
-
-  const gesture = field.beginGesture();
-  gesture.move(0.6);
-  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
-  gesture.release(0.7);
-  for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
   inputValues.takeTheInputValues(PROJECT, valuesRead(0.6, "live"));
-  field.clear();
+  const binder = createInputControlBinder({ watchNodeUiElements: () => () => undefined, inputValues, project: NO_PROJECT });
+  const reading = binder.bindInputValue(GAIN, "live");
+  const refusals: (string | null)[] = [];
+  reading.watchRefusal((refusal) => refusals.push(refusal));
+
+  reading.clear();
   for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
-  expect(sent).toEqual([
-    { value: 0.6, mode: "live" },
-    { value: 0.7, mode: "live" },
-    { value: null, mode: "live" },
-  ]);
-  expect(refusals).toEqual([null, "the stream is stopped", null]);
+  expect(sent).toEqual([{ value: null, mode: "live" }]);
+  expect(refusals).toEqual([null, "the stream is stopped"]);
 });
 
 /** A Trigger control as the binder meets one: each press is a `change` carrying no value. */

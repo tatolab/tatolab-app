@@ -52,10 +52,14 @@ export interface ExtensionFolderPassed {
   readonly files: ReadonlyMap<string, Buffer>;
 }
 
-/** A folder that did not pass: the Studio's line, then the runtime's words; `checked_to_its_end` when the runtime answered a whole check, so the outcome stands until the folder changes. */
+/**
+ * A folder that did not pass: the Studio's line, then the runtime's words, among them each of the runtime's `findings` as the Studio
+ * lists it; `checked_to_its_end` when the runtime answered a whole check, so the outcome stands until the folder changes.
+ */
 export interface ExtensionFolderBlocked {
   readonly kind: "blocked";
   readonly words: string;
+  readonly findings: readonly string[];
   readonly checked_to_its_end: boolean;
 }
 
@@ -64,6 +68,8 @@ export interface ExtensionFolderHeld {
   readonly kind: "held";
   readonly last_passed: ExtensionFolderPassed;
   readonly newer_version_blocked_because: string;
+  /** The runtime's findings of the newer version, each as the Studio lists it. */
+  readonly newer_version_findings: readonly string[];
 }
 
 /** How the gate left one folder. */
@@ -140,7 +146,7 @@ export function gateDecisionOf(
   if ([...hashesChecked.keys()].some((filePath) => !filesRead.has(filePath))) return { kind: "read_again" };
   const findingLines = checked.findings.map((finding) => findingLine(finding, prefixInTheOpenProject));
   if (checked.verdict === "failed") {
-    return { kind: "blocked", words: [`${capitalized(codeWords)} did not pass the runtime's check, so the Studio does not load it.`, ...findingLines].join("\n"), checked_to_its_end: true };
+    return { kind: "blocked", words: [`${capitalized(codeWords)} did not pass the runtime's check, so the Studio does not load it.`, ...findingLines].join("\n"), findings: findingLines, checked_to_its_end: true };
   }
   if (checked.verdict !== "passed") {
     const notChecked = checked.checks.flatMap((run) => (run.state === "passed" || run.state === "failed" || run.not_checked_because === null || run.not_checked_because === undefined ? [] : [run.not_checked_because]));
@@ -150,7 +156,7 @@ export function gateDecisionOf(
         ? `The runtime found no extension SDK to check ${codeWords} against, so the Studio does not load it.`
         : `The runtime found no extension SDK to check ${codeWords} against, so the Studio does not load it. Start tatolabd with ${EXTENSION_SDK_KIT_ENVIRONMENT_VARIABLE}=${kitFolderOfThisCheckout}, the kit this checkout's SDK build wrote.`
       : `The runtime could not finish checking ${codeWords}, so the Studio does not load it.`;
-    return { kind: "blocked", words: [studioLine, ...[...new Set(notChecked.map((refusal) => refusal.runtime_words))], ...findingLines, NOTHING_UNCHECKED_IS_LOADED].join("\n"), checked_to_its_end: false };
+    return { kind: "blocked", words: [studioLine, ...[...new Set(notChecked.map((refusal) => refusal.runtime_words))], ...findingLines, NOTHING_UNCHECKED_IS_LOADED].join("\n"), findings: findingLines, checked_to_its_end: false };
   }
   const sdkVersionsCheckedWith = new Set(
     checked.checks.flatMap((run) => (run.checked_with ?? []).flatMap((checkedWith) => (checkedWith.startsWith(`${EXTENSION_SDK_PACKAGE_NAME} `) ? [checkedWith.slice(EXTENSION_SDK_PACKAGE_NAME.length + 1).split(" ")[0] ?? ""] : []))),
@@ -162,6 +168,7 @@ export function gateDecisionOf(
     return {
       kind: "blocked",
       words: `The runtime checked ${codeWords} against ${checkedAgainst}, and this Studio is built with ${EXTENSION_SDK_PACKAGE_NAME} ${STUDIO_EXTENSION_SDK_VERSION}, so the Studio does not load it.\n${NOTHING_UNCHECKED_IS_LOADED}`,
+      findings: [],
       checked_to_its_end: true,
     };
   }
@@ -201,11 +208,11 @@ function folderGated(openProjectFolder: string, folder: ExtensionFolderToGate, k
           case "read_again":
             return readsLeft > 1
               ? readAndCheck(readsLeft - 1)
-              : Effect.succeed({ kind: "blocked", words: `${capitalized(codeWordsOfTheFolder(folder.folder_in_the_project))} kept changing while the runtime checked it, so the Studio does not load it.\n${NOTHING_UNCHECKED_IS_LOADED}`, checked_to_its_end: false });
+              : Effect.succeed({ kind: "blocked", words: `${capitalized(codeWordsOfTheFolder(folder.folder_in_the_project))} kept changing while the runtime checked it, so the Studio does not load it.\n${NOTHING_UNCHECKED_IS_LOADED}`, findings: [], checked_to_its_end: false });
         }
       }),
     );
-  return readAndCheck(READS_OF_A_CHANGING_FOLDER).pipe(Effect.catch((failure) => Effect.succeed<ExtensionFolderChecked>({ kind: "blocked", words: wordsOfACheckThatDidNotAnswer(failure, codeWordsOfTheFolder(folder.folder_in_the_project)), checked_to_its_end: false })));
+  return readAndCheck(READS_OF_A_CHANGING_FOLDER).pipe(Effect.catch((failure) => Effect.succeed<ExtensionFolderChecked>({ kind: "blocked", words: wordsOfACheckThatDidNotAnswer(failure, codeWordsOfTheFolder(folder.folder_in_the_project)), findings: [], checked_to_its_end: false })));
 }
 
 /**
@@ -253,7 +260,7 @@ export class ExtensionFolderChecksKept {
       return checked;
     }
     const lastPassed = lastPassedByFolder.get(folderInTheProject);
-    return lastPassed === undefined ? checked : { kind: "held", last_passed: lastPassed, newer_version_blocked_because: wordsOfANewerVersionBlocked(folderInTheProject, checked) };
+    return lastPassed === undefined ? checked : { kind: "held", last_passed: lastPassed, newer_version_blocked_because: wordsOfANewerVersionBlocked(folderInTheProject, checked), newer_version_findings: checked.findings };
   }
 
   /** Forget the outcome of each folder holding one of `changedFiles` of the project in `openProjectFolder`, or of every folder when `changedFiles` is `null`, as when changes may have gone untold. */

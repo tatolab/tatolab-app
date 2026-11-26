@@ -23,13 +23,13 @@ function shapeAndNumbersOf(value: JsonValue): { shape: number[]; numbers: number
 
 /** `value` as a port viewer reads it off an output of `family`; `null` for a family the mock carries no value on. */
 function messageCarrying(family: MockGraphNode["output_ports"][number]["family"], value: JsonValue): PortViewerMessageReading | null {
-  if (family === "records") return { family: "records", record: value };
+  if (family === "records") return { message: "records_message", record: value };
   if (family !== "array") return null;
   const carried = shapeAndNumbersOf(value);
-  if (carried === null) return { family: "unreadable", port_family: "array", because: "The mock carries an Array value as a number or nested lists of numbers." };
+  if (carried === null) return { message: "unreadable", described_as: "array_frame", because: "The mock carries an Array value as a number or nested lists of numbers." };
   const { shape, numbers } = carried;
   return {
-    family: "array",
+    message: "array_frame",
     attributes: [
       {
         name: VALUE_SOURCE_ARRAY_ATTRIBUTE_NAME,

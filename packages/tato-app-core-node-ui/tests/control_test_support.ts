@@ -6,6 +6,7 @@ export const NO_STUDIO_CALLS: NodeUiElementHost = {
   pickAProjectAsset: () => Promise.resolve({ kind: "not_started", because: "no Studio in this test" }),
   readAssetPreview: () => Promise.resolve({ kind: "not_read", because: "no Studio in this test" }),
   watchProjectAssets: () => () => undefined,
+  watchAudioCaptureDevices: () => () => undefined,
   watchWhatIsWiredInto: () => () => undefined,
   inputControlFor: () => Promise.reject(new Error("no Studio in this test")),
 };
@@ -16,6 +17,8 @@ export const NO_PROJECT: ProjectAControlReaches = {
   readAssetPreviewInTheProject: () => Promise.resolve({ kind: "not_read", because: "no project in this test" }),
   watchProjectAssets: () => () => undefined,
   watchPortViewer: () => () => undefined,
+  listAudioCaptureDevices: () => Promise.resolve({ kind: "not_listed", because: "no project in this test" }),
+  watchListedStreams: () => () => undefined,
 };
 
 /** A frame a port viewer delivers, `width` by `height`, which counts how often it is closed. */

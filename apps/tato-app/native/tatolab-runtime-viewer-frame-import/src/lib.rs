@@ -3,7 +3,7 @@
 //! `open_viewer` said reads every message, and for an Image message
 //! claims and imports the pooled frame it names, handing Electron's `sharedTexture` what it imports
 //! from (DMA-BUF planes on Linux, an IOSurface on macOS). A frame stays claimed against the runtime's
-//! reuse until `releaseHeldImageFrame` names it. Every other family's message comes with what its
+//! reuse until `releaseHeldImageFrame` names it. Every other message comes with what its
 //! descriptor states: a Channels block's layout, a Packets unit's codec, an Array frame's attribute
 //! table, and a Records message decoded to JSON.
 
@@ -93,9 +93,10 @@ pub struct RuntimeViewerArrayAttribute {
 /// A message a viewer read from the port.
 #[napi(object, use_nullable = true)]
 pub struct RuntimeViewerMessageRead {
-    /// The port family the message's descriptor names: `image`, `channels`, `packets`, `records`,
-    /// `array`, or `bytes` for a payload no family describes.
-    pub port_family: String,
+    /// The layout the message's payload descriptor names: `image_frame`, `channels_block`,
+    /// `packets_unit`, `records_message`, `array_frame`, `bundle_frame`, or `bytes` for a payload no
+    /// descriptor describes.
+    pub message_layout: String,
     /// The node's publish stamp, in nanoseconds of its stream's clock.
     pub timestamp_ns: i64,
     /// Messages lost ahead of this one: passed over by a viewer reading the latest, or overwritten on
@@ -103,7 +104,7 @@ pub struct RuntimeViewerMessageRead {
     pub skipped_since_last_read: f64,
     /// The Image frame, for an Image message.
     pub image_frame: Option<RuntimeViewerImageFrame>,
-    /// The payload as the node wrote it, for every family but Image.
+    /// The payload as the node wrote it, for every message but an Image frame.
     pub payload: Option<Buffer>,
     /// Whether the message opens a group: a Packets unit's keyframe flag.
     pub starts_group: bool,
@@ -115,7 +116,7 @@ pub struct RuntimeViewerMessageRead {
     pub array_attributes: Option<Vec<RuntimeViewerArrayAttribute>>,
     /// A Records message decoded from its msgpack to JSON text.
     pub records_json: Option<String>,
-    /// Why the message's descriptor or payload did not read as its family states.
+    /// Why the message's descriptor or payload did not read as the descriptor states.
     pub unreadable_because: Option<String>,
 }
 
@@ -147,7 +148,7 @@ type TellTheWindowAWriteCame = ThreadsafeFunction<(), (), (), Status, true, true
 impl RuntimeViewerChannelReader {
     /// Subscribe to `channel` in the iceoryx2 domain at `iceoryx2DomainRoot` as `viewerNodeName`,
     /// reading the messages `viewerReads` names (`latest_message` or `every_message`, as `open_viewer`
-    /// answered), woken through the event service `wakeService`, importing Image frames from `surfaceShareAddress` (`null` reads every family but Image). On
+    /// answered), woken through the event service `wakeService`, importing Image frames from `surfaceShareAddress` (`null` reads every message but an Image frame). On
     /// Linux `viewedFrameReadBy` asks the runtime for each frame as DMA-BUF planes the display imports
     /// (`display_import`) or as rows the CPU reads (`cpu_read`); macOS always hands an IOSurface.
     #[napi(constructor)]
@@ -289,18 +290,18 @@ pub struct ReadTheLatestViewerMessage {
 
 /// What a read found, before it becomes JavaScript values.
 pub struct ViewerMessageReadOffTheEventLoop {
-    port_family: &'static str,
+    message_layout: &'static str,
     timestamp_ns: i64,
     skipped_since_last_read: u64,
     image_frame: Option<ImageFrameReadOffTheEventLoop>,
     payload: Option<Vec<u8>>,
     starts_group: bool,
-    family_reading: FamilyReadingOfAMessage,
+    descriptor_reading: DescriptorReadingOfAMessage,
 }
 
-/// What a message's descriptor states for its family, beside its payload.
+/// What a message's descriptor states of its layout, beside its payload.
 #[derive(Default)]
-pub struct FamilyReadingOfAMessage {
+pub struct DescriptorReadingOfAMessage {
     channels_block: Option<RuntimeViewerChannelsBlock>,
     packets_codec: Option<String>,
     array_attributes: Option<Vec<RuntimeViewerArrayAttribute>>,
@@ -370,16 +371,16 @@ impl Task for ReadEveryViewerMessage {
 /// `message` as the JavaScript object a read resolves with.
 fn runtime_viewer_message_read_of(message: ViewerMessageReadOffTheEventLoop) -> RuntimeViewerMessageRead {
     RuntimeViewerMessageRead {
-        port_family: message.port_family.to_owned(),
+        message_layout: message.message_layout.to_owned(),
         timestamp_ns: message.timestamp_ns,
         skipped_since_last_read: message.skipped_since_last_read as f64,
         payload: message.payload.map(Buffer::from),
         starts_group: message.starts_group,
-        channels_block: message.family_reading.channels_block,
-        packets_codec: message.family_reading.packets_codec,
-        array_attributes: message.family_reading.array_attributes,
-        records_json: message.family_reading.records_json,
-        unreadable_because: message.family_reading.unreadable_because,
+        channels_block: message.descriptor_reading.channels_block,
+        packets_codec: message.descriptor_reading.packets_codec,
+        array_attributes: message.descriptor_reading.array_attributes,
+        records_json: message.descriptor_reading.records_json,
+        unreadable_because: message.descriptor_reading.unreadable_because,
         image_frame: message.image_frame.map(|image_frame| RuntimeViewerImageFrame {
             held_frame_id: image_frame.held_frame_id,
             width: image_frame.width,
@@ -413,14 +414,14 @@ fn saturating_u32(value: u64) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX)
 }
 
-fn port_family_of(descriptor_kind: Option<DataChannelPayloadDescriptorKind>) -> &'static str {
+fn message_layout_of(descriptor_kind: Option<DataChannelPayloadDescriptorKind>) -> &'static str {
     match descriptor_kind {
-        Some(DataChannelPayloadDescriptorKind::ImageFrame | DataChannelPayloadDescriptorKind::GpuPoolSlotFrame) => "image",
-        Some(DataChannelPayloadDescriptorKind::ChannelsBlock) => "channels",
-        Some(DataChannelPayloadDescriptorKind::PacketsUnit) => "packets",
-        Some(DataChannelPayloadDescriptorKind::RecordsMessage) => "records",
-        Some(DataChannelPayloadDescriptorKind::ArrayFrame) => "array",
-        Some(DataChannelPayloadDescriptorKind::BundleFrame) => "bundle",
+        Some(DataChannelPayloadDescriptorKind::ImageFrame | DataChannelPayloadDescriptorKind::GpuPoolSlotFrame) => "image_frame",
+        Some(DataChannelPayloadDescriptorKind::ChannelsBlock) => "channels_block",
+        Some(DataChannelPayloadDescriptorKind::PacketsUnit) => "packets_unit",
+        Some(DataChannelPayloadDescriptorKind::RecordsMessage) => "records_message",
+        Some(DataChannelPayloadDescriptorKind::ArrayFrame) => "array_frame",
+        Some(DataChannelPayloadDescriptorKind::BundleFrame) => "bundle_frame",
         Some(DataChannelPayloadDescriptorKind::Bytes) | None => "bytes",
     }
 }
@@ -430,7 +431,7 @@ fn read_the_message(
     message: MessageReadFromAReservedSlot,
 ) -> Result<ViewerMessageReadOffTheEventLoop> {
     let descriptor_kind = message.payload_descriptor.known_kind().ok();
-    let port_family = port_family_of(descriptor_kind);
+    let message_layout = message_layout_of(descriptor_kind);
     let image_frame_slot = match descriptor_kind {
         Some(DataChannelPayloadDescriptorKind::ImageFrame) => {
             Some(ImageFrameDescriptorBody::from_descriptor_body(&message.payload_descriptor.body).slot)
@@ -444,24 +445,24 @@ fn read_the_message(
         Some(slot) => Some(hold_and_describe_the_image_frame(reader_state, slot)?),
         None => None,
     };
-    let family_reading = family_reading_of(descriptor_kind, &message.payload_descriptor.body, &message.payload);
+    let descriptor_reading = descriptor_reading_of(descriptor_kind, &message.payload_descriptor.body, &message.payload);
     Ok(ViewerMessageReadOffTheEventLoop {
-        port_family,
+        message_layout,
         timestamp_ns: message.timestamp_ns,
         skipped_since_last_read: message.lost_since_last_read,
         payload: image_frame.is_none().then_some(message.payload),
         image_frame,
         starts_group: message.group_boundary == MessageGroupBoundary::StartsGroup,
-        family_reading,
+        descriptor_reading,
     })
 }
 
 /// What the descriptor of a message of `descriptor_kind` states beside `payload`.
-fn family_reading_of(
+fn descriptor_reading_of(
     descriptor_kind: Option<DataChannelPayloadDescriptorKind>,
     descriptor_body: &[u8; streamlib_ipc_types::DATA_CHANNEL_PAYLOAD_DESCRIPTOR_BODY_BYTES],
     payload: &[u8],
-) -> FamilyReadingOfAMessage {
+) -> DescriptorReadingOfAMessage {
     match descriptor_kind {
         Some(DataChannelPayloadDescriptorKind::ChannelsBlock) => {
             let block = ChannelsBlockDescriptorBody::from_descriptor_body(descriptor_body);
@@ -476,7 +477,7 @@ fn family_reading_of(
                     payload.len()
                 )),
             };
-            FamilyReadingOfAMessage {
+            DescriptorReadingOfAMessage {
                 channels_block: Some(RuntimeViewerChannelsBlock {
                     start_sample: block.start_sample as f64,
                     sample_rate: block.sample_rate,
@@ -488,16 +489,16 @@ fn family_reading_of(
                     }),
                 }),
                 unreadable_because,
-                ..FamilyReadingOfAMessage::default()
+                ..DescriptorReadingOfAMessage::default()
             }
         }
-        Some(DataChannelPayloadDescriptorKind::PacketsUnit) => FamilyReadingOfAMessage {
+        Some(DataChannelPayloadDescriptorKind::PacketsUnit) => DescriptorReadingOfAMessage {
             packets_codec: Some(PacketsUnitDescriptorBody::from_descriptor_body(descriptor_body).codec),
-            ..FamilyReadingOfAMessage::default()
+            ..DescriptorReadingOfAMessage::default()
         },
         Some(DataChannelPayloadDescriptorKind::ArrayFrame) => {
             match array_frame_attribute_table_of(ArrayFrameDescriptorBody::from_descriptor_body(descriptor_body), payload) {
-                Ok(attribute_rows) => FamilyReadingOfAMessage {
+                Ok(attribute_rows) => DescriptorReadingOfAMessage {
                     array_attributes: Some(
                         attribute_rows
                             .into_iter()
@@ -519,26 +520,26 @@ fn family_reading_of(
                             })
                             .collect(),
                     ),
-                    ..FamilyReadingOfAMessage::default()
+                    ..DescriptorReadingOfAMessage::default()
                 },
-                Err(refusal) => FamilyReadingOfAMessage {
+                Err(refusal) => DescriptorReadingOfAMessage {
                     unreadable_because: Some(refusal.to_string()),
-                    ..FamilyReadingOfAMessage::default()
+                    ..DescriptorReadingOfAMessage::default()
                 },
             }
         }
         Some(DataChannelPayloadDescriptorKind::RecordsMessage) => match records_json_of(payload) {
-            Ok(records_json) => FamilyReadingOfAMessage { records_json: Some(records_json), ..FamilyReadingOfAMessage::default() },
-            Err(unreadable_because) => FamilyReadingOfAMessage {
+            Ok(records_json) => DescriptorReadingOfAMessage { records_json: Some(records_json), ..DescriptorReadingOfAMessage::default() },
+            Err(unreadable_because) => DescriptorReadingOfAMessage {
                 unreadable_because: Some(unreadable_because),
-                ..FamilyReadingOfAMessage::default()
+                ..DescriptorReadingOfAMessage::default()
             },
         },
-        Some(DataChannelPayloadDescriptorKind::BundleFrame) => FamilyReadingOfAMessage {
+        Some(DataChannelPayloadDescriptorKind::BundleFrame) => DescriptorReadingOfAMessage {
             unreadable_because: Some("this Viewer does not read a Bundle frame's members".to_owned()),
-            ..FamilyReadingOfAMessage::default()
+            ..DescriptorReadingOfAMessage::default()
         },
-        _ => FamilyReadingOfAMessage::default(),
+        _ => DescriptorReadingOfAMessage::default(),
     }
 }
 
@@ -630,7 +631,7 @@ fn hold_and_describe_the_image_frame(
 
 #[cfg(test)]
 mod tests {
-    use super::{electron_pixel_format_of, family_reading_of, port_family_of, records_json_of};
+    use super::{descriptor_reading_of, electron_pixel_format_of, message_layout_of, records_json_of};
     use streamlib_ipc_types::{
         ChannelsBlockDescriptorBody, DataChannelPayloadDescriptorKind, PacketsUnitDescriptorBody,
     };
@@ -652,18 +653,18 @@ mod tests {
             sample_type: 0,
         }
         .to_descriptor_body();
-        let reading = family_reading_of(Some(DataChannelPayloadDescriptorKind::ChannelsBlock), &body, &[0; 16]);
+        let reading = descriptor_reading_of(Some(DataChannelPayloadDescriptorKind::ChannelsBlock), &body, &[0; 16]);
         let block = reading.channels_block.unwrap();
         assert_eq!((block.start_sample, block.sample_rate, block.channel_count, block.sample_type.as_deref()), (96.0, 48_000, 2, Some("f32")));
         assert!(reading.unreadable_because.is_none());
-        let short = family_reading_of(Some(DataChannelPayloadDescriptorKind::ChannelsBlock), &body, &[0; 8]);
+        let short = descriptor_reading_of(Some(DataChannelPayloadDescriptorKind::ChannelsBlock), &body, &[0; 8]);
         assert!(short.unreadable_because.unwrap().contains("8-byte payload"));
     }
 
     #[test]
     fn a_packets_unit_reads_its_codec() {
         let body = PacketsUnitDescriptorBody { codec: "avc1.64001f".to_owned() }.to_descriptor_body().unwrap();
-        let reading = family_reading_of(Some(DataChannelPayloadDescriptorKind::PacketsUnit), &body, &[1, 2, 3]);
+        let reading = descriptor_reading_of(Some(DataChannelPayloadDescriptorKind::PacketsUnit), &body, &[1, 2, 3]);
         assert_eq!(reading.packets_codec.as_deref(), Some("avc1.64001f"));
     }
 
@@ -680,8 +681,8 @@ mod tests {
     #[test]
     fn a_bundle_frame_reads_as_a_bundle_whose_members_this_viewer_does_not_read() {
         let bundle_frame = Some(DataChannelPayloadDescriptorKind::BundleFrame);
-        assert_eq!(port_family_of(bundle_frame), "bundle");
-        let reading = family_reading_of(bundle_frame, &[0; streamlib_ipc_types::DATA_CHANNEL_PAYLOAD_DESCRIPTOR_BODY_BYTES], &[]);
+        assert_eq!(message_layout_of(bundle_frame), "bundle_frame");
+        let reading = descriptor_reading_of(bundle_frame, &[0; streamlib_ipc_types::DATA_CHANNEL_PAYLOAD_DESCRIPTOR_BODY_BYTES], &[]);
         assert!(reading.unreadable_because.unwrap().contains("Bundle frame"));
     }
 }

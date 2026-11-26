@@ -10,6 +10,8 @@
 // carries is driven by its wire: it holds no value, nothing it fires is acted on, and it reads what
 // the wire carries from the port viewer of the output wired in. A control already drawn whose newer
 // version is blocked stays drawn, marked, and the table never falls through to another control. A
+// slot its type's default draws is marked too while the table passes over another module's default
+// for that type, with the findings that block it, so a project's breaking entry is seen. A
 // card's node body binds through the same binder, reading the same table and store. DOM only, no React.
 
 import { inputAddressKey, type InputAddress } from "../pin_model/node_inputs.js";
@@ -26,11 +28,12 @@ import { ReadOnlyValueLineElement } from "../node_ui/read_only_value_line_elemen
 import type { StopWatching } from "../tato_app_view_connection.js";
 import type { ViewInputEvent } from "../view_wire_messages.js";
 import type { InputValueGesture, InputValues, ShownValue } from "./input_values.js";
-import { markTheNewerVersionBlocked, newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
+import { markTheBlockedRegistrations, newReadOnlyValueLine, releaseOfAGestureOn, whyTheElementDidNotLoad, linesOfTheRegistrationPassedOver, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
 import { NodeBodySlot, type NodeBodyBinding, type NodeBodyShown } from "./node_body_binding.js";
 import { readWhatTheWiringCarries } from "./wire_reading.js";
+import { watchTheAudioCaptureDevices } from "./audio_capture_devices_watched.js";
 
-export { NEWER_VERSION_BLOCKED_ATTRIBUTE, releaseOfAGestureOn, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
+export { BLOCKED_REGISTRATION_ATTRIBUTE, releaseOfAGestureOn, type InputValueRelease, type ProjectAControlReaches } from "./element_slot_support.js";
 
 /** Where a control is drawn, and whether the graph there can be edited. */
 export interface InputControlPlace {
@@ -40,7 +43,7 @@ export interface InputControlPlace {
 
 /**
  * What a slot shows: nothing yet, while the listing or the element loads; the element; the read-only line, for an element
- * that is blocked or does not load; or no control, because the table has none for the input, where the surface draws its own field.
+ * that is blocked or does not load; or no control, because the table has none for the input, where the surface draws what it has in its place.
  */
 export type InputControlShown = "pending" | "element" | "read_only_line" | "no_control";
 
@@ -51,15 +54,14 @@ export interface InputControlBinding {
 }
 
 /**
- * A surface's own field for one input, where the table has no control for it: the store's value for that input and its
- * refusal, a gesture that sends through the input's one sender and ends as the binding's release says, and a clear of the
- * value that release keeps: the saved value as one commit, back to the default, or the live value, back to the saved one.
+ * What a surface reads of one input's value beside its control: the store's value for that input and its refusal, and a
+ * clear of the value the binding's release keeps, through the input's one sender: the saved value as one commit, back to
+ * the default, or the live value, back to the saved one.
  */
-export interface OwnFieldBinding {
+export interface InputValueBinding {
   shownValue(): ShownValue;
   watchValue(listener: (shown: ShownValue) => void): StopWatching;
   watchRefusal(listener: (refusal: string | null) => void): StopWatching;
-  beginGesture(): InputValueGesture;
   clear(): void;
 }
 
@@ -67,8 +69,8 @@ export interface OwnFieldBinding {
 export interface InputControlBinder {
   /** Draws the control for `input` inside `host`, telling `whenShown` what the slot shows each time it changes. */
   bindInputControl(host: HTMLElement, input: ControlledInput, place: InputControlPlace, whenShown?: (shown: InputControlShown) => void): InputControlBinding;
-  /** Binds a surface's own field to the input at `address`, its gestures ending as `release` says. */
-  bindOwnField(address: InputAddress, release: InputValueRelease): OwnFieldBinding;
+  /** Binds a surface's reading of the input at `address`, its clear taking off the value `release` keeps. */
+  bindInputValue(address: InputAddress, release: InputValueRelease): InputValueBinding;
   /** Draws, inside `host`, the body `node`'s node type registers, telling `whenShown` what the slot shows each time it changes; `no_body` where it registers none. */
   bindNodeBody(host: HTMLElement, node: NodeOfABody, readOnly: boolean, whenShown?: (shown: NodeBodyShown) => void): NodeBodyBinding;
 }
@@ -167,6 +169,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
     pickAProjectAsset: (pick) => project.pickAProjectAsset(pick),
     readAssetPreview: (asset) => project.readAssetPreviewInTheProject(projectFolder, asset),
     watchProjectAssets: (listener) => project.watchProjectAssets(projectFolder, listener),
+    watchAudioCaptureDevices: (listener) => watchTheAudioCaptureDevices(project, listener),
     watchWhatIsWiredInto,
     inputControlFor,
   });
@@ -179,6 +182,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
     #place: InputControlPlace;
     #element: AnyInputControl | null = null;
     #elementKey: string | null = null;
+    #registrationsPassedOverLines: readonly string[] = [];
     #shown: InputControlShown | null = null;
     #gesture: InputValueGesture | null = null;
     #isIgnoringTheElement = false;
@@ -241,9 +245,10 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
         this.#tell("no_control");
         return;
       }
+      this.#registrationsPassedOverLines = choice.chosen_by === "type_default" || choice.chosen_by === "named_type" ? table.typeDefaultsPassedOverFor(this.#input.declaration.pin_type).flatMap(linesOfTheRegistrationPassedOver) : [];
       const key = keyOfTheElement(choice, this.#input, this.#place);
       if (key === this.#elementKey) {
-        this.#markWhetherTheNewerVersionIsBlocked(choice.listed);
+        this.#markTheBlockedRegistrations(choice.listed);
         this.#setTheState();
         return;
       }
@@ -253,6 +258,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       void loadElement(choice.listed).then((loading) => {
         if (this.#isUnbound || this.#elementKey !== key) return;
         this.#mount(loading.kind === "defined" ? newInputControl(loading.tag) : newReadOnlyValueLine(whyTheElementDidNotLoad(loading)));
+        this.#markTheBlockedRegistrations(choice.listed);
       });
     }
 
@@ -295,14 +301,20 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       this.#tell(element instanceof ReadOnlyValueLineElement ? "read_only_line" : "element");
     }
 
-    /** Marks the slot while the element it holds is a control and `listed`, the version it was loaded from, has a newer version blocked. */
-    #markWhetherTheNewerVersionIsBlocked(listed: ListedNodeUiElement): void {
-      const holdsAControl = this.#element !== null && !(this.#element instanceof ReadOnlyValueLineElement);
-      markTheNewerVersionBlocked(this.#host, holdsAControl && listed.script_serving.kind === "blocked" ? listed.script_serving.findings : null);
+    /** Marks the slot while it holds an element and a registration bearing on it is blocked: `listed`, the version its control was loaded from, or a default the table passed over for its type. */
+    #markTheBlockedRegistrations(listed: ListedNodeUiElement): void {
+      const element = this.#element;
+      if (element === null) {
+        markTheBlockedRegistrations(this.#host, []);
+        return;
+      }
+      const holdsAControl = !(element instanceof ReadOnlyValueLineElement);
+      const newerVersionBlocked = holdsAControl && listed.script_serving.kind === "blocked" ? listed.script_serving.findings : [];
+      markTheBlockedRegistrations(this.#host, [...newerVersionBlocked, ...this.#registrationsPassedOverLines]);
     }
 
     #takeTheElementOff(): void {
-      markTheNewerVersionBlocked(this.#host, null);
+      markTheBlockedRegistrations(this.#host, []);
       const element = this.#element;
       if (element === null) return;
       element.removeEventListener("input", this.#elementMoved);
@@ -492,11 +504,10 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
       binding.refresh();
       return binding;
     },
-    bindOwnField: (address, release) => ({
+    bindInputValue: (address, release) => ({
       shownValue: () => inputValues.shownValue(address),
       watchValue: (listener) => inputValues.watchValue(address, listener),
       watchRefusal: (listener) => inputValues.watchRefusal(address, listener),
-      beginGesture: () => inputValues.beginGesture(address, release),
       clear: () => inputValues.clear(address, release === "live" ? "live" : "commit"),
     }),
   };

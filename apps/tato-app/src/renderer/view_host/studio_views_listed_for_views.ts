@@ -16,12 +16,12 @@ function studioViewListedFromTheViewType(viewType: RegisteredStudioViewType): St
   return {
     view_type_id: viewType.view_type_id,
     title: viewType.title,
-    description: viewType.manifest.description ?? "",
+    description: viewType.declared.description ?? "",
     brought_by: broughtByWords(viewType.brought_by),
     is_built_in: viewType.brought_by.kind === "tato_studio",
-    placement: viewType.manifest.placement,
-    inputs: viewType.manifest.inputs.map(declaredPortOf),
-    outputs: viewType.manifest.outputs.map(declaredPortOf),
+    placement: viewType.declared.placement,
+    inputs: viewType.declared.inputs.map(declaredPortOf),
+    outputs: viewType.declared.outputs.map(declaredPortOf),
     not_opened_because: null,
   };
 }

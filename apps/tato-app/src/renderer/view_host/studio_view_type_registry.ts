@@ -39,14 +39,17 @@ export function projectViewIdOf(project: string, viewFolder: string): string {
   return `${project}:${viewFolder}`;
 }
 
-/** A view type as the registry holds it, made from its manifest: what the view-type menu lists, and how an area draws its frame. */
+/** What a view type declares to the views that list it: what it is for, where it shows, and the ports it reads and writes. */
+export type StudioViewTypeDeclared = Pick<TatolabViewManifest, "description" | "placement" | "inputs" | "outputs">;
+
+/** A view type as the registry holds it: what the view-type menu lists, and how an area draws it. */
 export interface RegisteredStudioViewType {
   view_type_id: string;
   title: string;
   icon: StudioAreaHeaderMenuIcon;
   brought_by: StudioViewTypeSource;
-  /** The manifest the view type was made from. */
-  manifest: TatolabViewManifest;
+  /** What the view type declares: a view's own, as its manifest declares it. */
+  declared: StudioViewTypeDeclared;
   /** The view's frame across `area`, on the settings the area saved. */
   renderInAnArea(area: StudioAreaOfTheView, hostServices: StudioViewHostServices): ReactNode;
   /** Words Studio draws after the area's view-type menu, such as which node a node view shows; absent when the view draws its whole header row. */

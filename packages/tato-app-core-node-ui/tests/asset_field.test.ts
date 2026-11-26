@@ -40,6 +40,7 @@ function studioOfTheDemoProject(ending: ProjectAssetPickEnding): { studio: NodeU
   const picks: ProjectAssetPick[] = [];
   const previewsRead: string[] = [];
   const studio: NodeUiElementHost = {
+    watchAudioCaptureDevices: () => () => undefined,
     pickAProjectAsset: (pick) => {
       picks.push(pick);
       return Promise.resolve(ending);

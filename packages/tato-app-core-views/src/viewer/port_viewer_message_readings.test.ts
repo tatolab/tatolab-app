@@ -7,7 +7,7 @@ function unitsOfAnEncoderAt30FramesPerSecond(unitCount: number): PacketsUnitSeen
   let unitsSeen: PacketsUnitSeen[] = [];
   for (let unit = 0; unit < unitCount; unit += 1) {
     const startsGroup = unit % 30 === 0;
-    unitsSeen = packetsUnitsSeenWith(unitsSeen, { family: "packets", codec: "avc1.64001f", byte_length: startsGroup ? 40_000 : 4_000, starts_group: startsGroup, timestamp_ns: unit * FRAME_NS });
+    unitsSeen = packetsUnitsSeenWith(unitsSeen, { message: "packets_unit", codec: "avc1.64001f", byte_length: startsGroup ? 40_000 : 4_000, starts_group: startsGroup, timestamp_ns: unit * FRAME_NS });
   }
   return unitsSeen;
 }
@@ -24,7 +24,7 @@ test("units_older_than_the_span_kept_are_dropped_and_a_stamp_that_went_back_star
   const unitsSeen = unitsOfAnEncoderAt30FramesPerSecond(300);
   expect((unitsSeen.at(-1)?.timestamp_ns ?? 0) - (unitsSeen[0]?.timestamp_ns ?? 0)).toBeLessThanOrEqual(PACKETS_UNITS_KEPT_FOR_NS);
 
-  const restarted = packetsUnitsSeenWith(unitsSeen, { family: "packets", codec: "avc1.64001f", byte_length: 40_000, starts_group: true, timestamp_ns: 0 });
+  const restarted = packetsUnitsSeenWith(unitsSeen, { message: "packets_unit", codec: "avc1.64001f", byte_length: 40_000, starts_group: true, timestamp_ns: 0 });
   expect(restarted).toEqual([{ timestamp_ns: 0, byte_length: 40_000, starts_group: true }]);
   expect(packetsFactsOf([])).toEqual({ bits_per_second: null, keyframe_interval_ns: null, keyframes: 0 });
 });

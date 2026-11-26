@@ -1,5 +1,5 @@
-// What a port viewer reads of one message of a family other than Image, from what the viewer addon
-// handed over: a Channels block as one waveform per channel beside its samples, an Array frame's attributes with the
+// What a port viewer reads of one message other than an Image frame, from what the viewer addon
+// handed over, by the layout its payload descriptor names: a Channels block as one waveform per channel beside its samples, an Array frame's attributes with the
 // statistics of their numeric data, a Packets unit's codec, size and keyframe flag, and a Records
 // message's keyed map.
 
@@ -56,14 +56,14 @@ function waveformOfOneChannel(samples: ArrayLike<number>, firstSample: number, s
 function channelsReadingOf(block: RuntimeViewerChannelsBlock, payload: Uint8Array): PortViewerMessageReading {
   const sampleType = block.sampleType;
   if (sampleType !== "f32" && sampleType !== "f64") {
-    return { family: "unreadable", port_family: "channels", because: "the block's sample type is not one the Node visualizer knows" };
+    return { message: "unreadable", described_as: "channels_block", because: "the block's sample type is not one the Node visualizer knows" };
   }
   const sampleCount = block.channelCount * block.samplesPerChannel;
   const alignedPayload = alignedCopyOf(payload);
   const samples = sampleType === "f32" ? new Float32Array(alignedPayload, 0, sampleCount) : new Float64Array(alignedPayload, 0, sampleCount);
   const channelWaveforms = Array.from({ length: block.channelCount }, (_, channel) => waveformOfOneChannel(samples, channel * block.samplesPerChannel, block.samplesPerChannel));
   return {
-    family: "channels",
+    message: "channels_block",
     start_sample: block.startSample,
     sample_rate: block.sampleRate,
     channel_count: block.channelCount,
@@ -99,7 +99,7 @@ function statisticsOf(attribute: RuntimeViewerArrayAttribute, alignedPayload: Ar
 function arrayReadingOf(attributes: RuntimeViewerArrayAttribute[], payload: Uint8Array): PortViewerMessageReading {
   const alignedPayload = alignedCopyOf(payload);
   return {
-    family: "array",
+    message: "array_frame",
     attributes: attributes.map((attribute) => ({
       name: attribute.name,
       dtype: attribute.dtype,
@@ -112,20 +112,20 @@ function arrayReadingOf(attributes: RuntimeViewerArrayAttribute[], payload: Uint
 
 function recordsReadingOf(recordsJson: string): PortViewerMessageReading {
   const record = parseJsonOnTheWire(recordsJson);
-  if (!record.ok || !isAJsonValue(record.value)) return { family: "unreadable", port_family: "records", because: "the record the viewer decoded is not JSON" };
+  if (!record.ok || !isAJsonValue(record.value)) return { message: "unreadable", described_as: "records_message", because: "the record the viewer decoded is not JSON" };
   const decodedRecord: JsonValue = record.value;
-  return { family: "records", record: decodedRecord };
+  return { message: "records_message", record: decodedRecord };
 }
 
-/** What a port viewer shows of `messageRead`, a message of any family but Image. */
+/** What a port viewer shows of `messageRead`, a message of any layout but an Image frame. */
 export function portViewerMessageReadingOf(messageRead: RuntimeViewerMessageRead): PortViewerMessageReading {
   const payload = messageRead.payload ?? new Uint8Array();
-  if (messageRead.unreadableBecause !== null) return { family: "unreadable", port_family: messageRead.portFamily, because: messageRead.unreadableBecause };
-  if (messageRead.portFamily === "channels" && messageRead.channelsBlock !== null) return channelsReadingOf(messageRead.channelsBlock, payload);
-  if (messageRead.portFamily === "array" && messageRead.arrayAttributes !== null) return arrayReadingOf(messageRead.arrayAttributes, payload);
-  if (messageRead.portFamily === "records" && messageRead.recordsJson !== null) return recordsReadingOf(messageRead.recordsJson);
-  if (messageRead.portFamily === "packets") {
-    return { family: "packets", codec: messageRead.packetsCodec ?? "", byte_length: payload.byteLength, starts_group: messageRead.startsGroup, timestamp_ns: messageRead.timestampNs };
+  if (messageRead.unreadableBecause !== null) return { message: "unreadable", described_as: messageRead.messageLayout, because: messageRead.unreadableBecause };
+  if (messageRead.messageLayout === "channels_block" && messageRead.channelsBlock !== null) return channelsReadingOf(messageRead.channelsBlock, payload);
+  if (messageRead.messageLayout === "array_frame" && messageRead.arrayAttributes !== null) return arrayReadingOf(messageRead.arrayAttributes, payload);
+  if (messageRead.messageLayout === "records_message" && messageRead.recordsJson !== null) return recordsReadingOf(messageRead.recordsJson);
+  if (messageRead.messageLayout === "packets_unit") {
+    return { message: "packets_unit", codec: messageRead.packetsCodec ?? "", byte_length: payload.byteLength, starts_group: messageRead.startsGroup, timestamp_ns: messageRead.timestampNs };
   }
-  return { family: "bytes", byte_length: payload.byteLength };
+  return { message: "bytes", byte_length: payload.byteLength };
 }

@@ -101,7 +101,7 @@ test("a control registered for the bare name named would draw every named type, 
 
 test("only the Studio sets a built-in type's default, and a node body is keyed by its node type, one that passed its checks taking the key from one that did not; each refusal is kept with why", () => {
   const acmeFloatDefault = listedElementOf("acme", { kind: "control", type: "float", control: null });
-  const otherCrossfadeBody = listedElementOf("other", { kind: "node_body", node_type: "nodes.crossfade:Crossfade" }, { script_serving: { kind: "blocked", findings: ["node_body_not_the_modules_to_register"] } });
+  const otherCrossfadeBody = listedElementOf("other", { kind: "node_body", node_type: "nodes.crossfade:Crossfade" }, { script_serving: { kind: "blocked", findings: ["node_body_not_the_modules_to_register"], runtime_findings: [] } });
   const acmeCrossfadeBody = listedElementOf("acme", { kind: "node_body", node_type: "nodes.crossfade:Crossfade" }, { script: "crossfade_body.ts" });
   const table = new NodeUiControlTable({ elements: [acmeFloatDefault, otherCrossfadeBody, acmeCrossfadeBody] });
   expect(table.controlChoiceForTheInput(inputDeclarationOf(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.float)).kind).toBe("read_only_line");
@@ -111,10 +111,24 @@ test("only the Studio sets a built-in type's default, and a node body is keyed b
     { listed: acmeFloatDefault, because: "Only Tato Studio sets the default control of a built-in type; acme registers one for float." },
     { listed: otherCrossfadeBody, because: "acme's crossfade_body.ts, which passed its checks, registers the body of nodes.crossfade:Crossfade." },
   ]);
+  expect(table.typeDefaultsPassedOverFor(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.float)).toEqual([
+    { listed: acmeFloatDefault, because: "Only Tato Studio sets the default control of a built-in type; acme registers one for float." },
+  ]);
+  expect(table.typeDefaultsPassedOverFor(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.string)).toEqual([]);
+});
+
+test("a named type's default from a module that does not declare it, displaced by the declaring module's, is kept under that type", () => {
+  const otherSpectrumDefault = listedElementOf("other", { kind: "control", type: "acme:Spectrum", control: null }, { script_serving: { kind: "blocked", findings: ["default_control_not_the_modules_to_register"], runtime_findings: [] } });
+  const acmeSpectrumDefault = listedElementOf("acme", { kind: "control", type: "acme:Spectrum", control: null }, { script: "spectrum.ts" });
+  const table = new NodeUiControlTable({ elements: [otherSpectrumDefault, acmeSpectrumDefault] });
+  expect(table.controlChoiceForTheInput(inputDeclarationOf(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.named))).toMatchObject({ kind: "element", listed: acmeSpectrumDefault, chosen_by: "named_type" });
+  expect(table.typeDefaultsPassedOverFor(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.named)).toEqual([
+    { listed: otherSpectrumDefault, because: "acme's spectrum.ts, which passed its checks, registers the default control for acme:Spectrum." },
+  ]);
 });
 
 test("a node body that did not pass its checks is the node type's body while no other is listed, so the card draws its rows", () => {
-  const blockedBody = listedElementOf("acme", { kind: "node_body", node_type: "nodes.crossfade:Crossfade" }, { script_serving: { kind: "blocked", findings: ["crossfade_body.ts:3:1 TS2322"] } });
+  const blockedBody = listedElementOf("acme", { kind: "node_body", node_type: "nodes.crossfade:Crossfade" }, { script_serving: { kind: "blocked", findings: ["crossfade_body.ts:3:1 TS2322"], runtime_findings: [] } });
   expect(new NodeUiControlTable({ elements: [blockedBody] }).nodeBodyForTheNodeType("nodes.crossfade:Crossfade")).toBe(blockedBody);
 });
 
@@ -127,7 +141,7 @@ test("a second element under a key already taken is passed over with a diagnosti
 });
 
 test("the table chooses a blocked element all the same, so loading it ends at the read-only line and never at another control", () => {
-  const blockedSlider = listedElementOf("studio", { kind: "control", type: "float", control: "slider" }, { script_serving: { kind: "blocked", findings: ["float_slider.ts:3:1 TS2322"] } });
+  const blockedSlider = listedElementOf("studio", { kind: "control", type: "float", control: "slider" }, { script_serving: { kind: "blocked", findings: ["float_slider.ts:3:1 TS2322"], runtime_findings: [] } });
   const floatDefault = listedElementOf("studio", { kind: "control", type: "float", control: null });
   const table = new NodeUiControlTable({ elements: [blockedSlider, floatDefault] });
   expect(table.controlChoiceForTheInput(inputDeclarationOf(ONE_PIN_TYPE_OF_EACH_BUILT_IN_NAME.float, { control: "slider" }))).toEqual({ kind: "element", listed: blockedSlider, chosen_by: "annotation", because: null });
@@ -152,7 +166,7 @@ test("a named type's input gets the default its declaring module registers, an a
 
 test("a named type's default the Studio registers is passed over, and one a served folder registers takes the key from a blocked one", () => {
   const studioSweep = listedElementOf("studio", { kind: "control", type: "nodes.sweep:Sweep", control: null }, { script: "studio_sweep.ts" });
-  const blockedSweep = listedElementOf("sweeps", { kind: "control", type: "nodes.sweep:Sweep", control: null }, { script: "sweep.ts", script_serving: { kind: "blocked", findings: ["only the module that declares a named type may register its default"] } });
+  const blockedSweep = listedElementOf("sweeps", { kind: "control", type: "nodes.sweep:Sweep", control: null }, { script: "sweep.ts", script_serving: { kind: "blocked", findings: ["only the module that declares a named type may register its default"], runtime_findings: [] } });
   const servedSweep = listedElementOf("every-pin-kind", { kind: "control", type: "nodes.sweep:Sweep", control: null }, { script: "sweep_on_its_wire.ts" });
   const table = new NodeUiControlTable({ elements: [studioSweep, blockedSweep, servedSweep] });
   expect(table.controlChoiceForTheInput(inputDeclarationOf({ type: "named", named_pin_type: "nodes.sweep:Sweep" }))).toEqual({ kind: "element", listed: servedSweep, chosen_by: "named_type", because: null });

@@ -80,6 +80,10 @@ test("a type error blocks the view with the Studio's line, then each finding wit
       "imports/lobby-wall/views/meter/meter.ts:1:14: error: Type 'string' is not assignable to type 'number'. (TS2322)",
       "imports/lobby-wall/views/meter/meter.ts:2: error: Unexpected any. Specify a different type. (typescript(no-explicit-any))",
     ].join("\n"),
+    findings: [
+      "imports/lobby-wall/views/meter/meter.ts:1:14: error: Type 'string' is not assignable to type 'number'. (TS2322)",
+      "imports/lobby-wall/views/meter/meter.ts:2: error: Unexpected any. Specify a different type. (typescript(no-explicit-any))",
+    ],
   });
 });
 
@@ -108,6 +112,7 @@ test("a view made of .js files is blocked with the runtime's finding, which name
     kind: "blocked",
     checked_to_its_end: true,
     words: ["This view's code did not pass the runtime's check, so the Studio does not load it.", `views/meter/meter.js: error: ${notWrittenInTs} (not_written_in_ts)`].join("\n"),
+    findings: [`views/meter/meter.js: error: ${notWrittenInTs} (not_written_in_ts)`],
   });
 });
 
@@ -130,6 +135,7 @@ test("a runtime that found no kit blocks the view with its reason as given, and 
     kind: "blocked",
     checked_to_its_end: false,
     words: ["The runtime found no extension SDK to check this view's code against, so the Studio does not load it.", noKit.runtime_words, NOTHING_UNCHECKED_IS_LOADED].join("\n"),
+    findings: [],
   });
   const withTheCheckoutsKit = gateDecisionOf(notChecked, METER_FILES_READ, "", "/home/sam/tatolab-app/packages/tato-app-view-sdk/dist/kit");
   expect(withTheCheckoutsKit.kind === "blocked" && withTheCheckoutsKit.words.split("\n")[0]).toBe(
@@ -150,6 +156,7 @@ test("a check that ran out of time blocks the view with the runtime's words, and
     kind: "blocked",
     checked_to_its_end: false,
     words: ["The runtime could not finish checking this view's code, so the Studio does not load it.", ranOutOfTime.runtime_words, NOTHING_UNCHECKED_IS_LOADED].join("\n"),
+    findings: [],
   });
 });
 
@@ -173,6 +180,7 @@ test("a check run with another SDK, or code checked with no SDK, blocks the view
     kind: "blocked",
     checked_to_its_end: true,
     words: `The runtime checked this view's code against @tatolab/tato-app-view-sdk 9.9.9, and this Studio is built with @tatolab/tato-app-view-sdk ${STUDIO_EXTENSION_SDK_VERSION}, so the Studio does not load it.\n${NOTHING_UNCHECKED_IS_LOADED}`,
+    findings: [],
   });
   const noSdk = meterCheck({ checks: [{ check: "extension_types", state: "passed", checked_with: [] }] });
   expect(gateDecisionOf(noSdk, METER_FILES_READ, "", null).kind).toBe("blocked");
@@ -232,6 +240,7 @@ test("a folder blocked after a version of it passed is held at that version with
       "The newer version of this view's code is blocked.",
       "views/meter/meter.ts:1:14: error: Type 'string' is not assignable to type 'number'. (TS2322)",
     ].join("\n"),
+    newer_version_findings: ["views/meter/meter.ts:1:14: error: Type 'string' is not assignable to type 'number'. (TS2322)"],
   });
   expect(await gate.gated("views/meter")).toEqual(held);
   gate.checksKept.forgetTheFoldersHolding(NIGHT_SHOW, ["views/meter/meter.ts"]);

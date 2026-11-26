@@ -111,7 +111,7 @@ function TatolabViewFrame({
 }
 
 /** What a `node` view's area shows while there is no node to show: a header row of its own, under the view-type menu, over why. */
-function TatolabViewWaiting({ children }: { children: ReactNode }) {
+export function TatolabViewWaiting({ children }: { children: ReactNode }) {
   return (
     <div className="flex size-full flex-col">
       <StudioAreaHeaderRowOfAWaitingView />
@@ -180,7 +180,7 @@ function TatolabNodeView(view: TatolabViewOfAnArea) {
 }
 
 /** A button that adds a node of the view type `viewTypeId` to `graph`'s stream, live, with the runtime's words beside it when it refuses. */
-function AddTheViewNode({ projectFolder, graph, viewTypeId, viewTitle, hostServices }: { projectFolder: string; graph: StreamGraph; viewTypeId: string; viewTitle: string; hostServices: StudioViewHostServices }) {
+export function AddTheViewNode({ projectFolder, graph, viewTypeId, viewTitle, hostServices }: { projectFolder: string; graph: StreamGraph; viewTypeId: string; viewTitle: string; hostServices: StudioViewHostServices }) {
   const [refusal, setRefusal] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const streamAsset = graph.asset ?? null;
@@ -266,7 +266,7 @@ export function tatolabFrameViewType(listed: ListedStudioView, manifest: Tatolab
     title: manifest.title,
     icon: manifest.icon === undefined ? "project_view" : { image_url: new URL(manifest.icon, listed.folder_url).href },
     brought_by: broughtBy,
-    manifest,
+    declared: manifest,
     renderInAnArea: (area, hostServices) => (
       <TatolabViewOverItsNotice listed={listed}>
         {manifest.placement === "area" ? (

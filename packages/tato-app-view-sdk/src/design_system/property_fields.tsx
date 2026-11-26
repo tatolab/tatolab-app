@@ -350,7 +350,7 @@ export function PropertyPortRow({
   portName: string;
   /** What a search field over the properties holds: the part of the port's name it matches is marked. */
   searchWords?: string;
-  /** Its type and flow in words; a port with no exact type says so, with its family. */
+  /** Its type and flow in words; a port with no exact type says so. */
   typeWords: string;
   /** The mark before its name, in a slot as wide on every row, so every name lines up. */
   pinMark: ReactNode;
