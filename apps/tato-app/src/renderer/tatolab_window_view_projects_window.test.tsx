@@ -280,22 +280,45 @@ describe("the studio", () => {
     const pulseStageCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`) ?? expect.unreachable("no Pulse Stage card"));
 
     pressAsAPointerDoes(within(pulseStageCard).getByRole("button", { name: /^Actions for Pulse Stage,/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Delete…/ }));
-    await waitFor(() => expect(screen.getByText("Delete “Pulse Stage”?")).toBeTruthy());
-    expect(screen.getByText("Its streams stop, and Tato Studio moves its folder to the Trash, where you can put it back.")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Delete files…/ }));
+    await waitFor(() => expect(screen.getByText("Delete “Pulse Stage” and its files?")).toBeTruthy());
+    expect(screen.getByText("This removes the project from Tato Studio and deletes its folder, every file in it, from disk: the folder goes to the Trash, where you can still put it back. To only take it off this list and keep its files, choose Remove from list instead.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(screen.queryByText("Delete “Pulse Stage”?")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("Delete “Pulse Stage” and its files?")).toBeNull());
     expect(deleteRecentProject).not.toHaveBeenCalled();
 
     pressAsAPointerDoes(within(pulseStageCard).getByRole("button", { name: /^Actions for Pulse Stage,/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Delete…/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Move to Trash" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Delete files…/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete files" }));
     await waitFor(() => expect(within(pulseStageCard).getByText("Moving to Trash…")).toBeTruthy());
     expect(pulseStageCard.querySelector<HTMLButtonElement>("[data-project-open]")?.disabled).toBe(true);
     expect(pulseStageCard.querySelector("[data-project-more-actions]")).toBeNull();
 
     await waitFor(() => expect(document.querySelector(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`)).toBeNull());
     expect(deleteRecentProject).toHaveBeenCalledExactlyOnceWith(PULSE_STAGE_FOLDER);
+    expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(5);
+  });
+
+  it("removes a project from the list from its ⋯ menu without asking or deleting it, and its card leaves", async () => {
+    const removeRecentProject = vi.fn<(folder: string) => Promise<void>>();
+    const deleteRecentProject = vi.fn<(folder: string) => Promise<void>>();
+    const { backend } = await mountedWindowOverTheMock("state=running&project=none");
+    const removeRecentProjectOfTheMock = backend.removeRecentProject.bind(backend);
+    backend.removeRecentProject = async (folder) => {
+      removeRecentProject(folder);
+      await removeRecentProjectOfTheMock(folder);
+    };
+    backend.deleteRecentProject = async (folder) => deleteRecentProject(folder);
+    const pulseStageCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`) ?? expect.unreachable("no Pulse Stage card"));
+
+    pressAsAPointerDoes(within(pulseStageCard).getByRole("button", { name: /^Actions for Pulse Stage,/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Remove from list/ }));
+    await waitFor(() => expect(within(pulseStageCard).getByText("Removing…")).toBeTruthy());
+    expect(screen.queryByText("Delete “Pulse Stage” and its files?")).toBeNull();
+
+    await waitFor(() => expect(document.querySelector(`[data-projects-project="${PULSE_STAGE_FOLDER}"]`)).toBeNull());
+    expect(removeRecentProject).toHaveBeenCalledExactlyOnceWith(PULSE_STAGE_FOLDER);
+    expect(deleteRecentProject).not.toHaveBeenCalled();
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(5);
   });
 

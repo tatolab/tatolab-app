@@ -15,6 +15,7 @@ import {
   readNewProjectDefaults,
   readRecentProjectCover,
   readRecentProjects,
+  removeRecentProject,
   renameRecentProject,
   setRecentProjectCover,
   setRecentProjectDescription,
@@ -69,6 +70,7 @@ type ProjectsWindowCommandName =
   | "open_recent_project"
   | "rename_recent_project"
   | "duplicate_recent_project"
+  | "remove_recent_project"
   | "delete_recent_project"
   | "read_recent_project_cover"
   | "set_recent_project_description"
@@ -106,6 +108,7 @@ export function projectsWindowCommandHandlersOf(
     ),
     rename_recent_project: windowCommand(studioRuntime, "rename_recent_project", RenameRecentProjectArguments, ({ folder, name }) => renameRecentProject(folder, name).pipe(Effect.as(null))),
     duplicate_recent_project: windowCommand(studioRuntime, "duplicate_recent_project", RecentProjectArguments, ({ folder }) => duplicateRecentProject(folder)),
+    remove_recent_project: windowCommand(studioRuntime, "remove_recent_project", RecentProjectArguments, ({ folder }) => thenAStatusRound(removeRecentProject(folder)).pipe(Effect.as(null))),
     delete_recent_project: windowCommand(studioRuntime, "delete_recent_project", RecentProjectArguments, ({ folder }) => thenAStatusRound(deleteRecentProject(folder)).pipe(Effect.as(null))),
     read_recent_project_cover: windowCommand(studioRuntime, "read_recent_project_cover", RecentProjectArguments, ({ folder }) => readRecentProjectCover(folder)),
     set_recent_project_description: windowCommand(studioRuntime, "set_recent_project_description", SetRecentProjectDescriptionArguments, ({ folder, description }) =>

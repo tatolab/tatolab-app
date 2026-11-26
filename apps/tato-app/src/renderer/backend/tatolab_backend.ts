@@ -212,6 +212,8 @@ export interface TatolabBackend {
   renameRecentProject(folder: string, name: string): Promise<void>;
   /** Duplicate `folder`, one of the recent projects, with its history beside it, first among them and unopened; answers the duplicate's folder, rejecting in the runtime's own words. */
   duplicateRecentProject(folder: string): Promise<string>;
+  /** Take `folder` off the recent projects, its files left where they are, the runtime letting go of its streams so the next open loads it afresh; rejects in the runtime's own words. */
+  removeRecentProject(folder: string): Promise<void>;
   /** Delete `folder`, one of the recent projects, through the runtime, which moves its folder to the Trash; answers once it has, rejecting in the runtime's own words. */
   deleteRecentProject(folder: string): Promise<void>;
   /** The image `folder`, one of the recent projects, is shown by, as a `data:` URL; `null` for its plain cover. Rejects in the runtime's own words. */

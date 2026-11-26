@@ -331,6 +331,7 @@ export function mountTatolabWindow(
       duplicateARecentProject: async (folder) => {
         await backend.duplicateRecentProject(folder);
       },
+      removeARecentProject: (folder) => backend.removeRecentProject(folder),
       deleteARecentProject: (folder) => backend.deleteRecentProject(folder),
       sayWhyTheChangeDidNotHappen: (refusal) => studioWindowModel.recentProjectChangeRefusal.publish(refusal),
     },

@@ -1,4 +1,4 @@
-import { Copy, FileArchive, FolderInput, FolderPlus, LayoutGrid, List, PanelRight, Pencil, Plus, Settings, Trash2 } from "lucide-react";
+import { Copy, FileArchive, FolderInput, FolderPlus, LayoutGrid, List, ListX, PanelRight, Pencil, Plus, Settings, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { RecentProject, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ConfirmationDialog } from "@tatolab/tato-app-view-sdk/design_system/confirmation_dialog";
@@ -48,6 +48,8 @@ export interface ProjectsSources extends ProjectDetailsSources {
   readARecentProjectCover(folder: string): Promise<string | null>;
   /** Duplicate `folder`, one of them, beside itself; rejects in the runtime's own words. */
   duplicateARecentProject(folder: string): Promise<void>;
+  /** Take `folder` off them, its files left where they are, so importing it again loads it afresh; rejects in the runtime's own words. */
+  removeARecentProject(folder: string): Promise<void>;
   /** Delete `folder`, one of them, its folder moved to the Trash; rejects in the runtime's own words. */
   deleteARecentProject(folder: string): Promise<void>;
   /** Say why a change asked of a project did not happen, as `because` words it; `null` clears what was said. */
@@ -209,6 +211,9 @@ export function ProjectsView({
         Duplicate
       </MenuItem>
       <MenuSeparator />
+      <MenuItem icon={ListX} onChosen={() => changeAProject(card.folder, "remove", () => projectsSources.removeARecentProject(card.folder))} data-project-action="remove">
+        Remove from list
+      </MenuItem>
       <MenuItem
         icon={Trash2}
         isDestructive
@@ -218,7 +223,7 @@ export function ProjectsView({
         }}
         data-project-action="delete"
       >
-        Delete…
+        Delete files…
       </MenuItem>
     </>
   );

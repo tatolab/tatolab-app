@@ -152,6 +152,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("rename_recent_project", { folder, name });
     },
     duplicateRecentProject: (folder) => invokeTatolabCommand("duplicate_recent_project", { folder }),
+    removeRecentProject: async (folder) => {
+      await invokeTatolabCommand("remove_recent_project", { folder });
+    },
     deleteRecentProject: async (folder) => {
       await invokeTatolabCommand("delete_recent_project", { folder });
     },

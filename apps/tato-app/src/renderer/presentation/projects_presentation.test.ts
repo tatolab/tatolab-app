@@ -103,11 +103,11 @@ describe("the Projects window's order", () => {
 });
 
 describe("a project's ⋯ menu", () => {
-  it("asks before deleting, naming the project and that its folder goes to the Trash", () => {
+  it("asks before deleting, naming the project, that its files are deleted from disk, and that Remove from list keeps them", () => {
     expect(presentProjectDeletionQuestion("pattern")).toEqual({
-      title: "Delete “pattern”?",
-      explanation: "Its streams stop, and Tato Studio moves its folder to the Trash, where you can put it back.",
-      confirmWords: "Move to Trash",
+      title: "Delete “pattern” and its files?",
+      explanation: "This removes the project from Tato Studio and deletes its folder, every file in it, from disk: the folder goes to the Trash, where you can still put it back. To only take it off this list and keep its files, choose Remove from list instead.",
+      confirmWords: "Delete files",
     });
   });
 
@@ -117,14 +117,16 @@ describe("a project's ⋯ menu", () => {
     expect(projectRenameRefusal("Night Show")).toBeNull();
   });
 
-  it("says what is being done to a project while its duplicate or deletion runs", () => {
+  it("says what is being done to a project while its duplicate, removal or deletion runs", () => {
     expect(presentRecentProjectChangePendingWords("duplicate")).toBe("Duplicating…");
+    expect(presentRecentProjectChangePendingWords("remove")).toBe("Removing…");
     expect(presentRecentProjectChangePendingWords("delete")).toBe("Moving to Trash…");
   });
 
   it("titles the notice of a change that did not happen by the change asked for", () => {
     expect(presentRecentProjectChangeRefusalTitle("rename")).toBe("The project wasn't renamed");
     expect(presentRecentProjectChangeRefusalTitle("duplicate")).toBe("The project wasn't duplicated");
+    expect(presentRecentProjectChangeRefusalTitle("remove")).toBe("The project wasn't removed");
     expect(presentRecentProjectChangeRefusalTitle("delete")).toBe("The project wasn't deleted");
   });
 
