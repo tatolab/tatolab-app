@@ -27,6 +27,7 @@ import { StreamGraphReadings } from "./view_host/stream_graph_readings";
 import { ProjectNodeTypesDescribedReadings } from "./view_host/project_node_types_described_readings";
 import { StudioViewTypeRegistry, studioViewTypeTitlesOf } from "./view_host/studio_view_type_registry";
 import { tatolabFrameViewType } from "./view_host/tatolab_frame_view_type";
+import { streamPreviewViewType } from "./view_host/stream_preview_view_type";
 import { coreViewTypesOf, servedCoreViewFolderUrl } from "./view_host/core_view_types";
 import { CORE_VIEWS } from "@tatolab/tato-app-core-views";
 import { watchTheStudioViewsOfTheRegistry } from "./view_host/studio_views_listed_for_views";
@@ -52,15 +53,16 @@ function isTextBeingEditedIn(keyTarget: EventTarget | null): boolean {
   return keyTarget.tagName === "INPUT" && "type" in keyTarget && typeof keyTarget.type === "string" && TEXT_ENTRY_INPUT_TYPES.has(keyTarget.type);
 }
 
-/** The view types every studio area can show, in the view-type menu's order, Transactions only in Developer mode. */
+/** The view types every studio area can show, in the view-type menu's order, the Preview first, Transactions only in Developer mode. */
 function studioViewTypeRegistry(): StudioViewTypeRegistry {
   const coreViewTypes = coreViewTypesOf(CORE_VIEWS, (folder) => servedCoreViewFolderUrl(folder, document.baseURI));
   const coreViewTypeIn = (folder: string) => {
     const coreViewType = coreViewTypes.view_types_by_folder.get(folder);
     return coreViewType === undefined ? [] : [coreViewType];
   };
-  return new StudioViewTypeRegistry(
+  const registry: StudioViewTypeRegistry = new StudioViewTypeRegistry(
     [
+      streamPreviewViewType(() => registry),
       ...coreViewTypeIn("stream_graph"),
       ...coreViewTypeIn("outliner"),
       ...coreViewTypeIn("library"),
@@ -75,6 +77,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
     coreViewTypes.not_opened,
     coreViewTypeIn("transactions"),
   );
+  return registry;
 }
 
 /**

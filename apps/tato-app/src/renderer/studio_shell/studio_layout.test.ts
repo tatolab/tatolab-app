@@ -12,7 +12,8 @@ import {
   studioAreaLayoutNodeId,
   type StudioAreaLayoutNode,
 } from "./studio_area_layout";
-import { AUDIO_VIDEO_PREVIEW_VIEW_TYPE, defaultStudioLayout, editStudioLayout, STUDIO_LAYOUT_PRESETS_STORAGE_KEY, STUDIO_LAYOUTS_SHIPPED, StudioLayoutKeptInStorage, studioLayoutFromSaved, studioLayoutStorageKey } from "./studio_layout";
+import { defaultStudioLayout, editStudioLayout, STUDIO_LAYOUT_PRESETS_STORAGE_KEY, STUDIO_LAYOUTS_SHIPPED, StudioLayoutKeptInStorage, studioLayoutFromSaved, studioLayoutStorageKey } from "./studio_layout";
+import { STREAM_PREVIEW_VIEW_TYPE_ID } from "../view_host/stream_preview_view_type";
 
 function areaIdsOf(node: StudioAreaLayoutNode): string[] {
   return node.kind === "area" ? [node.area_id] : node.parts.flatMap(({ part }) => areaIdsOf(part));
@@ -27,12 +28,12 @@ function storageInMemory() {
 const ONLY_THE_VIEWER: StudioAreaLayoutNode = { kind: "area", area_id: "only", view_type_id: "viewer" };
 
 describe("the layout a project first opens on", () => {
-  it("is Composition: the outliner left, the Audio Video Preview over a big stream graph in the middle, and properties right", () => {
+  it("is Composition: the outliner left, the Preview over a big stream graph in the middle, and properties right", () => {
     const columns = defaultStudioLayout();
     expect(areaIdsOf(columns)).toEqual(["outliner", "preview", "stream-graph", "properties"]);
     expect(columns.kind === "split" && columns.direction === "row" && columns.parts.map(({ size_percent }) => size_percent)).toEqual([17, 61, 22]);
     const middle = columns.kind === "split" ? columns.parts[1]?.part : undefined;
-    expect(middle).toMatchObject({ kind: "split", direction: "column", parts: [{ part: { view_type_id: AUDIO_VIDEO_PREVIEW_VIEW_TYPE } }, { part: { view_type_id: "stream_graph" } }] });
+    expect(middle).toMatchObject({ kind: "split", direction: "column", parts: [{ part: { view_type_id: STREAM_PREVIEW_VIEW_TYPE_ID } }, { part: { view_type_id: "stream_graph" } }] });
     expect(STUDIO_LAYOUTS_SHIPPED.map(({ title }) => title)).toEqual(["Composition", "Edit", "Code", "Review"]);
   });
 
@@ -71,7 +72,7 @@ describe("a saved layout", () => {
   it("keeps the node an area shows, and forgets it when the area shows another view", () => {
     const showingANode = layoutWithAreaShowingNode(defaultStudioLayout(), "preview", "node-2");
     expect(studioAreaLayoutFromSaved(JSON.parse(JSON.stringify(showingANode)))).toEqual(showingANode);
-    expect(JSON.stringify(showingANode)).toContain(`"area_id":"preview","view_type_id":"${AUDIO_VIDEO_PREVIEW_VIEW_TYPE}","shown_node_id":"node-2"`);
+    expect(JSON.stringify(showingANode)).toContain(`"area_id":"preview","view_type_id":"${STREAM_PREVIEW_VIEW_TYPE_ID}","shown_node_id":"node-2"`);
     expect(JSON.stringify(layoutWithAreaShowing(showingANode, "preview", "viewer"))).not.toContain("shown_node_id");
     expect(studioAreaLayoutFromSaved({ kind: "area", area_id: "a", view_type_id: "viewer", shown_node_id: 3 })).toBeNull();
   });

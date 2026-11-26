@@ -394,10 +394,11 @@ describe("a project's view, found by its project's UUID and folder", () => {
     return registry;
   };
 
-  it("opens the Audio Video Preview in the shipped preview area under whatever type the runtime lists it as, the layout left as it was", () => {
+  it("opens the Audio Video Preview in the area showing it under whatever type the runtime lists it as, the layout left as it was", () => {
     for (const listedType of ["Core Nodes:audio_video_preview", `${CORE_NODES}:audio_video_preview`, "e7b2c940-1d6a-4f35-8c09-3a5e7f1b2d68"]) {
       const registry = registryListing(listedView(listedType, CORE_NODES, "Core Nodes", "audio_video_preview", "Audio Video Preview"));
       const studioWindowModel = studioWindowModelOpenOnSheetCheck();
+      studioWindowModel.showViewTypeInArea("preview", `${CORE_NODES}:audio_video_preview`);
       const layoutShown = studioWindowModel.studioLayout.readLatest()?.layout;
 
       expect(studioWindowModel.openView(listedType, { kind: "port", target: { stream: "main", node_id: "preview", port: "video_out" } }, studioViewTypeTitlesOf(registry))).toEqual({ kind: "opened" });
