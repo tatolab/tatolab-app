@@ -293,6 +293,44 @@ describe("the studio", () => {
     expect(areaIdsShown()).toEqual(["stream-graph"]);
   });
 
+  it("steps back and forward through the layouts shown with the mouse's back and forward buttons, and with ⌘[ and ⌘]", async () => {
+    keepThePulseStageLayout({ presets_saved: [{ title: "Viewer alone", layout: { kind: "area", area_id: "viewer", view_type_id: "viewer" } }] });
+    await mountedWindowOverTheMock("state=running");
+    await theAreasShownAre(AREAS_OF_THE_COMPOSITION_LAYOUT);
+    fireEvent.keyDown(document, { key: "1", metaKey: true });
+    await theAreasShownAre(["viewer"]);
+
+    expect(fireEvent.mouseDown(document.body, { button: 3 })).toBe(false);
+    expect(fireEvent.mouseUp(document.body, { button: 3 })).toBe(false);
+    await theAreasShownAre(AREAS_OF_THE_COMPOSITION_LAYOUT);
+    fireEvent.mouseUp(document.body, { button: 4 });
+    await theAreasShownAre(["viewer"]);
+    expect(fireEvent.keyDown(document, { key: "[", metaKey: true })).toBe(false);
+    await theAreasShownAre(AREAS_OF_THE_COMPOSITION_LAYOUT);
+    fireEvent.keyDown(document, { key: "]", metaKey: true });
+    await theAreasShownAre(["viewer"]);
+  });
+
+  it("on Linux, steps back and forward with Alt ← and Alt → and from Window › Back, and leaves the keys to a text field holding the focus", async () => {
+    await mountedWindowOverTheMock("platform=linux&state=running");
+    const isTheViewerExpanded = () => document.querySelector('[data-studio-area="viewer"]')?.hasAttribute("data-studio-area-expanded") ?? false;
+    const expand = await waitFor(() => coreViewPage("viewer", "viewer").querySelector<HTMLElement>("[data-viewer-expand]") ?? expect.unreachable("no Expand in the visualizer's toolbar"));
+    fireEvent.click(expand);
+    await waitFor(() => expect(isTheViewerExpanded()).toBe(true));
+
+    const textField = document.body.appendChild(document.createElement("input"));
+    expect(fireEvent.keyDown(textField, { key: "ArrowLeft", altKey: true })).toBe(true);
+    textField.remove();
+    await act(() => new Promise<void>((settled) => setTimeout(settled, 50)));
+    expect(isTheViewerExpanded()).toBe(true);
+    expect(fireEvent.keyDown(document, { key: "ArrowLeft", altKey: true })).toBe(false);
+    await waitFor(() => expect(isTheViewerExpanded()).toBe(false));
+    fireEvent.keyDown(document, { key: "ArrowRight", altKey: true });
+    await waitFor(() => expect(isTheViewerExpanded()).toBe(true));
+    await chooseFromTheMenuBar("Window", /^Back/);
+    await waitFor(() => expect(isTheViewerExpanded()).toBe(false));
+  });
+
   it("expands the Node visualizer to fill the window from its toolbar, and puts the layout back with Esc or Expand again", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = () => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area");

@@ -7,9 +7,10 @@ import type { SystemMenuBarEntry, SystemMenuBarItems, SystemMenuBarMenu, SystemM
 import type { StudioMenu, StudioMenuEntry } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import { presentTatolabAppUpdateMenuEntry } from "../presentation/app_update_presentation";
 import type { ProjectPlaybackAskedFor, ProjectPlaybackChoice, ProjectPlaybackControls } from "../presentation/project_playback_presentation";
-import { controlShortcutHint, shiftedShortcutHint, shortcutHint } from "../presentation/platform_presentation";
+import { controlShortcutHint, shiftedShortcutHint, shortcutHint, viewHistoryShortcutHint } from "../presentation/platform_presentation";
 import { STUDIO_LAYOUT_PRESETS_ON_A_DIGIT, STUDIO_LAYOUTS_SHIPPED, type StudioLayoutShipped } from "./studio_layout";
 import { STUDIO_LAYOUT_SHAPES, studioLayoutPicture, studioLayoutShapePicture, type StudioLayoutShape } from "./studio_layout_shapes";
+import type { StudioViewHistoryDirection, StudioViewHistorySteps } from "./studio_view_history";
 
 /** Why an entry whose work a later issue builds cannot run. */
 export const NOT_IN_THIS_BUILD_REASON = "Not in this build yet";
@@ -62,6 +63,8 @@ export interface StudioMenuBarCommands {
   reopenTheLastClosedStreamTab(): void;
   /** Stream › Next tab and Previous tab. */
   showTheStreamTabBeside(direction: "next" | "previous"): void;
+  /** Back and Forward: show the views the window showed one step `direction` through the ones the person opened and closed. */
+  stepThroughTheViewHistory(direction: StudioViewHistoryDirection): void;
 }
 
 /** What Window › Layout lists of the open project's layout: the titles of the presets the person saved. */
@@ -84,6 +87,12 @@ export const ONE_STREAM_TAB_AT_MOST_REASON = "Open another stream's tab first";
 
 /** Why Reopen closed tab cannot run while no tab has been closed. */
 export const NO_CLOSED_STREAM_TAB_REASON = "No tab has been closed";
+
+/** Why Back cannot run while no view was shown before the ones shown now. */
+export const NO_VIEW_TO_GO_BACK_TO_REASON = "No view was open before this one";
+
+/** Why Forward cannot run while Back has not stepped away from a view. */
+export const NO_VIEW_TO_GO_FORWARD_TO_REASON = "Go back to a view first";
 
 /** Why an entry that acts on the open project cannot run while none is open. */
 export const NO_PROJECT_OPEN_REASON = "Open a project first";
@@ -149,6 +158,8 @@ interface StudioMenuParts {
   streamMenu: StudioMenu;
   runMenu: StudioMenu;
   windowEntries: StudioMenuEntry[];
+  /** Back and Forward through the views the window showed. */
+  viewHistoryEntries: StudioMenuEntry[];
   aboutEntry: StudioMenuEntry;
   appUpdateEntry: StudioMenuEntry;
   documentationEntry: StudioMenuEntry;
@@ -183,6 +194,7 @@ function studioMenuParts(
   platform: TatolabPlatform,
   layout: StudioLayoutInTheMenus | null,
   streamTabs: StreamTabsInTheMenus,
+  viewHistory: StudioViewHistorySteps,
   playbackControls: ProjectPlaybackControls,
   appUpdate: TatolabAppUpdateState,
   commands: StudioMenuBarCommands,
@@ -192,7 +204,7 @@ function studioMenuParts(
     if (layout === null) return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause: NO_PROJECT_OPEN_REASON } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NO_PROJECT_OPEN_REASON };
     return shortcut === undefined ? { kind: "command", label, onChosen } : { kind: "command", label, shortcutHint: shortcut, onChosen };
   };
-  const streamTabCommand = (label: string, onChosen: () => void, unavailableBecause: string | null, shortcut?: string): StudioMenuEntry => {
+  const projectCommandOrUnavailable = (label: string, onChosen: () => void, unavailableBecause: string | null, shortcut?: string): StudioMenuEntry => {
     if (layout === null || unavailableBecause === null) return projectCommand(label, onChosen, shortcut);
     return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause };
   };
@@ -220,13 +232,13 @@ function studioMenuParts(
       label: "Stream",
       entries: [
         projectCommand("New stream…", commands.createAStream),
-        streamTabCommand("Rename stream…", commands.renameTheShownStream, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null),
-        streamTabCommand("Delete stream…", commands.deleteTheShownStream, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null),
+        projectCommandOrUnavailable("Rename stream…", commands.renameTheShownStream, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null),
+        projectCommandOrUnavailable("Delete stream…", commands.deleteTheShownStream, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null),
         { kind: "separator" },
-        streamTabCommand("Close tab", commands.closeTheShownStreamTab, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null, layout === null ? undefined : shortcutHint(platform, "W")),
-        streamTabCommand("Reopen closed tab", commands.reopenTheLastClosedStreamTab, streamTabs.has_a_closed_tab_to_reopen ? null : NO_CLOSED_STREAM_TAB_REASON, shiftedShortcutHint(platform, "T")),
-        streamTabCommand("Next tab", () => commands.showTheStreamTabBeside("next"), streamTabs.open_tab_count < 2 ? ONE_STREAM_TAB_AT_MOST_REASON : null, controlShortcutHint(platform, "Tab", false)),
-        streamTabCommand("Previous tab", () => commands.showTheStreamTabBeside("previous"), streamTabs.open_tab_count < 2 ? ONE_STREAM_TAB_AT_MOST_REASON : null, controlShortcutHint(platform, "Tab", true)),
+        projectCommandOrUnavailable("Close tab", commands.closeTheShownStreamTab, streamTabs.shown_stream_display_name === null ? NO_STREAM_TAB_SHOWN_REASON : null, layout === null ? undefined : shortcutHint(platform, "W")),
+        projectCommandOrUnavailable("Reopen closed tab", commands.reopenTheLastClosedStreamTab, streamTabs.has_a_closed_tab_to_reopen ? null : NO_CLOSED_STREAM_TAB_REASON, shiftedShortcutHint(platform, "T")),
+        projectCommandOrUnavailable("Next tab", () => commands.showTheStreamTabBeside("next"), streamTabs.open_tab_count < 2 ? ONE_STREAM_TAB_AT_MOST_REASON : null, controlShortcutHint(platform, "Tab", false)),
+        projectCommandOrUnavailable("Previous tab", () => commands.showTheStreamTabBeside("previous"), streamTabs.open_tab_count < 2 ? ONE_STREAM_TAB_AT_MOST_REASON : null, controlShortcutHint(platform, "Tab", true)),
       ],
     },
     runMenu: {
@@ -234,29 +246,34 @@ function studioMenuParts(
       entries: projectPlaybackMenuEntries(playbackControls, commands),
     },
     windowEntries: [studioLayoutEntry, laterCommand("Maximise area"), laterCommand("New window")],
+    viewHistoryEntries: [
+      projectCommandOrUnavailable("Back", () => commands.stepThroughTheViewHistory("back"), viewHistory.can_go_back ? null : NO_VIEW_TO_GO_BACK_TO_REASON, viewHistoryShortcutHint(platform, "back")),
+      projectCommandOrUnavailable("Forward", () => commands.stepThroughTheViewHistory("forward"), viewHistory.can_go_forward ? null : NO_VIEW_TO_GO_FORWARD_TO_REASON, viewHistoryShortcutHint(platform, "forward")),
+    ],
     aboutEntry: { kind: "command", label: "About Tato Studio", onChosen: commands.openAbout },
     appUpdateEntry: appUpdateMenuEntry(appUpdate, commands),
     documentationEntry: laterCommand("Documentation"),
   };
 }
 
-/** The studio's menus along the top of its window, as Linux shows them, Window › Layout offering the shapes and the presets `layout` saved, or naming why it waits while no project is open, Run's playback entries following `playbackControls`, and Help's updates entry following `appUpdate`. */
+/** The studio's menus along the top of its window, as Linux shows them, Window › Back and Forward following `viewHistory`, Window › Layout offering the shapes and the presets `layout` saved, or naming why it waits while no project is open, Run's playback entries following `playbackControls`, and Help's updates entry following `appUpdate`. */
 export function studioMenuBarMenus(
   platform: TatolabPlatform,
   layout: StudioLayoutInTheMenus | null,
   streamTabs: StreamTabsInTheMenus,
+  viewHistory: StudioViewHistorySteps,
   playbackControls: ProjectPlaybackControls,
   appUpdate: TatolabAppUpdateState,
   commands: StudioMenuBarCommands,
 ): StudioMenu[] {
-  const parts = studioMenuParts(platform, layout, streamTabs, playbackControls, appUpdate, commands, "Settings…");
+  const parts = studioMenuParts(platform, layout, streamTabs, viewHistory, playbackControls, appUpdate, commands, "Settings…");
   return [
     { label: "File", entries: parts.fileEntries },
     { label: "Edit", entries: [...parts.undoAndRedoEntries, { kind: "separator" }, parts.settingsEntry] },
     parts.addMenu,
     parts.streamMenu,
     parts.runMenu,
-    { label: "Window", entries: parts.windowEntries },
+    { label: "Window", entries: [...parts.viewHistoryEntries, { kind: "separator" }, ...parts.windowEntries] },
     { label: "Help", entries: [parts.aboutEntry, parts.appUpdateEntry, { kind: "separator" }, parts.documentationEntry] },
   ];
 }
@@ -271,15 +288,16 @@ export interface StudioMenuInTheSystemMenuBar {
   entries: readonly StudioMenuEntryInTheSystemMenuBar[];
 }
 
-/** The studio's menus as macOS's one menu bar shows them, Run's playback entries following `playbackControls`, in the places a Mac app keeps them: About, the updates entry following `appUpdate`, and Settings in the app menu, the desktop's text editing in Edit, its window controls in Window. */
+/** The studio's menus as macOS's one menu bar shows them, Run's playback entries following `playbackControls`, in the places a Mac app keeps them: Back and Forward, following `viewHistory`, in View; About, the updates entry following `appUpdate`, and Settings in the app menu, the desktop's text editing in Edit, its window controls in Window. */
 export function studioMenusInTheSystemMenuBar(
   layout: StudioLayoutInTheMenus | null,
   streamTabs: StreamTabsInTheMenus,
+  viewHistory: StudioViewHistorySteps,
   playbackControls: ProjectPlaybackControls,
   appUpdate: TatolabAppUpdateState,
   commands: StudioMenuBarCommands,
 ): StudioMenuInTheSystemMenuBar[] {
-  const parts = studioMenuParts("macos", layout, streamTabs, playbackControls, appUpdate, commands, "Settings…");
+  const parts = studioMenuParts("macos", layout, streamTabs, viewHistory, playbackControls, appUpdate, commands, "Settings…");
   return [
     {
       label: "Tato Studio",
@@ -291,7 +309,7 @@ export function studioMenusInTheSystemMenuBar(
     { ...parts.addMenu, systemMenu: null },
     { ...parts.streamMenu, systemMenu: null },
     { ...parts.runMenu, systemMenu: null },
-    { label: "View", systemMenu: null, entries: [{ kind: "system_items", systemItems: "full_screen" }] },
+    { label: "View", systemMenu: null, entries: [...parts.viewHistoryEntries, { kind: "separator" }, { kind: "system_items", systemItems: "full_screen" }] },
     {
       label: "Window",
       systemMenu: "window",

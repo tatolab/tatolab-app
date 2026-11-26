@@ -11,10 +11,13 @@ import {
   studioMenusInTheSystemMenuBar,
   studioMenusSentToTheSystemMenuBar,
   NO_STREAM_TAB_SHOWN_REASON,
+  NO_VIEW_TO_GO_BACK_TO_REASON,
+  NO_VIEW_TO_GO_FORWARD_TO_REASON,
   type StreamTabsInTheMenus,
   type StudioLayoutInTheMenus,
   type StudioMenuBarCommands,
 } from "./studio_menu_bar_model";
+import type { StudioViewHistorySteps } from "./studio_view_history";
 
 function commandsCounted(): StudioMenuBarCommands {
   return {
@@ -38,6 +41,7 @@ function commandsCounted(): StudioMenuBarCommands {
     closeTheShownStreamTab: vi.fn(),
     reopenTheLastClosedStreamTab: vi.fn(),
     showTheStreamTabBeside: vi.fn(),
+    stepThroughTheViewHistory: vi.fn(),
     shapeTheLayout: vi.fn(),
     applyTheShippedLayout: vi.fn(),
     applyTheSavedLayoutPreset: vi.fn(),
@@ -49,6 +53,8 @@ function commandsCounted(): StudioMenuBarCommands {
 const LAYOUT_WITH_NO_PRESET: StudioLayoutInTheMenus = { preset_titles_saved: [] };
 
 const NO_STREAM_TABS: StreamTabsInTheMenus = { shown_stream_display_name: null, open_tab_count: 0, has_a_closed_tab_to_reopen: false };
+
+const NO_VIEW_HISTORY: StudioViewHistorySteps = { can_go_back: false, can_go_forward: false };
 
 const UP_TO_DATE: TatolabAppUpdateState = { kind: "up_to_date" };
 
@@ -68,7 +74,7 @@ describe("the studio's File menu", () => {
   it("leads with Projects, which shows the Projects window with or without a project open", () => {
     for (const layoutInTheMenus of [null, LAYOUT_WITH_NO_PRESET]) {
       const commands = commandsCounted();
-      const fileMenu = studioMenuBarMenus("macos", layoutInTheMenus, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commands).find((menu) => menu.label === "File");
+      const fileMenu = studioMenuBarMenus("macos", layoutInTheMenus, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands).find((menu) => menu.label === "File");
       const projects = fileMenu?.entries[0];
       expect(projects).toMatchObject({ kind: "command", label: "Projects" });
       if (projects?.kind === "command") projects.onChosen();
@@ -78,7 +84,7 @@ describe("the studio's File menu", () => {
 
   it("opens the Module manager window on the marketplace or on the project's modules while a project is open, and says why each waits while none is", () => {
     const commands = commandsCounted();
-    const menus = studioMenuBarMenus("macos", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commands);
+    const menus = studioMenuBarMenus("macos", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands);
     const marketplace = entryOf(menus, "File", "Marketplace…");
     const modules = entryOf(menus, "File", "Modules…");
     if (marketplace?.kind !== "command" || modules?.kind !== "command") throw new Error("File › Marketplace… or Modules… is not a command");
@@ -88,7 +94,7 @@ describe("the studio's File menu", () => {
     expect(commands.openModuleManager).toHaveBeenNthCalledWith(2, "added_to_this_project");
     expect(entryOf(menus, "File", "Module manager…")).toBeUndefined();
     for (const label of ["Marketplace…", "Modules…"]) {
-      expect(entryOf(studioMenuBarMenus("macos", null, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commands), "File", label)).toEqual({ kind: "unavailable_command", label, unavailableBecause: NO_PROJECT_OPEN_REASON });
+      expect(entryOf(studioMenuBarMenus("macos", null, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands), "File", label)).toEqual({ kind: "unavailable_command", label, unavailableBecause: NO_PROJECT_OPEN_REASON });
     }
   });
 });
@@ -96,7 +102,7 @@ describe("the studio's File menu", () => {
 describe("the studio's Edit menu", () => {
   it("undoes and redoes the person's edits while a project is open, and says why they wait while none is", () => {
     const commands = commandsCounted();
-    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commands);
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands);
     for (const entryLabel of ["Undo", "Redo"]) {
       const entry = entryOf(menus, "Edit", entryLabel);
       if (entry?.kind !== "command") throw new Error(`Edit › ${entryLabel} is not a command`);
@@ -104,7 +110,7 @@ describe("the studio's Edit menu", () => {
     }
     expect(commands.undoYourLastEdit).toHaveBeenCalledOnce();
     expect(commands.redoYourLastUndo).toHaveBeenCalledOnce();
-    expect(entryOf(studioMenuBarMenus("linux", null, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commands), "Edit", "Undo")).toEqual({ kind: "unavailable_command", label: "Undo", shortcutHint: "Ctrl Z", unavailableBecause: NO_PROJECT_OPEN_REASON });
+    expect(entryOf(studioMenuBarMenus("linux", null, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands), "Edit", "Undo")).toEqual({ kind: "unavailable_command", label: "Undo", shortcutHint: "Ctrl Z", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
 
@@ -143,7 +149,7 @@ describe("the layout menu", () => {
   });
 
   it("is the Window menu's Layout submenu", () => {
-    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commandsCounted());
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commandsCounted());
     const layoutEntry = entryOf(menus, "Window", "Layout");
     expect(layoutEntry?.kind === "submenu" ? layoutEntry.entries.length : 0).toBe(studioLayoutMenuEntries("linux", LAYOUT_WITH_NO_PRESET, commandsCounted()).length);
   });
@@ -152,7 +158,7 @@ describe("the layout menu", () => {
 describe("the studio's Run menu", () => {
   it("plays a stopped project, its Pause and Stop dim with why", () => {
     const commands = commandsCounted();
-    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commands);
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands);
     const play = entryOf(menus, "Run", "Play");
     if (play?.kind !== "command") throw new Error("Run › Play is not a command");
     play.onChosen();
@@ -164,7 +170,7 @@ describe("the studio's Run menu", () => {
 
   it("pauses and stops a playing project, its Play dim", () => {
     const commands = commandsCounted();
-    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, playbackOf("playing"), UP_TO_DATE, commands);
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, NO_VIEW_HISTORY, playbackOf("playing"), UP_TO_DATE, commands);
     for (const entryLabel of ["Pause", "Stop"]) {
       const entry = entryOf(menus, "Run", entryLabel);
       if (entry?.kind !== "command") throw new Error(`Run › ${entryLabel} is not a command`);
@@ -176,24 +182,24 @@ describe("the studio's Run menu", () => {
   });
 
   it("offers Resume in Play's place while the project is paused", () => {
-    const menus = studioMenuBarMenus("macos", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, playbackOf("paused"), UP_TO_DATE, commandsCounted());
+    const menus = studioMenuBarMenus("macos", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, NO_VIEW_HISTORY, playbackOf("paused"), UP_TO_DATE, commandsCounted());
     expect(entryOf(menus, "Run", "Resume")).toMatchObject({ kind: "command", shortcutHint: "F5" });
     expect(entryOf(menus, "Run", "Pause")).toMatchObject({ kind: "unavailable_command" });
     expect(entryOf(menus, "Run", "Stop")).toMatchObject({ kind: "command" });
   });
 
   it("lists only the playback entries", () => {
-    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commandsCounted());
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commandsCounted());
     expect(menus.find((menu) => menu.label === "Run")?.entries.map((entry) => (entry.kind === "separator" ? "separator" : entry.label))).toEqual(["Play", "Pause", "Stop"]);
   });
 
   it("dims every playback entry while the project is stopping", () => {
-    const menus = studioMenuBarMenus("macos", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, playbackOf("stopping"), UP_TO_DATE, commandsCounted());
+    const menus = studioMenuBarMenus("macos", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, NO_VIEW_HISTORY, playbackOf("stopping"), UP_TO_DATE, commandsCounted());
     for (const entryLabel of ["Play", "Pause", "Stop"]) expect(entryOf(menus, "Run", entryLabel)).toMatchObject({ kind: "unavailable_command", unavailableBecause: STOPPING_REASON });
   });
 
   it("says why they wait while no project is open", () => {
-    const menus = studioMenuBarMenus("macos", null, NO_STREAM_TABS, NO_PROJECT_PLAYBACK, UP_TO_DATE, commandsCounted());
+    const menus = studioMenuBarMenus("macos", null, NO_STREAM_TABS, NO_VIEW_HISTORY, NO_PROJECT_PLAYBACK, UP_TO_DATE, commandsCounted());
     expect(entryOf(menus, "Run", "Play")).toEqual({ kind: "unavailable_command", label: "Play", shortcutHint: "F5", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
@@ -201,16 +207,16 @@ describe("the studio's Run menu", () => {
 describe("Help's updates entry", () => {
   it("follows About Tato Studio, checks for updates, and turns into Restart to Update once a newer version is staged", () => {
     const commands = commandsCounted();
-    const helpEntries = studioMenuBarMenus("linux", null, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commands).find((menu) => menu.label === "Help")?.entries ?? [];
+    const helpEntries = studioMenuBarMenus("linux", null, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands).find((menu) => menu.label === "Help")?.entries ?? [];
     expect(helpEntries.slice(0, 2)).toMatchObject([
       { kind: "command", label: "About Tato Studio" },
       { kind: "command", label: "Check for Updates…" },
     ]);
-    const checkForUpdates = entryOf(studioMenuBarMenus("linux", null, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commands), "Help", "Check for Updates…");
+    const checkForUpdates = entryOf(studioMenuBarMenus("linux", null, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands), "Help", "Check for Updates…");
     if (checkForUpdates?.kind !== "command") throw new Error("Help › Check for Updates… is not a command");
     checkForUpdates.onChosen();
     expect(commands.checkForAppUpdates).toHaveBeenCalledOnce();
-    const restartToUpdate = entryOf(studioMenuBarMenus("macos", null, NO_STREAM_TABS, STOPPED_PROJECT, { kind: "ready_to_restart", version: "0.47.0" }, commands), "Help", "Restart to Update to 0.47.0");
+    const restartToUpdate = entryOf(studioMenuBarMenus("macos", null, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, { kind: "ready_to_restart", version: "0.47.0" }, commands), "Help", "Restart to Update to 0.47.0");
     if (restartToUpdate?.kind !== "command") throw new Error("Help › Restart to Update is not a command");
     restartToUpdate.onChosen();
     expect(commands.takeTheNewerAppVersion).toHaveBeenCalledOnce();
@@ -218,12 +224,12 @@ describe("Help's updates entry", () => {
 
   it("is dim, with why, while an update is under way and in an app that cannot update itself", () => {
     const commands = commandsCounted();
-    expect(entryOf(studioMenuBarMenus("macos", null, NO_STREAM_TABS, STOPPED_PROJECT, { kind: "downloading", version: "0.47.0", percent: 42 }, commands), "Help", "Downloading Update…")).toEqual({
+    expect(entryOf(studioMenuBarMenus("macos", null, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, { kind: "downloading", version: "0.47.0", percent: 42 }, commands), "Help", "Downloading Update…")).toEqual({
       kind: "unavailable_command",
       label: "Downloading Update…",
       unavailableBecause: APP_UPDATE_UNDER_WAY_REASON,
     });
-    expect(entryOf(studioMenuBarMenus("macos", null, NO_STREAM_TABS, STOPPED_PROJECT, { kind: "not_offered", reason: "Only a packaged Tato Studio updates itself." }, commands), "Help", "Check for Updates…")).toEqual({
+    expect(entryOf(studioMenuBarMenus("macos", null, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, { kind: "not_offered", reason: "Only a packaged Tato Studio updates itself." }, commands), "Help", "Check for Updates…")).toEqual({
       kind: "unavailable_command",
       label: "Check for Updates…",
       unavailableBecause: "Only a packaged Tato Studio updates itself.",
@@ -233,7 +239,7 @@ describe("Help's updates entry", () => {
 
 describe("the studio's menus in macOS's system menu bar", () => {
   it("leave ⌘W to Close Window while no project is open, and give it to Close tab while one is", () => {
-    const menusWith = (layoutInTheMenus: StudioLayoutInTheMenus | null) => studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(layoutInTheMenus, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commandsCounted())).menus;
+    const menusWith = (layoutInTheMenus: StudioLayoutInTheMenus | null) => studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(layoutInTheMenus, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commandsCounted())).menus;
     const closeEntriesOf = (layoutInTheMenus: StudioLayoutInTheMenus | null) => {
       const menus = menusWith(layoutInTheMenus);
       const closeWindow = menus.find((menu) => menu.label === "File")?.entries.at(-1);
@@ -245,20 +251,20 @@ describe("the studio's menus in macOS's system menu bar", () => {
   });
 
   it("keep About and Settings… in the app menu, and the desktop's own items where a Mac app keeps them", () => {
-    const { menus } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commandsCounted()));
+    const { menus } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commandsCounted()));
     const labelsOf = (menuLabel: string) =>
       menus.find((menu) => menu.label === menuLabel)?.entries.map((entry) => (entry.kind === "system_items" ? `[${entry.system_items}]` : entry.kind === "separator" ? "—" : entry.label));
     expect(labelsOf("Tato Studio")).toEqual(["About Tato Studio", "Check for Updates…", "—", "Settings…", "—", "[app_services_hide_and_quit]"]);
     expect(labelsOf("File")?.slice(-2)).toEqual(["—", "[close_window_beside_close_tab]"]);
     expect(labelsOf("Edit")).toEqual(["[text_editing]", "—", "Undo Your Last Edit", "Redo Your Last Undo"]);
-    expect(labelsOf("View")).toEqual(["[full_screen]"]);
+    expect(labelsOf("View")).toEqual(["Back", "Forward", "—", "[full_screen]"]);
     expect(labelsOf("Window")).toEqual(["[window_arrangement]", "—", "Layout", "Maximise area", "New window", "—", "[bring_all_to_front]"]);
     expect(labelsOf("Help")).toEqual(["Documentation"]);
   });
 
   it("send each entry under the path of labels down to it, running its command when chosen there, and a dim one with why", () => {
     const commands = commandsCounted();
-    const { menus, onChosenByEntryId } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(null, NO_STREAM_TABS, NO_PROJECT_PLAYBACK, UP_TO_DATE, commands));
+    const { menus, onChosenByEntryId } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(null, NO_STREAM_TABS, NO_VIEW_HISTORY, NO_PROJECT_PLAYBACK, UP_TO_DATE, commands));
     onChosenByEntryId.get("File › Open project…")?.();
     onChosenByEntryId.get("Tato Studio › About Tato Studio")?.();
     onChosenByEntryId.get("Tato Studio › Check for Updates…")?.();
@@ -279,7 +285,7 @@ describe("the studio's menus in macOS's system menu bar", () => {
 describe("the studio's Stream menu", () => {
   it("makes a stream with no shortcut, acts on the shown tab's stream, and moves between, closes and reopens tabs", () => {
     const commands = commandsCounted();
-    const menus = studioMenuBarMenus("macos", LAYOUT_WITH_NO_PRESET, { shown_stream_display_name: "main", open_tab_count: 2, has_a_closed_tab_to_reopen: true }, STOPPED_PROJECT, UP_TO_DATE, commands);
+    const menus = studioMenuBarMenus("macos", LAYOUT_WITH_NO_PRESET, { shown_stream_display_name: "main", open_tab_count: 2, has_a_closed_tab_to_reopen: true }, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands);
     const streamMenu = menus.find((menu) => menu.label === "Stream")?.entries ?? [];
     expect(streamMenu.map((entry) => (entry.kind === "separator" ? "—" : [entry.label, entry.kind, "shortcutHint" in entry ? entry.shortcutHint : null]))).toEqual([
       ["New stream…", "command", null],
@@ -303,12 +309,40 @@ describe("the studio's Stream menu", () => {
 
   it("says why each entry waits while no project is open or no tab is shown, and File no longer lists New stream", () => {
     const commands = commandsCounted();
-    expect(entryOf(studioMenuBarMenus("linux", null, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commands), "Stream", "New stream…")).toEqual({ kind: "unavailable_command", label: "New stream…", unavailableBecause: NO_PROJECT_OPEN_REASON });
-    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, STOPPED_PROJECT, UP_TO_DATE, commands);
+    expect(entryOf(studioMenuBarMenus("linux", null, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands), "Stream", "New stream…")).toEqual({ kind: "unavailable_command", label: "New stream…", unavailableBecause: NO_PROJECT_OPEN_REASON });
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands);
     expect(entryOf(menus, "Stream", "Delete stream…")).toEqual({ kind: "unavailable_command", label: "Delete stream…", unavailableBecause: NO_STREAM_TAB_SHOWN_REASON });
     expect(entryOf(menus, "Stream", "Close tab")).toEqual({ kind: "unavailable_command", label: "Close tab", shortcutHint: "Ctrl W", unavailableBecause: NO_STREAM_TAB_SHOWN_REASON });
     expect(entryOf(menus, "Stream", "Previous tab")).toMatchObject({ kind: "unavailable_command", shortcutHint: "Ctrl Shift Tab" });
     expect(entryOf(menus, "File", "New stream")).toBeUndefined();
     expect(entryOf(menus, "Stream", "Run on…")).toBeUndefined();
+  });
+});
+
+describe("Back and Forward through the views the window showed", () => {
+  it("sit in View on macOS on ⌘[ and ⌘], and atop Window on Linux on Alt ← and Alt →, each stepping its way", () => {
+    const commands = commandsCounted();
+    const canGoBothWays: StudioViewHistorySteps = { can_go_back: true, can_go_forward: true };
+    const macViewMenu = studioMenusInTheSystemMenuBar(LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, canGoBothWays, STOPPED_PROJECT, UP_TO_DATE, commands).find((menu) => menu.label === "View")?.entries ?? [];
+    expect(macViewMenu.slice(0, 2)).toMatchObject([
+      { kind: "command", label: "Back", shortcutHint: "⌘[" },
+      { kind: "command", label: "Forward", shortcutHint: "⌘]" },
+    ]);
+    const linuxMenus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, canGoBothWays, STOPPED_PROJECT, UP_TO_DATE, commands);
+    const linuxWindowMenu = linuxMenus.find((menu) => menu.label === "Window")?.entries ?? [];
+    expect(linuxWindowMenu.map((entry) => (entry.kind === "separator" ? "—" : entry.label))).toEqual(["Back", "Forward", "—", "Layout", "Maximise area", "New window"]);
+    expect(linuxWindowMenu.slice(0, 2)).toMatchObject([{ shortcutHint: "Alt ←" }, { shortcutHint: "Alt →" }]);
+    for (const entry of linuxWindowMenu.slice(0, 2)) if (entry.kind === "command") entry.onChosen();
+    expect(commands.stepThroughTheViewHistory).toHaveBeenNthCalledWith(1, "back");
+    expect(commands.stepThroughTheViewHistory).toHaveBeenNthCalledWith(2, "forward");
+  });
+
+  it("say why they wait while no view lies that way, and while no project is open", () => {
+    const commands = commandsCounted();
+    const menus = studioMenuBarMenus("linux", LAYOUT_WITH_NO_PRESET, NO_STREAM_TABS, NO_VIEW_HISTORY, STOPPED_PROJECT, UP_TO_DATE, commands);
+    expect(entryOf(menus, "Window", "Back")).toEqual({ kind: "unavailable_command", label: "Back", shortcutHint: "Alt ←", unavailableBecause: NO_VIEW_TO_GO_BACK_TO_REASON });
+    expect(entryOf(menus, "Window", "Forward")).toEqual({ kind: "unavailable_command", label: "Forward", shortcutHint: "Alt →", unavailableBecause: NO_VIEW_TO_GO_FORWARD_TO_REASON });
+    const menusWithNoProject = studioMenuBarMenus("linux", null, NO_STREAM_TABS, { can_go_back: true, can_go_forward: true }, NO_PROJECT_PLAYBACK, UP_TO_DATE, commands);
+    expect(entryOf(menusWithNoProject, "Window", "Back")).toEqual({ kind: "unavailable_command", label: "Back", shortcutHint: "Alt ←", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
