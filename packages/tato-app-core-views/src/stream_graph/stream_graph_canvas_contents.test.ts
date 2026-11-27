@@ -505,7 +505,7 @@ test("a_node_whose_computed_value_failed_to_build_is_a_failed_card_carrying_the_
   expect(streamGraphCanvasContents(graph, NONE_DESCRIBED, null, null, { ...condition, health: "healthy", diagnostics: [] }).nodes.map((node) => node.condition)).toEqual([{ look: "healthy" }, { look: "healthy" }, { look: "healthy" }]);
 });
 
-test("a_link_whose_pin_types_no_longer_match_is_drawn_failed_saying_why_and_drawn_by_its_state_again_once_they_match", () => {
+test("a_link_whose_pin_types_no_longer_match_is_drawn_failed_saying_why_even_while_its_state_still_reads_wired_and_drawn_by_its_state_again_once_they_match", () => {
   const typesDiffer =
     "its input `video_in` reads nothing: the link into it is not wired: its output carries audio and its input reads texture, which do not connect: an audio frame is not a texture. To fix: change the input that chose the type back, or remove the link";
   const condition: StreamCondition = {
@@ -517,5 +517,20 @@ test("a_link_whose_pin_types_no_longer_match_is_drawn_failed_saying_why_and_draw
   const graphWithTheLinkInError: StreamGraph = { ...GRAPH, links: GRAPH.links.map((link) => (link.id === "L1" ? { ...link, state: "error" } : link)) };
 
   expect(streamGraphCanvasContents(graphWithTheLinkInError, NONE_DESCRIBED, null, null, condition).links[0]).toMatchObject({ link_id: "L1", look: "failed", description: `camera.video → invert.video_in, ${typesDiffer}` });
+  expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED, null, null, condition).links[0]).toMatchObject({ link_id: "L1", look: "failed", description: `camera.video → invert.video_in, ${typesDiffer}` });
   expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED, null, null, { ...condition, health: "healthy", diagnostics: [] }).links[0]).toMatchObject({ link_id: "L1", look: "carrying", description: "camera.video → invert.video_in, wired" });
+});
+
+test("a_link_named_by_a_diagnostic_that_warns_and_one_that_fails_is_drawn_by_the_failure", () => {
+  const link = { on: "link", from_node: "camera", from_port: "video", to_node: "invert", to_port: "video_in" } as const;
+  const condition: StreamCondition = {
+    load: "loaded",
+    playback: "playing",
+    health: "degraded",
+    diagnostics: [
+      { kind: "edit_not_live", place: link, words: "the running stream has not taken it", recovery: "restart_the_playback" },
+      { kind: "link_pin_types_differ", place: link, words: "its output carries audio and its input reads texture", recovery: "fix_the_link" },
+    ],
+  };
+  expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED, null, null, condition).links[0]).toMatchObject({ look: "failed", description: "camera.video → invert.video_in, its output carries audio and its input reads texture" });
 });

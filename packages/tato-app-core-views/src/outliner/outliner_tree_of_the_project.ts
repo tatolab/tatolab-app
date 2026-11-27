@@ -21,7 +21,7 @@ import { shownStudioTreeRows, studioTreeNodesMatching, type StudioTreeNode } fro
 import { nodeTitle } from "../shared/node_words";
 import { editedStreamGraphOf, selectionFramedEdits } from "../shared/stream_graph_edits";
 import { streamPreparingWords } from "../shared/stream_preparing_words";
-import { diagnosticKey, diagnosticRowWords, diagnosticsAtTheNode, doesTheDiagnosticWarn } from "../shared/stream_condition_words";
+import { diagnosticRowWords, keyedDiagnostics, diagnosticsAtTheNode, doesTheDiagnosticWarn } from "../shared/stream_condition_words";
 import { nodesTheSelectionHolds, nodesTheSelectionHoldsInTheStream, selectionOfTheNodes } from "../shared/nodes_of_the_selection";
 
 /** What a row stands for, so choosing it selects or opens the right thing. */
@@ -175,9 +175,9 @@ function streamFailureRows(stream: ListedStream): OutlinerTreeNode[] {
     if (stream.state !== "failed" || stream.failed_because === null) return [];
     return [leafNode({ row_id: `${streamRowId(stream.stream)}/failed`, label: stream.failed_because, icon: "unreadable", tone: "failed" })];
   }
-  return stream.condition.diagnostics.flatMap((diagnostic) => {
+  return keyedDiagnostics(stream.condition).flatMap(({ key, diagnostic }) => {
     if (diagnostic.place.on === "node") return [];
-    return [leafNode({ row_id: `${streamRowId(stream.stream)}/diagnostic/${diagnosticKey(diagnostic)}`, label: diagnosticRowWords(diagnostic, stream.display_name), ...(doesTheDiagnosticWarn(diagnostic.kind) ? NOT_READY_ROW : FAILED_ROW) })];
+    return [leafNode({ row_id: `${streamRowId(stream.stream)}/diagnostic/${key}`, label: diagnosticRowWords(diagnostic, stream.display_name), ...(doesTheDiagnosticWarn(diagnostic.kind) ? NOT_READY_ROW : FAILED_ROW) })];
   });
 }
 

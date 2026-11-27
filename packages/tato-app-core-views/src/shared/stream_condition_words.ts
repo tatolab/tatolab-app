@@ -65,7 +65,7 @@ export function diagnosticRowWords(diagnostic: StreamDiagnostic, streamWords: st
 }
 
 /** A diagnostic's identity among its stream's: its kind and where it applies. */
-export function diagnosticKey(diagnostic: StreamDiagnostic): string {
+function diagnosticKey(diagnostic: StreamDiagnostic): string {
   const { place } = diagnostic;
   switch (place.on) {
     case "stream":
@@ -77,16 +77,23 @@ export function diagnosticKey(diagnostic: StreamDiagnostic): string {
   }
 }
 
-/** Each diagnostic of `condition` as a view lists it, the stream named `streamWords`; none while the runtime lists no condition. A second diagnostic of one kind at one place, as two computed values of one node failing, is keyed by its count among them. */
-export function streamDiagnosticLines(condition: StreamCondition | null, streamWords: string): StreamDiagnosticLine[] {
+/** Each diagnostic of `condition` with its key among them: its `diagnosticKey`, and a second of one kind at one place, as two computed values of one node failing, keyed by its count among them. */
+export function keyedDiagnostics(condition: StreamCondition | null): { key: string; diagnostic: StreamDiagnostic }[] {
   const countOfEachKey = new Map<string, number>();
   return (condition?.diagnostics ?? []).map((diagnostic) => {
-    const { words, actionAt } = RECOVERY_WORDS_AND_ACTION[diagnostic.recovery];
     const key = diagnosticKey(diagnostic);
     const count = (countOfEachKey.get(key) ?? 0) + 1;
     countOfEachKey.set(key, count);
+    return { key: count === 1 ? key : `${key}#${count}`, diagnostic };
+  });
+}
+
+/** Each diagnostic of `condition` as a view lists it, the stream named `streamWords`; none while the runtime lists no condition. */
+export function streamDiagnosticLines(condition: StreamCondition | null, streamWords: string): StreamDiagnosticLine[] {
+  return keyedDiagnostics(condition).map(({ key, diagnostic }) => {
+    const { words, actionAt } = RECOVERY_WORDS_AND_ACTION[diagnostic.recovery];
     return {
-      key: count === 1 ? key : `${key}#${count}`,
+      key,
       tone: DIAGNOSTICS_THAT_WARN.has(diagnostic.kind) ? "warning" : "failure",
       lead: `${diagnosticPlaceWords(diagnostic.place, streamWords)}:`,
       words: diagnostic.words,
@@ -95,6 +102,11 @@ export function streamDiagnosticLines(condition: StreamCondition | null, streamW
       diagnostic,
     };
   });
+}
+
+/** The diagnostic of `diagnostics` that says the most: the first that fails, else the first that warns; `undefined` for none. */
+export function theDiagnosticShown(diagnostics: readonly StreamDiagnostic[]): StreamDiagnostic | undefined {
+  return diagnostics.find(({ kind }) => !doesTheDiagnosticWarn(kind)) ?? diagnostics.at(0);
 }
 
 /** The diagnostics of `condition` at the node named `nodeName`. */

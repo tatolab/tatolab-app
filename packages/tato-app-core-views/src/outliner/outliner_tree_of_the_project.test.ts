@@ -274,6 +274,28 @@ describe("the outliner's tree", () => {
     expect(outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [failedLobbyWall] }, {}, null, {}).map(({ row }) => [row.label, row.icon])).toEqual([["lobby_wall", "failed"]]);
   });
 
+  it("keys two diagnostics of one kind at one link apart, and shows a node whose computed value failed to build failed and one still building not ready", () => {
+    const link = { on: "link", from_node: "camerasource", from_port: "video", to_node: "display", to_port: "video" } as const;
+    const condition: StreamCondition = {
+      load: "loaded",
+      playback: "playing",
+      health: "degraded",
+      diagnostics: [
+        { kind: "link_not_wired", place: link, words: "the helper refused its side", recovery: "restart_the_playback" },
+        { kind: "link_not_wired", place: link, words: "the helper refused its side again", recovery: "restart_the_playback" },
+        { kind: "computed_value_build_failed", place: { on: "node", node_id: "display-uuid", node_name: "display" }, words: "the build of its computed value kernel failed", recovery: "change_an_input_the_build_read" },
+        { kind: "computed_value_not_yet_built", place: { on: "node", node_id: "camerasource-uuid", node_name: "camerasource" }, words: "its computed value device is building its first value", recovery: "wait_for_the_node" },
+      ],
+    };
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [{ ...listedStream("/w/studio", "lobby_wall"), condition }] }, { "lobby_wall-id": LOBBY_WALL_GRAPH }, "lobby_wall-id", {});
+    const linkRowIds = rows.filter(({ row }) => row.label.startsWith("camerasource.video")).map(({ row }) => row.row_id);
+    expect(new Set(linkRowIds).size).toBe(2);
+    expect(rows.filter(({ row }) => ["Display", "Camera Source"].includes(row.label)).map(({ row }) => [row.label, row.tone])).toEqual([
+      ["Camera Source", "not_ready"],
+      ["Display", "failed"],
+    ]);
+  });
+
   it("says when the project has no streams, while they wait on the runtime, or why listing them failed, in the failure's own words", () => {
     expect(tree([listedStream("/elsewhere", "other")], {}, null)).toEqual(["No streams yet leaf"]);
     expect(outlinerTreeOfTheProject(PROJECT, { kind: "not_listed", because: "Stopped" }, {}, null, {}).map(({ row }) => row.label)).toEqual(["Streams not read yet"]);

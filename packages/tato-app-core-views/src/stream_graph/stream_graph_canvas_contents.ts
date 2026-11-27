@@ -30,7 +30,7 @@ import {
 import { descriptionWords, nodeInputs, nodeOutputs, type WiresReadAt } from "../shared/node_pins_of_the_graph";
 import { isANameTheCodeGave, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { linkIdAsTheCanvasKeysIt } from "../shared/stream_graph_edits";
-import { diagnosticsAtTheLink, diagnosticsAtTheNode, doesTheDiagnosticWarn } from "../shared/stream_condition_words";
+import { diagnosticsAtTheLink, diagnosticsAtTheNode, doesTheDiagnosticWarn, theDiagnosticShown } from "../shared/stream_condition_words";
 
 /** What a card or link says of a part the running stream does not hold yet. */
 const NOT_LIVE_YET_WORDS = "Not live yet: the running stream hasn't taken this edit. Restart the playback to make it live.";
@@ -79,19 +79,16 @@ function cardConditionOf(node: StreamGraphNode, condition: StreamCondition | nul
   if (components.state === "Error") return { look: "failed", failed_because: components.failed_because };
   if (components.process_raising_because !== null) return { look: "failed", failed_because: components.process_raising_because };
   if (components.not_ready_because !== null) return { look: "not_ready", not_ready_because: components.not_ready_because };
-  const diagnostics = diagnosticsAtTheNode(condition, node.name).filter(({ kind }) => !DIAGNOSTICS_THE_NODE_CARRIES.has(kind));
-  const failure = diagnostics.find(({ kind }) => !doesTheDiagnosticWarn(kind));
-  if (failure !== undefined) return { look: "failed", failed_because: failure.words };
-  const warning = diagnostics.at(0);
-  if (warning !== undefined) return { look: "not_ready", not_ready_because: warning.words };
+  const diagnostic = theDiagnosticShown(diagnosticsAtTheNode(condition, node.name).filter(({ kind }) => !DIAGNOSTICS_THE_NODE_CARRIES.has(kind)));
+  if (diagnostic !== undefined) return doesTheDiagnosticWarn(diagnostic.kind) ? { look: "not_ready", not_ready_because: diagnostic.words } : { look: "failed", failed_because: diagnostic.words };
   if (components.state === "Restarting") return { look: "restarting" };
   return { look: "healthy" };
 }
 
-/** How `link` is drawn: waiting while the running stream does not hold it yet, failed while a diagnostic of `condition` names it, else by its state. */
+/** How `link` is drawn: waiting while the running stream does not hold it yet, by the diagnostic of `condition` naming it that says the most, else by its state. */
 function linkLookAndWordsOf(link: StreamGraphLink, condition: StreamCondition | null): { look: NodeGraphLinkLook; words: string } {
   if (!isLiveInTheRunningGraph(link)) return { look: "waiting", words: NOT_LIVE_YET_WORDS };
-  const diagnostic = diagnosticsAtTheLink(condition, link).at(0);
+  const diagnostic = theDiagnosticShown(diagnosticsAtTheLink(condition, link));
   if (diagnostic !== undefined) return { look: doesTheDiagnosticWarn(diagnostic.kind) ? "waiting" : "failed", words: diagnostic.words };
   return linkLookAndWords(link.state);
 }
