@@ -100,7 +100,9 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
       ? fixtures.mainStreamWithTheSpeakerInError
       : scenario === "node-not-ready"
         ? fixtures.mainStreamWithAnImageFileNotReady
-        : scenario === "dropping"
+        : scenario === "build-failed"
+          ? fixtures.mainStreamWithABuildFailedAndALinkThatNoLongerFits
+          : scenario === "dropping"
           ? fixtures.mainStreamWithItsGlowFallingBehind
           : mockTatolabOptions.isTheFixtureViewListed
             ? fixtures.mainStreamWithTheFixtureViewsNode

@@ -28,7 +28,7 @@ export interface StreamDiagnosticLine {
 }
 
 /** The diagnostics that leave a stream running as it was: the rest keep it, or a part of it, from running. */
-const DIAGNOSTICS_THAT_WARN: ReadonlySet<StreamDiagnosticKind> = new Set(["node_not_ready", "edit_not_live", "recorded_by_an_earlier_runtime"]);
+const DIAGNOSTICS_THAT_WARN: ReadonlySet<StreamDiagnosticKind> = new Set(["node_not_ready", "computed_value_not_yet_built", "edit_not_live", "recorded_by_an_earlier_runtime"]);
 
 const RESTART_THE_PLAYBACK: StreamDiagnosticAction = { kind: "ask_studio", recovery: "restart_the_playback", label: "Restart playback" };
 const RELOAD_THE_PROJECT: StreamDiagnosticAction = { kind: "ask_studio", recovery: "reload_the_project", label: "Reload project" };
@@ -43,6 +43,7 @@ const RECOVERY_WORDS_AND_ACTION: Record<StreamDiagnosticRecovery, { words: strin
   restart_the_playback: { words: "Restart the playback to make it live.", actionAt: () => RESTART_THE_PLAYBACK },
   remove_the_stream: { words: "Remove the stream from the project, or fix what it names.", actionAt: () => NO_ACTION },
   wait_for_the_node: { words: "It clears once the node is ready.", actionAt: () => NO_ACTION },
+  change_an_input_the_build_read: { words: "Change an input the build read, or fix the code it names. It builds again from the new value.", actionAt: () => NO_ACTION },
   retry_the_load: { words: "Reload the project to try again.", actionAt: () => RELOAD_THE_PROJECT },
 };
 
@@ -76,12 +77,16 @@ export function diagnosticKey(diagnostic: StreamDiagnostic): string {
   }
 }
 
-/** Each diagnostic of `condition` as a view lists it, the stream named `streamWords`; none while the runtime lists no condition. */
+/** Each diagnostic of `condition` as a view lists it, the stream named `streamWords`; none while the runtime lists no condition. A second diagnostic of one kind at one place, as two computed values of one node failing, is keyed by its count among them. */
 export function streamDiagnosticLines(condition: StreamCondition | null, streamWords: string): StreamDiagnosticLine[] {
+  const countOfEachKey = new Map<string, number>();
   return (condition?.diagnostics ?? []).map((diagnostic) => {
     const { words, actionAt } = RECOVERY_WORDS_AND_ACTION[diagnostic.recovery];
+    const key = diagnosticKey(diagnostic);
+    const count = (countOfEachKey.get(key) ?? 0) + 1;
+    countOfEachKey.set(key, count);
     return {
-      key: diagnosticKey(diagnostic),
+      key: count === 1 ? key : `${key}#${count}`,
       tone: DIAGNOSTICS_THAT_WARN.has(diagnostic.kind) ? "warning" : "failure",
       lead: `${diagnosticPlaceWords(diagnostic.place, streamWords)}:`,
       words: diagnostic.words,

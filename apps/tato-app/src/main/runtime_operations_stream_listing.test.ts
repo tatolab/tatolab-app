@@ -221,3 +221,16 @@ test("each_streams_condition_reads_with_its_diagnostics_a_value_newer_than_this_
     /^the runtime's list_streams result could not be read: .*node_name/,
   );
 });
+
+test("a_build_of_a_computed_value_and_a_link_whose_pin_types_differ_read_as_their_own_kinds_with_their_own_recoveries", () => {
+  const listing = { stream: "lobby-main-298da3", display_name: "main", location: { project_directory: "/Users/me/lobby", project: A_PROJECT, stream_asset: A_STREAM_ASSET }, state: "running", node_count: 3, failed_because: null };
+  const diagnostics = [
+    { kind: "computed_value_build_failed", place: { on: "node", node_id: "T1", node_name: "tint" }, words: "the build of its computed value kernel failed", recovery: "change_an_input_the_build_read" },
+    { kind: "computed_value_not_yet_built", place: { on: "node", node_id: "B1", node_name: "blur" }, words: "its computed value kernel is building its first value", recovery: "wait_for_the_node" },
+    { kind: "link_pin_types_differ", place: { on: "link", from_node: "convert", from_port: "audio_out", to_node: "meter", to_port: "audio_in" }, words: "its output carries audio and its input reads texture", recovery: "fix_the_link" },
+  ];
+
+  const [listed] = answerOf(listedStreamsFromTheListStreamsToolResult({ streams: [{ ...listing, condition: { load: "loaded", playback: "playing", health: "degraded", diagnostics } }] }));
+
+  expect(listed?.condition?.diagnostics).toEqual(diagnostics);
+});

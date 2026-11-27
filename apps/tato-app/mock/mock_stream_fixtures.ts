@@ -16,6 +16,7 @@ import type {
   StreamGraphNote,
   StreamGraphPort,
   StreamGraphPortPin,
+  StreamCondition,
   StreamLocation,
   TatolabPlatform,
 } from "../src/shared/tatolab_backend_contract";
@@ -339,6 +340,38 @@ function loadingLines(machine: MockMachine, streamId: string, projectDirectory: 
   ];
 }
 
+/**
+ * `main`'s condition with `?state=build-failed`, in the words the runtime gives each kind: the latest build of `orbits`'s kernel
+ * failed while it runs on its previous value, `kaleidoscope`'s kernel is building its first value, and the link from `click`'s
+ * audio into `program` no longer fits since an input of `click` chose another channel count.
+ */
+const MAIN_CONDITION_WITH_A_BUILD_FAILED_AND_A_LINK_THAT_NO_LONGER_FITS: StreamCondition = {
+  load: "loaded",
+  playback: "playing",
+  health: "degraded",
+  diagnostics: [
+    {
+      kind: "computed_value_build_failed",
+      place: { on: "node", node_id: "3434b568-ec32-51b4-9a91-766d2c34af93", node_name: "orbits" },
+      words: "the build of its computed value kernel failed: orbit_lights.wgsl:41:12: no definition in scope for identifier: `radiu`; the node runs on its previous value",
+      recovery: "change_an_input_the_build_read",
+    },
+    {
+      kind: "computed_value_not_yet_built",
+      place: { on: "node", node_id: "d8315d46-0b4b-5786-9361-d47da011b18e", node_name: "kaleidoscope" },
+      words: "its computed value kernel is building its first value; the node runs no frame until every computed value has one",
+      recovery: "wait_for_the_node",
+    },
+    {
+      kind: "link_pin_types_differ",
+      place: { on: "link", from_node: "click", from_port: "audio", to_node: "program", to_port: "audio" },
+      words:
+        "its input `audio` reads nothing: the link into it is not wired: its output carries audio with 1 channel and its input reads audio with 2 channels, which do not connect: their channel counts differ. To fix: change the input that chose the type back, or remove the link",
+      recovery: "fix_the_link",
+    },
+  ],
+};
+
 /** Why the speaker failed in the stream that shows it in error, as a native node's failed `start()` reads. */
 const SPEAKER_FAILED_BECAUSE = "start() failed: SpeakerSink could not open an audio output: no output device answered on 'default'";
 
@@ -530,6 +563,7 @@ function createPulseStageStream(
     withTheCompositorNode: boolean;
     withExtraGraphInputs: boolean;
     withAnImageFileNotReady: boolean;
+    withABuildFailedAndALinkThatNoLongerFits: boolean;
   },
 ): MockStreamFixture {
   const { projectDirectory, recordsTheStream } = options;
@@ -543,12 +577,15 @@ function createPulseStageStream(
     ...(options.withAnImageFileNotReady ? [IMAGE_FILE_NOT_READY_NODE] : []),
   ];
   const links: MockGraphLink[] = [
-    ...recorded.links.map((link) => (options.withTheSpeakerInError && link.target_node === "speaker" ? { ...link, state: "error" as const } : link)),
+    ...recorded.links.map((link) =>
+      (options.withTheSpeakerInError && link.target_node === "speaker") || (options.withABuildFailedAndALinkThatNoLongerFits && link.target_node === "program" && link.target_port === "audio") ? { ...link, state: "error" as const } : link,
+    ),
     ...(recordsTheStream === null ? [] : [recorderOfMainLink(recordsTheStream)]),
     ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_LINK, FADER_METER_LINK] : []),
     ...(options.withTheCompositorNode ? [ALPHA_OVER_COMPOSITOR_LINK] : []),
   ];
-  const listing = runningListing({ project_directory: projectDirectory, stream_name: options.streamName }, options.displayName, nodes.length);
+  const runningAsListed = runningListing({ project_directory: projectDirectory, stream_name: options.streamName }, options.displayName, nodes.length);
+  const listing = options.withABuildFailedAndALinkThatNoLongerFits ? { ...runningAsListed, condition: MAIN_CONDITION_WITH_A_BUILD_FAILED_AND_A_LINK_THAT_NO_LONGER_FITS } : runningAsListed;
   const streamId = listing.stream;
   const bar = (dueAt: number, index: number): MockLogRecordDraft => ({
     millisecondsAfterLoad: dueAt,
@@ -795,6 +832,8 @@ export interface MockStreamFixtures {
   mainStreamDeclaringExtraGraphInputs: MockStreamFixture;
   /** `main` with an `ImageFile` that names no asset, so it reports itself not ready. */
   mainStreamWithAnImageFileNotReady: MockStreamFixture;
+  /** `main` whose `orbits` kernel failed to build, whose `kaleidoscope` kernel builds its first value, and whose link into `program`'s audio no longer fits. */
+  mainStreamWithABuildFailedAndALinkThatNoLongerFits: MockStreamFixture;
   /** `main` holding each graph `?main_graph=` names: one recorded from a sample, with a stand-in warned link or a stand-in node with bundle pins, or the large graph of the canvas measurements. */
   mainStreamHoldingTheGraph: Record<MockMainGraph, MockStreamFixture>;
   cameraStream: MockStreamFixture;
@@ -827,6 +866,7 @@ function plainPulseStageStreamOptions(projectDirectory: string, streamName: stri
     withTheCompositorNode: false,
     withExtraGraphInputs: false,
     withAnImageFileNotReady: false,
+    withABuildFailedAndALinkThatNoLongerFits: false,
   };
 }
 
@@ -849,6 +889,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     mainStreamWithTheCompositorNode: createPulseStageStream(machine, { ...mainStreamOptions, withTheCompositorNode: true }),
     mainStreamDeclaringExtraGraphInputs: createPulseStageStream(machine, { ...mainStreamOptions, withExtraGraphInputs: true }),
     mainStreamWithAnImageFileNotReady: createPulseStageStream(machine, { ...mainStreamOptions, withAnImageFileNotReady: true }),
+    mainStreamWithABuildFailedAndALinkThatNoLongerFits: createPulseStageStream(machine, { ...mainStreamOptions, withABuildFailedAndALinkThatNoLongerFits: true }),
     mainStreamHoldingTheGraph: mapEachMockMainGraph((graph) => ({ ...mainStream, listing: { ...mainStream.listing, node_count: graph.nodes.length }, graph })),
     cameraStream,
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },

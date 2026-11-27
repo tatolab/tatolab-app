@@ -69,7 +69,9 @@ function linkLookAndWords(linkState: StreamGraphLink["state"]): {
 /**
  * How a node's card shows how it is doing: not ready while the running stream does not hold it yet, `Error` failed with the
  * runtime's reason, a `process()` that keeps raising failed with what it raised, a node not ready yet not ready with the
- * runtime's reason, any other diagnostic of `condition` at it in its words, `Restarting` restarting, every other state healthy.
+ * runtime's reason, then any other diagnostic of `condition` at it in its words, one that fails before one that warns: a
+ * computed value whose build failed fails with the error, one building its first value is not ready; `Restarting`
+ * restarting, every other state healthy.
  */
 function cardConditionOf(node: StreamGraphNode, condition: StreamCondition | null): NodeGraphCardCondition {
   const { components } = node;
@@ -77,8 +79,11 @@ function cardConditionOf(node: StreamGraphNode, condition: StreamCondition | nul
   if (components.state === "Error") return { look: "failed", failed_because: components.failed_because };
   if (components.process_raising_because !== null) return { look: "failed", failed_because: components.process_raising_because };
   if (components.not_ready_because !== null) return { look: "not_ready", not_ready_because: components.not_ready_because };
-  const diagnostic = diagnosticsAtTheNode(condition, node.name).find(({ kind }) => !DIAGNOSTICS_THE_NODE_CARRIES.has(kind));
-  if (diagnostic !== undefined) return doesTheDiagnosticWarn(diagnostic.kind) ? { look: "not_ready", not_ready_because: diagnostic.words } : { look: "failed", failed_because: diagnostic.words };
+  const diagnostics = diagnosticsAtTheNode(condition, node.name).filter(({ kind }) => !DIAGNOSTICS_THE_NODE_CARRIES.has(kind));
+  const failure = diagnostics.find(({ kind }) => !doesTheDiagnosticWarn(kind));
+  if (failure !== undefined) return { look: "failed", failed_because: failure.words };
+  const warning = diagnostics.at(0);
+  if (warning !== undefined) return { look: "not_ready", not_ready_because: warning.words };
   if (components.state === "Restarting") return { look: "restarting" };
   return { look: "healthy" };
 }
