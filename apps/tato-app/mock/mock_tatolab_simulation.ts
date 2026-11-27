@@ -8,6 +8,7 @@ import {
   type MockStreamGraph,
   type MockLogRecordDraft,
   type MockStreamFixture,
+  mockMainStreamChosen,
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
 import { mockStreamGraphOf } from "./mock_stream_graph_document";
@@ -94,21 +95,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const assetsChangedWhileTheMockRuns = mockProjectAssetsUnchanged();
-  const mainStreamAsChosen = mockTatolabOptions.mainGraph !== null
-    ? fixtures.mainStreamHoldingTheGraph[mockTatolabOptions.mainGraph]
-    : scenario === "node-error"
-      ? fixtures.mainStreamWithTheSpeakerInError
-      : scenario === "node-not-ready"
-        ? fixtures.mainStreamWithAnImageFileNotReady
-        : scenario === "dropping"
-          ? fixtures.mainStreamWithItsGlowFallingBehind
-          : mockTatolabOptions.isTheFixtureViewListed
-            ? fixtures.mainStreamWithTheFixtureViewsNode
-            : mockTatolabOptions.isTheCompositorInMain
-              ? fixtures.mainStreamWithTheCompositorNode
-              : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
-                ? fixtures.mainStreamDeclaringExtraGraphInputs
-                : fixtures.mainStream;
+  const mainStreamAsChosen = mockMainStreamChosen(fixtures, scenario, mockTatolabOptions);
   const mainStream = mockMainStreamAsTheRuntimeHoldsIt(mainStreamAsChosen, scenario === "refused-at-play" ? "refused_at_play" : mockTatolabOptions.areTheMainStreamsNodesStopped ? "nodes_stopped" : "as_chosen");
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
@@ -278,7 +265,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     return [...listingOrder, ...streamIdsRunFromTheWindow]
       .map((streamId) => loadedStreams.get(streamId)?.fixture.listing ?? listedStreamsNotLoaded.get(streamId) ?? null)
       .filter((listing): listing is ListedStream => listing !== null)
-      .map((listing) => ({ ...listing, display_name: displayNamesRenamedTo.get(listing.stream) ?? listing.display_name, condition: listing.condition ?? mockConditionOf(listing, loadedStreams.has(listing.stream)) }));
+      .map((listing) => ({ ...listing, display_name: displayNamesRenamedTo.get(listing.stream) ?? listing.display_name, condition: listing.state === "running" && listing.condition !== null ? listing.condition : mockConditionOf(listing, loadedStreams.has(listing.stream)) }));
   };
 
   /** Each project folder the mock knows, by path: its stream assets' names, none for a folder that is no project, and whether it has a `.venv`; a folder not here does not exist. */

@@ -24,7 +24,8 @@ import type {
 
 /**
  * Browser-only stand-ins for the app backend, picked with `?state=`: `starting` is the app's runtime coming up, `not-running`
- * one that exited, `refused-at-play` the runtime holding `main` failed, its graph stopped, after it refused to play a link.
+ * one that exited, `refused-at-play` the runtime holding `main` failed, its graph stopped, after it refused to play a link,
+ * `build-failed` `main` playing with a computed value whose build failed, one building its first value and a link that no longer fits.
  */
 export type MockTatolabScenario =
   | "running"
@@ -32,6 +33,7 @@ export type MockTatolabScenario =
   | "loading"
   | "node-error"
   | "node-not-ready"
+  | "build-failed"
   | "refused-at-play"
   | "camera-access"
   | "dropping"
@@ -45,6 +47,7 @@ const MOCK_TATOLAB_SCENARIOS: readonly MockTatolabScenario[] = [
   "loading",
   "node-error",
   "node-not-ready",
+  "build-failed",
   "refused-at-play",
   "camera-access",
   "dropping",
@@ -429,6 +432,7 @@ export function initialMockStatus(
     case "loading":
     case "node-error":
     case "node-not-ready":
+    case "build-failed":
     case "refused-at-play":
     case "camera-access":
     case "dropping":

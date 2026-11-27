@@ -30,7 +30,7 @@ import {
 import { descriptionWords, nodeInputs, nodeOutputs, type WiresReadAt } from "../shared/node_pins_of_the_graph";
 import { isANameTheCodeGave, nodeTitle, nodeTypeClassName } from "../shared/node_words";
 import { linkIdAsTheCanvasKeysIt } from "../shared/stream_graph_edits";
-import { diagnosticsAtTheLink, diagnosticsAtTheNode, doesTheDiagnosticWarn } from "../shared/stream_condition_words";
+import { diagnosticsAtTheLink, diagnosticsAtTheNode, doesTheDiagnosticWarn, theDiagnosticShown } from "../shared/stream_condition_words";
 
 /** What a card or link says of a part the running stream does not hold yet. */
 const NOT_LIVE_YET_WORDS = "Not live yet: the running stream hasn't taken this edit. Restart the playback to make it live.";
@@ -68,25 +68,28 @@ function linkLookAndWords(linkState: StreamGraphLink["state"]): {
 
 /**
  * How a node's card shows how it is doing: not ready while the running stream does not hold it yet, `Error` failed with the
- * runtime's reason, a `process()` that keeps raising failed with what it raised, a node not ready yet not ready with the
- * runtime's reason, any other diagnostic of `condition` at it in its words, `Restarting` restarting, every other state healthy.
+ * runtime's reason, a `process()` that keeps raising failed with what it raised, then any other diagnostic of `condition` at
+ * it that fails in its words, as a computed value whose build failed; a node not ready yet not ready with the runtime's
+ * reason, then a diagnostic that warns in its words, as a computed value building its first value; `Restarting` restarting,
+ * every other state healthy. The outliner's node row ranks them the same way.
  */
 function cardConditionOf(node: StreamGraphNode, condition: StreamCondition | null): NodeGraphCardCondition {
   const { components } = node;
   if (!isLiveInTheRunningGraph(node)) return { look: "not_ready", not_ready_because: NOT_LIVE_YET_WORDS };
   if (components.state === "Error") return { look: "failed", failed_because: components.failed_because };
   if (components.process_raising_because !== null) return { look: "failed", failed_because: components.process_raising_because };
+  const diagnostic = theDiagnosticShown(diagnosticsAtTheNode(condition, node.name).filter(({ kind }) => !DIAGNOSTICS_THE_NODE_CARRIES.has(kind)));
+  if (diagnostic !== undefined && !doesTheDiagnosticWarn(diagnostic.kind)) return { look: "failed", failed_because: diagnostic.words };
   if (components.not_ready_because !== null) return { look: "not_ready", not_ready_because: components.not_ready_because };
-  const diagnostic = diagnosticsAtTheNode(condition, node.name).find(({ kind }) => !DIAGNOSTICS_THE_NODE_CARRIES.has(kind));
-  if (diagnostic !== undefined) return doesTheDiagnosticWarn(diagnostic.kind) ? { look: "not_ready", not_ready_because: diagnostic.words } : { look: "failed", failed_because: diagnostic.words };
+  if (diagnostic !== undefined) return { look: "not_ready", not_ready_because: diagnostic.words };
   if (components.state === "Restarting") return { look: "restarting" };
   return { look: "healthy" };
 }
 
-/** How `link` is drawn: waiting while the running stream does not hold it yet, failed while a diagnostic of `condition` names it, else by its state. */
+/** How `link` is drawn: waiting while the running stream does not hold it yet, by the diagnostic of `condition` naming it that says the most, else by its state. */
 function linkLookAndWordsOf(link: StreamGraphLink, condition: StreamCondition | null): { look: NodeGraphLinkLook; words: string } {
   if (!isLiveInTheRunningGraph(link)) return { look: "waiting", words: NOT_LIVE_YET_WORDS };
-  const diagnostic = diagnosticsAtTheLink(condition, link).at(0);
+  const diagnostic = theDiagnosticShown(diagnosticsAtTheLink(condition, link));
   if (diagnostic !== undefined) return { look: doesTheDiagnosticWarn(diagnostic.kind) ? "waiting" : "failed", words: diagnostic.words };
   return linkLookAndWords(link.state);
 }

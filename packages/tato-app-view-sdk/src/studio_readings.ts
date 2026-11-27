@@ -8,6 +8,8 @@ import type {
   AudioCaptureDeviceOnTheWire,
   BundleMemberValueReadOnTheWire,
   CheckLinkCandidatesRequest,
+  DiagnosticKindOnTheWire,
+  DiagnosticRecoveryOnTheWire,
   GraphEditMode,
   GraphFragmentOnTheWire,
   GraphInterfacePortOnTheWire,
@@ -63,30 +65,11 @@ export type StreamPlayback = "starting" | "playing" | "paused" | "stopping" | "s
 /** Whether a stream is healthy; a value newer than this app reads as `failed`. */
 export type StreamHealth = "healthy" | "degraded" | "failed";
 
-/** What a problem of a stream or a node is; a kind newer than this app reads as `other`, shown by its words. */
-export type StreamDiagnosticKind =
-  | "project_venv_not_made"
-  | "load_refused"
-  | "start_refused"
-  | "node_type_not_described"
-  | "link_refused"
-  | "keeps_crashing_the_runtime"
-  | "recorded_by_an_earlier_runtime"
-  | "node_failed"
-  | "node_raising"
-  | "node_not_ready"
-  | "edit_not_live"
-  | "other";
+/** What a problem of a stream or a node is, as the contract names it; a kind newer than this app reads as `other`, shown by its words. */
+export type StreamDiagnosticKind = DiagnosticKindOnTheWire;
 
-/** What recovers from a problem; a recovery newer than this app reads as `retry_the_load`. */
-export type StreamDiagnosticRecovery =
-  | "fix_the_code"
-  | "fix_the_dependencies"
-  | "fix_the_link"
-  | "restart_the_playback"
-  | "remove_the_stream"
-  | "wait_for_the_node"
-  | "retry_the_load";
+/** What recovers from a problem, as the contract names it; a recovery newer than this app reads as `retry_the_load`. */
+export type StreamDiagnosticRecovery = DiagnosticRecoveryOnTheWire;
 
 /** Where a problem applies: the stream as a whole, one node by its graph `id` and name, or one link by the node names and ports its document draws it between. */
 export type StreamDiagnosticPlace =

@@ -476,3 +476,69 @@ test("a_pin_group_slots_pins_carry_their_slot_named_in_it_and_the_last_slot_of_a
     ["bands.1.banded", "set_by_the_input_of_the_groups_name", false],
   ]);
 });
+
+test("a_node_whose_computed_value_failed_to_build_is_a_failed_card_carrying_the_error_even_while_it_says_it_is_not_ready_and_one_still_building_its_first_value_a_not_ready_card", () => {
+  const buildFailed = "the build of its computed value kernel failed: shader.wgsl:12: unknown identifier `colr`; the node runs on its previous value";
+  const firstBuild = "its computed value kernel is building its first value; the node runs no frame until every computed value has one";
+  const graph: StreamGraph = {
+    ...GRAPH,
+    nodes: [
+      graphNode("tint", ["video_in"], ["video_out"], { components: { state: "Running", not_ready_because: "waiting for its first frame" } }),
+      graphNode("blur", ["video_in"], ["video_out"]),
+      graphNode("grade", ["video_in"], ["video_out"]),
+    ],
+    links: [],
+  };
+  const condition: StreamCondition = {
+    load: "loaded",
+    playback: "playing",
+    health: "degraded",
+    diagnostics: [
+      { kind: "computed_value_build_failed", place: { on: "node", node_id: "TINT", node_name: "tint" }, words: buildFailed, recovery: "change_an_input_the_build_read" },
+      { kind: "computed_value_not_yet_built", place: { on: "node", node_id: "BLUR", node_name: "blur" }, words: firstBuild, recovery: "wait_for_the_node" },
+      { kind: "computed_value_not_yet_built", place: { on: "node", node_id: "GRADE", node_name: "grade" }, words: firstBuild, recovery: "wait_for_the_node" },
+      { kind: "computed_value_build_panicked", place: { on: "node", node_id: "GRADE", node_name: "grade" }, words: "the build of its computed value lut panicked: index out of bounds", recovery: "fix_the_code" },
+    ],
+  };
+
+  expect(streamGraphCanvasContents(graph, NONE_DESCRIBED, null, null, condition).nodes.map((node) => [node.node_id, node.condition])).toEqual([
+    ["tint", { look: "failed", failed_because: buildFailed }],
+    ["blur", { look: "not_ready", not_ready_because: firstBuild }],
+    ["grade", { look: "failed", failed_because: "the build of its computed value lut panicked: index out of bounds" }],
+  ]);
+  expect(streamGraphCanvasContents(graph, NONE_DESCRIBED, null, null, { ...condition, health: "healthy", diagnostics: [] }).nodes.map((node) => node.condition)).toEqual([
+    { look: "not_ready", not_ready_because: "waiting for its first frame" },
+    { look: "healthy" },
+    { look: "healthy" },
+  ]);
+});
+
+test("a_link_whose_pin_types_no_longer_match_is_drawn_failed_saying_why_even_while_its_state_still_reads_wired_and_drawn_by_its_state_again_once_they_match", () => {
+  const typesDiffer =
+    "its input `video_in` reads nothing: the link into it is not wired: its output carries audio and its input reads texture, which do not connect: an audio frame is not a texture. To fix: change the input that chose the type back, or remove the link";
+  const condition: StreamCondition = {
+    load: "loaded",
+    playback: "playing",
+    health: "degraded",
+    diagnostics: [{ kind: "link_pin_types_differ", place: { on: "link", from_node: "camera", from_port: "video", to_node: "invert", to_port: "video_in" }, words: typesDiffer, recovery: "fix_the_link" }],
+  };
+  const graphWithTheLinkInError: StreamGraph = { ...GRAPH, links: GRAPH.links.map((link) => (link.id === "L1" ? { ...link, state: "error" } : link)) };
+
+  expect(streamGraphCanvasContents(graphWithTheLinkInError, NONE_DESCRIBED, null, null, condition).links[0]).toMatchObject({ link_id: "L1", look: "failed", description: `camera.video → invert.video_in, ${typesDiffer}` });
+  expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED, null, null, condition).links[0]).toMatchObject({ link_id: "L1", look: "failed", description: `camera.video → invert.video_in, ${typesDiffer}` });
+  expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED, null, null, { ...condition, health: "healthy", diagnostics: [] }).links[0]).toMatchObject({ link_id: "L1", look: "carrying", description: "camera.video → invert.video_in, wired" });
+});
+
+test("a_link_named_by_a_diagnostic_that_warns_and_one_that_fails_is_drawn_by_the_failure", () => {
+  const link = { on: "link", from_node: "camera", from_port: "video", to_node: "invert", to_port: "video_in" } as const;
+  const condition: StreamCondition = {
+    load: "loaded",
+    playback: "playing",
+    health: "degraded",
+    diagnostics: [
+      { kind: "edit_not_live", place: link, words: "the running stream has not taken it", recovery: "restart_the_playback" },
+      { kind: "link_pin_types_differ", place: link, words: "its output carries audio and its input reads texture", recovery: "fix_the_link" },
+    ],
+  };
+  expect(streamGraphCanvasContents(GRAPH, NONE_DESCRIBED, null, null, condition).links[0]).toMatchObject({ look: "failed", description: "camera.video → invert.video_in, its output carries audio and its input reads texture" });
+});

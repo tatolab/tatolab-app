@@ -31,6 +31,12 @@ const STREAM_DIAGNOSTIC_KINDS: Readonly<Record<StreamDiagnosticKind, true>> = {
   node_raising: true,
   node_not_ready: true,
   edit_not_live: true,
+  link_not_wired: true,
+  link_pin_types_differ: true,
+  computed_value_not_yet_built: true,
+  computed_value_build_failed: true,
+  computed_value_build_panicked: true,
+  computed_value_comparison_panicked: true,
   other: true,
 };
 const STREAM_DIAGNOSTIC_RECOVERIES: Readonly<Record<StreamDiagnosticRecovery, true>> = {
@@ -40,6 +46,7 @@ const STREAM_DIAGNOSTIC_RECOVERIES: Readonly<Record<StreamDiagnosticRecovery, tr
   restart_the_playback: true,
   remove_the_stream: true,
   wait_for_the_node: true,
+  change_an_input_the_build_read: true,
   retry_the_load: true,
 };
 
