@@ -8,6 +8,7 @@ import {
   type MockStreamGraph,
   type MockLogRecordDraft,
   type MockStreamFixture,
+  mockMainStreamChosen,
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
 import { mockStreamGraphOf } from "./mock_stream_graph_document";
@@ -94,23 +95,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const assetsChangedWhileTheMockRuns = mockProjectAssetsUnchanged();
-  const mainStreamAsChosen = mockTatolabOptions.mainGraph !== null
-    ? fixtures.mainStreamHoldingTheGraph[mockTatolabOptions.mainGraph]
-    : scenario === "node-error"
-      ? fixtures.mainStreamWithTheSpeakerInError
-      : scenario === "node-not-ready"
-        ? fixtures.mainStreamWithAnImageFileNotReady
-        : scenario === "build-failed"
-          ? fixtures.mainStreamWithABuildFailedAndALinkThatNoLongerFits
-          : scenario === "dropping"
-          ? fixtures.mainStreamWithItsGlowFallingBehind
-          : mockTatolabOptions.isTheFixtureViewListed
-            ? fixtures.mainStreamWithTheFixtureViewsNode
-            : mockTatolabOptions.isTheCompositorInMain
-              ? fixtures.mainStreamWithTheCompositorNode
-              : mockTatolabOptions.doesTheMainStreamDeclareGraphInputs
-                ? fixtures.mainStreamDeclaringExtraGraphInputs
-                : fixtures.mainStream;
+  const mainStreamAsChosen = mockMainStreamChosen(fixtures, scenario, mockTatolabOptions);
   const mainStream = mockMainStreamAsTheRuntimeHoldsIt(mainStreamAsChosen, scenario === "refused-at-play" ? "refused_at_play" : mockTatolabOptions.areTheMainStreamsNodesStopped ? "nodes_stopped" : "as_chosen");
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();

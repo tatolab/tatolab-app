@@ -817,6 +817,25 @@ export function mockMainStreamAsTheRuntimeHoldsIt(main: MockStreamFixture, held:
   }
 }
 
+/** The `main` the mock runtime holds: the graph `?main_graph=` names, else the one `?state=` asks for, else the one the other choices add a node to, else Pulse Stage's own. */
+export function mockMainStreamChosen(
+  fixtures: MockStreamFixtures,
+  scenario: string,
+  choices: { mainGraph: MockMainGraph | null; isTheFixtureViewListed: boolean; isTheCompositorInMain: boolean; doesTheMainStreamDeclareGraphInputs: boolean },
+): MockStreamFixture {
+  if (choices.mainGraph !== null) return fixtures.mainStreamHoldingTheGraph[choices.mainGraph];
+  const ofTheScenario = new Map<string, MockStreamFixture>([
+    ["node-error", fixtures.mainStreamWithTheSpeakerInError],
+    ["node-not-ready", fixtures.mainStreamWithAnImageFileNotReady],
+    ["build-failed", fixtures.mainStreamWithABuildFailedAndALinkThatNoLongerFits],
+    ["dropping", fixtures.mainStreamWithItsGlowFallingBehind],
+  ]).get(scenario);
+  if (ofTheScenario !== undefined) return ofTheScenario;
+  if (choices.isTheFixtureViewListed) return fixtures.mainStreamWithTheFixtureViewsNode;
+  if (choices.isTheCompositorInMain) return fixtures.mainStreamWithTheCompositorNode;
+  return choices.doesTheMainStreamDeclareGraphInputs ? fixtures.mainStreamDeclaringExtraGraphInputs : fixtures.mainStream;
+}
+
 /** The machine the mock runtime runs on for `platform`, and the streams it lists. */
 export interface MockStreamFixtures {
   machine: MockMachine;
