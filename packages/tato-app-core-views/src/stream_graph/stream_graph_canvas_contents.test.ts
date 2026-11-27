@@ -477,12 +477,16 @@ test("a_pin_group_slots_pins_carry_their_slot_named_in_it_and_the_last_slot_of_a
   ]);
 });
 
-test("a_node_whose_computed_value_failed_to_build_is_a_failed_card_carrying_the_error_and_one_still_building_its_first_value_a_not_ready_card", () => {
+test("a_node_whose_computed_value_failed_to_build_is_a_failed_card_carrying_the_error_even_while_it_says_it_is_not_ready_and_one_still_building_its_first_value_a_not_ready_card", () => {
   const buildFailed = "the build of its computed value kernel failed: shader.wgsl:12: unknown identifier `colr`; the node runs on its previous value";
   const firstBuild = "its computed value kernel is building its first value; the node runs no frame until every computed value has one";
   const graph: StreamGraph = {
     ...GRAPH,
-    nodes: [graphNode("tint", ["video_in"], ["video_out"]), graphNode("blur", ["video_in"], ["video_out"]), graphNode("grade", ["video_in"], ["video_out"])],
+    nodes: [
+      graphNode("tint", ["video_in"], ["video_out"], { components: { state: "Running", not_ready_because: "waiting for its first frame" } }),
+      graphNode("blur", ["video_in"], ["video_out"]),
+      graphNode("grade", ["video_in"], ["video_out"]),
+    ],
     links: [],
   };
   const condition: StreamCondition = {
@@ -502,7 +506,11 @@ test("a_node_whose_computed_value_failed_to_build_is_a_failed_card_carrying_the_
     ["blur", { look: "not_ready", not_ready_because: firstBuild }],
     ["grade", { look: "failed", failed_because: "the build of its computed value lut panicked: index out of bounds" }],
   ]);
-  expect(streamGraphCanvasContents(graph, NONE_DESCRIBED, null, null, { ...condition, health: "healthy", diagnostics: [] }).nodes.map((node) => node.condition)).toEqual([{ look: "healthy" }, { look: "healthy" }, { look: "healthy" }]);
+  expect(streamGraphCanvasContents(graph, NONE_DESCRIBED, null, null, { ...condition, health: "healthy", diagnostics: [] }).nodes.map((node) => node.condition)).toEqual([
+    { look: "not_ready", not_ready_because: "waiting for its first frame" },
+    { look: "healthy" },
+    { look: "healthy" },
+  ]);
 });
 
 test("a_link_whose_pin_types_no_longer_match_is_drawn_failed_saying_why_even_while_its_state_still_reads_wired_and_drawn_by_its_state_again_once_they_match", () => {

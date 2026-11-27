@@ -265,7 +265,7 @@ export function createMockTatolabSimulation(mockTatolabOptions: MockTatolabOptio
     return [...listingOrder, ...streamIdsRunFromTheWindow]
       .map((streamId) => loadedStreams.get(streamId)?.fixture.listing ?? listedStreamsNotLoaded.get(streamId) ?? null)
       .filter((listing): listing is ListedStream => listing !== null)
-      .map((listing) => ({ ...listing, display_name: displayNamesRenamedTo.get(listing.stream) ?? listing.display_name, condition: listing.condition ?? mockConditionOf(listing, loadedStreams.has(listing.stream)) }));
+      .map((listing) => ({ ...listing, display_name: displayNamesRenamedTo.get(listing.stream) ?? listing.display_name, condition: listing.state === "running" && listing.condition !== null ? listing.condition : mockConditionOf(listing, loadedStreams.has(listing.stream)) }));
   };
 
   /** Each project folder the mock knows, by path: its stream assets' names, none for a folder that is no project, and whether it has a `.venv`; a folder not here does not exist. */

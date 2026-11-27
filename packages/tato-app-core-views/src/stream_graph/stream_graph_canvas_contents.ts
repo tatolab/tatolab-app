@@ -68,19 +68,20 @@ function linkLookAndWords(linkState: StreamGraphLink["state"]): {
 
 /**
  * How a node's card shows how it is doing: not ready while the running stream does not hold it yet, `Error` failed with the
- * runtime's reason, a `process()` that keeps raising failed with what it raised, a node not ready yet not ready with the
- * runtime's reason, then any other diagnostic of `condition` at it in its words, one that fails before one that warns: a
- * computed value whose build failed fails with the error, one building its first value is not ready; `Restarting`
- * restarting, every other state healthy.
+ * runtime's reason, a `process()` that keeps raising failed with what it raised, then any other diagnostic of `condition` at
+ * it that fails in its words, as a computed value whose build failed; a node not ready yet not ready with the runtime's
+ * reason, then a diagnostic that warns in its words, as a computed value building its first value; `Restarting` restarting,
+ * every other state healthy. The outliner's node row ranks them the same way.
  */
 function cardConditionOf(node: StreamGraphNode, condition: StreamCondition | null): NodeGraphCardCondition {
   const { components } = node;
   if (!isLiveInTheRunningGraph(node)) return { look: "not_ready", not_ready_because: NOT_LIVE_YET_WORDS };
   if (components.state === "Error") return { look: "failed", failed_because: components.failed_because };
   if (components.process_raising_because !== null) return { look: "failed", failed_because: components.process_raising_because };
-  if (components.not_ready_because !== null) return { look: "not_ready", not_ready_because: components.not_ready_because };
   const diagnostic = theDiagnosticShown(diagnosticsAtTheNode(condition, node.name).filter(({ kind }) => !DIAGNOSTICS_THE_NODE_CARRIES.has(kind)));
-  if (diagnostic !== undefined) return doesTheDiagnosticWarn(diagnostic.kind) ? { look: "not_ready", not_ready_because: diagnostic.words } : { look: "failed", failed_because: diagnostic.words };
+  if (diagnostic !== undefined && !doesTheDiagnosticWarn(diagnostic.kind)) return { look: "failed", failed_because: diagnostic.words };
+  if (components.not_ready_because !== null) return { look: "not_ready", not_ready_because: components.not_ready_because };
+  if (diagnostic !== undefined) return { look: "not_ready", not_ready_because: diagnostic.words };
   if (components.state === "Restarting") return { look: "restarting" };
   return { look: "healthy" };
 }
