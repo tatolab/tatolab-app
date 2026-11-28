@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { aGraphNode, aGraphPort, aStreamGraph } from "../stream_graph_builders.js";
 import type { NodeTypeDescription, NodeTypeInputDescribed } from "../studio_readings.js";
-import { doesAChangeRebuildTheNode, settingOfTheDescribedInput } from "./node_pins.js";
+import { settingOfTheDescribedInput } from "./node_pins.js";
 import { settingsOfTheNodeNotAmongItsPorts, settingValuesOfTheGraph, valueReadOfTheSetting } from "./node_settings.js";
 
 /** Test Pattern as the runtime describes a node type not yet typed: a stream output, and its config's `width` and `height` as settings read at setup, `height` with a default. */
@@ -36,11 +36,8 @@ test("a_graphs_setting_values_name_each_setting_at_its_level_inside_a_subgraph_t
   ]);
 });
 
-test("a_setting_read_at_setup_rebuilds_its_node_when_changed_and_one_read_each_run_or_an_input_that_takes_a_wire_does_not", () => {
+test("a_setting_states_when_its_node_reads_it_at_setup_by_default_and_an_input_that_takes_a_wire_is_no_setting", () => {
   expect(settingOfTheDescribedInput({ mode: "setting_only", read: "at_setup" })).toEqual({ read: "at_setup" });
   expect(settingOfTheDescribedInput({ mode: "setting_only" })).toEqual({ read: "at_setup" });
   expect(settingOfTheDescribedInput({ mode: "wire_or_value" })).toBeNull();
-  expect(doesAChangeRebuildTheNode({ setting: { read: "at_setup" } })).toBe(true);
-  expect(doesAChangeRebuildTheNode({ setting: { read: "each_run" } })).toBe(false);
-  expect(doesAChangeRebuildTheNode({ setting: null })).toBe(false);
 });

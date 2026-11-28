@@ -75,7 +75,7 @@ export interface NodePinWire {
   readonly wiring: InputWiring;
 }
 
-/** When a node reads a setting: once as it is set up, so a change rebuilds the node, or on each run. */
+/** When a node reads a setting, as the runtime describes it: once as it is set up, or on each run; either way each change reaches the running node. */
 export interface NodeSetting {
   readonly read: SettingReadTime;
 }
@@ -97,11 +97,6 @@ export function doesTheDescribedInputTakeAWire(input: Pick<NodeTypeInputDescribe
  */
 export function doesTheInputPortTakeAWire(port: Pick<StreamGraphPort, "takes_a_wire">, describedInput: Pick<NodeTypeInputDescribed, "takes_a_wire"> | undefined): boolean {
   return port.takes_a_wire ?? (describedInput === undefined || doesTheDescribedInputTakeAWire(describedInput));
-}
-
-/** Whether a change of `pin` rebuilds its node: a setting its node reads as it is set up. */
-export function doesAChangeRebuildTheNode(pin: Pick<NodePin, "setting">): boolean {
-  return pin.setting?.read === "at_setup";
 }
 
 /** One row of a node's card: the side of the card its socket sits on, and its pin, or what stands for it, as its name in the layout. */

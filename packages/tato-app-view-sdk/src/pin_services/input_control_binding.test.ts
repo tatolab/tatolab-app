@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from "vitest";
-import type { ControlledInput } from "../pin_model/controlled_inputs.js";
+import { takesAControl, type ControlledInput } from "../pin_model/controlled_inputs.js";
 import type { InputAddress } from "../pin_model/node_inputs.js";
 import { fireInputControlCancel, fireInputControlEvent, type ControlledPin, type InputControlElement, type InputControlState, type NodeUiSurface } from "../node_ui/input_control_element.js";
 import type { NodeUiElementLoading } from "../node_ui/load_node_ui_element.js";
@@ -14,7 +14,7 @@ import { createInputValues } from "./input_values.js";
 const PROJECT = "/projects/demo";
 const STREAM_ASSET = "11111111-2222-3333-4444-555555555555";
 const GAIN: InputAddress = { graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "MIX-ID", input: "gain", member: null };
-const FLOAT_GAIN: ControlledInput = { address: GAIN, declaration: { input_name: "gain", label: "gain", pin_type: { type: "float" }, annotations: {}, may_be_unset: false }, rebuilds_its_node: false, driven_by: null };
+const FLOAT_GAIN: ControlledInput = { address: GAIN, declaration: { input_name: "gain", label: "gain", pin_type: { type: "float" }, annotations: {}, may_be_unset: false }, driven_by: null };
 const FLOAT_DEFAULT = listedElementOf("studio", { kind: "control", type: "float", control: null }, { script: "float_number.ts" });
 const STAND_IN_TAG = "stand-in-float-control";
 const KNOB_GAIN: ControlledInput = { ...FLOAT_GAIN, declaration: { ...FLOAT_GAIN.declaration, annotations: { control: "night-show:knob" } } };
@@ -443,7 +443,7 @@ test("each press of a Trigger's control fires it once, live on every surface and
     loadElement: () => Promise.resolve({ kind: "defined", tag: "stand-in-trigger-control" }),
     requestAFlush: (flush) => flush(),
   });
-  const FLASH: ControlledInput = { address: { ...GAIN, node_id: "FLASH-ID", input: "flash" }, declaration: { input_name: "flash", label: "flash", pin_type: { type: "trigger" }, annotations: {}, may_be_unset: false }, rebuilds_its_node: false, driven_by: null };
+  const FLASH: ControlledInput = { address: { ...GAIN, node_id: "FLASH-ID", input: "flash" }, declaration: { input_name: "flash", label: "flash", pin_type: { type: "trigger" }, annotations: {}, may_be_unset: false }, driven_by: null };
   const host = document.createElement("div");
   document.body.append(host);
   binder.bindInputControl(host, FLASH, { surface: "properties", read_only: false });
@@ -475,7 +475,7 @@ class StandInTypeChoiceControl extends HTMLElement implements InputControlElemen
 customElements.define("stand-in-type-choice-control", StandInTypeChoiceControl);
 
 test("a Pin type choice's control is handed the type its input saves, and a type picked in it is committed whole, and one it does not offer is not", async () => {
-  const PIN_TYPE: ControlledInput = { address: GAIN, declaration: { input_name: "pin_type", label: "pin_type", pin_type: { type: "pin_type_choice" }, annotations: {}, may_be_unset: false }, rebuilds_its_node: true, driven_by: null };
+  const PIN_TYPE: ControlledInput = { address: GAIN, declaration: { input_name: "pin_type", label: "pin_type", pin_type: { type: "pin_type_choice" }, annotations: {}, may_be_unset: false }, driven_by: null };
   const slot = binderUnderTest({ loading: { kind: "defined", tag: "stand-in-type-choice-control" }, surface: "properties", input: PIN_TYPE });
   slot.inputValues.takeTheInputValues(PROJECT, valuesRead({ type: "float" }));
   slot.list([listedElementOf("studio", { kind: "control", type: "pin_type_choice", control: null }, { script: "type_choice.ts" })]);
@@ -489,9 +489,27 @@ test("a Pin type choice's control is handed the type its input saves, and a type
   expect(slot.sent).toEqual([{ value: { type: "integer" }, mode: "commit" }]);
 });
 
-test("a_gesture_on_a_setting_that_rebuilds_its_node_ends_as_a_commit_alone_on_every_surface", () => {
-  expect(releaseOfAGestureOn("perform", { rebuilds_its_node: true })).toBe("commit_alone");
-  expect(releaseOfAGestureOn("node", { rebuilds_its_node: true })).toBe("commit_alone");
-  expect(releaseOfAGestureOn("perform", { rebuilds_its_node: false })).toBe("live");
-  expect(releaseOfAGestureOn("properties", { rebuilds_its_node: false })).toBe("commit");
+test("a gesture ends live in Perform and in one commit on every other surface", () => {
+  expect(releaseOfAGestureOn("perform")).toBe("live");
+  expect(releaseOfAGestureOn("node")).toBe("commit");
+  expect(releaseOfAGestureOn("properties")).toBe("commit");
+});
+
+test("a drag of a setting its node reads as it is set up sends each move live on a node card, as any other input's does", async () => {
+  const setting = takesAControl({ name: "gain", pin: { pin_type: { type: "float" }, flow: "value" }, annotations: {}, value_address: GAIN, setting: { read: "at_setup" }, wire: null });
+  if (setting === null) return expect.unreachable("a float setting takes no control");
+  const slot = binderUnderTest({ input: setting });
+  slot.list([FLOAT_DEFAULT]);
+  await slot.settled();
+  const control = slot.control();
+  control.dragTo(0.6);
+  control.dragTo(0.7);
+  await slot.settled();
+  control.release();
+  await slot.settled();
+  expect(slot.sent).toEqual([
+    { value: 0.6, mode: "live" },
+    { value: 0.7, mode: "live" },
+    { value: 0.7, mode: "commit" },
+  ]);
 });

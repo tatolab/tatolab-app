@@ -1,7 +1,6 @@
 // Which inputs a surface draws a control for, and what that control is told of its input. An input
 // takes a control while it holds a value of its own, unwired, in a stream's graph, and its type is
-// exact; an untyped input takes none. A setting its node reads as it is set up sends nothing
-// while its control moves, since each value it takes rebuilds the node: it commits on release alone.
+// exact; an untyped input takes none.
 // An input of a type only a wire carries, such as a Texture, holds no value: it takes a control only
 // where its node type's annotation names one, such as a preview, which shows what its wire carries.
 // An input of a named type holds none either, and takes the control the module declaring its type
@@ -14,17 +13,16 @@ import type { InputPinDeclaration } from "../node_ui/input_control_element.js";
 import { jsonTextOf, type StreamGraphPortPin } from "../studio_readings.js";
 import type { InputWiring } from "./input_wiring.js";
 import type { InputAddress } from "./node_inputs.js";
-import { doesAChangeRebuildTheNode, type NodePin } from "./node_pins.js";
+import type { NodePin } from "./node_pins.js";
 
 /**
  * An input a control draws: where it is, which for an input that holds a value is where its value is kept, its declaration as
- * the control reads it, whether a change of it rebuilds its node, and, on an input of a type only a wire carries, what it reads
+ * the control reads it, and, on an input of a type only a wire carries, what it reads
  * through its wire; `null` on an input a person edits.
  */
 export interface ControlledInput {
   readonly address: InputAddress;
   readonly declaration: InputPinDeclaration<BuiltInPinTypeName>;
-  readonly rebuilds_its_node: boolean;
   readonly driven_by: InputWiring | null;
 }
 
@@ -61,25 +59,24 @@ export function takesAControl(input: InputAControlMayDraw): ControlledInput | nu
   if (pinTypeName === "named" || PIN_TYPES_ONLY_A_WIRE_CARRIES.has(pinTypeName)) {
     const takesOne = pinTypeName === "named" || (input.annotations.control ?? null) !== null;
     if (!takesOne || input.wire === null) return null;
-    return { address: input.wire.into, declaration: declarationOfTheInput(input, input.pin), rebuilds_its_node: false, driven_by: input.wire.wiring };
+    return { address: input.wire.into, declaration: declarationOfTheInput(input, input.pin), driven_by: input.wire.wiring };
   }
   if (input.value_address === null) return null;
-  return { address: input.value_address, declaration: declarationOfTheInput(input, input.pin), rebuilds_its_node: doesAChangeRebuildTheNode(input), driven_by: null };
+  return { address: input.value_address, declaration: declarationOfTheInput(input, input.pin), driven_by: null };
 }
 
 /** Whether `before` and `after` are the same input under the same declaration, wired the same, so a control drawn for one stays for the other. */
 export function areTheSameControlledInput(before: ControlledInput, after: ControlledInput): boolean {
-  return jsonTextOf([before.address, before.declaration, before.rebuilds_its_node, before.driven_by]) === jsonTextOf([after.address, after.declaration, after.rebuilds_its_node, after.driven_by]);
+  return jsonTextOf([before.address, before.declaration, before.driven_by]) === jsonTextOf([after.address, after.declaration, after.driven_by]);
 }
 
 /**
  * One input as a node body is told of it: its declaration, where a person sets it (`null` for one a link feeds or that holds no
- * value of its own), whether a change of it rebuilds its node, and what it reads through its wire, `null` where it reads none.
+ * value of its own), and what it reads through its wire, `null` where it reads none.
  */
 export interface InputOfANodeBody {
   readonly declaration: ControlledInput["declaration"];
   readonly value_address: InputAddress | null;
-  readonly rebuilds_its_node: boolean;
   readonly wiring: InputWiring | null;
 }
 
@@ -103,7 +100,7 @@ export function nodeOfABody(nodeType: string, inputs: readonly InputAControlMayD
     inputs: inputs.flatMap((input) =>
       input.pin === null
         ? []
-        : [{ declaration: declarationOfTheInput(input, input.pin), value_address: input.value_address, rebuilds_its_node: doesAChangeRebuildTheNode(input), wiring: input.wire?.wiring ?? null }],
+        : [{ declaration: declarationOfTheInput(input, input.pin), value_address: input.value_address, wiring: input.wire?.wiring ?? null }],
     ),
   };
 }

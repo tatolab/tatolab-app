@@ -11,7 +11,7 @@ const MIX_ADDRESS = { graph: { project_folder: "/projects/demo", stream_asset: "
 const nodeWithMix = (label: string): NodeOfABody => ({
   node_type: "nodes.crossfade:Crossfade",
   project_folder: "/projects/demo",
-  inputs: [{ declaration: { input_name: "mix", label, pin_type: { type: "float" }, annotations: {}, may_be_unset: false }, value_address: MIX_ADDRESS, rebuilds_its_node: false, wiring: null }],
+  inputs: [{ declaration: { input_name: "mix", label, pin_type: { type: "float" }, annotations: {}, may_be_unset: false }, value_address: MIX_ADDRESS, wiring: null }],
 });
 
 /** A binder whose one body slot shows what the test tells it, and which counts each bind and each node it is told. */

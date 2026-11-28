@@ -17,7 +17,7 @@ export interface ShownValue {
 
 /** One gesture on one input's value: a drag, or a lone edit released at once. */
 export interface InputValueGesture {
-  /** Show `value` and send it live, on a stream's own level and where the gesture's moves are sent; otherwise nothing is sent until the release. */
+  /** Show `value` and send it live on a stream's own level; below it nothing is sent until the release. */
   move(value: JsonValue | null): void;
   /** End the gesture at `value`: one commit under the gesture's key, or for a gesture released live, the last live value, which below a stream's own level is not sent. */
   release(value: JsonValue | null): void;
@@ -33,10 +33,10 @@ export interface InputValues {
   /** Why the latest write of `address` was refused, in the words of what refused it, at once and on each change; `null` once a write applies. */
   watchRefusal(address: InputAddress, listener: (refusal: string | null) => void): StopWatching;
   /**
-   * Open a gesture on `address`, ended by one commit, its moves sent live; by one commit alone, its moves only shown; or by its
-   * last live value. It takes the place of a gesture still open there.
+   * Open a gesture on `address`, ended by one commit or by its last live value, its moves sent live either way. It takes the
+   * place of a gesture still open there.
    */
-  beginGesture(address: InputAddress, release: "commit" | "commit_alone" | "live"): InputValueGesture;
+  beginGesture(address: InputAddress, release: "commit" | "live"): InputValueGesture;
   /**
    * End a gesture open on the input and take a value off it: with `"commit"`, its saved value as one commit, so it reads its
    * declared default; with `"live"`, its live value, so it reads its saved value again and nothing is recorded. An input that
@@ -210,7 +210,7 @@ export function createInputValues(sending: InputValuesSending): InputValues {
       const gesture: OpenGesture = { began_at, shown: began_at, has_sent_live: false };
       state.gesture = gesture;
       const idempotencyKey = sending.newGestureIdempotencyKey();
-      const isLiveSent = isOnTheStreamsOwnLevel(address) && release !== "commit_alone";
+      const isLiveSent = isOnTheStreamsOwnLevel(address);
       const isOpen = () => state.gesture === gesture;
       const endWithTheValueSentAhead = (shown: ShownValue | null): void => {
         state.gesture = null;

@@ -443,14 +443,13 @@ describe("the studio", () => {
       [...card(nodeName).querySelectorAll<HTMLElement>('[data-node-graph-pin-row="input"]')].map((row) => [
         row.querySelector("[data-node-graph-input-pin]")?.textContent,
         row.querySelector(".node-graph-pin") !== null,
-        row.querySelector("[data-node-graph-rebuilds-the-node]") !== null,
         row.querySelector("[data-node-graph-input-value], [data-node-graph-inline-control]") !== null,
       ]);
     await waitFor(() => expect(inputRowsOf("tensortoaudio")).toEqual([
-      ["attribute", true, true, true],
-      ["channel_names", true, true, true],
-      ["sample_rate", true, true, false],
-      ["array", true, false, false],
+      ["attribute", true, true],
+      ["channel_names", true, true],
+      ["sample_rate", true, false],
+      ["array", true, false],
     ]));
     expect(inputRowsOf("warmth_base").length).toBeGreaterThan(0);
     expect(inputRowsOf("warmth_base").filter(([, hasASocket]) => hasASocket)).toEqual([]);
@@ -460,12 +459,12 @@ describe("the studio", () => {
     await waitFor(() => expect(portRow("sample_rate")).not.toBeNull());
     const sampleRate = portRow("sample_rate") ?? expect.unreachable("no sample_rate row in Properties");
     expect(sampleRate.querySelector(".node-graph-pin-mark")?.getAttribute("data-pin-type")).toBe("integer");
-    expect(sampleRate.querySelector("[data-node-graph-rebuilds-the-node]")).not.toBeNull();
     expect([...sampleRate.querySelectorAll("[data-property-port-linked-end]")].map((linkedEnd) => linkedEnd.getAttribute("data-property-port-linked-end"))).toEqual(["Flash › flashes"]);
-    // Every input's name follows its socket-wide slot, the rebuild mark after the name, so the names line up.
+    // Every input's name follows its socket-wide slot, with no mark after it saying a change rebuilds the node, so the names line up.
     const inputRows = [...coreViewPage("properties").querySelectorAll('[data-properties-port-direction="input"]')];
     expect(inputRows.map((row) => row.querySelector("[data-properties-port-name]")?.previousElementSibling?.classList.contains("node-graph-pin-mark-slot"))).toEqual([true, true, true, true]);
-    expect(sampleRate.querySelector("[data-properties-port-name] ~ [data-node-graph-rebuilds-the-node]")).not.toBeNull();
+    expect(sampleRate.querySelector("[data-properties-port-name] ~ *")).toBeNull();
+    expect(card("tensortoaudio").querySelector('[title="A change rebuilds the node"]')).toBeNull();
 
     fireEvent.click(card("warmth_base"));
     await waitFor(() => expect(portRow("pin_type")).not.toBeNull());
