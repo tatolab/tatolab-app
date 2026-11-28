@@ -398,7 +398,7 @@ export function createInputControlBinder(sources: InputControlBinderSources): In
 
     #openGesture(): InputValueGesture {
       if (this.#gesture !== null) return this.#gesture;
-      const gesture = inputValues.beginGesture(this.#input.address, releaseOfAGestureOn(this.#place.surface, this.#input));
+      const gesture = inputValues.beginGesture(this.#input.address, releaseOfAGestureOn(this.#place.surface));
       this.#gesture = gesture;
       this.#host.ownerDocument.addEventListener("keydown", this.#keyPressedInTheGesture, { capture: true });
       return gesture;

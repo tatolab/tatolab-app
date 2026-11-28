@@ -19,7 +19,6 @@ function videoIn(wiring: InputWiring): ControlledInput {
   return {
     address: { graph: { project_folder: PROJECT, stream_asset: STREAM_ASSET, level: [] }, node_id: "FILTER-ID", input: "video_in", member: null },
     declaration: { input_name: "video_in", label: "video_in", pin_type: { type: "texture" }, annotations: { control: "preview" }, may_be_unset: false },
-    rebuilds_its_node: false,
     driven_by: wiring,
   };
 }

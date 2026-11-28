@@ -1,11 +1,11 @@
 import { Handle, Position, useStore, useStoreApi, type NodeProps } from "@xyflow/react";
 import { cn } from "cn";
-import { ChevronDown, ChevronRight, Hammer, Minus, Plus, SquareX, TriangleAlert, type LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronRight, Minus, Plus, SquareX, TriangleAlert, type LucideIcon } from "lucide-react";
 import { Fragment, memo, useContext, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from "react";
 import { inputAddressKey, type InputAddress } from "../../pin_model/node_inputs";
 import { nodeOfABody, takesAControl } from "../../pin_model/controlled_inputs";
 import { freeConversionWords } from "../../pin_model/node_input_link";
-import { doesAChangeRebuildTheNode, nodePinLabel, nodePinRowKey, nodePinRows, nodePinsShown, nodePinWordsBesideItsSlot, pinGroupSlotWords, type NodePin, type NodePinRow } from "../../pin_model/node_pins";
+import { nodePinLabel, nodePinRowKey, nodePinRows, nodePinsShown, nodePinWordsBesideItsSlot, pinGroupSlotWords, type NodePin, type NodePinRow } from "../../pin_model/node_pins";
 import { valueWords, wordsOfAValueOfNoType } from "../../pin_model/value_words";
 import type { PinFlow, PinType } from "../../pin_type_readings";
 import { pinTypeKey, pinTypeWords, pinWords, type PinTypeKey } from "../../pin_model/pin_type_words";
@@ -140,9 +140,6 @@ function NodeGraphNamedTypeWords({ pinType }: { pinType: PinType }) {
   );
 }
 
-/** What the mark beside a setting its node reads as it is set up says while the pointer rests on it. */
-const REBUILDS_THE_NODE_WORDS = "A change rebuilds the node";
-
 /** A small mark beside a pin row's name, in `toneClassName`, saying `words` while the pointer rests on it and to a screen reader; `markAttributes` name what it marks. */
 function NodeGraphPinRowMark({ icon: Icon, words, toneClassName, markAttributes }: { icon: LucideIcon; words: string; toneClassName: string; markAttributes: Record<`data-${string}`, string> }) {
   return (
@@ -150,12 +147,6 @@ function NodeGraphPinRowMark({ icon: Icon, words, toneClassName, markAttributes 
       <Icon className="size-2.5" strokeWidth={2} aria-label={words} />
     </span>
   );
-}
-
-/** The mark beside the name of a setting its node reads as it is set up, saying a change of it rebuilds the node; none on any other pin. */
-export function NodeGraphRebuildsTheNodeMark({ pin }: { pin: NodePin }) {
-  if (!doesAChangeRebuildTheNode(pin)) return null;
-  return <NodeGraphPinRowMark icon={Hammer} words={REBUILDS_THE_NODE_WORDS} toneClassName="text-fg-3" markAttributes={{ "data-node-graph-rebuilds-the-node": pin.name }} />;
 }
 
 /** The amber triangle beside the name of an input whose link the runtime warns of, saying each warning in its words; none on any other pin. */
@@ -321,7 +312,6 @@ function NodeGraphCardHeaderAndPinRows({
               {row.side === "output" && isTheFirstRowOfItsSlotOnTheCard(rows, index) && afterASlotsTag(row.node_pin)}
               {row.side === "output" && isTheFirstRowOfItsSlot(rows, index) && <NodeGraphPinGroupSlotTag pin={row.node_pin} />}
               <NodeGraphFreeConversionWordsForAScreenReader pin={row.node_pin} />
-              <NodeGraphRebuildsTheNodeMark pin={row.node_pin} />
               <NodeGraphLinkWarningMark pin={row.node_pin} />
               {row.side === "input" && <NodeGraphInputValueOfTheRow pin={row.node_pin} />}
               {takesASocket(row.node_pin) && socketOfThePin(row.side, row.node_pin, true)}

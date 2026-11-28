@@ -274,7 +274,7 @@ export class NodeBodySlot implements NodeBodyBinding {
     const inputName = input.declaration.input_name;
     const open = this.#gestures.get(inputName);
     if (open !== undefined) return open;
-    const opened: OpenGesture = { gesture: this.#sources.inputValues.beginGesture(address, releaseOfAGestureOn("node", input)), value: null };
+    const opened: OpenGesture = { gesture: this.#sources.inputValues.beginGesture(address, releaseOfAGestureOn("node")), value: null };
     this.#gestures.set(inputName, opened);
     return opened;
   }

@@ -333,7 +333,6 @@ export function PropertyPortRow({
   portName,
   typeWords,
   pinMark,
-  nameMarks,
   meaning,
   bandShade,
   linkedEnds,
@@ -354,8 +353,6 @@ export function PropertyPortRow({
   typeWords: string;
   /** The mark before its name, in a slot as wide on every row, so every name lines up. */
   pinMark: ReactNode;
-  /** The marks after its name, such as that a change rebuilds its node; absent where it has none. */
-  nameMarks?: ReactNode;
   meaning?: string;
   bandShade: PropertyPortBandShade;
   linkedEnds: readonly PropertyPortLinkedEnd[];
@@ -386,7 +383,6 @@ export function PropertyPortRow({
                 <span className="truncate text-fg" data-properties-port-name>
                   <MatchedWords words={portName} searchWords={searchWords} />
                 </span>
-                {nameMarks}
               </span>
             }
           />

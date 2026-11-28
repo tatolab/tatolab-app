@@ -142,7 +142,7 @@ describe("a card's header", () => {
 });
 
 describe("a card's settings", () => {
-  it("draws each setting as a row before the other inputs, a socket on each the runtime says takes a wire, one read at setup marked as rebuilding the node", async () => {
+  it("draws each setting as a row before the other inputs, a socket on each the runtime says takes a wire, and none marked as rebuilding the node, whenever it is read", async () => {
     const pattern = card("pattern", false);
     const setting = (name: string, read: "at_setup" | "each_run", takesAWire: boolean): NodeGraphCanvasNode["inputs"][number] => ({ name, member: null, bundle: null, pin: { pin_type: { type: "integer" }, flow: "value" }, description: null, annotations: {}, stream_facts_words: [], value_address: null, setting: { read }, takes_a_wire: takesAWire, wire: null, link: null, slot: null });
     const { container } = render(
@@ -168,10 +168,7 @@ describe("a card's settings", () => {
       ["reset", null],
     ]);
     expect([...drawnCard.querySelectorAll(".node-graph-pin")].map((socket) => socket.getAttribute("data-handleid"))).toEqual(["output:video_out", "input:width", "input:video_in", "input:gain", "input:boxes", "input:reset"]);
-    expect([...drawnCard.querySelectorAll("[data-node-graph-rebuilds-the-node]")].map((mark) => [mark.getAttribute("data-node-graph-rebuilds-the-node"), mark.getAttribute("title")])).toEqual([
-      ["width", "A change rebuilds the node"],
-      ["port", "A change rebuilds the node"],
-    ]);
+    expect([...drawnCard.querySelectorAll("[title]")].map((marked) => marked.getAttribute("title")).filter((title) => title?.includes("rebuilds") === true)).toEqual([]);
   });
 
   it("draws a collapsed card's sockets only for the pins that take a wire", async () => {

@@ -23,14 +23,13 @@ const CROSSFADE_NODE: NodeOfABody = {
   node_type: CROSSFADE,
   project_folder: PROJECT,
   inputs: [
-    { declaration: declarationOf("mix", { type: "float" }), value_address: addressOf("mix"), rebuilds_its_node: false, wiring: { kind: "unwired", because: "Nothing is wired into mix." } },
+    { declaration: declarationOf("mix", { type: "float" }), value_address: addressOf("mix"), wiring: { kind: "unwired", because: "Nothing is wired into mix." } },
     {
       declaration: declarationOf("caption", { type: "string" }),
       value_address: null,
-      rebuilds_its_node: false,
       wiring: { kind: "wired", target: { stream: STREAM_ASSET, node_id: "TITLE-ID", port: "text" }, wired_from_words: "title › text" },
     },
-    { declaration: declarationOf("gain", { type: "float" }), value_address: addressOf("gain"), rebuilds_its_node: false, wiring: null },
+    { declaration: declarationOf("gain", { type: "float" }), value_address: addressOf("gain"), wiring: null },
   ],
 };
 const CROSSFADE_BODY = listedElementOf("acme", { kind: "node_body", node_type: CROSSFADE }, { script: "crossfade_body.ts" });

@@ -3,7 +3,6 @@
 // mark on a slot that draws its element while a registration bearing on it is blocked: that element's
 // newer version, or another module's registration for the same key, which the table passed over.
 
-import type { ControlledInput } from "../pin_model/controlled_inputs.js";
 import type { NodeUiSurface } from "../node_ui/input_control_element.js";
 import type { NodeUiElementLoading } from "../node_ui/load_node_ui_element.js";
 import type { NodeUiRegistrationPassedOver } from "../node_ui/node_ui_control_table.js";
@@ -11,16 +10,13 @@ import { ReadOnlyValueLineElement } from "../node_ui/read_only_value_line_elemen
 import type { TatoAppViewConnection } from "../tato_app_view_connection.js";
 
 /**
- * How a gesture on an input ends: in one commit, recorded in the project's history, its moves each sent live; in one commit
- * alone, its moves shown and sent nowhere; or in its last live value, recorded nowhere. Perform plays a show, so a gesture
- * there ends live; on every other surface it ends in a commit. A setting its node reads as it is set up is rebuilt by each
- * value it takes, so a gesture on it ends in a commit alone, on every surface.
+ * How a gesture on an input ends: in one commit, recorded in the project's history, its moves each sent live; or in its last
+ * live value, recorded nowhere. Perform plays a show, so a gesture there ends live; on every other surface it ends in a commit.
  */
-export type InputValueRelease = "commit" | "commit_alone" | "live";
+export type InputValueRelease = "commit" | "live";
 
-/** How a gesture on `input` ends on `surface`. */
-export function releaseOfAGestureOn(surface: NodeUiSurface, input: Pick<ControlledInput, "rebuilds_its_node">): InputValueRelease {
-  if (input.rebuilds_its_node) return "commit_alone";
+/** How a gesture on an input ends on `surface`. */
+export function releaseOfAGestureOn(surface: NodeUiSurface): InputValueRelease {
   return surface === "perform" ? "live" : "commit";
 }
 
