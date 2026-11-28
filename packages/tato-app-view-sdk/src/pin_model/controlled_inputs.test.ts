@@ -17,7 +17,7 @@ test("a_texture_input_whose_annotation_names_a_control_takes_it_driven_by_what_i
   expect(takesAControl({ ...videoIn, annotations: { control: "preview" } })).toEqual({
     address: VIDEO_IN,
     declaration: { input_name: "video_in", label: "video_in", pin_type: { type: "texture" }, annotations: { control: "preview" }, may_be_unset: false },
-        driven_by: WIRED_FROM_THE_CAMERA,
+    driven_by: WIRED_FROM_THE_CAMERA,
   });
   expect(takesAControl({ ...videoIn, annotations: { control: "preview" }, wire: { into: VIDEO_IN, wiring: { kind: "unwired", because: "Nothing is wired into video_in." } } })?.driven_by).toEqual({ kind: "unwired", because: "Nothing is wired into video_in." });
   expect(takesAControl({ ...videoIn, annotations: { control: "preview" }, value_address: VIDEO_IN })?.driven_by).toEqual(WIRED_FROM_THE_CAMERA);
@@ -31,7 +31,7 @@ test("a_named_types_input_takes_a_control_driven_by_what_its_wire_reads_with_no_
   expect(takesAControl({ ...sweep, wire: { into: sweepIn, wiring: WIRED_FROM_THE_CAMERA } })).toEqual({
     address: sweepIn,
     declaration: { input_name: "sweep", label: "sweep", pin_type: { type: "named", named_pin_type: "nodes.sweep:Sweep" }, annotations: {}, may_be_unset: false },
-        driven_by: WIRED_FROM_THE_CAMERA,
+    driven_by: WIRED_FROM_THE_CAMERA,
   });
   expect(takesAControl({ ...sweep, wire: { into: sweepIn, wiring: { kind: "unwired", because: "Nothing is wired into sweep." } } })?.driven_by).toEqual({ kind: "unwired", because: "Nothing is wired into sweep." });
   expect(takesAControl({ ...sweep, wire: null })).toBeNull();

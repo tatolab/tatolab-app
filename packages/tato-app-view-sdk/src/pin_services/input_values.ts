@@ -7,6 +7,7 @@ import { inputAddressKey, isOnTheStreamsOwnLevel, type GraphAddress, type InputA
 import { setNodeInputValueAction } from "../pin_model/input_value_actions.js";
 import type { StopWatching, TatoAppViewConnection } from "../tato_app_view_connection.js";
 import type { InputValueComesFrom, JsonValue, StreamInputValue, StreamInputValuesReading } from "../studio_readings.js";
+import type { InputValueRelease } from "./element_slot_support.js";
 import { createInputValueSender, type InputValueSender, type InputValueWrite, type InputValueWriteAnswer } from "./input_value_sender.js";
 
 /** The value an input shows and where it comes from; `null` for both while it reads none, and a `null` value while a link feeds it. */
@@ -33,10 +34,10 @@ export interface InputValues {
   /** Why the latest write of `address` was refused, in the words of what refused it, at once and on each change; `null` once a write applies. */
   watchRefusal(address: InputAddress, listener: (refusal: string | null) => void): StopWatching;
   /**
-   * Open a gesture on `address`, ended by one commit or by its last live value, its moves sent live either way. It takes the
-   * place of a gesture still open there.
+   * Open a gesture on `address`, ended by one commit or by its last live value, its moves sent live on a stream's own level. It
+   * takes the place of a gesture still open there.
    */
-  beginGesture(address: InputAddress, release: "commit" | "live"): InputValueGesture;
+  beginGesture(address: InputAddress, release: InputValueRelease): InputValueGesture;
   /**
    * End a gesture open on the input and take a value off it: with `"commit"`, its saved value as one commit, so it reads its
    * declared default; with `"live"`, its live value, so it reads its saved value again and nothing is recorded. An input that

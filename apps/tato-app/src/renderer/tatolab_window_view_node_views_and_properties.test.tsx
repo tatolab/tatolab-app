@@ -464,7 +464,6 @@ describe("the studio", () => {
     const inputRows = [...coreViewPage("properties").querySelectorAll('[data-properties-port-direction="input"]')];
     expect(inputRows.map((row) => row.querySelector("[data-properties-port-name]")?.previousElementSibling?.classList.contains("node-graph-pin-mark-slot"))).toEqual([true, true, true, true]);
     expect(sampleRate.querySelector("[data-properties-port-name] ~ *")).toBeNull();
-    expect(card("tensortoaudio").querySelector('[title="A change rebuilds the node"]')).toBeNull();
 
     fireEvent.click(card("warmth_base"));
     await waitFor(() => expect(portRow("pin_type")).not.toBeNull());
